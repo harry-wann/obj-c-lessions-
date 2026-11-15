@@ -5,7 +5,8 @@ title: block 語法 ④：作為屬性
 minutes: 1
 prompt: 宣告一個可為 nil 的 block 屬性 onChange，接一個 LBLedger 參數、無回傳。
 code: |
-  @property (nonatomic, ___1___, nullable) void (^___2___)(LBLedger *ledger);
+  @property (nonatomic, ___1___, nullable)
+      void (^___2___)(LBLedger *ledger);
 blanks:
   "1": { accept: ["copy"], chips: ["copy", "strong", "weak", "assign"] }
   "2": { accept: ["onChange"], chips: ["onChange", "", "*onChange", "onChange:"] }

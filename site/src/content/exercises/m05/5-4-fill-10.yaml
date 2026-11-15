@@ -6,7 +6,8 @@ minutes: 2
 prompt: 找到第一筆支出就停止列舉。
 code: |
   __block LBTransaction *found = nil;
-  [txs enumerateObjectsUsingBlock:^(LBTransaction *tx, NSUInteger idx, BOOL *stop) {
+  [txs enumerateObjectsUsingBlock:^(LBTransaction *tx,
+                                    NSUInteger idx, BOOL *stop) {
       if (tx.kind == LBTransactionKindExpense) {
           found = tx;
           ___1___ = YES;

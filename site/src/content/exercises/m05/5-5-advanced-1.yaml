@@ -26,21 +26,21 @@ starter: |
   }
   @end
 checks:
-  - "selector_equals: \"enqueue:\""
-  - "selector_equals: \"dequeue\""
-  - "must_match: '_inbox\\s+addObject\\s*:'"
+  - selector_equals: "enqueue:"
+  - selector_equals: "dequeue"
+  - must_match: '_inbox\s+addObject\s*:'
     message: "enqueue 要 push 進 _inbox（addObject:）"
-  - "must_match: '_outbox\\.count\\s*==\\s*0|_outbox\\s+count\\]\\s*==\\s*0|!\\s*_outbox\\.count|_outbox\\.count\\s*<\\s*1'"
+  - must_match: '_outbox\.count\s*==\s*0|_outbox\s+count\]\s*==\s*0|!\s*_outbox\.count|_outbox\.count\s*<\s*1'
     message: dequeue 時要先檢查 _outbox 是否為空
-  - "must_match: '_inbox\\s+lastObject\\]|_inbox\\.lastObject'"
+  - must_match: '_inbox\s+lastObject\]|_inbox\.lastObject'
     message: 搬移時從 _inbox 的尾端取（lastObject）
-  - "must_match: '_inbox\\s+removeLastObject\\]'"
+  - must_match: '_inbox\s+removeLastObject\]'
     message: 搬移時從 _inbox pop（removeLastObject）
-  - "must_match: '_outbox\\s+addObject\\s*:'"
+  - must_match: '_outbox\s+addObject\s*:'
     message: 搬移時 push 進 _outbox
-  - "must_match: '_outbox\\s+removeLastObject\\]'"
+  - must_match: '_outbox\s+removeLastObject\]'
     message: dequeue 最後從 _outbox pop
-  - "must_not_match: 'removeObjectAtIndex\\s*:\\s*0|insertObject\\s*:[^;]*atIndex\\s*:\\s*0|firstObject'"
+  - must_not_match: 'removeObjectAtIndex\s*:\s*0|insertObject\s*:[^;]*atIndex\s*:\s*0|firstObject'
     message: 只准用堆疊操作，不能碰陣列頭端
   - "brackets_balanced: true"
 solution: |

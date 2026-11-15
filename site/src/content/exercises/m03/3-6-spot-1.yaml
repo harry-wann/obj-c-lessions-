@@ -13,7 +13,7 @@ code: |
   }
 bug_lines: [5]
 reasons:
-  - categoryNamed: 回傳 nullable，category 與 symbol 可能是 nil，放進 @[ ] 字面值會 crash
+  - "categoryNamed: 回傳 nullable，category 與 symbol 可能是 nil，放進 @[ ] 字面值會 crash"
   - 第 4 行對 nil 送 symbolName 會 crash
   - 回傳型別 NSArray 沒寫泛型是編譯錯誤
   - tx.note 應該先 copy

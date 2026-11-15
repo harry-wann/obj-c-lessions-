@@ -27,9 +27,11 @@ reasons:
   - _count 應該改成 self.count
 answer_reason: 0
 fix: |
-  - (void)importer:(LBImporter *)importer didFinishImportingCount:(NSInteger)count;
+  - (void)importer:(LBImporter *)importer
+      didFinishImportingCount:(NSInteger)count;
   @property (nonatomic, weak, nullable) id<LBImporterDelegate> delegate;
-  if ([self.delegate respondsToSelector:@selector(importer:didFinishImportingCount:)]) {
+  SEL sel = @selector(importer:didFinishImportingCount:);
+  if ([self.delegate respondsToSelector:sel]) {
       [self.delegate importer:self didFinishImportingCount:_count];
   }
 solution_note: 三條慣例一次踩完：方法名以來源開頭（`importer:did...`）、屬性 `weak`、optional 先檢查。

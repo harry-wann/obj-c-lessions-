@@ -108,7 +108,7 @@ show();                      // 午餐：block 裡的指標還指著舊物件
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.ledger.onChange = ^(LBLedger *ledger) {
-        [self.tableView reloadData];       // block 捕獲 self → retain self
+        [self.tableView reloadData];   // block 捕獲 self → retain self
     };
 }
 // self → ledger → onChange（block）→ self：三角形，誰都放不掉
@@ -135,10 +135,10 @@ self.ledger.onChange = ^(LBLedger *ledger) {
 ```objc
 int x = 1;
 void (^g)(void) = ^{ NSLog(@"沒捕獲"); };
-NSLog(@"%@", [g class]);                              // __NSGlobalBlock__
-NSLog(@"%@", [^{ NSLog(@"%d", x); } class]);           // __NSStackBlock__
+NSLog(@"%@", [g class]);                        // __NSGlobalBlock__
+NSLog(@"%@", [^{ NSLog(@"%d", x); } class]);     // __NSStackBlock__
 void (^h)(void) = ^{ NSLog(@"%d", x); };
-NSLog(@"%@", [h class]);                              // __NSMallocBlock__
+NSLog(@"%@", [h class]);                        // __NSMallocBlock__
 ```
 
 | 類別 | 什麼時候 | 壽命 |
@@ -189,7 +189,8 @@ int main(void) {
         @autoreleasepool {
             LBLedger *leak = [LBLedger new];
             leak.name = @"leak";
-            leak.onChange = ^{ NSLog(@"%@", leak.name); };   // leak → block → leak
+            // leak → block → leak
+            leak.onChange = ^{ NSLog(@"%@", leak.name); };
 
             LBLedger *safe = [LBLedger new];
             safe.name = @"safe";
@@ -292,8 +293,12 @@ redo       → 從 redo 堆疊 pop 一個動作，執行它的「重做」，pus
 ```objc
 LBTransaction *tx = ...;
 [ledger addTransaction:tx];
-[undoStack registerUndo:^{ [ledger removeTransactionWithIdentifier:tx.identifier]; }
-                   redo:^{ [ledger addTransaction:tx]; }];
+[undoStack registerUndo:^{
+                [ledger removeTransactionWithIdentifier:tx.identifier];
+            }
+                   redo:^{
+                [ledger addTransaction:tx];
+            }];
 ```
 
 兩個 block 捕獲了 `ledger` 與 `tx` 的指標並 retain 它們，所以就算畫面早就換頁，復原時物件都還在。這裡 `ledger` 不會形成循環：`ledger` 不持有 `undoStack`。如果你把 `undoStack` 做成 `ledger` 的屬性，就要回頭想 weakSelf 了。
@@ -307,7 +312,7 @@ Foundation 內建的 `NSUndoManager` 就是這個雙堆疊，多了三件事：�
 ```objc
 __weak typeof(self) weakSelf = self;
 self.ledger.onChange = ^(LBLedger *l) {
-    _totalLabel.text = l.total.stringValue;   // _totalLabel 展開是 self->_totalLabel
+    _totalLabel.text = l.total.stringValue;   // 展開是 self->_totalLabel
     [self refresh];                           // 直接寫了 self
 };
 // 寫了 weakSelf 卻沒用到，循環還在

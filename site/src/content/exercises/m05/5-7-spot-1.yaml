@@ -8,9 +8,9 @@ code: |
   - (void)viewWillAppear:(BOOL)animated {
       [super viewWillAppear:animated];
       [[NSNotificationCenter defaultCenter] addObserver:self
-                                               selector:@selector(ledgerDidChange:)
-                                                   name:LBLedgerDidChangeNotification
-                                                 object:nil];
+          selector:@selector(ledgerDidChange:)
+          name:LBLedgerDidChangeNotification
+          object:nil];
   }
 
   - (void)viewWillDisappear:(BOOL)animated {
@@ -32,8 +32,8 @@ fix: |
   - (void)viewWillDisappear:(BOOL)animated {
       [super viewWillDisappear:animated];
       [[NSNotificationCenter defaultCenter] removeObserver:self
-                                                      name:LBLedgerDidChangeNotification
-                                                    object:nil];
+          name:LBLedgerDidChangeNotification
+          object:nil];
   }
   // 回呼裡：
   LBTransaction *tx = note.userInfo[LBLedgerTransactionUserInfoKey];

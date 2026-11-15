@@ -19,17 +19,17 @@ starter: |
   }
   @end
 checks:
-  - "must_match: 'extern\\s+NSNotificationName\\s+const\\s+LBLedgerDidChangeNotification\\s*;'"
+  - must_match: 'extern\s+NSNotificationName\s+const\s+LBLedgerDidChangeNotification\s*;'
     message: "標頭檔要 extern NSNotificationName const LBLedgerDidChangeNotification;"
-  - "must_match: 'extern\\s+NSString\\s*\\*\\s*const\\s+LBLedgerTransactionUserInfoKey\\s*;'"
+  - must_match: 'extern\s+NSString\s*\*\s*const\s+LBLedgerTransactionUserInfoKey\s*;'
     message: "標頭檔要 extern NSString * const LBLedgerTransactionUserInfoKey;"
-  - "must_match: 'NSNotificationName\\s+const\\s+LBLedgerDidChangeNotification\\s*=\\s*@\"LBLedgerDidChangeNotification\"\\s*;'"
+  - must_match: 'NSNotificationName\s+const\s+LBLedgerDidChangeNotification\s*=\s*@"LBLedgerDidChangeNotification"\s*;'
     message: ".m 裡定義常數，值就是常數名的字串"
-  - "must_match: 'NSString\\s*\\*\\s*const\\s+LBLedgerTransactionUserInfoKey\\s*=\\s*@\"[^\"]+\"\\s*;'"
+  - must_match: 'NSString\s*\*\s*const\s+LBLedgerTransactionUserInfoKey\s*=\s*@"[^"]+"\s*;'
     message: ".m 裡要定義 LBLedgerTransactionUserInfoKey"
-  - "must_match: '\\[\\s*NSNotificationCenter\\s+defaultCenter\\s*\\]'"
+  - must_match: '\[\s*NSNotificationCenter\s+defaultCenter\s*\]'
     message: 用 [NSNotificationCenter defaultCenter]
-  - "must_match: 'postNotificationName\\s*:\\s*LBLedgerDidChangeNotification\\s+object\\s*:\\s*self\\s+userInfo\\s*:\\s*@\\{\\s*LBLedgerTransactionUserInfoKey\\s*:\\s*tx\\s*\\}'"
+  - must_match: 'postNotificationName\s*:\s*LBLedgerDidChangeNotification\s+object\s*:\s*self\s+userInfo\s*:\s*@\{\s*LBLedgerTransactionUserInfoKey\s*:\s*tx\s*\}'
     message: "postNotificationName:LBLedgerDidChangeNotification object:self userInfo:@{ LBLedgerTransactionUserInfoKey: tx }"
   - "brackets_balanced: true"
 solution: |
@@ -42,7 +42,8 @@ solution: |
   @end
 
   // LBLedger.m
-  NSNotificationName const LBLedgerDidChangeNotification = @"LBLedgerDidChangeNotification";
+  NSNotificationName const LBLedgerDidChangeNotification =
+      @"LBLedgerDidChangeNotification";
   NSString * const LBLedgerTransactionUserInfoKey = @"transaction";
 
   @implementation LBLedger

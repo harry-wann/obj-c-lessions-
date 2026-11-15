@@ -9,7 +9,7 @@ starter: xcode/M02-starter
 steps:
   - 在 LBTransaction.h 宣告 identifier、amount、kind、date、note、category、flags 七個屬性，全部 readonly。
   - 在 LBTransaction.m 的類別延伸把需要內部修改的屬性改成 readwrite。
-  - 在 initWithAmount:kind:date:note:category: 裡用 _ivar 賦值，note 要 copy。
+  - "在 initWithAmount:kind:date:note:category: 裡用 _ivar 賦值，note 要 copy。"
   - ⌘U 跑測試。
 tests:
   - LBTransactionTests/testNoteIsCopied

@@ -28,12 +28,14 @@ import Term from '../../../components/Term.astro';
 <Fragment slot="swift">
 ```swift
 extension Notification.Name {
-    static let ledgerDidChange = Notification.Name("LBLedgerDidChangeNotification")
+    static let ledgerDidChange =
+        Notification.Name("LBLedgerDidChangeNotification")
 }
-NotificationCenter.default.post(name: .ledgerDidChange, object: ledger,
-                                userInfo: ["transaction": tx])
-let token = NotificationCenter.default.addObserver(forName: .ledgerDidChange,
-                                                   object: nil, queue: .main) { note in
+let center = NotificationCenter.default
+center.post(name: .ledgerDidChange, object: ledger,
+            userInfo: ["transaction": tx])
+let token = center.addObserver(forName: .ledgerDidChange,
+                               object: nil, queue: .main) { note in
     print(note.userInfo?["transaction"] as Any)
 }
 // 或 Combine：NotificationCenter.default.publisher(for: .ledgerDidChange)
@@ -58,9 +60,11 @@ pcs.firePropertyChange("transactions", null, tx);
 </Fragment>
 <Fragment slot="ts">
 ```ts
-const bus = new EventTarget();                          // 或 Node 的 EventEmitter
-bus.addEventListener("ledgerDidChange", (e) => render((e as CustomEvent).detail));
-bus.dispatchEvent(new CustomEvent("ledgerDidChange", { detail: { tx } }));
+const bus = new EventTarget();              // 或 Node 的 EventEmitter
+bus.addEventListener("ledgerDidChange", (e) =>
+  render((e as CustomEvent).detail));
+bus.dispatchEvent(
+  new CustomEvent("ledgerDidChange", { detail: { tx } }));
 ```
 </Fragment>
 每個平台都有「發送者不認識接收者」的廣播機制：EventEmitter、SharedFlow、EventBus。`NSNotificationCenter` 是 Cocoa 內建的那一個，整個系統都在用它（鍵盤出現、App 進背景、時區改變都是通知）。差別是它**全域、同步、用字串當名字**，三個特性各有一條對應的陷阱。
@@ -78,7 +82,8 @@ extern NSNotificationName const LBLedgerDidChangeNotification;
 extern NSString * const LBLedgerTransactionUserInfoKey;
 
 // LBLedger.m
-NSNotificationName const LBLedgerDidChangeNotification = @"LBLedgerDidChangeNotification";
+NSNotificationName const LBLedgerDidChangeNotification =
+    @"LBLedgerDidChangeNotification";
 NSString * const LBLedgerTransactionUserInfoKey = @"transaction";
 
 - (void)addTransaction:(LBTransaction *)tx {
@@ -107,10 +112,11 @@ NSString * const LBLedgerTransactionUserInfoKey = @"transaction";
 // 寫法一：selector（iOS 9 起會在觀察者釋放時自動解除註冊）
 - (void)viewDidLoad {
     [super viewDidLoad];
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(ledgerDidChange:)
-                                                 name:LBLedgerDidChangeNotification
-                                               object:nil];           // nil = 任何帳本
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+           selector:@selector(ledgerDidChange:)
+               name:LBLedgerDidChangeNotification
+             object:nil];                         // nil = 任何帳本
 }
 - (void)ledgerDidChange:(NSNotification *)note {
     LBTransaction *tx = note.userInfo[LBLedgerTransactionUserInfoKey];
@@ -127,7 +133,8 @@ self.ledgerToken = [[NSNotificationCenter defaultCenter]
                 [weakSelf.tableView reloadData];
             }];
 - (void)dealloc {
-    [[NSNotificationCenter defaultCenter] removeObserver:self.ledgerToken];
+    [[NSNotificationCenter defaultCenter]
+        removeObserver:self.ledgerToken];
 }
 ```
 
@@ -145,7 +152,8 @@ selector 版的方法簽名固定是「一個 `NSNotification *` 參數」，方
 ```objc
 #import <Foundation/Foundation.h>
 
-NSNotificationName const LBLedgerDidChangeNotification = @"LBLedgerDidChangeNotification";
+NSNotificationName const LBLedgerDidChangeNotification =
+    @"LBLedgerDidChangeNotification";
 NSString * const LBLedgerNoteUserInfoKey = @"note";
 
 @interface LBLedger : NSObject
@@ -165,13 +173,15 @@ NSString * const LBLedgerNoteUserInfoKey = @"note";
 @property (nonatomic, copy) NSString *title;
 @end
 @implementation LBReport
-- (instancetype)initWithTitle:(NSString *)title listeningTo:(LBLedger *)ledger {
+- (instancetype)initWithTitle:(NSString *)title
+                  listeningTo:(LBLedger *)ledger {
     if (self = [super init]) {
         _title = [title copy];
-        [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(ledgerDidChange:)
-                                                     name:LBLedgerDidChangeNotification
-                                                   object:ledger];   // 只聽這一本
+        [[NSNotificationCenter defaultCenter]
+            addObserver:self
+               selector:@selector(ledgerDidChange:)
+                   name:LBLedgerDidChangeNotification
+                 object:ledger];                      // 只聽這一本
     }
     return self;
 }
@@ -181,7 +191,8 @@ NSString * const LBLedgerNoteUserInfoKey = @"note";
           note.userInfo[LBLedgerNoteUserInfoKey]);
 }
 - (void)dealloc {
-    [[NSNotificationCenter defaultCenter] removeObserver:self];   // iOS 9+ 可省，寫了不吃虧
+    // iOS 9+ 可省，寫了不吃虧
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
     NSLog(@"%@ dealloc", _title);
 }
 @end
@@ -190,11 +201,14 @@ int main(void) {
     @autoreleasepool {
         LBLedger *personal = [LBLedger new]; personal.name = @"個人";
         LBLedger *company = [LBLedger new];  company.name = @"公司";
-        LBReport *monthly = [[LBReport alloc] initWithTitle:@"月報" listeningTo:personal];
-        LBReport *audit = [[LBReport alloc] initWithTitle:@"稽核" listeningTo:company];
+        LBReport *monthly = [[LBReport alloc] initWithTitle:@"月報"
+                                                listeningTo:personal];
+        LBReport *audit = [[LBReport alloc] initWithTitle:@"稽核"
+                                              listeningTo:company];
         // 第三個觀察者用 block，object:nil 聽全部
         id token = [[NSNotificationCenter defaultCenter]
-            addObserverForName:LBLedgerDidChangeNotification object:nil queue:nil
+            addObserverForName:LBLedgerDidChangeNotification
+                        object:nil queue:nil
                     usingBlock:^(NSNotification *n) {
                         NSLog(@"總覽 收到 %@", [n.object name]);
                     }];
@@ -239,8 +253,9 @@ int main(void) {
 ```objc
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(reload:)
-                                                 name:LBLedgerDidChangeNotification object:nil];
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self selector:@selector(reload:)
+               name:LBLedgerDidChangeNotification object:nil];
 }
 // 每次回到這個畫面就多註冊一次，第五次回來 reload: 會被叫五遍
 ```
@@ -251,8 +266,9 @@ int main(void) {
 // 或者乾脆在 viewDidLoad 註冊一次（iOS 9+ 釋放時自動解除）
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
-    [[NSNotificationCenter defaultCenter] removeObserver:self
-                                                    name:LBLedgerDidChangeNotification object:nil];
+    [[NSNotificationCenter defaultCenter]
+        removeObserver:self
+                  name:LBLedgerDidChangeNotification object:nil];
 }
 ```
 </Fragment>

@@ -13,9 +13,9 @@ options:
 answer: 1
 fix: |
   - (void)dealloc {
-      [[NSNotificationCenter defaultCenter] removeObserver:self];   // 舊專案 / MRC
+      // 舊專案 / MRC；block 版改成 removeObserver:self.ledgerToken
+      [[NSNotificationCenter defaultCenter] removeObserver:self];
   }
-  // block 版：[[NSNotificationCenter defaultCenter] removeObserver:self.ledgerToken];
 solution_note: 這是開了 Zombie Objects 之後的訊息；沒開只會看到落在 _CFXNotificationPost 附近的 EXC_BAD_ACCESS。iOS 9 起 selector 版會自動解除，但舊專案（模組 11）與 block 版 token 沒移除時仍會發生。
 hints: ["message sent to deallocated instance 跟 unrecognized selector 差在哪？", "誰還記得這個已經死掉的物件的位址？"]
 feedback:

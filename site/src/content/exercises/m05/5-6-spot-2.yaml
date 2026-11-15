@@ -5,7 +5,8 @@ title: completion 忘了呼叫
 minutes: 3
 prompt: 呼叫端的 spinner 在某些情況下永遠不停。點選有問題的行並選出原因。
 code: |
-  - (void)importFromURL:(NSURL *)url completion:(LBImportCompletion)completion {
+  - (void)importFromURL:(NSURL *)url
+             completion:(LBImportCompletion)completion {
       NSData *data = [NSData dataWithContentsOfURL:url];
       if (!data) return;
       NSArray *rows = [self parseCSV:data];
@@ -16,7 +17,7 @@ code: |
       [self.ledger addTransactionsFromRows:rows];
       if (completion) completion(rows.count, nil);
   }
-bug_lines: [3]
+bug_lines: [4]
 reasons:
   - 讀檔失敗的路徑直接 return，沒有呼叫 completion，呼叫端永遠等不到
   - rows.count == 0 時不應該呼叫 completion
@@ -25,7 +26,9 @@ reasons:
 answer_reason: 0
 fix: |
   if (!data) {
-      NSError *e = [NSError errorWithDomain:LBErrorDomain code:LBErrorReadFailed userInfo:nil];
+      NSError *e = [NSError errorWithDomain:LBErrorDomain
+                                       code:LBErrorReadFailed
+                                   userInfo:nil];
       if (completion) completion(0, e);
       return;
   }

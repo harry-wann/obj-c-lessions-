@@ -7,7 +7,7 @@ minutes: 25
 prereq: ["2.6", "4.3"]
 objectives:
   - 寫出含 @required / @optional 的協定，並讓類別遵循它
-  - 用 id<Protocol> 當型別，呼叫 optional 方法前先 respondsToSelector:
+  - "用 id<Protocol> 當型別，呼叫 optional 方法前先 respondsToSelector:"
   - 知道 Swift protocol extension 的預設實作在 ObjC 要怎麼補
 summary: "@protocol 宣告、@required / @optional、遵循與 id<Protocol> 型別、respondsToSelector: 與 conformsToProtocol:、協定繼承 <NSObject>、ObjC 沒有預設實作。"
 terms:
@@ -45,7 +45,8 @@ interface LedgerObserver {
     fun ledgerDidReset(ledger: Ledger) {}       // 介面可以有預設本體
 }
 class ConsoleObserver : LedgerObserver {
-    override fun ledgerDidAdd(ledger: Ledger, tx: Transaction) = println(tx)
+    override fun ledgerDidAdd(ledger: Ledger, tx: Transaction) =
+        println(tx)
 }
 ```
 </Fragment>
@@ -111,7 +112,8 @@ const observer: LedgerObserver = {
 @end
 
 @implementation LBConsoleObserver
-- (void)ledger:(LBLedger *)ledger didAddTransaction:(LBTransaction *)tx {
+- (void)ledger:(LBLedger *)ledger
+    didAddTransaction:(LBTransaction *)tx {
     NSLog(@"新增：%@", tx.note);
 }
 // ledgerDidReset: 是 optional，不實作也能編譯
@@ -209,8 +211,10 @@ int main(void) {
         ledger.delegate = observer;
         [ledger addNote:@"午餐"];
         [ledger reset];
-        NSLog(@"%d", [observer conformsToProtocol:@protocol(LBLedgerObserver)]);
-        NSLog(@"%d", [observer respondsToSelector:@selector(ledgerDidReset:)]);
+        Protocol *p = @protocol(LBLedgerObserver);
+        NSLog(@"%d", [observer conformsToProtocol:p]);
+        SEL s = @selector(ledgerDidReset:);
+        NSLog(@"%d", [observer respondsToSelector:s]);
     }
     return 0;
 }
@@ -255,7 +259,7 @@ Swift 的 `extension LedgerObserver { func ledgerDidReset(_:) {} }` 讓所有遵
 協定裡的 `@property` 只是「宣告 getter / setter 方法」的縮寫，編譯器不會替遵循的類別產生實體變數。要自己在類別裡再宣告一次屬性、用 `@synthesize`、或手寫方法。
 </Pitfall>
 
-<Pitfall title="沒加 <NSObject> 的協定，連 respondsToSelector: 都不能叫">
+<Pitfall title="漏掉 NSObject 協定繼承，連 respondsToSelector: 都不能叫">
 `@protocol LBLedgerObserver` 後面漏掉 `<NSObject>`，`id<LBLedgerObserver> d` 就只知道協定裡的那幾個方法。寫 `[d respondsToSelector:...]` 會警告 `no known instance method for selector`，有人就把 `d` 轉型成 `id` 來閃掉警告，於是失去所有型別檢查。正解是回頭把 `<NSObject>` 加上。
 </Pitfall>
 

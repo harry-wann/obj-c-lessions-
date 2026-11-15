@@ -75,7 +75,7 @@ pre.astro-code { padding-top: 1.75rem; }
 html.code-wrap .code-plain { white-space: pre-wrap; word-break: break-all; }
 
 /* ---- callouts ---- */
-.callout { border-radius: 12px; padding: 0.875rem 1rem; margin: 1rem 0; border-left: 4px solid var(--c, var(--color-tint)); background: color-mix(in srgb, var(--c, var(--color-tint)) 8%, var(--card)); }
+.callout { min-width: 0; overflow-x: hidden; border-radius: 12px; padding: 0.875rem 1rem; margin: 1rem 0; border-left: 4px solid var(--c, var(--color-tint)); background: color-mix(in srgb, var(--c, var(--color-tint)) 8%, var(--card)); }
 .callout > .callout-title { font-weight: 700; margin-bottom: 0.25rem; }
 .callout.pitfall { --c: var(--color-warn); }
 .callout.crash { --c: var(--color-expense); }
@@ -84,7 +84,7 @@ html.code-wrap .code-plain { white-space: pre-wrap; word-break: break-all; }
 .callout :first-child { margin-top: 0; } .callout :last-child { margin-bottom: 0; }
 .badgood { display: grid; gap: 0.5rem; grid-template-columns: 1fr; }
 @media (min-width: 768px) { .badgood { grid-template-columns: 1fr 1fr; } }
-.badgood > div { border-radius: 10px; padding: 0.25rem 0.75rem; border-left: 3px solid; }
+.badgood > div { border-radius: 10px; padding: 0.25rem 0.75rem; border-left: 3px solid; min-width: 0; overflow-x: hidden; }
 .badgood > .bad { border-color: var(--color-expense); } .badgood > .good { border-color: var(--color-income); }
 .badgood pre.astro-code { margin: 0.5rem 0; }
 

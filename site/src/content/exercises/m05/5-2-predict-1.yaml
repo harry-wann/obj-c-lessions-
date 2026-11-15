@@ -4,9 +4,10 @@ type: predict
 title: weak delegate 釋放之後
 minutes: 2
 code: |
-  // LBLedger.delegate 宣告為 weak；LBLogger 實作了 ledger:didAddNote:
+  // LBLedger.delegate 宣告為 weak；
+  // LBLogger 的 ledger:didAddNote: 會 NSLog(@"log %@", note)
   LBLedger *ledger = [LBLedger new];
-  LBLogger *logger = [LBLogger new];        // didAddNote: 會 NSLog(@"log %@", note)
+  LBLogger *logger = [LBLogger new];
   ledger.delegate = logger;
   [ledger addNote:@"A"];
   logger = nil;

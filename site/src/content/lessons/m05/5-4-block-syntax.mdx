@@ -47,7 +47,8 @@ onChange?.invoke(ledger)
 </Fragment>
 <Fragment slot="java">
 ```java
-BiConsumer<Boolean, Throwable> done = (ok, error) -> System.out.println(ok);
+BiConsumer<Boolean, Throwable> done =
+    (ok, error) -> System.out.println(ok);
 void load(BiConsumer<Boolean, Throwable> completion) {
     completion.accept(true, null);
 }
@@ -75,6 +76,8 @@ onChange?.(ledger);                          // 可選呼叫
 
 > **`返回型別 (^名稱)(參數型別...)`**：把 C 函式指標 `int (*fn)(int)` 的 `*` 換成 `^`。
 
+block 跟 C 函式指標的差別在兩件事：block 可以寫在用到它的地方（函式指標只能指向一個已經命名的函式），而且 block 會帶著宣告當下的變數一起走。第二點是它真正的價值，也是 5.5 整章的主題。這一章先把語法練熟，捕獲的事下一章再說。
+
 ### 五種位置
 
 ```objc
@@ -88,11 +91,12 @@ typedef NSString *(^LBFormatter)(NSDecimalNumber *amount);
 
 // 3. 方法參數（不用 typedef 時，名稱寫在型別裡的 ^ 後面省略）
 - (void)importFrom:(NSURL *)url
-        completion:(void (^)(BOOL ok, NSError * _Nullable error))completion;
+        completion:(void (^)(BOOL ok,
+                             NSError * _Nullable error))completion;
 - (void)importFrom:(NSURL *)url completion:(LBCompletion)completion;
 
 // 4. 屬性（一律 copy）
-@property (nonatomic, copy, nullable) void (^onChange)(LBLedger *ledger);
+@property (nonatomic, copy, nullable) void (^onChange)(LBLedger *l);
 @property (nonatomic, copy, nullable) LBCompletion completion;
 
 // 5. 回傳值（沒 typedef 時很難讀，所以一定 typedef）
@@ -171,9 +175,11 @@ typedef void (^LBCompletion)(BOOL ok, NSError * _Nullable error);
 typedef NSString *(^LBFormatter)(NSDecimalNumber *amount);
 
 @interface LBLedger : NSObject
-@property (nonatomic, copy, nullable) void (^onChange)(NSDecimalNumber *total);
+@property (nonatomic, copy, nullable)
+    void (^onChange)(NSDecimalNumber *total);
 - (void)addAmount:(NSDecimalNumber *)amount;
-- (void)importAmounts:(NSArray<NSString *> *)raw completion:(LBCompletion)completion;
+- (void)importAmounts:(NSArray<NSString *> *)raw
+           completion:(LBCompletion)completion;
 - (LBFormatter)formatterWithPrefix:(NSString *)prefix;
 @end
 
@@ -188,12 +194,15 @@ typedef NSString *(^LBFormatter)(NSDecimalNumber *amount);
     _total = [_total decimalNumberByAdding:amount];
     if (self.onChange) self.onChange(_total);           // 屬性：先判 nil
 }
-- (void)importAmounts:(NSArray<NSString *> *)raw completion:(LBCompletion)completion {
+- (void)importAmounts:(NSArray<NSString *> *)raw
+           completion:(LBCompletion)completion {
     for (NSString *s in raw) {
-        NSDecimalNumber *n = [NSDecimalNumber decimalNumberWithString:s];
+        NSDecimalNumber *n =
+            [NSDecimalNumber decimalNumberWithString:s];
         if ([n isEqual:[NSDecimalNumber notANumber]]) {
-            NSError *e = [NSError errorWithDomain:@"com.littlebook.error"
-                                             code:1 userInfo:nil];
+            NSError *e =
+                [NSError errorWithDomain:@"com.littlebook.error"
+                                    code:1 userInfo:nil];
             if (completion) completion(NO, e);          // 參數：先判 nil
             return;
         }
@@ -215,16 +224,21 @@ int main(void) {
         ledger.onChange = ^(NSDecimalNumber *total) {
             NSLog(@"總額 %@", fmt(total));
         };
-        [ledger importAmounts:@[@"120", @"80"] completion:^(BOOL ok, NSError *error) {
+        [ledger importAmounts:@[@"120", @"80"]
+                   completion:^(BOOL ok, NSError *error) {
             NSLog(@"匯入 %@", ok ? @"成功" : @"失敗");
         }];
-        [ledger importAmounts:@[@"5", @"abc"] completion:^(BOOL ok, NSError *error) {
-            NSLog(@"匯入 %@，錯誤碼 %ld", ok ? @"成功" : @"失敗", (long)error.code);
+        [ledger importAmounts:@[@"5", @"abc"]
+                   completion:^(BOOL ok, NSError *error) {
+            NSLog(@"匯入 %@，錯誤碼 %ld",
+                  ok ? @"成功" : @"失敗", (long)error.code);
         }];
         ledger.onChange = nil;
-        [ledger addAmount:[NSDecimalNumber one]];       // 沒有 onChange，不印
-        [ledger importAmounts:@[@"1"] completion:nil];  // nil completion 也安全
-        dispatch_block_t hello = ^{ NSLog(@"dispatch_block_t 就是 void (^)(void)"); };
+        [ledger addAmount:[NSDecimalNumber one]];   // 沒有 onChange，不印
+        [ledger importAmounts:@[@"1"] completion:nil]; // nil 也安全
+        dispatch_block_t hello = ^{
+            NSLog(@"dispatch_block_t 就是 void (^)(void)");
+        };
         hello();
     }
     return 0;
@@ -250,7 +264,7 @@ int main(void) {
 </Fragment>
 <Fragment slot="good">
 ```objc
-@property (nonatomic, copy, nullable) void (^onChange)(LBLedger *ledger);
+@property (nonatomic, copy, nullable) void (^onChange)(LBLedger *l);
 ```
 </Fragment>
 block 字面值一開始住在堆疊上，離開作用域就失效；存起來之前必須 `copy` 到堆積（5.5 細講）。ARC 下對 block 做 `retain` 等於 `copy`，所以 `strong` 實際上也會正確，但 Apple 文件、所有系統框架、每一本教材都寫 `copy`，MRC 專案（模組 11）裡 `strong`（`retain`）更是真的會 crash。寫 `copy` 讓讀者一眼知道「這是 block」，也讓程式碼在兩種記憶體模式下都對。
@@ -263,9 +277,10 @@ block 字面值一開始住在堆疊上，離開作用域就失效；存起來�
 <Pitfall title="block 裡的 return 回傳的是 block，不是外層方法">
 ```objc
 - (LBTransaction *)firstExpense {
-    [self.items enumerateObjectsUsingBlock:^(LBTransaction *tx, NSUInteger i, BOOL *stop) {
+    [self.items enumerateObjectsUsingBlock:^(LBTransaction *tx,
+                                             NSUInteger i, BOOL *stop) {
         if (tx.kind == LBTransactionKindExpense) {
-            return tx;        // 編譯錯誤：block 推斷為 void，而且這不會離開方法
+            return tx;    // 編譯錯誤：block 推斷為 void，也不會離開方法
         }
     }];
     return nil;

@@ -7,7 +7,7 @@ log: |
   *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
   reason: '-[LBTransaction setNote:]: unrecognized selector sent to instance 0x600000d1c2a0'
 options:
-  - note 屬性宣告為 readonly，沒有 setter，卻有人呼叫 setNote:
+  - "note 屬性宣告為 readonly，沒有 setter，卻有人呼叫 setNote:"
   - note 的值是 nil，對 nil 送訊息會 crash
   - LBTransaction 沒有 import 正確的標頭檔
   - 記憶體不足

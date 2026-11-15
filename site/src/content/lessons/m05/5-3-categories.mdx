@@ -16,7 +16,7 @@ terms:
   - { en: associated object, tw: 關聯物件, cn: 关联对象, jp: 関連オブジェクト }
   - { en: static dispatch, tw: 靜態派送, cn: 静态分派, jp: 静的ディスパッチ }
   - { en: prefix, tw: 前綴, cn: 前缀, jp: プレフィックス }
-appProgress: NSDecimalNumber 會用 lb_currencyString 印出「1,280.00」；NSArray 有了 lb_map: / lb_filter: / lb_reduce:initial:。
+appProgress: "NSDecimalNumber 會用 lb_currencyString 印出「1,280.00」；NSArray 有了 lb_map: / lb_filter: / lb_reduce:initial:。"
 ---
 import Compare from '../../../components/Compare.astro';
 import Pitfall from '../../../components/Pitfall.astro';
@@ -179,7 +179,8 @@ TypeScript、Kotlin、Swift 寫資料處理都是 `.map().filter().reduce()` 一
 @interface NSArray<ObjectType> (LBFunctional)
 - (NSArray *)lb_map:(id (^)(ObjectType obj))transform;
 - (NSArray<ObjectType> *)lb_filter:(BOOL (^)(ObjectType obj))predicate;
-- (id)lb_reduce:(id (^)(id acc, ObjectType obj))reducer initial:(id)initial;
+- (id)lb_reduce:(id (^)(id acc, ObjectType obj))reducer
+        initial:(id)initial;
 @end
 
 // NSArray+LBFunctional.m
@@ -219,13 +220,16 @@ TypeScript、Kotlin、Swift 寫資料處理都是 `.map().filter().reduce()` 一
 @interface NSArray<ObjectType> (LBFunctional)
 - (NSArray *)lb_map:(id (^)(ObjectType obj))transform;
 - (NSArray<ObjectType> *)lb_filter:(BOOL (^)(ObjectType obj))predicate;
-- (id)lb_reduce:(id (^)(id acc, ObjectType obj))reducer initial:(id)initial;
+- (id)lb_reduce:(id (^)(id acc, ObjectType obj))reducer
+        initial:(id)initial;
 @end
 
 @implementation NSArray (LBFunctional)
 - (NSArray *)lb_map:(id (^)(id obj))transform {
     NSMutableArray *out = [NSMutableArray arrayWithCapacity:self.count];
-    for (id obj in self) [out addObject:transform(obj) ?: [NSNull null]];
+    for (id obj in self) {
+        [out addObject:transform(obj) ?: [NSNull null]];
+    }
     return [out copy];
 }
 - (NSArray *)lb_filter:(BOOL (^)(id obj))predicate {
@@ -256,20 +260,24 @@ TypeScript、Kotlin、Swift 寫資料處理都是 `.map().filter().reduce()` 一
 int main(void) {
     @autoreleasepool {
         NSArray<NSString *> *raw = @[@"120", @"-45", @"1280", @"-3.5"];
-        NSArray<NSDecimalNumber *> *amounts = [raw lb_map:^id(NSString *s) {
-            return [NSDecimalNumber decimalNumberWithString:s];
-        }];
+        NSDecimalNumber *zero = [NSDecimalNumber zero];
+        NSArray<NSDecimalNumber *> *amounts =
+            [raw lb_map:^id(NSString *s) {
+                return [NSDecimalNumber decimalNumberWithString:s];
+            }];
         NSArray<NSDecimalNumber *> *expenses =
             [amounts lb_filter:^BOOL(NSDecimalNumber *n) {
-                return [n compare:[NSDecimalNumber zero]] == NSOrderedAscending;
+                return [n compare:zero] == NSOrderedAscending;
             }];
         NSDecimalNumber *total =
-            [expenses lb_reduce:^id(NSDecimalNumber *acc, NSDecimalNumber *n) {
+            [expenses lb_reduce:^id(NSDecimalNumber *acc,
+                                    NSDecimalNumber *n) {
                 return [acc decimalNumberByAdding:n];
-            } initial:[NSDecimalNumber zero]];
+            } initial:zero];
         NSLog(@"支出筆數 %lu", (unsigned long)expenses.count);
         NSLog(@"支出合計 %@", [total lb_currencyString]);
-        NSLog(@"%@", [@"abc" respondsToSelector:@selector(lb_map:)] ? @"字串沒有" : @"OK");
+        BOOL strHas = [@"abc" respondsToSelector:@selector(lb_map:)];
+        NSLog(@"%@", strHas ? @"字串沒有" : @"OK");
         NSLog(@"%d", [@[] respondsToSelector:@selector(lb_map:)]);
     }
     return 0;

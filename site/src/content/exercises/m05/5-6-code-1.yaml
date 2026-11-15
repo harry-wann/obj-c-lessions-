@@ -12,15 +12,15 @@ starter: |
 
   @end
 checks:
-  - "must_match: 'typedef\\s+void\\s*\\(\\s*\\^\\s*LBSyncCompletion\\s*\\)\\s*\\(\\s*LBSyncResult\\s*\\*\\s*_Nullable\\s+\\w+\\s*,\\s*NSError\\s*\\*\\s*_Nullable\\s+\\w+\\s*\\)\\s*;'"
+  - must_match: 'typedef\s+void\s*\(\s*\^\s*LBSyncCompletion\s*\)\s*\(\s*LBSyncResult\s*\*\s*_Nullable\s+\w+\s*,\s*NSError\s*\*\s*_Nullable\s+\w+\s*\)\s*;'
     message: "typedef void (^LBSyncCompletion)(LBSyncResult * _Nullable result, NSError * _Nullable error);"
-  - "must_match: '@protocol LBCancellable\\s*<\\s*NSObject\\s*>'"
+  - must_match: '@protocol LBCancellable\s*<\s*NSObject\s*>'
     message: "要宣告 @protocol LBCancellable <NSObject>"
-  - "selector_equals: \"cancel\""
+  - selector_equals: "cancel"
     message: "LBCancellable 要有 - (void)cancel;"
-  - "selector_equals: \"syncWithCompletion:\""
+  - selector_equals: "syncWithCompletion:"
     message: "缺少 syncWithCompletion:"
-  - "must_match: '-\\s*\\(\\s*id\\s*<\\s*LBCancellable\\s*>\\s*\\)\\s*syncWithCompletion\\s*:\\s*\\(\\s*LBSyncCompletion\\s*\\)\\s*completion'"
+  - must_match: '-\s*\(\s*id\s*<\s*LBCancellable\s*>\s*\)\s*syncWithCompletion\s*:\s*\(\s*LBSyncCompletion\s*\)\s*completion'
     message: "回傳型別 id<LBCancellable>，參數型別 LBSyncCompletion"
   - "brackets_balanced: true"
 solution: |

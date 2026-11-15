@@ -9,7 +9,7 @@ log: |
 options:
   - "某個宣告為 NSMutableArray 的變數實際裝的是不可變陣列；最常見是 `@property (copy) NSMutableArray` 或 cast 了一個 NSArray"
   - 陣列越界
-  - addObject: 傳入了 nil
+  - "addObject: 傳入了 nil"
   - 陣列正在被列舉
 answer: 0
 fix: |

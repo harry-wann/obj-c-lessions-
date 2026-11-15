@@ -22,7 +22,7 @@ bug_lines: [3, 11]
 reasons:
   - 標頭檔外露了 NSMutableArray，呼叫端可以直接改內部狀態；回傳值又是內部陣列本身，不是快照
   - readonly 屬性不能是 NSMutableArray
-  - sortUsingComparator: "應該改成 sortedArrayUsingComparator: 才會排到"
+  - "sortUsingComparator: \"應該改成 sortedArrayUsingComparator: 才會排到\""
   - 比較器的 a、b 順序反了
 answer_reason: 0
 fix: |

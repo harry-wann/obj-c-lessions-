@@ -50,7 +50,7 @@ CompletableFuture<SyncResult> sync();
 ledger.sync()
       .thenAccept(this::show)
       .exceptionally(e -> { showError(e); return null; });
-// 舊式：介面 Callback<T> { void onSuccess(T r); void onFailure(Throwable t); }
+// 舊式：介面 Callback<T>，onSuccess(T r) / onFailure(Throwable t)
 ```
 </Fragment>
 <Fragment slot="ts">
@@ -154,7 +154,8 @@ self.syncTask = [ledger syncWithCompletion:...];
     if (e1) { completion(nil, e1); return; }
     [self fetchTransactions:^(NSArray *txs, NSError *e2) {
         if (e2) { completion(nil, e2); return; }
-        [self convert:txs with:rates completion:^(LBSyncResult *r, NSError *e3) {
+        [self convert:txs with:rates
+          completion:^(LBSyncResult *r, NSError *e3) {
             if (e3) { completion(nil, e3); return; }
             completion(r, nil);
         }];
@@ -194,12 +195,14 @@ typedef void (^LBSyncCompletion)(NSDecimalNumber * _Nullable total,
 - (LBSyncTask *)syncAmounts:(NSArray<NSString *> *)raw
                  completion:(LBSyncCompletion)completion {
     LBSyncTask *task = [LBSyncTask new];
-    dispatch_queue_t bg = dispatch_get_global_queue(QOS_CLASS_UTILITY, 0);
+    dispatch_queue_t bg =
+        dispatch_get_global_queue(QOS_CLASS_UTILITY, 0);
     dispatch_async(bg, ^{
         NSDecimalNumber *total = [NSDecimalNumber zero];
         NSError *error = nil;
         for (NSString *s in raw) {
-            NSDecimalNumber *n = [NSDecimalNumber decimalNumberWithString:s];
+            NSDecimalNumber *n =
+                [NSDecimalNumber decimalNumberWithString:s];
             if ([n isEqual:[NSDecimalNumber notANumber]]) {
                 error = [NSError errorWithDomain:@"com.littlebook.error"
                                             code:1 userInfo:nil];
@@ -209,7 +212,8 @@ typedef void (^LBSyncCompletion)(NSDecimalNumber * _Nullable total,
         }
         if (task.isCancelled) {
             error = [NSError errorWithDomain:NSCocoaErrorDomain
-                                        code:NSUserCancelledError userInfo:nil];
+                                        code:NSUserCancelledError
+                                    userInfo:nil];
         }
         dispatch_async(dispatch_get_main_queue(), ^{   // 統一出口：只呼叫一次
             if (!completion) return;
@@ -224,17 +228,23 @@ typedef void (^LBSyncCompletion)(NSDecimalNumber * _Nullable total,
 int main(void) {
     @autoreleasepool {
         LBLedger *ledger = [LBLedger new];
-        [ledger syncAmounts:@[@"120", @"80"] completion:^(NSDecimalNumber *t, NSError *e) {
+        [ledger syncAmounts:@[@"120", @"80"]
+                 completion:^(NSDecimalNumber *t, NSError *e) {
             NSLog(@"1 成功 %@ 主執行緒=%d", t, [NSThread isMainThread]);
         }];
-        [ledger syncAmounts:@[@"5", @"x"] completion:^(NSDecimalNumber *t, NSError *e) {
+        [ledger syncAmounts:@[@"5", @"x"]
+                 completion:^(NSDecimalNumber *t, NSError *e) {
             NSLog(@"2 失敗 code=%ld result=%@", (long)e.code, t);
         }];
-        LBSyncTask *task = [ledger syncAmounts:@[@"1"] completion:^(NSDecimalNumber *t, NSError *e) {
-            NSLog(@"3 取消 code=%ld domain=%@", (long)e.code, e.domain);
-        }];
+        LBSyncTask *task =
+            [ledger syncAmounts:@[@"1"]
+                     completion:^(NSDecimalNumber *t, NSError *e) {
+                NSLog(@"3 取消 code=%ld domain=%@",
+                      (long)e.code, e.domain);
+            }];
         [task cancel];
-        [[NSRunLoop mainRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.5]];
+        NSDate *until = [NSDate dateWithTimeIntervalSinceNow:0.5];
+        [[NSRunLoop mainRunLoop] runUntilDate:until];
     }
     return 0;
 }
@@ -258,14 +268,18 @@ int main(void) {
     [self fetch:^{ completion(YES, nil); }];            // 之後非同步呼叫
 }
 // 呼叫端：
-[self loadWithCompletion:^(BOOL ok, NSError *e) { [self.spinner stopAnimating]; }];
+[self loadWithCompletion:^(BOOL ok, NSError *e) {
+    [self.spinner stopAnimating];
+}];
 [self.spinner startAnimating];   // 有快取時，stop 跑在 start 之前
 ```
 </Fragment>
 <Fragment slot="good">
 ```objc
 if (self.cache) {
-    dispatch_async(dispatch_get_main_queue(), ^{ if (completion) completion(YES, nil); });
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (completion) completion(YES, nil);
+    });
     return;
 }
 ```
@@ -276,7 +290,9 @@ if (self.cache) {
 <Pitfall title="方法會把 completion 存起來，就要想 weakSelf">
 ```objc
 // LBSyncManager 是單例，self.completion 會活很久
-self.completion = ^(LBSyncResult *r, NSError *e) { [self.tableView reloadData]; };
+self.completion = ^(LBSyncResult *r, NSError *e) {
+    [self.tableView reloadData];
+};
 ```
 5.5 的規則：`self` 持有 block 且 block 捕獲 `self` 才是循環。單例持有 block、block 捕獲控制器，控制器不持有單例，嚴格說不是循環，但控制器會活到下次同步完成，可能是幾分鐘後。長壽物件（單例、manager）存 completion 時，呼叫端要用 weakSelf，API 設計端要在呼叫完後把 `self.completion = nil` 放掉。
 </Pitfall>

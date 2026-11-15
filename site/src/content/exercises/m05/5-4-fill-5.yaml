@@ -5,7 +5,8 @@ title: block 語法 ⑤：作為回傳值
 minutes: 2
 prompt: 宣告並實作一個方法，回傳「接 LBTransaction、回傳 BOOL」的 block。
 code: |
-  - (___1___ (^)(LBTransaction *tx))predicateForKind:(LBTransactionKind)kind {
+  - (___1___ (^)(LBTransaction *tx))
+      predicateForKind:(LBTransactionKind)kind {
       return ___2___(LBTransaction *tx) {
           return tx.kind == kind;
       };

@@ -4,7 +4,8 @@ type: predict
 title: 預測輸出：self 循環
 minutes: 2
 code: |
-  @implementation LBLedger          // 有 @property (copy) void (^onChange)(void);
+  // LBLedger 有 @property (copy) void (^onChange)(void);
+  @implementation LBLedger
   - (void)dealloc { NSLog(@"dealloc"); }
   @end
 

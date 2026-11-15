@@ -33,7 +33,8 @@ protocol LedgerDelegate: AnyObject {
 final class Ledger {
     weak var delegate: LedgerDelegate?        // 一樣要 weak
     func add(_ tx: Transaction) {
-        guard delegate?.ledger(self, shouldAdd: tx) ?? true else { return }
+        let allowed = delegate?.ledger(self, shouldAdd: tx) ?? true
+        guard allowed else { return }
         items.append(tx)
         delegate?.ledger(self, didAdd: tx)
     }
@@ -42,7 +43,7 @@ final class Ledger {
 </Fragment>
 <Fragment slot="kotlin">
 ```kotlin
-interface LedgerListener {                  // Android 叫 Listener / Callback
+interface LedgerListener {          // Android 叫 Listener / Callback
     fun onTransactionAdded(ledger: Ledger, tx: Transaction)
 }
 class Ledger {
@@ -106,9 +107,12 @@ Cocoa 的 delegate 慣例有三條，`UITableView` 就是標準範本：
 ```objc
 @protocol LBLedgerDelegate <NSObject>
 @optional
-- (BOOL)ledger:(LBLedger *)ledger shouldAddTransaction:(LBTransaction *)tx;
-- (void)ledger:(LBLedger *)ledger willAddTransaction:(LBTransaction *)tx;
-- (void)ledger:(LBLedger *)ledger didAddTransaction:(LBTransaction *)tx;
+- (BOOL)ledger:(LBLedger *)ledger
+    shouldAddTransaction:(LBTransaction *)tx;
+- (void)ledger:(LBLedger *)ledger
+    willAddTransaction:(LBTransaction *)tx;
+- (void)ledger:(LBLedger *)ledger
+    didAddTransaction:(LBTransaction *)tx;
 - (void)ledgerDidReset:(LBLedger *)ledger;
 @end
 ```
@@ -133,7 +137,8 @@ Cocoa 的 delegate 慣例有三條，`UITableView` 就是標準範本：
 @protocol LBReportDataSource <NSObject>
 @required
 - (NSInteger)numberOfMonthsInReport:(LBReport *)report;
-- (NSDecimalNumber *)report:(LBReport *)report totalForMonthAtIndex:(NSInteger)idx;
+- (NSDecimalNumber *)report:(LBReport *)report
+        totalForMonthAtIndex:(NSInteger)idx;
 @end
 ```
 
@@ -148,8 +153,10 @@ data source 的方法大多 `@required` 而且有回傳值，因為沒有資料�
 
 @protocol LBLedgerDelegate <NSObject>
 @optional
-- (BOOL)ledger:(LBLedger *)ledger shouldAddAmount:(NSDecimalNumber *)amount;
-- (void)ledger:(LBLedger *)ledger didAddAmount:(NSDecimalNumber *)amount;
+- (BOOL)ledger:(LBLedger *)ledger
+    shouldAddAmount:(NSDecimalNumber *)amount;
+- (void)ledger:(LBLedger *)ledger
+    didAddAmount:(NSDecimalNumber *)amount;
 @end
 
 @interface LBLedger : NSObject
@@ -180,24 +187,31 @@ data source 的方法大多 `@required` 而且有回傳值，因為沒有資料�
 @interface LBBudgetGuard : NSObject <LBLedgerDelegate>
 @end
 @implementation LBBudgetGuard
-- (BOOL)ledger:(LBLedger *)ledger shouldAddAmount:(NSDecimalNumber *)amount {
-    NSDecimalNumber *limit = [NSDecimalNumber decimalNumberWithString:@"1000"];
+- (BOOL)ledger:(LBLedger *)ledger
+    shouldAddAmount:(NSDecimalNumber *)amount {
+    NSDecimalNumber *limit =
+        [NSDecimalNumber decimalNumberWithString:@"1000"];
     return [amount compare:limit] != NSOrderedDescending;   // > 1000 否決
 }
-- (void)ledger:(LBLedger *)ledger didAddAmount:(NSDecimalNumber *)amount {
+- (void)ledger:(LBLedger *)ledger
+    didAddAmount:(NSDecimalNumber *)amount {
     NSLog(@"新增 %@，總額 %@", amount, ledger.total);
 }
 @end
+
+static NSDecimalNumber *D(NSString *s) {     // 省字用的小函式（1.4）
+    return [NSDecimalNumber decimalNumberWithString:s];
+}
 
 int main(void) {
     @autoreleasepool {
         LBLedger *ledger = [LBLedger new];
         LBBudgetGuard *guard = [LBBudgetGuard new];
         ledger.delegate = guard;
-        [ledger addAmount:[NSDecimalNumber decimalNumberWithString:@"120"]];
-        [ledger addAmount:[NSDecimalNumber decimalNumberWithString:@"5000"]];
+        [ledger addAmount:D(@"120")];
+        [ledger addAmount:D(@"5000")];
         guard = nil;                 // delegate 釋放，weak 屬性自動變 nil
-        [ledger addAmount:[NSDecimalNumber decimalNumberWithString:@"80"]];
+        [ledger addAmount:D(@"80")];
         NSLog(@"delegate = %@，總額 %@", ledger.delegate, ledger.total);
     }
     return 0;

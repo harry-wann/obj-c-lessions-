@@ -2,7 +2,7 @@
 
 給有 Swift / Kotlin / TypeScript / Java 基礎的開發者，1–2 週內上手 Objective-C 並進入工作。全程做完會得到一支完整的 iOS 記帳 App「小帳本」。
 
-目前狀態：**Phase 1 完成** — 網站可建置、模組 0–5（37 章、367 題）上線、Xcode 起始專案 M01–M05 就緒。下一步 Phase 2：模組 6–12。
+目前狀態：**課程內容全部完成** — 13 個模組（0–12）、83 章、797 題（含 20 張面試速記卡與各章資料結構加練區）；Xcode 起始專案 M01–M12（M11、M12 收尾中）與 `LittleBook-Legacy` 埋雷版。
 
 ## 怎麼跑
 
@@ -10,6 +10,9 @@
 cd site && npm install && npm run dev        # 本機預覽 http://localhost:4321/obj-c-lessions-/
 npm run build                                 # 正式建置（含 Pagefind 搜尋索引）
 node scripts/validate.mjs                     # 檢查課文與題目格式
+node scripts/check-fm.mjs && node scripts/check-ex.mjs   # frontmatter 與題目型別
+node --experimental-strip-types scripts/check-solutions.mjs   # code 題參考解能通過驗證器
+node scripts/qa-mobile.mjs                    # 手機尺寸全站檢查（需先 build + preview）
 ```
 
 部署：GitHub Pages。把本分支合併到 `main`，在 repo Settings → Pages 選「GitHub Actions」，`.github/workflows/deploy.yml` 會自動建置並發佈到 `https://harry-wann.github.io/obj-c-lessions-/`。

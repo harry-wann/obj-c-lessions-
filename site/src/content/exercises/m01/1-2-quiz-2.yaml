@@ -1,0 +1,12 @@
+id: m01-1-2-quiz-2
+chapter: "1.2"
+section: quiz
+type: quiz
+title: 集合裡的「空」
+minutes: 1
+prompt: JSON 裡某個欄位是 null，解析後要放進 NSArray。哪一個可以放？
+options: ["nil", "NULL", "[NSNull null]", "Nil"]
+answer: 2
+explain: NSArray 不能放 nil / NULL / Nil（它們數值都是 0，不是物件）；NSNull 是真正的單例物件，專門用來占「空」這個位子。
+feedback: { "0": "放 nil 進 @[] 會丟 NSInvalidArgumentException。", "1": "NULL 數值也是 0，跟 nil 一樣會 crash。", "3": "Nil 是類別指標的 0，同樣不是物件。" }
+hints: ["哪一個是真正有位址的物件？", "NSJSONSerialization 遇到 null 給你的是什麼？"]

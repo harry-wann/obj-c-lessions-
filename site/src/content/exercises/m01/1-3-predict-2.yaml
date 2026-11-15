@@ -1,0 +1,19 @@
+id: m01-1-3-predict-2
+chapter: "1.3"
+type: predict
+title: 少了 break 會怎樣
+minutes: 2
+code: |
+  LBTransactionKind kind = LBTransactionKindExpense;
+  switch (kind) {
+      case LBTransactionKindExpense:
+          NSLog(@"支出");
+      case LBTransactionKindIncome:
+          NSLog(@"收入");
+          break;
+  }
+options: ["支出", "支出 收入", "收入", "編譯錯誤"]
+accept: ["支出 收入"]
+feedback: { "支出": "第一個 case 沒有 break，會直接掉進下一個 case。", "收入": "kind 是 Expense，會先進第一個 case。", "編譯錯誤": "fallthrough 在 C 是合法的，clang 預設只在開 -Wimplicit-fallthrough 時警告。" }
+solution_note: C 的 case 不會自動結束，沒 `break` 就「掉下去」執行下一個 case。Swift 相反：預設不掉，要掉得寫 `fallthrough`。
+hints: ["每個 case 結尾要有什麼？", "Swift 的 fallthrough 關鍵字是為了什麼而存在？"]

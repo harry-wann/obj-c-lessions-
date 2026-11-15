@@ -1,0 +1,29 @@
+id: m01-1-2-code-1
+chapter: "1.2"
+type: code
+title: 寫一個交換兩個整數的函式
+mobile: false
+minutes: 4
+prompt: 寫 C 函式 `LBSwap`，接兩個 `NSInteger *`，把它們指到的值交換。呼叫端 `NSInteger a = 1, b = 2; LBSwap(&a, &b);` 之後 a 是 2、b 是 1。
+starter: |
+  void LBSwap(NSInteger *a, NSInteger *b) {
+
+  }
+checks:
+  - must_match: 'void\s+LBSwap\s*\(\s*NSInteger\s*\*\s*\w+\s*,\s*NSInteger\s*\*\s*\w+\s*\)'
+    message: 簽名要是 void LBSwap(NSInteger *a, NSInteger *b)
+  - must_match: 'NSInteger\s+\w+\s*=\s*\*\s*\w+\s*;'
+    message: 需要一個暫存變數接住 *a
+  - must_match: '\*\s*\w+\s*=\s*\*\s*\w+\s*;'
+    message: 要用 *a = *b 這種解參考賦值
+  - must_not_match: '\ba\s*=\s*b\s*;'
+    message: a = b 只是把區域指標換掉，呼叫端的變數不會變
+  - brackets_balanced: true
+solution: |
+  void LBSwap(NSInteger *a, NSInteger *b) {
+      NSInteger tmp = *a;
+      *a = *b;
+      *b = tmp;
+  }
+solution_note: 參數 a、b 是位址的複本，改 a 本身沒用；要改「a 指到的東西」就一定要寫 `*a`。
+hints: ["交換需要一個暫存變數。", "每次讀寫都要透過 * 解參考。", "a = b 換的是兩個區域指標，呼叫端看不到。"]

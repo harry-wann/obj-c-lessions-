@@ -1,0 +1,12 @@
+id: m01-1-3-quiz-3
+chapter: "1.3"
+section: quiz
+type: quiz
+title: 改 frame 的 x
+minutes: 1
+prompt: "`view.frame.origin.x = 10;` 會怎樣？"
+options: ["view 往右移 10 點", "編譯錯誤：Expression is not assignable", "能編譯但沒效果", "執行期 crash"]
+answer: 1
+explain: "`view.frame` 是 getter，回傳 CGRect 的複本；對暫時複本的欄位賦值沒有意義，編譯器直接擋下。要先複製出來改完再整包塞回去。"
+feedback: { "0": "這是 Swift 的行為，Swift 編譯器幫你做了複製、改、寫回。", "2": "clang 不會讓它編譯過。", "3": "根本到不了執行期。" }
+hints: ["frame 是 struct，struct 是值型別。", "getter 回傳的是什麼？"]

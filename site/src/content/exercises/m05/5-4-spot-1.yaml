@@ -1,0 +1,33 @@
+id: m05-5-4-spot-1
+chapter: "5.4"
+type: spot
+title: 這個 block 屬性有三處不合慣例
+minutes: 3
+prompt: 能編譯（有警告）。點選有問題的行並選出原因。
+code: |
+  @interface LBLedger : NSObject
+  @property (nonatomic, strong) void (^onChange)();
+  @end
+
+  @implementation LBLedger
+  - (void)addAmount:(NSDecimalNumber *)amount {
+      [self.items addObject:amount];
+      self.onChange();
+  }
+  @end
+bug_lines: [2, 8]
+reasons:
+  - "屬性應該用 copy、`()` 應寫成 `(void)`；呼叫前沒判 nil，onChange 沒設就 EXC_BAD_ACCESS"
+  - block 屬性不能用點語法呼叫，要寫 [self onChange]()
+  - onChange 應該宣告為 weak 避免循環參考
+  - 屬性應該宣告在 .m 的類別延伸裡
+answer_reason: 0
+fix: |
+  @property (nonatomic, copy, nullable) void (^onChange)(void);
+  // ...
+  if (self.onChange) self.onChange();
+solution_note: 三件事：`copy`、`(void)`、呼叫前 `if`。第 8 行的 `self.onChange()` 語法本身合法（點語法取出 block 再呼叫）。
+hints: ["block 屬性的修飾詞、無參數的寫法。", "呼叫 block 前要做什麼？"]
+feedback:
+  "1": "`self.onChange()` 是合法寫法：點語法取出 block，再用 () 呼叫。"
+  "2": weak 的 block 沒人持有會立刻釋放；循環參考的問題在 block 裡捕獲 self，不是靠 weak 屬性解。

@@ -1,0 +1,18 @@
+id: m05-5-4-fill-2
+chapter: "5.4"
+section: quiz
+type: fill
+title: block 語法 ②：typedef
+minutes: 1
+prompt: 定義 LBCompletion 型別：接 BOOL 與可為 nil 的 NSError，無回傳。
+code: |
+  typedef ___1___ (___2___LBCompletion)(BOOL ok, NSError * ___3___ error);
+blanks:
+  "1": { accept: ["void"], chips: ["void", "BOOL", "id", "LBCompletion"] }
+  "2": { accept: ["^"], chips: ["^", "*", "&", "^*"] }
+  "3": { accept: ["_Nullable"], chips: ["_Nullable", "nullable", "__nullable", "?"] }
+hints: ["typedef 時型別名放在 ^ 後面的位置。", "函式指標用 *，block 用什麼？", "型別裡的 nullability 要用底線開頭的那個拼法。"]
+feedback:
+  "2=*": 那是 C 函式指標；block 把 * 換成 ^。
+  "3=nullable": 不帶底線的 nullable 只能寫在 @property 修飾詞或方法參數前面；放在型別中間要用 _Nullable。
+solution_note: "`typedef void (^LBCompletion)(BOOL ok, NSError * _Nullable error);`"

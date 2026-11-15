@@ -1,0 +1,35 @@
+id: m01-1-3-code-1
+chapter: "1.3"
+type: code
+title: 用 switch 把 kind 轉成文字
+mobile: false
+minutes: 4
+prompt: 寫 C 函式 `NSString *LBKindName(LBTransactionKind kind)`，用 `switch` 回傳 @"支出" / @"收入"。不要寫 `default`，但 switch 之後要有一個保底的 return。
+starter: |
+  NSString *LBKindName(LBTransactionKind kind) {
+
+  }
+checks:
+  - must_match: 'NSString\s*\*\s*LBKindName\s*\(\s*LBTransactionKind\s+\w+\s*\)'
+    message: 簽名要是 NSString *LBKindName(LBTransactionKind kind)
+  - must_match: 'switch\s*\('
+    message: 要用 switch
+  - must_match: 'case\s+LBTransactionKindExpense\s*:'
+    message: 要有 case LBTransactionKindExpense
+  - must_match: 'case\s+LBTransactionKindIncome\s*:'
+    message: 要有 case LBTransactionKindIncome
+  - must_match: 'return\s+@"支出"'
+  - must_match: 'return\s+@"收入"'
+  - must_not_match: 'default\s*:'
+    message: 不寫 default，讓編譯器在新增 case 時警告你
+  - brackets_balanced: true
+solution: |
+  NSString *LBKindName(LBTransactionKind kind) {
+      switch (kind) {
+          case LBTransactionKindExpense: return @"支出";
+          case LBTransactionKindIncome:  return @"收入";
+      }
+      return @"?";
+  }
+solution_note: 窮舉所有 case、不寫 default，將來加 case 編譯器會警告 not handled in switch；最後的 return 是給編譯器的回傳路徑。
+hints: ["case 裡直接 return 就不用 break。", "switch 結束後還要一個 return。"]

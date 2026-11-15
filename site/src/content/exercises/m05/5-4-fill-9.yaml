@@ -1,0 +1,18 @@
+id: m05-5-4-fill-9
+chapter: "5.4"
+type: fill
+title: block 語法 ⑨：無參數無回傳的字面值
+minutes: 1
+prompt: 用 Foundation 的 dispatch_block_t 存一個無參數無回傳的 block 並呼叫。
+code: |
+  dispatch_block_t hello = ___1___ NSLog(@"hi"); ___2___;
+  hello___3___;
+blanks:
+  "1": { accept: ["^{", "^ {", "^(void){", "^(void) {"], chips: ["^{", "{", "^(){", "^void{"] }
+  "2": { accept: ["}"], chips: ["}", "};", "^}", ")"] }
+  "3": { accept: ["()"], chips: ["()", "", "(void)", "[]"] }
+hints: ["無參數的字面值可以省掉參數括號。", "呼叫 block 跟呼叫函式一樣。"]
+feedback:
+  "1={": 少了 ^ 就只是一個複合敘述，不是 block。
+  "3=": 沒有括號只是取得 block 本身，不會執行。
+solution_note: "`dispatch_block_t hello = ^{ NSLog(@\"hi\"); }; hello();`，dispatch_block_t 就是 `void (^)(void)`。"

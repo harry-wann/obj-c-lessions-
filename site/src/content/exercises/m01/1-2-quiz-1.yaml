@@ -1,0 +1,16 @@
+id: m01-1-2-quiz-1
+chapter: "1.2"
+section: quiz
+type: quiz
+title: 物件變數存的是什麼
+minutes: 1
+code: |
+  NSMutableString *a = [NSMutableString stringWithString:@"午"];
+  NSMutableString *b = a;
+  [b appendString:@"餐"];
+prompt: 執行後 a 的內容是？
+options: ["午", "午餐", "nil", "編譯錯誤：不能把 a 賦值給 b"]
+answer: 1
+explain: a 和 b 都是指標，`b = a` 複製的是位址，兩個名字指同一個物件；透過 b 改，a 當然看得到。跟 Kotlin 的參考一模一樣。
+feedback: { "0": "如果是 Swift 的 struct 才會複製一份；Objective-C 物件變數永遠是指標。", "2": "沒有任何東西把 a 設成 nil。", "3": "同型別的指標互相賦值完全合法。" }
+hints: ["星號代表這個變數存的是位址。", "複製一個位址，會不會多出一個物件？"]

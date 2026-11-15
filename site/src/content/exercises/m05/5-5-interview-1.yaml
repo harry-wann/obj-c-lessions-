@@ -1,0 +1,29 @@
+id: m05-5-5-interview-1
+chapter: "5.5"
+type: flash
+tier: interview
+title: 面試題：括號配對（Valid Parentheses）
+minutes: 5
+front: |
+  給一個只含 ()[]{} 的字串，判斷括號是否正確配對。例如 "([]{})" → YES，"([)]" → NO。
+  用堆疊怎麼解？時間與空間複雜度？
+back: |
+  走訪每個字元：左括號 push；右括號時 pop 一個比對，堆疊空或不匹配就 NO。結束時堆疊必須為空。O(n) 時間、O(n) 空間。
+
+  - (BOOL)lb_isBalanced:(NSString *)s {
+      NSDictionary *pair = @{ @")": @"(", @"]": @"[", @"}": @"{" };
+      NSMutableArray<NSString *> *stack = [NSMutableArray array];
+      for (NSUInteger i = 0; i < s.length; i++) {
+          NSString *c = [s substringWithRange:NSMakeRange(i, 1)];
+          if (pair[c] == nil) {            // 左括號
+              [stack addObject:c];
+          } else {                         // 右括號
+              if (![stack.lastObject isEqualToString:pair[c]]) return NO;
+              [stack removeLastObject];
+          }
+      }
+      return stack.count == 0;
+  }
+
+  Swift：同樣邏輯，`var stack: [Character] = []`、`stack.popLast()`。Kotlin：`ArrayDeque<Char>()` 的 addLast / removeLast。
+  追問：stack.lastObject 為 nil 時 isEqualToString: 回 NO，剛好處理「右括號多出來」的情況，不用另外判空。

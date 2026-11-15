@@ -1,0 +1,20 @@
+id: m01-1-2-crash-1
+chapter: "1.2"
+type: crash
+title: 讀懂 EXC_BAD_ACCESS
+minutes: 2
+log: |
+  Thread 1: EXC_BAD_ACCESS (code=1, address=0x0)
+options:
+  - "解參考了空的 C 指標（NULL），例如 *p 或 p->field 而 p 是 0"
+  - "對 nil 物件送訊息"
+  - "陣列索引超出範圍"
+  - "記憶體不足被系統砍掉"
+answer: 0
+fix: |
+  if (total != NULL) {
+      *total += 100;
+  }
+solution_note: address=0x0 就是位址 0；code=1 是 KERN_INVALID_ADDRESS。對 nil 送訊息不會這樣；陣列越界是 NSRangeException；記憶體不足是被系統直接終止，沒有這種訊息。
+feedback: { "1": "對 nil 送訊息回 0，不會 crash。", "2": "NSArray 越界丟的是 NSRangeException 加 SIGABRT。", "3": "記憶體不足是被系統直接終止，不會有 EXC_BAD_ACCESS 停在某一行。" }
+hints: ["address 是多少？", "什麼操作會去讀寫位址 0？"]

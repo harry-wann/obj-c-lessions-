@@ -1,0 +1,21 @@
+id: m05-5-4-fill-10
+chapter: "5.4"
+type: fill
+title: block 語法 ⑩：enumerateObjectsUsingBlock: 提早停止
+minutes: 2
+prompt: 找到第一筆支出就停止列舉。
+code: |
+  __block LBTransaction *found = nil;
+  [txs enumerateObjectsUsingBlock:^(LBTransaction *tx, NSUInteger idx, BOOL *stop) {
+      if (tx.kind == LBTransactionKindExpense) {
+          found = tx;
+          ___1___ = YES;
+      }
+  }];
+blanks:
+  "1": { accept: ["*stop"], chips: ["*stop", "stop", "break", "return"] }
+hints: ["block 裡不能 break。", "stop 是一個指向 BOOL 的指標，要改它指到的值。"]
+feedback:
+  "1=stop": stop 是指標，直接賦值 YES 只是改指標本身，編譯會警告且不會停。
+  "1=break": break 只能用在迴圈，block 本體不是迴圈。
+solution_note: "`*stop = YES;` 等於 break。另外注意 found 要 `__block` 才能在 block 裡賦值，5.5 會講。"

@@ -1,0 +1,30 @@
+id: m05-5-4-code-1
+chapter: "5.4"
+type: code
+title: 寫出 typedef 與接受 completion 的方法簽名
+mobile: false
+minutes: 5
+prompt: "定義 `LBImportCompletion` 型別：接 `NSInteger count` 與可為 nil 的 `NSError *`，無回傳。再宣告 `LBLedger` 的方法 `importFromURL:completion:`，第二個參數用這個型別，且可為 nil。"
+starter: |
+  typedef
+
+  @interface LBLedger : NSObject
+
+  @end
+checks:
+  - must_match: 'typedef\s+void\s*\(\s*\^\s*LBImportCompletion\s*\)\s*\(\s*NSInteger\s+\w+\s*,\s*NSError\s*\*\s*_Nullable\s+\w+\s*\)\s*;'
+    message: "typedef void (^LBImportCompletion)(NSInteger count, NSError * _Nullable error);"
+  - selector_equals: "importFromURL:completion:"
+    message: "缺少方法 importFromURL:completion:"
+  - must_match: 'completion\s*:\s*\(\s*(nullable\s+LBImportCompletion|LBImportCompletion\s+_Nullable)\s*\)\s*completion'
+    message: "completion 參數要用 LBImportCompletion 型別並標 nullable（`(nullable LBImportCompletion)completion` 或 `(LBImportCompletion _Nullable)completion`）"
+  - must_match: '@end'
+  - brackets_balanced: true
+solution: |
+  typedef void (^LBImportCompletion)(NSInteger count, NSError * _Nullable error);
+
+  @interface LBLedger : NSObject
+  - (void)importFromURL:(NSURL *)url completion:(nullable LBImportCompletion)completion;
+  @end
+solution_note: typedef 之後方法簽名就跟一般參數一樣讀。`nullable` 放在參數型別前面，或用 `LBImportCompletion _Nullable`。
+hints: ["typedef 的骨架：typedef 回傳 (^型別名)(參數)。", "NSError 參數要 _Nullable。", "用了 typedef 之後，參數型別就直接寫 LBImportCompletion。"]

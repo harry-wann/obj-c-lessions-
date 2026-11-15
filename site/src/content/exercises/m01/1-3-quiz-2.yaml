@@ -1,0 +1,12 @@
+id: m01-1-3-quiz-2
+chapter: "1.3"
+section: quiz
+type: quiz
+title: switch 可以配什麼
+minutes: 1
+prompt: 下面哪一個可以放進 C 的 `switch (...)`？
+options: ["NSString *kindName", "LBTransactionKind kind", "NSNumber *code", "CGRect frame"]
+answer: 1
+explain: switch 只接整數型別：int、char、enum 等。字串、NSNumber 是物件指標，CGRect 是 struct，都不行。
+feedback: { "0": "Statement requires expression of integer type：字串用 isEqualToString: 串 if。", "2": "NSNumber 是物件，要先 integerValue 取出整數。", "3": "struct 不是整數。" }
+hints: ["C 的 switch 比 Kotlin 的 when 窮很多。", "哪一個本質是整數？"]

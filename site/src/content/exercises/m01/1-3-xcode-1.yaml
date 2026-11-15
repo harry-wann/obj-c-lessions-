@@ -1,0 +1,20 @@
+id: m01-1-3-xcode-1
+chapter: "1.3"
+type: xcode
+title: 建立 LBTypes.h：LBTransactionKind 與 LBTransactionFlags
+mobile: false
+minutes: 15
+prompt: 打開 M01 起始專案，在 LittleBook 新增 LBTypes.h，宣告交易種類列舉與旗標。
+starter: xcode/M01-starter
+steps:
+  - "在 LittleBook 群組新增 Header File，命名 `LBTypes.h`。"
+  - "頂端 `#import <Foundation/Foundation.h>`（NSInteger 從這裡來）。"
+  - "宣告 `typedef NS_ENUM(NSInteger, LBTransactionKind)`：`LBTransactionKindExpense = 0`、`LBTransactionKindIncome = 1`。"
+  - "宣告 `typedef NS_OPTIONS(NSUInteger, LBTransactionFlags)`：`LBTransactionFlagsNone = 0`、`LBTransactionFlagsReconciled = 1 << 0`、`LBTransactionFlagsRecurring = 1 << 1`（可再加 `LBTransactionFlagsDeleted = 1 << 2`）。"
+  - "⌘U 跑測試，`LBTypesTests` 前兩個要綠。"
+tests:
+  - LBTypesTests/testTransactionKindValues
+  - LBTypesTests/testFlagsCombine
+acceptance:
+  - "在 Scratch 的 main.m import 這個檔案，用 | 組合兩個旗標、用 & 測試，印出 3 與 1。"
+solution_note: 名稱和數值都是固定的（見 xcode/TESTS.md），之後 LBTransaction 的 kind / flags 屬性會直接用它們。

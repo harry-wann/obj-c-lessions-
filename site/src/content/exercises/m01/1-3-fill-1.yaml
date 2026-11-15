@@ -1,0 +1,23 @@
+id: m01-1-3-fill-1
+chapter: "1.3"
+section: quiz
+type: fill
+title: 宣告交易種類列舉
+minutes: 2
+prompt: 依 Apple 慣例補完 LBTransactionKind 的宣告。
+code: |
+  typedef ___1___(___2___, LBTransactionKind) {
+      ___3___ = 0,
+      LBTransactionKindIncome = 1,
+  };
+blanks:
+  "1": { accept: ["NS_ENUM"], chips: ["enum", "NS_ENUM", "NS_OPTIONS", "typedef enum"] }
+  "2": { accept: ["NSInteger"], chips: ["int", "NSInteger", "NSUInteger", "BOOL"] }
+  "3": { accept: ["LBTransactionKindExpense"], chips: ["LBTransactionKindExpense", "Expense", "LBExpense", "kExpense"] }
+feedback:
+  "1=NS_OPTIONS": 支出 / 收入互斥，不能同時成立，用 NS_ENUM。
+  "1=enum": 原生 enum 底層型別不定、Swift 匯入後是散落的全域常數；用 NS_ENUM。
+  "2=NSUInteger": NS_ENUM 慣例用 NSInteger；NSUInteger 留給 NS_OPTIONS。
+  "3=Expense": case 要以型別名為前綴，Swift 會自動削成 .expense。
+solution_note: 互斥狀態用 `NS_ENUM(NSInteger, 型別名)`，每個 case 以型別名為前綴並明確給值。
+hints: ["互斥狀態還是可疊加？", "每個 case 的名字要以什麼開頭？"]

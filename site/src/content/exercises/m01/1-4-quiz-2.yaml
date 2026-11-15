@@ -1,0 +1,12 @@
+id: m01-1-4-quiz-2
+chapter: "1.4"
+section: quiz
+type: quiz
+title: 檔案層級的 static
+minutes: 1
+prompt: "在 `LBLedger.m` 頂端寫 `static NSInteger LBMaxCount = 100;`，這個變數誰看得到？"
+options: ["整個 App", "只有 LBLedger.m 這個檔案", "LBLedger 的每個實體各一份", "只有 import 了 LBLedger.h 的檔案"]
+answer: 1
+explain: 檔案層級的 static 代表內部連結：只有這個編譯單元看得到，連結器不會把它導出去。這就是 Objective-C 的「私有」做法。
+feedback: { "0": "沒有 static 才是整個 App 可見（外部連結）。", "2": "static 變數只有一份，跟實體無關。", "3": "它根本不在 .h 裡，import 也看不到。" }
+hints: ["static 在檔案層級和在函式內意思不同。", "TypeScript 沒 export 的頂層變數誰看得到？"]

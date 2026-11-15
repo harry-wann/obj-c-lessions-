@@ -1,0 +1,17 @@
+id: m05-5-4-quiz-2
+chapter: "5.4"
+section: quiz
+type: quiz
+title: 呼叫 nil 的 block
+minutes: 1
+prompt: "`LBCompletion completion = nil; completion(YES, nil);` 會發生什麼？"
+options:
+  - 跟對 nil 送訊息一樣，安靜地什麼都不做
+  - "EXC_BAD_ACCESS，通常 address=0x10"
+  - 編譯錯誤
+  - 回傳 NO
+answer: 1
+explain: block 是指向 struct 的指標，呼叫等於讀偏移 16（0x10）的函式指標再跳過去。nil 的 block 就跳到位址 0x10，每次必死。對 nil 送訊息的安全網只保護 Objective-C 訊息，不保護 block 呼叫。
+hints: ["block 呼叫是訊息傳遞嗎？", "objc_msgSend 的 nil 檢查保護的是什麼？"]
+feedback:
+  "0": 這是最常見的誤解。nil 安全只對 `[obj msg]` 成立，block 呼叫是 C 函式呼叫。

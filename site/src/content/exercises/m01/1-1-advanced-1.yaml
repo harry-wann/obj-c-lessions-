@@ -1,0 +1,18 @@
+id: m01-1-1-advanced-1
+chapter: "1.1"
+type: predict
+tier: advanced
+title: 整數溢位
+minutes: 3
+code: |
+  uint8_t small = 250;
+  small += 10;
+  uint32_t big = UINT32_MAX;
+  big += 1;
+  NSLog(@"%d %u", small, big);
+note: uint8_t 是 1 byte 無號整數，uint32_t 是 4 bytes 無號整數
+options: ["4 0", "260 4294967296", "260 0", "編譯錯誤"]
+accept: ["4 0"]
+feedback: { "260 4294967296": "1 byte 最多到 255、4 bytes 最多到 4294967295，超過就繞回去。", "260 0": "uint8_t 也會繞：250 + 10 = 260，260 - 256 = 4。", "編譯錯誤": "C 不會擋溢位，連警告都沒有。" }
+solution_note: 無號整數溢位是「取模繞回」，行為有定義：260 mod 256 = 4、2 的 32 次方 mod 2 的 32 次方 = 0。**有號**整數溢位（`INT_MAX + 1`）在 C 是未定義行為，編譯器可以假設它不會發生而最佳化掉你的檢查。Swift 遇到溢位會 trap，Kotlin / Java 安靜地繞回。要安全相加用 `__builtin_add_overflow(a, b, &result)`，金額用 long long（最大約 9.2 × 10 的 18 次方分）通常夠。
+hints: ["每種型別能表示的最大值是多少？", "超過最大值會回到哪裡？"]

@@ -1,0 +1,12 @@
+id: m01-1-2-quiz-3
+chapter: "1.2"
+section: quiz
+type: quiz
+title: 對 nil 送訊息
+minutes: 1
+prompt: "`NSString *s = nil; NSUInteger n = [s length];` 執行結果？"
+options: ["crash：EXC_BAD_ACCESS", "丟 NSInvalidArgumentException", "n 是 0，不會 crash", "編譯錯誤"]
+answer: 2
+explain: 對 nil 送任何訊息都安全地回 0 / nil / NO。會 crash 的是解參考 NULL 的 C 指標（`*p`），或把 nil 放進集合。
+feedback: { "0": "EXC_BAD_ACCESS 是解參考空的 C 指標才會發生，送訊息不會。", "1": "這是 Java 的直覺；Objective-C 的 runtime 看到接收者是 nil 就直接回傳 0。", "3": "語法完全合法。" }
+hints: ["Java 的 NPE 在 Objective-C 有對應物嗎？", "回想 Kotlin 的 ?. 做了什麼。"]

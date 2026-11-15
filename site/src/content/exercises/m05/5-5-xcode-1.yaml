@@ -1,0 +1,20 @@
+id: m05-5-5-xcode-1
+chapter: "5.5"
+type: xcode
+title: LBUndoStack：以 block 封裝復原動作的雙堆疊
+mobile: false
+minutes: 25
+prompt: 實作 LBUndoStack，用兩個 NSMutableArray 當 undo / redo 堆疊，每個動作是一對 block。
+starter: xcode/M05-starter
+steps:
+  - "LBUndoStack.h 宣告：`- (void)registerUndo:(void (^)(void))undo redo:(void (^)(void))redo;`、`- (void)undo;`、`- (void)redo;`、readonly 屬性 `canUndo` / `canRedo`。"
+  - "在 .m 寫一個私有類別 LBUndoAction，有兩個 `copy` 的 block 屬性 undo 與 redo。"
+  - "registerUndo:redo: 建立 action、push 到 undo 堆疊（addObject:）、**清空 redo 堆疊**。"
+  - "undo：從 undo 堆疊 lastObject / removeLastObject 取出，執行 action.undo()，push 到 redo 堆疊。redo 反過來。"
+  - "testUndoRemovesTransaction 會用真的 LBLedger：register 時 undo block 捕獲 ledger 與 tx，呼叫 removeTransactionWithIdentifier:。"
+  - ⌘U 跑三個測試。
+tests:
+  - LBUndoStackTests/testUndoRedo
+  - LBUndoStackTests/testRedoClearedOnNewAction
+  - LBUndoStackTests/testUndoRemovesTransaction
+solution_note: 三個測試分別對應三件事：undo 後 redo 要回來；新動作清空 redo；block 捕獲的 ledger 與 tx 在呼叫時仍然有效（block 持有它們）。對照 NSUndoManager：它的 redo 不另外給 block，而是在 undo handler 裡再登記一次。

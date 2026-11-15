@@ -1,0 +1,16 @@
+id: m01-1-4-quiz-3
+chapter: "1.4"
+section: quiz
+type: quiz
+title: const 的位置
+minutes: 1
+prompt: "`NSString * const domain = @\"a\";` 和 `const NSString *domain = @\"a\";` 哪個敘述正確？"
+options:
+  - "兩者等價"
+  - "前者的 domain 不能再指向別的字串；後者是「指向 const NSString」，對物件沒意義"
+  - "前者讓 NSString 變成不可變；後者讓指標不可變"
+  - "後者才是 Apple 的寫法"
+answer: 1
+explain: 從變數名往左讀：`* const domain` → domain 是 const 的指標。`const NSString *domain` → domain 指向 const NSString，而 NSString 本來就不可變，所以沒意義還會造成警告。
+feedback: { "0": "const 的位置改變它修飾的對象。", "2": "正好反了。", "3": "Apple 標頭檔全是 NSString * const。" }
+hints: ["訣竅：從變數名往左讀。", "翻開 Foundation 看 NSCocoaErrorDomain 怎麼宣告。"]

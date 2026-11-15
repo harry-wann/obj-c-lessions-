@@ -1,0 +1,34 @@
+id: m01-1-3-advanced-1
+chapter: "1.3"
+type: code
+tier: advanced
+title: 數一個整數裡有幾個位元是 1
+mobile: false
+minutes: 6
+prompt: 寫 C 函式 `NSUInteger LBPopCount(NSUInteger x)`，回傳 x 的二進位表示裡 1 的個數（例如 `LBPopCount(6)` 是 2）。用迴圈加位元運算，不用 `__builtin_popcount`。
+starter: |
+  NSUInteger LBPopCount(NSUInteger x) {
+
+  }
+checks:
+  - must_match: 'NSUInteger\s+LBPopCount\s*\(\s*NSUInteger\s+\w+\s*\)'
+    message: 簽名要是 NSUInteger LBPopCount(NSUInteger x)
+  - must_match: 'while\s*\(|for\s*\('
+    message: 要用迴圈
+  - must_match: '&'
+    message: 要用 & 取位元
+  - must_match: 'return'
+  - must_not_match: '__builtin_popcount'
+    message: 這題請自己算
+  - brackets_balanced: true
+solution: |
+  NSUInteger LBPopCount(NSUInteger x) {
+      NSUInteger count = 0;
+      while (x) {
+          x &= x - 1;      // 清掉最低位的 1
+          count++;
+      }
+      return count;
+  }
+solution_note: "`x & (x - 1)` 會清掉最低的一個 1 位元，迴圈次數等於 1 的個數（Brian Kernighan 法）。另一個寫法是每次 `count += x & 1; x >>= 1;`。面試常接著問：一組 NS_OPTIONS 旗標有幾個被設定？就是這個函式。"
+hints: ["x & 1 取最低位元，x >>= 1 往右推。", "更快：x & (x - 1) 一次清掉一個 1。", "迴圈到 x 變 0 為止。"]

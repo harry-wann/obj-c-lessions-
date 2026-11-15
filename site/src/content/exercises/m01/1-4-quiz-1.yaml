@@ -1,0 +1,16 @@
+id: m01-1-4-quiz-1
+chapter: "1.4"
+section: quiz
+type: quiz
+title: 全域字串常數的宣告
+minutes: 1
+prompt: 要讓整個 App 共用 `LBErrorDomain`，`.h` 裡該寫哪一行？
+options:
+  - "NSString * const LBErrorDomain = @\"com.littlebook.error\";"
+  - "extern NSString * const LBErrorDomain;"
+  - "extern const NSString *LBErrorDomain;"
+  - "#define LBErrorDomain @\"com.littlebook.error\""
+answer: 1
+explain: "`.h` 只宣告（extern），`.m` 定義一次；const 緊貼變數名。第一個會 duplicate symbol，第三個 const 位置錯會滿地警告，第四個是巨集：沒型別、每個使用處各一份字串。"
+feedback: { "0": "寫在 .h 會被每個 .m 定義一次 → duplicate symbol。", "2": "const NSString * 是「指向不可變 NSString 的指標」，傳給 API 會 discards qualifiers 警告。", "3": "能動，但 Swift 端與偵錯器體驗差，== 比對也不保證成立；現代寫法是 extern 常數。" }
+hints: ["宣告和定義要分開在 .h 與 .m。", "從變數名往左讀 const。"]

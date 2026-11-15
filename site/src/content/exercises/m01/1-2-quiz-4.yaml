@@ -1,0 +1,12 @@
+id: m01-1-2-quiz-4
+chapter: "1.2"
+section: quiz
+type: quiz
+title: NSNotFound 是什麼
+minutes: 1
+prompt: "`[items indexOfObject:x]` 找不到時回傳 `NSNotFound`。它的值是？"
+options: ["-1", "0", "nil", "NSIntegerMax"]
+answer: 3
+explain: NSNotFound 定義為 `NSIntegerMax`。回傳型別是 NSUInteger（無號），不可能用 -1 表示「沒有」；判斷一律寫 `idx == NSNotFound`，而且別把它塞進 int（會被截成 -1）。
+feedback: { "0": "NSUInteger 沒有負數；-1 是 Java indexOf 的慣例。", "1": "0 是合法索引，不能拿來當「找不到」。", "2": "nil 是指標，NSNotFound 是整數。" }
+hints: ["回傳型別是 NSUInteger，排除哪些選項？", "0 是合法索引。"]

@@ -1,0 +1,18 @@
+id: m01-1-2-predict-1
+chapter: "1.2"
+type: predict
+title: 透過指標改值
+minutes: 2
+code: |
+  void LBDouble(long long *v) { *v *= 2; }
+
+  long long a = 50, b = a;
+  long long *p = &a;
+  *p += 1;
+  LBDouble(&b);
+  NSLog(@"%lld %lld %d", a, b, p == &a);
+options: ["51 100 1", "50 50 1", "51 100 0", "50 100 1"]
+accept: ["51 100 1"]
+feedback: { "50 50 1": "*p 和 &b 都是對原變數的直接操作，不是複製。", "51 100 0": "p 存的就是 a 的位址，== 比位址相等。", "50 100 1": "*p += 1 透過指標改了 a。" }
+solution_note: "`*p += 1` 改到 a；`LBDouble(&b)` 傳 b 的位址，函式內 `*v *= 2` 改到 b；p 與 `&a` 是同一個位址。"
+hints: ["*p 是「p 指到的那個變數」。", "函式收到的是位址，改的是呼叫端的變數。"]

@@ -1,0 +1,14 @@
+id: m05-5-4-fill-8
+chapter: "5.4"
+type: fill
+title: block 語法 ⑧：nullable 的 block 參數
+minutes: 1
+prompt: 讓這個方法的 completion 參數可以傳 nil（Swift 端會看到 `(() -> Void)?`）。
+code: |
+  - (void)loadWithCompletion:(void (^ ___1___)(void))completion;
+blanks:
+  "1": { accept: ["_Nullable", "__nullable"], chips: ["_Nullable", "nullable", "?", "_Nonnull"] }
+hints: ["型別中間的 nullability 要用底線開頭的拼法。", "位置在 ^ 後面。"]
+feedback:
+  "1=nullable": "nullable 只能放在方法參數型別的最前面（例如 (nullable id)obj）或屬性修飾詞；放進 block 型別裡要用 _Nullable。"
+solution_note: "`void (^ _Nullable)(void)`。另一種合法寫法是把 nullable 放在整個參數型別前：`completion:(nullable void (^)(void))completion`。"

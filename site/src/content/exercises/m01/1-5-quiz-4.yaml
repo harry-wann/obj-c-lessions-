@@ -1,0 +1,12 @@
+id: m01-1-5-quiz-4
+chapter: "1.5"
+section: quiz
+type: quiz
+title: "用什麼取代 #define 常數"
+minutes: 1
+prompt: "新專案裡 `#define kMaxNoteLength 140` 最好改成？"
+options: ["const int kMaxNoteLength = 140; 寫在 .h", "static const NSInteger LBMaxNoteLength = 140; 寫在 .h", "NSInteger LBMaxNoteLength = 140; 寫在 .h", "維持 #define，這是 Apple 慣例"]
+answer: 1
+explain: "`static const` 有型別、偵錯器看得到、Swift 看得到；寫在 .h 時每個 .m 各一份但編譯器會折疊，沒有連結問題。第一個沒 static 會 duplicate symbol，第三個不是常數。"
+feedback: { "0": "沒有 static，兩個 .m import 就 duplicate symbol。", "2": "沒有 const，隨時可被改，而且也會 duplicate symbol。", "3": "Apple 現代標頭檔用 extern / static const，巨集只留給條件編譯。" }
+hints: [".h 會被貼進每個 .m，怎樣才不會定義兩次？", "要讓它真的是常數要加什麼？"]

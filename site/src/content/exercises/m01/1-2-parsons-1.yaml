@@ -1,0 +1,22 @@
+id: m01-1-2-parsons-1
+chapter: "1.2"
+type: parsons
+title: 排出讀檔並處理錯誤的流程
+minutes: 3
+prompt: 把讀檔、接錯誤、判斷成敗的程式碼排成正確順序。有三行是干擾行。
+lines:
+  - "NSError *error = nil;"
+  - "NSString *text = [NSString stringWithContentsOfFile:path"
+  - "                                           encoding:NSUTF8StringEncoding"
+  - "                                              error:&error];"
+  - "if (text == nil) {"
+  - "    NSLog(@\"讀取失敗：%@\", error.localizedDescription);"
+  - "    return;"
+  - "}"
+  - "NSLog(@\"%lu 個字\", (unsigned long)text.length);"
+distractors:
+  - "NSError **error = nil;"
+  - "                                              error:error];"
+  - "if (error != nil) {"
+solution_note: 變數是 `NSError *`，傳進去時取位址變成 `NSError **`；成敗看 text 是否為 nil。
+hints: ["先準備錯誤變數，再呼叫，再判斷。", "判斷用回傳值，不是 error。", "方法呼叫的續行依冒號對齊。"]

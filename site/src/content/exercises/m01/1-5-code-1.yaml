@@ -1,0 +1,28 @@
+id: m01-1-5-code-1
+chapter: "1.5"
+type: code
+title: 把巨集改成 inline 函式與常數
+mobile: false
+minutes: 5
+prompt: 把 `#define LBCentsPerDollar 100` 與 `#define LBToCents(d) d * 100` 改寫成現代寫法：一個 `static const long long` 常數、一個 `static inline long long LBToCents(long long dollars)` 函式（函式內用那個常數）。不要留下任何 `#define`。
+starter: |
+  #define LBCentsPerDollar 100
+  #define LBToCents(d) d * 100
+checks:
+  - must_match: 'static\s+const\s+long\s+long\s+LBCentsPerDollar\s*=\s*100\s*;'
+    message: 常數要 static const long long LBCentsPerDollar = 100;
+  - must_match: '(static\s+inline|NS_INLINE)\s+long\s+long\s+LBToCents\s*\(\s*long\s+long\s+\w+\s*\)'
+    message: 函式要 static inline long long LBToCents(long long dollars)
+  - must_match: 'return\s+\w+\s*\*\s*LBCentsPerDollar'
+    message: 函式內要乘上 LBCentsPerDollar
+  - must_not_match: '#define'
+    message: 不要留下 #define
+  - brackets_balanced: true
+solution: |
+  static const long long LBCentsPerDollar = 100;
+
+  static inline long long LBToCents(long long dollars) {
+      return dollars * LBCentsPerDollar;
+  }
+solution_note: 常數有型別、Swift 與偵錯器都看得到；inline 函式會做型別檢查、參數只算一次，編譯器一樣會展開成零成本。`LBToCents(1 + 2)` 現在是 300，巨集版是 201。
+hints: ["常數：static const 型別 名字 = 值;", "函式放 .h 要加 static，否則 duplicate symbol。", "回傳 dollars 乘上常數。"]

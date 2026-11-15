@@ -1,0 +1,24 @@
+id: m01-1-4-fill-1
+chapter: "1.4"
+type: fill
+title: 補完常數的 .h / .m 配對
+minutes: 2
+prompt: 補完全域字串常數的標準寫法。
+code: |
+  // LBTypes.h
+  ___1___ NSString * ___2___ LBErrorDomain;
+
+  // LBTypes.m
+  NSString * const LBErrorDomain = ___3___;
+blanks:
+  "1": { accept: ["extern", "FOUNDATION_EXPORT", "FOUNDATION_EXTERN"], chips: ["extern", "static", "const", "FOUNDATION_EXPORT"] }
+  "2": { accept: ["const"], chips: ["const", "static", "extern", "readonly"] }
+  "3": { accept: ["@\"com.littlebook.error\""], chips: ["@\"com.littlebook.error\"", "\"com.littlebook.error\"", "com.littlebook.error"] }
+feedback:
+  "1=static": .h 裡的 static 會讓每個 .m 各有一份；extern 才是「定義在別處」。
+  "1=const": const 是修飾詞，不能告訴編譯器「定義在別處」。
+  "2=readonly": readonly 是 @property 的修飾詞，C 變數用 const。
+  "3=\"com.littlebook.error\"": 少了 @ 是 C 字串（char *），不是 NSString。
+  "3=com.littlebook.error": 字串字面值要加引號和 @。
+solution_note: .h 用 `extern` 宣告、.m 定義一次；`const` 緊貼變數名；字串字面值要有 `@`。
+hints: [".h 只宣告，宣告用哪個關鍵字？", "Objective-C 字串字面值前面有什麼？"]

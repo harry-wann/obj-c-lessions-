@@ -1,0 +1,23 @@
+id: m05-5-5-fill-1
+chapter: "5.5"
+type: fill
+title: weakSelf / strongSelf 樣板
+minutes: 2
+prompt: 補完標準的 weakSelf / strongSelf 寫法。
+code: |
+  ___1___ typeof(self) weakSelf = self;
+  self.ledger.onChange = ^(LBLedger *ledger) {
+      ___2___ typeof(weakSelf) strongSelf = weakSelf;
+      if (!___3___) return;
+      [strongSelf.tableView reloadData];
+      [strongSelf updateTotal];
+  };
+blanks:
+  "1": { accept: ["__weak"], chips: ["__weak", "__strong", "__block", "weak"] }
+  "2": { accept: ["__strong"], chips: ["__strong", "__weak", "__block", "strong"] }
+  "3": { accept: ["strongSelf"], chips: ["strongSelf", "weakSelf", "self", "ledger"] }
+hints: ["block 外面建立的參考要讓 block 不持有 self。", "block 裡面進門先把弱參考升級。", "判斷哪一個是 nil 才有意義？"]
+feedback:
+  "1=__block": __block 是讓變數可以在 block 裡被改，跟持有無關。
+  "3=weakSelf": 判斷 weakSelf 之後它仍可能在下一行變 nil；判斷 strongSelf 才保證整段 block 裡都在。
+solution_note: 外面 `__weak`、裡面 `__strong`、判 `strongSelf`。只用一次 weakSelf 的短 block 可以省掉 strongSelf。

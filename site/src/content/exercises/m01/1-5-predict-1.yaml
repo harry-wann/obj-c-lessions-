@@ -1,0 +1,15 @@
+id: m01-1-5-predict-1
+chapter: "1.5"
+type: predict
+title: 巨集展開後算什麼
+minutes: 2
+code: |
+  #define LBDouble(x) x + x
+  #define LBTriple(x) ((x) + (x) + (x))
+
+  NSLog(@"%d %d", LBDouble(3) * 2, LBTriple(1 + 1));
+options: ["12 6", "9 6", "9 4", "12 4"]
+accept: ["9 6"]
+feedback: { "12 6": "LBDouble(3) * 2 展開成 3 + 3 * 2 = 9。", "9 4": "LBTriple 有括號，(1+1) 三次是 6。", "12 4": "兩個都算錯了：先把文字貼進去再算。" }
+solution_note: "`LBDouble(3) * 2` 展開成 `3 + 3 * 2` = 9；`LBTriple(1 + 1)` 因為有括號正確得到 6。"
+hints: ["先做文字替換，再看運算優先順序。", "LBDouble 沒有括號。"]

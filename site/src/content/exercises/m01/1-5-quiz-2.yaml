@@ -1,0 +1,12 @@
+id: m01-1-5-quiz-2
+chapter: "1.5"
+section: quiz
+type: quiz
+title: "#pragma mark 做什麼"
+minutes: 1
+prompt: "`#pragma mark - UITableViewDataSource` 對程式有什麼影響？"
+options: ["把下面的方法標成協定的實作，編譯器會檢查", "沒有任何影響，只是給 Xcode 的 jump bar 分段", "下面的方法變成私有", "告訴編譯器開始編譯 UITableViewDataSource 的程式碼"]
+answer: 1
+explain: "它是註解等級的指令，編譯器直接忽略；Xcode 用它在編輯器上方的方法清單裡畫分隔線和標題。Swift 的 `// MARK: -` 是同一件事。"
+feedback: { "0": "協定檢查靠 @interface 的 <協定> 宣告，跟 pragma 無關。", "2": "可見性靠 .h / .m 與 static。", "3": "pragma 不會改變編譯內容。" }
+hints: ["Swift 的對應物是 // MARK: -，它是註解。", "pragma 是給工具看的。"]

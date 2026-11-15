@@ -1,0 +1,12 @@
+id: m01-1-1-quiz-3
+chapter: "1.1"
+section: quiz
+type: quiz
+title: 印出 NSUInteger
+minutes: 1
+prompt: "`NSUInteger count = [items count];` 要用 NSLog 印出 count，沒有警告的寫法是？"
+options: ["NSLog(@\"%d\", count);", "NSLog(@\"%lu\", (unsigned long)count);", "NSLog(@\"%@\", count);", "NSLog(@\"%ld\", count);"]
+answer: 1
+explain: NSUInteger 在不同平台寬度不同，Apple 的建議是轉型成 unsigned long 再配 `%lu`。`%@` 只能印物件，傳整數進去會 crash。
+hints: ["無號的對應指定子是 %u 系列。", "轉型是為了讓同一行在 32 / 64 位元都正確。"]
+feedback: { "0": "%d 配 8 bytes 的無號整數會有警告，換平台可能印出垃圾。", "2": "%@ 會對參數送 description 訊息，拿整數當物件會 EXC_BAD_ACCESS。", "3": "%ld 是有號，而且沒轉型仍會有警告。" }

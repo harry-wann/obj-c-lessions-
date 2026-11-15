@@ -1,0 +1,18 @@
+id: m05-5-5-predict-1
+chapter: "5.5"
+type: predict
+title: 預測輸出：值拷貝
+minutes: 1
+code: |
+  NSInteger total = 100;
+  void (^show)(void) = ^{ NSLog(@"%ld", (long)total); };
+  total += 50;
+  show();
+  NSLog(@"%ld", (long)total);
+options: ["150\n150", "100\n150", "100\n100", "編譯錯誤"]
+accept: ["100 150"]
+feedback:
+  "150 150": block 建立時拷貝了 100，之後外面的 total 改成 150 跟 block 無關。
+  "編譯錯誤": 讀取外部變數是允許的，只有「在 block 裡賦值」才需要 __block。
+solution_note: block 捕獲 total 當下的值 100；外面的 total 自己變 150。
+hints: ["block 字面值那一行執行時 total 是多少？", "block 裡只有讀沒有寫，不需要 __block。"]

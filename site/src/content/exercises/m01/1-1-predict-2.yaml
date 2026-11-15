@@ -1,0 +1,14 @@
+id: m01-1-1-predict-2
+chapter: "1.1"
+type: predict
+title: 無號整數減到負
+minutes: 2
+code: |
+  NSUInteger count = 0;
+  NSUInteger last = count - 1;
+  NSLog(@"%@ %d", last > 100 ? @"大" : @"小", last == NSUIntegerMax);
+options: ["大 1", "小 0", "小 1", "編譯錯誤"]
+accept: ["大 1"]
+feedback: { "小 0": "無號整數沒有負數，0 減 1 會繞回最大值。", "小 1": "繞回最大值後當然大於 100。", "編譯錯誤": "C 不會擋這種運算，連警告都沒有。" }
+solution_note: NSUInteger 是無號的，0 - 1 繞到 18446744073709551615（`NSUIntegerMax`）。這就是本章崩潰現場裡 index 18446744073709551615 的來源。
+hints: ["NSUInteger 的 U 是什麼意思？", "無號整數 0 減 1 會變成多少？"]

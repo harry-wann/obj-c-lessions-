@@ -1,0 +1,17 @@
+id: m05-5-4-quiz-1
+chapter: "5.4"
+section: quiz
+type: quiz
+title: (void) 與 () 的差別
+minutes: 1
+prompt: "`void (^done)();` 與 `void (^done)(void);` 有什麼差別？"
+options:
+  - 完全一樣，只是風格
+  - "`()` 代表「參數不定」，現代 clang 會警告 deprecated，Swift 匯入也會失去型別；無參數要寫 `(void)`"
+  - "`(void)` 會編譯錯誤，block 無參數只能寫 `()`"
+  - "`()` 才是 Apple 的建議寫法"
+answer: 1
+explain: 這是 C 的歷史包袱：`()` 在 C 的意思是「參數清單不明」。block 型別宣告無參數一律寫 `(void)`。字面值 `^{}` 可以省參數括號，宣告不行。
+hints: ["C 語言裡 int f() 跟 int f(void) 的差別？", "Xcode 14 之後寫 `()` 會跳什麼警告？"]
+feedback:
+  "0": 語意不同：一個是「不定參數」，一個是「無參數」。

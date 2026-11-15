@@ -1,0 +1,21 @@
+id: m05-5-5-quiz-2
+chapter: "5.5"
+section: quiz
+type: quiz
+title: 哪些 block 需要 weakSelf
+minutes: 2
+prompt: 以下哪些 block 裡用 self 會形成循環參考？（可複選）
+multi: true
+options:
+  - "self.ledger.onChange = ^{ [self reload]; };（self 持有 ledger）"
+  - "dispatch_async(dispatch_get_main_queue(), ^{ [self reload]; });"
+  - "[UIView animateWithDuration:0.3 animations:^{ self.view.alpha = 0; }];"
+  - "self.completion = ^{ [self dismiss]; };"
+  - "[self.items enumerateObjectsUsingBlock:^(id o, NSUInteger i, BOOL *s) { [self log:o]; }];"
+answer: [0, 3]
+explain: 循環的條件是「self 持有 block（直接或間接）且 block 捕獲 self」。GCD、UIView、陣列列舉只是暫時持有 block，執行完就放，self 多活一下而已。
+hints: ["問自己：這個 block 最後被誰存起來？", "暫時持有（執行完就放）跟長期持有（存成屬性）不一樣。"]
+feedback:
+  "1": GCD 執行完 block 就釋放它，self 只是多活幾毫秒。
+  "2": UIKit 動畫結束後釋放 block；而且這裡用 weakSelf 反而會讓動畫中途失效。
+  "4": 陣列不會把 block 存起來，列舉完就結束。

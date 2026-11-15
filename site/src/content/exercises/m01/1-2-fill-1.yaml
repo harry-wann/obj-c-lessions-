@@ -1,0 +1,27 @@
+id: m01-1-2-fill-1
+chapter: "1.2"
+type: fill
+title: 補完 NSError 的傳址寫法
+minutes: 3
+prompt: 補上 NSError 傳址慣例缺的三格。
+code: |
+  NSError *error = ___1___;
+  NSData *data = [NSData dataWithContentsOfFile:path
+                                        options:0
+                                          error:___2___];
+  if (___3___) {
+      NSLog(@"失敗：%@", error.localizedDescription);
+  }
+blanks:
+  "1": { accept: ["nil"], chips: ["nil", "NULL", "[NSNull null]", "0"] }
+  "2": { accept: ["&error"], chips: ["error", "&error", "*error", "**error"] }
+  "3": { accept: ["data == nil", "!data", "data == NULL", "nil == data"], chips: ["data == nil", "error != nil", "error", "*error"] }
+feedback:
+  "1=NULL": 能編譯，但 error 是物件指標，慣例用 nil。
+  "1=[NSNull null]": NSNull 是一個真的物件，不是「空」；這裡要的是空指標。
+  "2=error": 這樣傳的是 nil 本身，方法拿不到你變數的位址，什麼都寫不進去。
+  "2=*error": error 是 nil，解參考它會 crash。
+  "3=error != nil": 成敗要看回傳值；Apple 不保證成功時 error 沒被動過。
+  "3=error": 同上：判斷成敗看回傳值，不看 error。
+solution_note: 準備一顆 nil 指標、傳它的位址（`&error`）、用回傳值判斷成敗，三步缺一不可。
+hints: ["方法要「寫進你的變數」，需要什麼？", "成功時 error 一定是 nil 嗎？"]

@@ -1,0 +1,22 @@
+id: m01-1-3-predict-1
+chapter: "1.3"
+type: predict
+title: 旗標運算
+minutes: 3
+code: |
+  typedef NS_OPTIONS(NSUInteger, LBTransactionFlags) {
+      LBTransactionFlagsNone       = 0,
+      LBTransactionFlagsReconciled = 1 << 0,
+      LBTransactionFlagsRecurring  = 1 << 1,
+      LBTransactionFlagsDeleted    = 1 << 2,
+  };
+
+  LBTransactionFlags f = LBTransactionFlagsReconciled | LBTransactionFlagsDeleted;
+  f &= ~LBTransactionFlagsReconciled;
+  f |= LBTransactionFlagsRecurring;
+  NSLog(@"%lu %d", (unsigned long)f, (f & LBTransactionFlagsDeleted) != 0);
+options: ["6 1", "7 1", "2 0", "5 1"]
+accept: ["6 1"]
+feedback: { "7 1": "& ~Reconciled 把第 0 位元清掉了。", "2 0": "Deleted（4）一開始就在，沒被移除。", "5 1": "Reconciled 被移除、Recurring 被加上，應該是 4 + 2。" }
+solution_note: 1 | 4 = 5；清掉 1 剩 4；加上 2 得 6（二進位 110）。Deleted 位元還在，所以 `&` 的結果非 0。
+hints: ["把每個旗標寫成二進位：001、010、100。", "& ~X 是「清掉 X」。"]

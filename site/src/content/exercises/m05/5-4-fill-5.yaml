@@ -1,0 +1,19 @@
+id: m05-5-4-fill-5
+chapter: "5.4"
+type: fill
+title: block 語法 ⑤：作為回傳值
+minutes: 2
+prompt: 宣告並實作一個方法，回傳「接 LBTransaction、回傳 BOOL」的 block。
+code: |
+  - (___1___ (^)(LBTransaction *tx))predicateForKind:(LBTransactionKind)kind {
+      return ___2___(LBTransaction *tx) {
+          return tx.kind == kind;
+      };
+  }
+blanks:
+  "1": { accept: ["BOOL"], chips: ["BOOL", "void", "id", "block"] }
+  "2": { accept: ["^", "^BOOL"], chips: ["^", "^BOOL", "^(BOOL)", "block"] }
+hints: ["回傳值的型別寫在方法名前的括號裡，形狀還是 返回型別 (^)(參數)。", "字面值以 ^ 開頭，回傳型別可省可寫。"]
+feedback:
+  "2=^(BOOL)": 回傳型別寫在 ^ 之後、參數括號之前，不加括號：^BOOL(...)。
+solution_note: 回傳 block 的方法很難讀，實務上會先 typedef `typedef BOOL (^LBTransactionPredicate)(LBTransaction *tx);` 再寫 `- (LBTransactionPredicate)predicateForKind:`。

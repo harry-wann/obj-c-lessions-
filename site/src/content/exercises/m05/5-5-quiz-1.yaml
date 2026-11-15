@@ -1,0 +1,17 @@
+id: m05-5-5-quiz-1
+chapter: "5.5"
+section: quiz
+type: quiz
+title: block 捕獲的是什麼
+minutes: 1
+prompt: "`int n = 1; void (^b)(void) = ^{ NSLog(@\"%d\", n); }; n = 2; b();` 印出什麼？為什麼？"
+options:
+  - "2，block 捕獲變數本身，跟 JS 閉包一樣"
+  - "1，block 建立時把 n 的值拷貝進去，之後外面改了不影響"
+  - 編譯錯誤，block 不能讀外部變數
+  - 不確定，取決於最佳化等級
+answer: 1
+explain: 這是 ObjC 與 JS / Swift / Kotlin 最大的差別：block 捕獲是值拷貝。要共享變數得寫 `__block`。
+hints: ["JS 的直覺在這裡會害你。", "block 字面值執行到的那一刻發生了什麼？"]
+feedback:
+  "0": JS、Swift、Kotlin 才是這樣。ObjC 預設是值拷貝。

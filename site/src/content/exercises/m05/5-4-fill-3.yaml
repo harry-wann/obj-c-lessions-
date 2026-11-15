@@ -1,0 +1,17 @@
+id: m05-5-4-fill-3
+chapter: "5.4"
+section: quiz
+type: fill
+title: block 語法 ③：作為方法參數
+minutes: 1
+prompt: 宣告一個方法，接受一個「接 BOOL、無回傳」的 block 當 completion 參數（不用 typedef）。
+code: |
+  - (void)importFrom:(NSURL *)url
+          completion:(void (___1___)(BOOL ok))___2___;
+blanks:
+  "1": { accept: ["^"], chips: ["^", "^completion", "*", "^(void)"] }
+  "2": { accept: ["completion"], chips: ["completion", "^completion", "block", ")"] }
+hints: ["作為參數時，名稱不寫在 ^ 後面。", "名稱移到整個型別的括號外面。"]
+feedback:
+  "1=^completion": 作為參數時 ^ 後面不放名稱，名稱在型別括號之後。
+solution_note: "`(void (^)(BOOL ok))completion`：型別裡 ^ 後面留空，參數名寫在括號外。"

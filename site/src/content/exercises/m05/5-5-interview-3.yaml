@@ -1,0 +1,31 @@
+id: m05-5-5-interview-3
+chapter: "5.5"
+type: flash
+tier: interview
+title: 面試題：單調堆疊（每日溫度）
+minutes: 6
+front: |
+  給每日溫度陣列 [73,74,75,71,69,72,76,73]，回傳每一天要等幾天才會更暖：[1,1,4,2,1,1,0,0]。
+  暴力 O(n²)；用堆疊怎麼做到 O(n)？
+back: |
+  單調堆疊：堆疊裡存「還沒找到更暖日子」的索引，從底到頂溫度遞減。每來一天，把堆疊裡溫度比它低的索引一一 pop 出來，它們的答案就是「今天 − 那天」；然後把今天 push 進去。每個索引 push / pop 各一次，O(n)。
+
+  - (NSArray<NSNumber *> *)lb_daysToWarmer:(NSArray<NSNumber *> *)temps {
+      NSMutableArray<NSNumber *> *answer = [NSMutableArray array];
+      for (NSUInteger i = 0; i < temps.count; i++) [answer addObject:@0];
+      NSMutableArray<NSNumber *> *stack = [NSMutableArray array];   // 存索引
+      for (NSUInteger i = 0; i < temps.count; i++) {
+          while (stack.count &&
+                 temps[stack.lastObject.unsignedIntegerValue].integerValue
+                     < temps[i].integerValue) {
+              NSUInteger j = stack.lastObject.unsignedIntegerValue;
+              [stack removeLastObject];
+              answer[j] = @(i - j);
+          }
+          [stack addObject:@(i)];
+      }
+      return [answer copy];
+  }
+
+  Swift：`var stack: [Int] = []`，`while let j = stack.last, temps[j] < temps[i]`。Kotlin：ArrayDeque<Int>。
+  關鍵字「下一個更大元素」「單調遞減堆疊」是這類題的訊號：下一個更大元素、柱狀圖最大矩形、股票跨度都是同一招。

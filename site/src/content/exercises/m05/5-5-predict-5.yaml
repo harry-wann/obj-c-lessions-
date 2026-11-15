@@ -1,0 +1,22 @@
+id: m05-5-5-predict-5
+chapter: "5.5"
+type: predict
+title: 預測輸出：self 循環
+minutes: 2
+code: |
+  @implementation LBLedger          // 有 @property (copy) void (^onChange)(void);
+  - (void)dealloc { NSLog(@"dealloc"); }
+  @end
+
+  @autoreleasepool {
+      LBLedger *l = [LBLedger new];
+      l.onChange = ^{ NSLog(@"%@", l); };
+  }
+  NSLog(@"end");
+options: ["dealloc\nend", "end", "end\ndealloc", "crash"]
+accept: ["end"]
+feedback:
+  "dealloc end": l 持有 onChange，onChange 捕獲 l：循環參考，離開 pool 也不會釋放。
+  "end dealloc": 沒有任何時間點會打破循環，dealloc 永遠不會跑。
+solution_note: 典型的三角形：l → block → l。block 從未執行也一樣，捕獲發生在建立時。修法 `__weak LBLedger *weakL = l;`。
+hints: ["onChange 屬性持有 block，block 捕獲了誰？", "循環參考的物件什麼時候釋放？"]

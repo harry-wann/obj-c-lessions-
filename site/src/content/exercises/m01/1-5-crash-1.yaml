@@ -1,0 +1,23 @@
+id: m01-1-5-crash-1
+chapter: "1.5"
+type: crash
+title: Debug 沒事、Archive 才爆
+minutes: 2
+log: |
+  LBLedgerViewController.m:87:9: error: use of undeclared identifier 'debugBadgeCount'
+          debugBadgeCount += 1;
+          ^
+  ** ARCHIVE FAILED **
+options:
+  - "debugBadgeCount 宣告在 #if DEBUG 裡、使用在外面；Release 沒有 DEBUG，宣告被刪掉"
+  - "Release 組態不允許使用 += 運算子"
+  - "變數名以 debug 開頭在 Release 會被最佳化掉"
+  - "忘了 import 標頭檔"
+answer: 0
+fix: |
+  #if DEBUG
+      debugBadgeCount += 1;
+  #endif
+solution_note: 條件編譯會把一側的程式碼整段移除，宣告和使用若不在同一側，只有在另一個組態建置時才會發現。定期用 Release 組態跑一次。
+feedback: { "1": "運算子跟組態無關。", "2": "編譯器不看變數名字做最佳化。", "3": "少 import 的錯誤在 Debug 也會出現，不會只在 Archive 爆。" }
+hints: ["為什麼 Debug 可以、Archive 不行？兩者差在哪個巨集？", "宣告 debugBadgeCount 的那行可能被包在什麼裡面？"]

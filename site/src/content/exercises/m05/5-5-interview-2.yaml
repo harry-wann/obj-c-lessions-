@@ -1,0 +1,32 @@
+id: m05-5-5-interview-2
+chapter: "5.5"
+type: flash
+tier: interview
+title: 面試題：最小堆疊（Min Stack）
+minutes: 5
+front: |
+  設計一個堆疊，push / pop / top / getMin 全部 O(1)。
+  提示：一個堆疊不夠。
+back: |
+  雙堆疊：主堆疊存值，輔助堆疊存「到目前為止的最小值」。push 時把 min(新值, 輔助頂端) 推進輔助堆疊；pop 時兩邊一起 pop。輔助堆疊的頂端永遠是當前最小值。
+
+  @implementation LBMinStack {
+      NSMutableArray<NSNumber *> *_values;
+      NSMutableArray<NSNumber *> *_mins;
+  }
+  - (void)push:(NSInteger)x {
+      [_values addObject:@(x)];
+      NSInteger m = _mins.count ? MIN(x, _mins.lastObject.integerValue) : x;
+      [_mins addObject:@(m)];
+  }
+  - (void)pop {
+      [_values removeLastObject];
+      [_mins removeLastObject];
+  }
+  - (NSInteger)top { return _values.lastObject.integerValue; }
+  - (NSInteger)getMin { return _mins.lastObject.integerValue; }
+  @end
+
+  空間 O(n)。優化：輔助堆疊只在新值 ≤ 當前最小時才 push，pop 時值等於輔助頂端才一起 pop，省掉重複值。
+  Swift：兩個 [Int]；Kotlin：兩個 ArrayDeque<Int>。
+  對照 LBUndoStack：同樣是「兩個堆疊協作」，但一個是鏡像（undo / redo），一個是伴隨（值 / 最小值）。

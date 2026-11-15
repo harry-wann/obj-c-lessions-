@@ -234,6 +234,10 @@ int main(int argc, const char *argv[]) {
 
 `performSelector:` 只看 selector 名字；<Term en="KVC (key-value coding)" tw="鍵值編碼" cn="键值编码" jp="キー値コーディング" />（`setValue:forKey:`，模組 3）會找 `setParent:`、找不到就直接找 `_parent` ivar。這和 TS 的 `private`（編譯後消失）是同一個等級，比 TS 的 `#field` 弱。所以封裝在 Objective-C 是**契約**不是**圍牆**：你用 `.h` 告訴別人「這些才是我支援的 API」，守不守是他們的事。實務上這剛好夠用——真正惡意繞過的人，用任何語言都繞得過。
 
+### 那 @private 呢？
+
+Objective-C 其實有 `@private`、`@protected`、`@package`、`@public` 四個關鍵字，但它們**只能用在 ivar** 上，管不到方法與屬性，而且只是編譯期的存取檢查。舊程式碼會在 `.h` 的 `@interface` 大括號裡寫 `@private NSString *_name;`，那是 ivar 還必須放在 `.h` 的年代用來擋人直接存取的補丁。現在 ivar 放 `.m`（或由 `@property` 合成）之後，天然就是私有的，這四個關鍵字幾乎沒有出場機會。看到它們知道是什麼就好，不用學怎麼用。
+
 <Pitfall title="類別延伸裡的修飾詞和 .h 不一致">
 <Fragment slot="bad">
 ```objc

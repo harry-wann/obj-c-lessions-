@@ -1,0 +1,19 @@
+id: m01-1-4-predict-1
+chapter: "1.4"
+type: predict
+title: static 區域變數
+minutes: 2
+code: |
+  NSInteger LBNextID(void) {
+      static NSInteger next = 100;
+      return next++;
+  }
+
+  LBNextID();
+  LBNextID();
+  NSLog(@"%ld", (long)LBNextID());
+options: ["102", "100", "103", "每次執行都不一樣"]
+accept: ["102"]
+feedback: { "100": "static 只初始化一次，之後保留上次的值。", "103": "next++ 是先回傳再加一，第三次呼叫回傳的是 102。", "每次執行都不一樣": "static 區域變數的行為是確定的。" }
+solution_note: static 區域變數只初始化一次，函式結束後仍存在；兩次呼叫後 next 是 102，第三次回傳 102（再把 next 變成 103）。
+hints: ["static 區域變數初始化幾次？", "next++ 回傳的是加之前還是加之後？"]

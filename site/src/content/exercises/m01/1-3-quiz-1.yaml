@@ -1,0 +1,12 @@
+id: m01-1-3-quiz-1
+chapter: "1.3"
+section: quiz
+type: quiz
+title: NS_OPTIONS 的底層型別
+minutes: 1
+prompt: 宣告位元旗標時，`NS_OPTIONS` 的底層型別慣例用哪一個？為什麼？
+options: ["NSInteger，和 NS_ENUM 一致", "NSUInteger，無號數位移不會碰到符號位", "int，最省記憶體", "BOOL，因為每個旗標只有開關兩種狀態"]
+answer: 1
+explain: 旗標會做 `<<` 與 `|` 運算，用無號整數才不會因為最高位元是符號位而出現負數或未定義行為；UIKit 的旗標全部是 NSUInteger。
+feedback: { "0": "NS_ENUM 才用 NSInteger；旗標要位移，用無號。", "2": "Apple 的 API 不用裸 int，寬度要跟平台走。", "3": "BOOL 只能裝一個開關，旗標要在一個整數裡裝好幾個。" }
+hints: ["旗標會用到哪個運算子？", "有號整數的最高位元代表什麼？"]

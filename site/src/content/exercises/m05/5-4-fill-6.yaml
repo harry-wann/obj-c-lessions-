@@ -1,0 +1,19 @@
+id: m05-5-4-fill-6
+chapter: "5.4"
+type: fill
+title: block 語法 ⑥：安全地呼叫
+minutes: 1
+prompt: 在方法裡呼叫 completion，確保它為 nil 時不會 crash。
+code: |
+  - (void)finishWithCompletion:(LBCompletion)completion {
+      ___1___ (completion) {
+          completion(___2___, nil);
+      }
+  }
+blanks:
+  "1": { accept: ["if"], chips: ["if", "while", "@try", "guard"] }
+  "2": { accept: ["YES"], chips: ["YES", "true", "1", "ok"] }
+hints: ["block 是指標，呼叫前判斷是否為 nil。", "ObjC 的布林字面值是什麼？"]
+feedback:
+  "2=true": 能編譯（C 的 true），但 ObjC 慣例寫 YES。
+solution_note: "`if (completion) completion(YES, nil);` 是每個接 block 參數的方法都該有的保險。"

@@ -1,0 +1,37 @@
+id: m05-5-5-spot-1
+chapter: "5.5"
+type: spot
+title: 寫了 weakSelf 卻還是漏了
+minutes: 3
+prompt: 這段程式有編譯錯誤與一個循環參考。點選有問題的行並選出原因。
+code: |
+  - (void)bind {
+      NSInteger count = 0;
+      __weak typeof(self) weakSelf = self;
+      self.ledger.onChange = ^(LBLedger *ledger) {
+          count += 1;
+          _totalLabel.text = ledger.total.stringValue;
+          [weakSelf.tableView reloadData];
+      };
+  }
+bug_lines: [2, 6]
+reasons:
+  - "count 沒有 __block 不能在 block 裡賦值；_totalLabel 展開是 self->_totalLabel，隱含捕獲 self，weakSelf 白寫了"
+  - weakSelf 應該宣告在 block 裡面
+  - reloadData 不能在 block 裡呼叫
+  - onChange 應該改用 strong 屬性
+answer_reason: 0
+fix: |
+  __block NSInteger count = 0;
+  __weak typeof(self) weakSelf = self;
+  self.ledger.onChange = ^(LBLedger *ledger) {
+      __strong typeof(weakSelf) strongSelf = weakSelf;
+      if (!strongSelf) return;
+      count += 1;
+      strongSelf.totalLabel.text = ledger.total.stringValue;
+      [strongSelf.tableView reloadData];
+  };
+solution_note: "`_ivar` 在 block 裡等於 `self->_ivar`，一樣捕獲 self。開啟 -Wimplicit-retain-self 警告可以抓到。count 要 __block 才能改。"
+hints: ["在 block 裡對外部變數賦值需要什麼？", "_totalLabel 這個寫法裡藏著誰？"]
+feedback:
+  "1": weakSelf 必須在 block 外面宣告，block 裡才能捕獲它而不是捕獲 self。

@@ -1,0 +1,12 @@
+id: m01-1-5-quiz-1
+chapter: "1.5"
+section: quiz
+type: quiz
+title: 巨集展開
+minutes: 1
+prompt: "`#define SQUARE(x) x*x` 之後 `SQUARE(1+2)` 的值是？"
+options: ["9", "5", "6", "編譯錯誤"]
+answer: 1
+explain: 純文字替換：`1+2*1+2` → 1 + 2 + 2 = 5。要得到 9 得寫 `((x)*(x))`。
+feedback: { "0": "前置處理器不知道 1+2 是一個整體，不會先算。", "2": "展開是 1+2*1+2，乘法先算。", "3": "展開後是合法的運算式，能編譯，只是答案錯。" }
+hints: ["把 1+2 原封不動貼進 x*x。", "乘法優先於加法。"]

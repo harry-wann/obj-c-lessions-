@@ -1,0 +1,19 @@
+id: m05-5-5-predict-2
+chapter: "5.5"
+type: predict
+title: 預測輸出：__block
+minutes: 1
+code: |
+  __block NSInteger count = 0;
+  void (^bump)(void) = ^{ count++; };
+  bump();
+  bump();
+  count += 10;
+  NSLog(@"%ld", (long)count);
+options: ["12", "10", "2", "0"]
+accept: ["12"]
+feedback:
+  "10": __block 讓 block 跟外層共用同一個變數，兩次 bump 的 ++ 會留下來。
+  "2": 外面的 count += 10 也是同一個變數。
+solution_note: "`__block` 把 count 搬進共享的儲存空間，block 內外讀寫的都是同一份：0 → 1 → 2 → 12。"
+hints: ["__block 之後還是值拷貝嗎？", "兩次 bump 之後 count 是幾？"]

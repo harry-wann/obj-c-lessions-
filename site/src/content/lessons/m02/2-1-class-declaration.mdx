@@ -178,6 +178,12 @@ Xcode 建立 Cocoa Touch Class 時會自動生 `LBCategory.h` + `LBCategory.m`�
 
 當 `.h` 裡只需要「提到」另一個類別（當參數型別或屬性型別），用 `@class LBCategory;` 前置宣告就好，不要 `#import "LBCategory.h"`——0.4 講過，這樣能避免兩個標頭互相 import 的死結，也讓編譯變快。`.m` 裡真的要呼叫它的方法時再 `#import`。
 
+### 讀舊程式碼時會看到的東西
+
+接手 2012 年前後的專案，`@implementation` 裡常有一行 `@synthesize name = _name;`。那是在告訴編譯器「請為 `name` 這個屬性產生 getter / setter，ivar 叫 `_name`」。Xcode 4.4 之後這件事自動發生，所以現代程式碼不寫它；看到就知道是舊寫法，刪掉通常也沒事（例外在 2.6 會講）。另一個會看到的是 `@interface LBCategory : NSObject <NSCopying, NSCoding>`，角括號裡是遵循的協定，模組 5 的主題，現在先知道它不是泛型就好。
+
+還有一件事值得先知道：`NSObject` 不是空殼。`alloc`、`init`、`description`、`isEqual:`、`respondsToSelector:` 這些你接下來幾章會天天用的方法，全部來自它。你的類別一繼承它就免費得到這一整套，這是為什麼所有類別都從 `NSObject` 出發。
+
 <Pitfall title="忘記寫星號">
 <Fragment slot="bad">
 ```objc

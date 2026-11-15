@@ -1,0 +1,12 @@
+id: m01-1-1-quiz-2
+chapter: "1.1"
+section: quiz
+type: quiz
+title: NSInteger 到底是什麼
+minutes: 1
+prompt: 在 64 位元的 iPhone 上，`NSInteger` 實際上是哪個 C 型別？
+options: ["int", "long", "long long", "一個 Foundation 定義的類別"]
+answer: 1
+explain: NSInteger 是 typedef：`__LP64__` 下是 long（8 bytes），32 位元下是 int（4 bytes）。它不是物件，不能放進 NSArray，也不用 %@ 印。
+hints: ["翻開 NSObjCRuntime.h 看 #if __LP64__ 那段。", "它的寬度會跟著平台變，哪個 C 型別有這個特性？"]
+feedback: { "0": "int 在 Apple 平台永遠 4 bytes，NSInteger 在 64 位元上是 8 bytes。", "2": "long long 保證 64 位元，但 NSInteger 在 32 位元上要縮成 4 bytes，所以用的是 long。", "3": "它是 typedef 的基本型別，不是類別；想包成物件要用 NSNumber。" }

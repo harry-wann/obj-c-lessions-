@@ -1,0 +1,25 @@
+id: m01-1-4-crash-1
+chapter: "1.4"
+type: crash
+title: 讀懂連結器的錯誤
+minutes: 2
+log: |
+  duplicate symbol '_LBErrorDomain' in:
+      .../Objects-normal/arm64/LBTypes.o
+      .../Objects-normal/arm64/LBLedger.o
+  ld: 1 duplicate symbol for architecture arm64
+  clang: error: linker command failed with exit code 1 (use -v to see invocation)
+options:
+  - "LBErrorDomain 的定義寫在 .h，被 LBTypes.m 與 LBLedger.m 各定義了一次"
+  - "LBErrorDomain 有宣告沒定義"
+  - "LBLedger.m 忘了 import LBTypes.h"
+  - "arm64 不支援全域常數，要改 x86_64"
+answer: 0
+fix: |
+  // LBTypes.h
+  extern NSString * const LBErrorDomain;
+  // LBTypes.m
+  NSString * const LBErrorDomain = @"com.littlebook.error";
+solution_note: duplicate symbol = 同一個符號被定義兩次，列出的 .o 就是定義它的檔案。有宣告沒定義是另一條訊息：Undefined symbols for architecture arm64。
+feedback: { "1": "那會是 Undefined symbols，不是 duplicate。", "2": "沒 import 會是編譯錯誤 use of undeclared identifier，不會走到連結。", "3": "架構跟這個無關。" }
+hints: ["duplicate 是「重複」，什麼東西被重複了？", "訊息列了兩個 .o 檔，代表什麼？"]

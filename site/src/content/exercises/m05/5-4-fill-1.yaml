@@ -1,0 +1,17 @@
+id: m05-5-4-fill-1
+chapter: "5.4"
+section: quiz
+type: fill
+title: block 語法 ①：宣告變數
+minutes: 1
+prompt: 宣告一個無參數、無回傳值的 block 變數 show。
+code: |
+  ___1___ (^show)(___2___) = ^{ NSLog(@"總額更新"); };
+  show();
+blanks:
+  "1": { accept: ["void"], chips: ["void", "id", "block", "^void"] }
+  "2": { accept: ["void"], chips: ["void", "", "id", "nil"] }
+hints: ["骨架是 返回型別 (^名稱)(參數)。", "無參數要寫什麼，不能留空？"]
+feedback:
+  "2=": 空括號是「參數不定」，會被警告 deprecated。
+solution_note: "`void (^show)(void)`：無回傳寫 void，無參數也寫 void。"

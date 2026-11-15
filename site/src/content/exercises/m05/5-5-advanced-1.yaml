@@ -1,0 +1,62 @@
+id: m05-5-5-advanced-1
+chapter: "5.5"
+type: code
+tier: advanced
+title: 進階：用兩個堆疊做佇列
+mobile: false
+minutes: 15
+prompt: "實作 `LBTwoStackQueue` 的 `enqueue:` 與 `dequeue`：只用兩個 NSMutableArray 當堆疊（只准 addObject: / lastObject / removeLastObject）。enqueue 推進 inbox；dequeue 時若 outbox 空，把 inbox 全部 pop 出來 push 進 outbox（順序反轉），再從 outbox pop。每個元素最多搬一次，攤銷 O(1)。"
+starter: |
+  @implementation LBTwoStackQueue {
+      NSMutableArray *_inbox;
+      NSMutableArray *_outbox;
+  }
+  - (instancetype)init {
+      if (self = [super init]) {
+          _inbox = [NSMutableArray array];
+          _outbox = [NSMutableArray array];
+      }
+      return self;
+  }
+  - (void)enqueue:(id)obj {
+
+  }
+  - (nullable id)dequeue {
+
+  }
+  @end
+checks:
+  - selector_equals: "enqueue:"
+  - selector_equals: "dequeue"
+  - must_match: '_inbox\s+addObject\s*:'
+    message: "enqueue 要 push 進 _inbox（addObject:）"
+  - must_match: '_outbox\.count\s*==\s*0|_outbox\s+count\]\s*==\s*0|!\s*_outbox\.count|_outbox\.count\s*<\s*1'
+    message: dequeue 時要先檢查 _outbox 是否為空
+  - must_match: '_inbox\s+lastObject\]|_inbox\.lastObject'
+    message: 搬移時從 _inbox 的尾端取（lastObject）
+  - must_match: '_inbox\s+removeLastObject\]'
+    message: 搬移時從 _inbox pop（removeLastObject）
+  - must_match: '_outbox\s+addObject\s*:'
+    message: 搬移時 push 進 _outbox
+  - must_match: '_outbox\s+removeLastObject\]'
+    message: dequeue 最後從 _outbox pop
+  - must_not_match: 'removeObjectAtIndex\s*:\s*0|insertObject\s*:[^;]*atIndex\s*:\s*0|firstObject'
+    message: 只准用堆疊操作，不能碰陣列頭端
+  - brackets_balanced: true
+solution: |
+  - (void)enqueue:(id)obj {
+      [_inbox addObject:obj];
+  }
+  - (nullable id)dequeue {
+      if (_outbox.count == 0) {
+          while (_inbox.count > 0) {
+              [_outbox addObject:_inbox.lastObject];
+              [_inbox removeLastObject];
+          }
+      }
+      id obj = _outbox.lastObject;
+      if (obj) [_outbox removeLastObject];
+      return obj;
+  }
+solution_note: 搬移只在 outbox 空時發生，每個元素一生最多被 push / pop 各兩次，所以 n 次操作總成本 O(n)，攤銷 O(1)。這是面試常見的「用堆疊實作佇列」，7.4 會回來看真正的佇列實作。
+hints: ["enqueue 只有一行。", "dequeue 先問 outbox 空不空；空才搬。", "搬移是一個 while 迴圈：從 inbox 尾端拿、推進 outbox。"]

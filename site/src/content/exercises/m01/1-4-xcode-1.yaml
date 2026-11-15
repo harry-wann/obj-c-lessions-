@@ -1,0 +1,21 @@
+id: m01-1-4-xcode-1
+chapter: "1.4"
+type: xcode
+title: 加上 LBErrorDomain 與 LBFormatCents
+mobile: false
+minutes: 20
+prompt: 在 M01 起始專案新增 LBTypes.m，補上全域常數與金額格式化函式，讓 LBTypesTests 四個測試全綠。
+starter: xcode/M01-starter
+steps:
+  - "在 `LBTypes.h` 加 `extern NSString * const LBErrorDomain;` 與 `NSString *LBFormatCents(long long cents);`。"
+  - "新增 `LBTypes.m`（Objective-C File，勾 LittleBook target），`#import \"LBTypes.h\"`。"
+  - "定義 `NSString * const LBErrorDomain = @\"com.littlebook.error\";`。"
+  - "實作 `LBFormatCents`：用 `decimalNumberWithMantissa:exponent:isNegative:` 組出 NSDecimalNumber，`NSNumberFormatter` 設 decimal style、兩位小數、locale `en_US_POSIX`；formatter 用 static + dispatch_once 只建一次。"
+  - "⌘U，`LBTypesTests` 四個全綠；若 testFormatCents 失敗，先在 Scratch 印 `LBFormatCents(128000)` 看實際輸出。"
+tests:
+  - LBTypesTests/testErrorDomainConstant
+  - LBTypesTests/testFormatCents
+acceptance:
+  - "LBFormatCents(128000) 印出 1,280.00；LBFormatCents(0) 印出 0.00。"
+  - "把 LBErrorDomain 的定義故意搬到 .h 建置一次，看到 duplicate symbol 後再搬回來。"
+solution_note: 完成後對照 M01-solution 的 LBTypes.m；注意 const 的位置與 llabs 的使用。

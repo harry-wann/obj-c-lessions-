@@ -1,0 +1,17 @@
+id: m05-5-4-fill-7
+chapter: "5.4"
+type: fill
+title: block 語法 ⑦：有參數有回傳的字面值
+minutes: 1
+prompt: 寫一個 block 字面值，接 NSDecimalNumber、回傳它的字串。
+code: |
+  NSString *(^fmt)(NSDecimalNumber *) = ___1___(NSDecimalNumber *n) {
+      return [n stringValue];
+  };
+  NSLog(@"%@", fmt([NSDecimalNumber one]));
+blanks:
+  "1": { accept: ["^", "^NSString *", "^NSString*"], chips: ["^", "^NSString *", "(^)", "^(NSString *)"] }
+hints: ["字面值以 ^ 開頭。", "回傳型別可以省（編譯器從 return 推），要寫就放在 ^ 和參數括號之間。"]
+feedback:
+  "1=(^)": 括號包著的 (^) 是宣告型別時的寫法，字面值不用。
+solution_note: "`^(NSDecimalNumber *n) { ... }` 或明寫 `^NSString *(NSDecimalNumber *n) { ... }` 都對。"

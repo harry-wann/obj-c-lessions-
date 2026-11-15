@@ -1,0 +1,14 @@
+id: m05-5-5-quiz-3
+chapter: "5.5"
+section: quiz
+type: quiz
+title: block 的三種儲存位置
+minutes: 1
+prompt: "`int x = 1; void (^b)(void) = ^{ NSLog(@\"%d\", x); }; NSLog(@\"%@\", [b class]);` 在 ARC 下印出什麼？"
+options: ["__NSGlobalBlock__", "__NSStackBlock__", "__NSMallocBlock__", "NSBlock"]
+answer: 2
+explain: block 捕獲了 x 所以不是 global；賦值給 strong 變數時 ARC 自動 copy 到堆積，所以是 malloc。直接對字面值 `[^{...} class]` 才會看到 stack。
+hints: ["有沒有捕獲外部變數？", "ARC 在賦值給 strong 變數時做了什麼？"]
+feedback:
+  "0": global 只有「沒捕獲任何變數」的 block。
+  "1": 字面值剛寫出來是 stack，但賦值給 strong 變數的瞬間 ARC 就 copy 了。

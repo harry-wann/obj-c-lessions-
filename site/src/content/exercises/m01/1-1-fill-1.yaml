@@ -1,0 +1,27 @@
+id: m01-1-1-fill-1
+chapter: "1.1"
+section: quiz
+type: fill
+title: 補上型別別名與格式指定子
+minutes: 2
+prompt: 補上 typedef 的原型別，以及三個 NSLog 的格式指定子（只填 % 後面的字母）。
+code: |
+  typedef ___1___ LBCents;
+  LBCents lunch = 128000;
+  NSInteger count = 3;
+  double ratio = 2.5;
+  NSLog(@"%___2___", lunch);
+  NSLog(@"%___3___", (long)count);
+  NSLog(@"%___4___", ratio);
+blanks:
+  "1": { accept: ["long long"], chips: ["int", "long", "long long", "double"] }
+  "2": { accept: ["lld"], chips: ["d", "ld", "lld", "f"] }
+  "3": { accept: ["ld"], chips: ["d", "ld", "lu", "lld"] }
+  "4": { accept: ["f", "g", "lf", ".2f"], chips: ["d", "f", "g", "lf"] }
+feedback:
+  "1=long": long 在 32 位元是 4 bytes，放不下大金額；要保證 8 bytes 用 long long。
+  "1=double": 錢不用 double，0.1 存不準。
+  "2=ld": lunch 是 long long，要 lld。
+  "3=d": 已經轉成 long，要配 ld。
+solution_note: 金額用 long long 存「分」，配 `%lld`；NSInteger 轉 long 配 `%ld`；double 配 `%f` 或 `%g`。
+hints: ["金額要保證 64 位元。", "l 代表 long，兩個 l 代表 long long。", "double 的指定子是 f 系列。"]

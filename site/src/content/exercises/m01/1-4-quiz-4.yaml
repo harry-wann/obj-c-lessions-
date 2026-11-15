@@ -1,0 +1,16 @@
+id: m01-1-4-quiz-4
+chapter: "1.4"
+section: quiz
+type: quiz
+title: 函式還是方法
+minutes: 1
+prompt: 下面哪個敘述是對的？
+options:
+  - "C 函式可以被子類別覆寫"
+  - "C 函式沒有接收者，呼叫在編譯 / 連結期就決定；方法走執行期訊息派送"
+  - "C 函式的參數和方法一樣有名字"
+  - "Foundation 裡沒有 C 函式，全是方法"
+answer: 1
+explain: 函式沒有 self、不能覆寫、參數只有位置；呼叫點在編譯 / 連結期就綁好。`CGRectMake`、`NSLog`、`dispatch_async` 都是 C 函式。
+feedback: { "0": "覆寫是物件導向的概念，函式沒有類別可談。", "2": "函式參數只有位置：LBFormatCents(cents)。", "3": "CGRectMake、NSLog、NSStringFromClass 都是函式。" }
+hints: ["哪個需要 self？", "NSLog 是函式還是方法？"]

@@ -1,0 +1,14 @@
+id: m05-5-4-quiz-3
+chapter: "5.4"
+section: quiz
+type: quiz
+title: block 屬性的修飾詞
+minutes: 1
+prompt: block 型別的屬性慣例上用哪個修飾詞？
+options: ["strong", "copy", "weak", "assign"]
+answer: 1
+explain: block 字面值一開始在堆疊上，存起來前要 copy 到堆積。ARC 下 strong 也會自動 copy，但 copy 是 Apple 文件與所有框架的寫法，在 MRC 專案裡更是必要。
+hints: ["block 剛寫出來時住在哪裡？", "2.4 那題 onChange 屬性的答案是什麼？"]
+feedback:
+  "0": ARC 下能正確運作，但不符慣例，MRC 下會 crash。
+  "2": weak 的 block 在賦值後立刻可能被釋放，沒人持有它。

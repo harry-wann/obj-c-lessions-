@@ -1,0 +1,18 @@
+id: m05-5-5-quiz-4
+chapter: "5.5"
+section: quiz
+type: quiz
+title: 用 NSMutableArray 當堆疊
+minutes: 1
+prompt: 用 NSMutableArray 實作堆疊，哪一組操作是正確且 O(1) 的 push / pop / peek？
+options:
+  - "insertObject:atIndex:0 / removeObjectAtIndex:0 / firstObject"
+  - "addObject: / removeLastObject / lastObject"
+  - "addObject: / removeObjectAtIndex:0 / firstObject"
+  - "insertObject:atIndex:0 / removeLastObject / lastObject"
+answer: 1
+explain: 陣列尾端的增刪是 O(1)，頭端是 O(n)（要搬移所有元素）。堆疊的頂端就用陣列的尾端。
+hints: ["陣列哪一端的插入刪除是 O(1)？", "選項 C 的 push 跟 pop 不在同一端，那是佇列不是堆疊。"]
+feedback:
+  "0": 功能正確但每次 O(n)。
+  "2": 一端進另一端出是佇列（FIFO），不是堆疊。

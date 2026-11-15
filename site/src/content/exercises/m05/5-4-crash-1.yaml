@@ -1,0 +1,22 @@
+id: m05-5-4-crash-1
+chapter: "5.4"
+type: crash
+title: 讀懂這則崩潰訊息
+minutes: 2
+log: |
+  Thread 1: EXC_BAD_ACCESS (code=1, address=0x10)
+  #0  0x0000000000000010 in 0x10 ()
+  #1  -[LBLedger importAmounts:completion:] (LBLedger.m:31)
+options:
+  - LBLedger 已經被釋放
+  - 第 31 行呼叫了一個為 nil 的 block；address=0x10 是 block struct 裡函式指標的偏移
+  - 陣列越界
+  - importAmounts 的參數型別錯誤
+answer: 1
+fix: |
+  if (completion) completion(YES, nil);
+solution_note: 第 0 層是一個沒有名字的位址 0x10，就是「跳到 nil block 的 invoke 指標」。block struct 的函式指標在偏移 16，nil + 16 = 0x10。看到這個數字先想 nil block。
+hints: ["第 0 層為什麼沒有函式名、只有一個很小的位址？", "block 在記憶體裡是什麼？呼叫它時會讀哪裡？"]
+feedback:
+  "0": 物件釋放的 crash 位址會是一個「看起來像真的」的堆積位址，不會剛好是 0x10。
+  "2": 越界是 NSRangeException，會有完整的例外訊息。

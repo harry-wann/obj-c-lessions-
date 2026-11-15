@@ -1,0 +1,33 @@
+id: m01-1-1-code-1
+chapter: "1.1"
+type: code
+title: 宣告 LBCents 並印出金額
+mobile: false
+minutes: 4
+prompt: 用 `typedef` 宣告 `LBCents`（`long long`），宣告變數 `lunch` 存 1,280.00 元（以分計），再用一行 `NSLog` 印出「1280.00」：元與分用 `/ 100` 與 `% 100` 拆開，分補零兩位。
+starter: |
+  // 1. typedef
+
+  // 2. 變數
+
+  // 3. NSLog
+checks:
+  - must_match: 'typedef\s+long\s+long\s+LBCents\s*;'
+    message: 要用 typedef long long 宣告 LBCents
+  - must_match: 'LBCents\s+lunch\s*=\s*128000\s*;'
+    message: lunch 要是 LBCents 型別、值 128000（分）
+  - must_match: '%02lld'
+    message: 分要補零兩位：%02lld
+  - must_match: 'lunch\s*/\s*100'
+    message: 元 = lunch / 100
+  - must_match: 'lunch\s*%\s*100'
+    message: 分 = lunch % 100
+  - must_not_match: 'double|float'
+    message: 金額不要用浮點數
+  - brackets_balanced: true
+solution: |
+  typedef long long LBCents;
+  LBCents lunch = 128000;
+  NSLog(@"%lld.%02lld", lunch / 100, lunch % 100);
+solution_note: 整數除法在這裡剛好是你要的：`/ 100` 取元、`% 100` 取分，`%02lld` 讓 5 分印成 05。
+hints: ["typedef 原型別 新名字;", "元 = 分 / 100，分 = 分 % 100。", "補零兩位的指定子是 %02lld。"]

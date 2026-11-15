@@ -1,0 +1,27 @@
+id: m01-1-1-spot-1
+chapter: "1.1"
+type: spot
+title: 這段結帳程式哪裡會算錯
+minutes: 3
+prompt: 這段程式能編譯，但印出來是「16.00 元，進度 0%」而不是「16.90 元，進度 33%」。點選有問題的行並選出原因。
+code: |
+  long long cents[] = { 1230, 450, 10 };
+  long long total = 0;
+  for (int i = 0; i < 3; i++) { total += cents[i]; }
+  double dollars = total / 100;
+  NSInteger done = 1, goal = 3;
+  NSInteger percent = done / goal * 100;
+  NSLog(@"%.2f 元，進度 %ld%%", dollars, (long)percent);
+bug_lines: [4, 6]
+reasons:
+  - "第 4 行與第 6 行都是整數除法：total / 100 得到 16 不是 16.9；done / goal 先變成 0"
+  - "cents 應該用 NSArray，C 陣列不能放進迴圈"
+  - "第 7 行 %.2f 不能印 double，要用 %lf"
+  - "long long 不能用 += 累加，金額要用 NSDecimalNumber"
+answer_reason: 0
+fix: |
+  double dollars = total / 100.0;
+  NSInteger percent = done * 100 / goal;
+solution_note: 除號兩邊都是整數就砍小數。第 4 行讓一邊變成浮點數（100.0）；第 6 行先乘再除。
+feedback: { "1": "C 陣列配索引迴圈完全合法；只有 for-in 需要 NSArray。", "2": "%f 就是印 double，%lf 也可以，兩者等價。", "3": "long long 是整數，+= 沒問題；以分存整數正是本章建議。" }
+hints: ["找所有的 / 號，看兩邊的型別。", "1 / 3 在 C 裡是多少？"]

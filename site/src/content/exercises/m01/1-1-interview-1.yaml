@@ -1,0 +1,11 @@
+id: m01-1-1-interview-1
+chapter: "1.1"
+type: flash
+tier: interview
+title: 面試題：BOOL 和 bool 差在哪？
+minutes: 2
+front: "面試官：Objective-C 的 BOOL 和 C99 的 bool 有什麼不同？為什麼 if (flag == YES) 是壞習慣？"
+back: |
+  bool（C99 的 _Bool）保證只有 0 / 1，任何值塞進去都會正規化。
+  BOOL 在 Intel Mac 與 32 位元 iOS 上是 signed char：塞 2 就是 2、塞 256 變 0，所以 flag == YES（1）可能不成立；在 arm64（iPhone 5s 之後、Apple Silicon）上 BOOL 被定義成 bool，問題消失，可用 OBJC_BOOL_IS_BOOL 判斷目前平台。
+  結論：判斷永遠寫 if (flag)，BOOL 只放比較運算的結果；跨平台程式碼不能假設 BOOL 會正規化。

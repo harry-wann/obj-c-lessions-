@@ -1,0 +1,30 @@
+id: m01-1-4-code-1
+chapter: "1.4"
+type: code
+title: 寫一個檔案私有的 kind 轉符號函式
+mobile: false
+minutes: 4
+prompt: 在 `.m` 裡寫一個只有這個檔案看得到的 C 函式 `LBKindSymbol`，接 `LBTransactionKind`、回傳 `NSString *`：支出回 @"-"、收入回 @"+"。用 `switch`、不寫 `default`。
+starter: |
+  // 只有這個 .m 看得到
+
+checks:
+  - must_match: 'static\s+NSString\s*\*\s*LBKindSymbol\s*\(\s*LBTransactionKind\s+\w+\s*\)'
+    message: 要 static，簽名 NSString *LBKindSymbol(LBTransactionKind kind)
+  - must_match: 'switch\s*\('
+    message: 要用 switch
+  - must_match: 'case\s+LBTransactionKindExpense\s*:'
+  - must_match: 'case\s+LBTransactionKindIncome\s*:'
+  - must_not_match: 'default\s*:'
+    message: 不寫 default
+  - brackets_balanced: true
+solution: |
+  static NSString *LBKindSymbol(LBTransactionKind kind) {
+      switch (kind) {
+          case LBTransactionKindExpense: return @"-";
+          case LBTransactionKindIncome:  return @"+";
+      }
+      return @"";
+  }
+solution_note: "`static` 讓函式只在這個編譯單元可見，不會污染全域符號、也不會跟別的檔案撞名；不寫 default 讓新增 case 時編譯器提醒你。"
+hints: ["檔案私有的關鍵字是什麼？", "函式的回傳型別寫在名字前面。"]

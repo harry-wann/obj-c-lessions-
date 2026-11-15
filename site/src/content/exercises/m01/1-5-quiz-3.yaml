@@ -1,0 +1,12 @@
+id: m01-1-5-quiz-3
+chapter: "1.5"
+section: quiz
+type: quiz
+title: "Release 下的 #if DEBUG"
+minutes: 1
+prompt: 用 Xcode 預設範本的 Release 組態建置時，`#if DEBUG ... #endif` 裡的程式碼會？
+options: ["執行期判斷 DEBUG 變數決定跑不跑", "編譯進 binary 但不執行", "在前置處理階段整段刪掉，連字串都不進 binary", "編譯錯誤：Release 沒有 DEBUG"]
+answer: 2
+explain: 條件編譯在編譯之前決定；Release 沒定義 DEBUG，`#if DEBUG` 當 0，區塊被移除。這跟 Kotlin 的 `if (BuildConfig.DEBUG)` 執行期判斷不同。
+feedback: { "0": "這是 Kotlin / Java 的做法，C 在編譯前就決定了。", "1": "被刪掉的程式碼不存在，不會進 binary。", "3": "沒定義的巨集在 #if 裡當 0，不會報錯——這也是坑。" }
+hints: ["前置處理器在編譯「之前」。", "沒定義的名字在 #if 裡算幾？"]

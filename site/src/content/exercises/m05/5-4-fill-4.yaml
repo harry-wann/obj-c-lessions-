@@ -1,0 +1,15 @@
+id: m05-5-4-fill-4
+chapter: "5.4"
+type: fill
+title: block 語法 ④：作為屬性
+minutes: 1
+prompt: 宣告一個可為 nil 的 block 屬性 onChange，接一個 LBLedger 參數、無回傳。
+code: |
+  @property (nonatomic, ___1___, nullable) void (^___2___)(LBLedger *ledger);
+blanks:
+  "1": { accept: ["copy"], chips: ["copy", "strong", "weak", "assign"] }
+  "2": { accept: ["onChange"], chips: ["onChange", "", "*onChange", "onChange:"] }
+hints: ["block 屬性的慣例修飾詞。", "屬性名寫在 ^ 後面，跟變數宣告一樣。"]
+feedback:
+  "1=strong": ARC 下能跑，但慣例與 MRC 相容性都要求 copy。
+solution_note: "`@property (nonatomic, copy, nullable) void (^onChange)(LBLedger *ledger);`"

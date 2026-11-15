@@ -1,0 +1,18 @@
+id: m01-1-5-parsons-1
+chapter: "1.5"
+type: parsons
+title: 排出 Debug 限定的 log 巨集
+minutes: 2
+prompt: 排出一個只在 Debug 組態印東西的 LBLog 巨集。有三行是干擾行。
+lines:
+  - "#if DEBUG"
+  - "#define LBLog(fmt, ...) NSLog((@\"%s \" fmt), __PRETTY_FUNCTION__, ##__VA_ARGS__)"
+  - "#else"
+  - "#define LBLog(fmt, ...)"
+  - "#endif"
+distractors:
+  - "#ifdef DEBUG"
+  - "#end"
+  - "#define LBLog(fmt, ...);"
+solution_note: 用 `#if DEBUG`（看值）不用 `#ifdef`（看有無定義）；Release 分支定義成空巨集，呼叫處整行消失；結尾是 `#endif`。
+hints: ["先開條件、再定義、再 else、再 endif。", "Release 分支要讓 LBLog(...) 變成什麼都沒有。", "結尾的指令是 #endif。"]

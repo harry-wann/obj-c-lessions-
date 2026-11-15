@@ -1,0 +1,24 @@
+id: m01-1-5-spot-1
+chapter: "1.5"
+type: spot
+title: 找出巨集的錯
+minutes: 3
+prompt: 這四個巨集有兩個有問題。點選有問題的行並選出原因。
+code: |
+  #define LBCentsPerDollar 100
+  #define LBCentsToDollars(c) c / LBCentsPerDollar
+  #define LBMaxNoteLength 140;
+  #define LBSquare(x) ((x) * (x))
+bug_lines: [2, 3]
+reasons:
+  - "第 2 行參數與整體都沒括號，LBCentsToDollars(a + b) 會變 a + b / 100；第 3 行結尾分號會被貼進每個使用處"
+  - "第 1 行物件式巨集必須有括號：(100)"
+  - "第 4 行括號太多，會變成 tuple"
+  - "第 2 行巨集不能用別的巨集"
+answer_reason: 0
+fix: |
+  #define LBCentsToDollars(c) ((c) / LBCentsPerDollar)
+  #define LBMaxNoteLength 140
+solution_note: 函式式巨集參數包括號、整體再包括號；`#define` 結尾不加分號。更好的做法是改成 `static const` 與 `static inline`。
+feedback: { "1": "單一字面值不需要括號（加了也無害）。", "2": "C 沒有 tuple，多包一層括號只是分組。", "3": "巨集裡用巨集完全合法，會一層層展開。" }
+hints: ["把 a + b 原封不動貼進第 2 行看看。", "第 3 行多了什麼字元？"]

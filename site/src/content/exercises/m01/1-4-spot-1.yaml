@@ -1,0 +1,26 @@
+id: m01-1-4-spot-1
+chapter: "1.4"
+type: spot
+title: 這個標頭檔哪裡有問題
+minutes: 3
+prompt: 這是某人的 `LBTypes.h`。它會造成連結錯誤加一堆警告。點選有問題的行並選出原因。
+code: |
+  #import <Foundation/Foundation.h>
+
+  NSString * const LBErrorDomain = @"com.littlebook.error";
+  extern const NSString *LBNotificationName;
+  static const NSInteger LBMaxNoteLength = 140;
+  NSString *LBFormatCents(long long cents);
+bug_lines: [3, 4]
+reasons:
+  - "第 3 行在 .h 定義常數，每個 import 的 .m 都有一份 → duplicate symbol；第 4 行 const 位置錯，用起來滿地 discards qualifiers 警告"
+  - "第 5 行 static 不能寫在 .h"
+  - "第 6 行函式原型要加 extern"
+  - "第 1 行 .h 不該 import Foundation"
+answer_reason: 0
+fix: |
+  extern NSString * const LBErrorDomain;
+  extern NSString * const LBNotificationName;
+solution_note: .h 只放宣告；整數常數用 `static const` 寫在 .h 沒問題（每份都會被編譯器折疊）；函式原型預設就是 extern，不用寫。
+feedback: { "1": "static const 整數寫在 .h 是常見且安全的做法。", "2": "函式宣告預設就是 extern。", "3": "用到 NSString、NSInteger 就要 import Foundation。" }
+hints: ["哪一行在 .h 裡「定義」了東西？", "從變數名往左讀每個 const。"]

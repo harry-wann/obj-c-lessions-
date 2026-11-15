@@ -93,7 +93,7 @@ Objective-C 的 runtime 用類別名字串查類別，兩個 framework 各自定
 Apple Coding Guidelines 的核心是「唸出來要像句子」：`[array insertObject:tx atIndex:0]` 唸成 "array, insert object tx at index 0"。幾個具體規則：
 
 - 第一個標籤說明**動作與第一個參數**（`insertObject:`），後續標籤說明各參數的角色（`atIndex:`），介系詞放在標籤裡，不放在參數名裡。
-- 不縫寫，除了業界通用的 `max`、`min`、`URL`、`ID`、`UTF8`、`PDF`、`HTML`。`transactionsGroupedByMonth` 不寫 `txGrpByMon`。
+- 不縮寫，除了業界通用的 `max`、`min`、`URL`、`ID`、`UTF8`、`PDF`、`HTML`。`transactionsGroupedByMonth` 不寫 `txGrpByMon`。
 - 回傳值是 `BOOL` 的動作用動詞開頭（`removeTransactionWithIdentifier:` 回傳是否成功）；回傳物件的查詢用名詞（`transactionWithIdentifier:`）。
 - delegate 方法第一個參數永遠是送訊息的物件（`ledger:didAddTransaction:`），過去式 `did`、未來式 `will`、詢問用 `should`。
 - 全部<Term en="camel case" tw="駝峰式命名" cn="驼峰命名" jp="キャメルケース" />：類別名大寫開頭，方法、屬性、變數小寫開頭。沒有底線分字，底線只給 ivar 開頭與分類方法前綴。
@@ -149,7 +149,7 @@ Objective-C 的常數不用全大寫加底線（那是 C 巨集的風格，`#def
 這是 Objective-C 獨有的規則：方法名的**第一個單字**決定記憶體管理語意。`alloc`、`new`、`copy`、`mutableCopy`、`init` 開頭的方法屬於<Term en="method family" tw="方法家族" cn="方法族" jp="メソッドファミリー" />，ARC 假設它們回傳一個呼叫端擁有的物件。你命名一個方法叫 `newEntry` 但內部只是回傳一個既有物件，ARC 會在呼叫端多釋放一次——模組 4 會講原理，現在先記住：**不要用 `new`、`copy`、`init` 當方法名開頭**，除非你真的在實作那個家族的語意。`newsFeed` 這種剛好以 `new` 開頭的名字也會中招（ARC 看的是單字邊界：`new` 後面接大寫才算，`newsFeed` 的 `s` 是小寫所以安全，但 `newEntry` 不安全）。
 
 <Tip title="Apple Coding Guidelines 一頁摘要">
-類別、協定、常數、列舉、函式、通知加前綴；方法像句子，介系詞放標籤裡；getter 不加 `get`；布林 getter 用 `isX`；分類方法加 `xx_`；不縫寫；駝峰式；`init…` 開頭的是初始化器、`…With…:` 是帶參數的工廠；delegate 方法第一個參數是送訊息者。原文在 Apple 開發者網站搜 "Coding Guidelines for Cocoa"，20 分鐘可以讀完。
+類別、協定、常數、列舉、函式、通知加前綴；方法像句子，介系詞放標籤裡；getter 不加 `get`；布林 getter 用 `isX`；分類方法加 `xx_`；不縮寫；駝峰式；`init…` 開頭的是初始化器、`…With…:` 是帶參數的工廠；delegate 方法第一個參數是送訊息者。原文在 Apple 開發者網站搜 "Coding Guidelines for Cocoa"，20 分鐘可以讀完。
 </Tip>
 
 <Pitfall title="分類方法沒加前綴，被系統更新撞掉">
@@ -214,7 +214,7 @@ One of the two will be used. Which one is undefined.`}>
 ## 小結
 
 - Objective-C 沒有命名空間：類別、協定、函式、常數、列舉、通知全部加 2–3 字母前綴（App 用三字母）。
-- 方法名像英文句子，介系詞放標籤；不縫寫、駝峰式；delegate 方法第一個參數是送訊息者。
+- 方法名像英文句子，介系詞放標籤；不縮寫、駝峰式；delegate 方法第一個參數是送訊息者。
 - getter 不加 `get`（`get` 代表透過指標回填），布林屬性用 `getter=isX`。
 - 分類方法加 `lb_` 小寫前綴，避免被 Apple 未來新增的方法撞掉。
 - `alloc` / `new` / `copy` / `mutableCopy` / `init` 開頭的方法名會改變 ARC 的擁有權假設，別亂用。

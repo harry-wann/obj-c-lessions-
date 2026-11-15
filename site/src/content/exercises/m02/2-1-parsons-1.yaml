@@ -1,0 +1,20 @@
+id: m02-2-1-parsons-1
+chapter: "2.1"
+type: parsons
+title: 拼出一個完整類別
+minutes: 3
+prompt: "把下面的行排成一個能貼進 Scratch 編譯的 LBCategory 類別（宣告 + 實作）。有兩行是干擾行。"
+lines:
+  - "@interface LBCategory : NSObject"
+  - "- (NSString *)displayName;"
+  - "@end"
+  - "@implementation LBCategory"
+  - "- (NSString *)displayName {"
+  - "    return @\"飲食\";"
+  - "}"
+  - "@end"
+distractors:
+  - "@class LBCategory : NSObject"
+  - "@implementation LBCategory : NSObject"
+solution_note: "宣告段只有簽名加分號；實作段才有大括號與方法本體。父類別只在 @interface 寫一次，@implementation 後面不再寫。"
+hints: ["先排 @interface 段，再排 @implementation 段，各自以 @end 收尾。", "方法宣告以分號結束，方法實作以大括號開始。", "@implementation 後面不能再寫冒號與父類別。"]

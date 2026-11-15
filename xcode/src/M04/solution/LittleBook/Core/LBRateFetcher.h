@@ -14,7 +14,7 @@ typedef void (^LBRateFetcherCompletion)(NSDecimalNumber *rate);
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
 
-- (void)fetchWithCompletion:(LBRateFetcherCompletion)completion;
+- (void)fetchWithCompletion:(nullable LBRateFetcherCompletion)completion;
 
 @end
 

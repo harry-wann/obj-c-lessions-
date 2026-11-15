@@ -1,0 +1,25 @@
+id: m03-3-1-crash-1
+chapter: "3.1"
+type: crash
+title: 讀懂這則字串崩潰
+minutes: 2
+log: |
+  *** Terminating app due to uncaught exception 'NSRangeException',
+  reason: '*** -[__NSCFConstantString substringWithRange:]: Range {4, 3} out of bounds; string length 6'
+options:
+  - 對一個字面值字串取子字串，範圍 4 + 3 = 7 超過了長度 6；很可能把 emoji 算成 1 個單位
+  - 字串是 nil，對 nil 送 substringWithRange: 會 crash
+  - NSRange 的 location 不能從 4 開始
+  - 字串是可變的，在切的時候被別的執行緒改了
+answer: 0
+fix: |
+  NSRange r = NSMakeRange(4, 3);
+  if (NSMaxRange(r) <= s.length) {
+      sub = [s substringWithRange:r];
+  }
+  // 或依字元邊界：[s rangeOfComposedCharacterSequenceAtIndex:4]
+solution_note: "`__NSCFConstantString` 代表 @\"...\" 字面值；`Range {4, 3}` 從索引 4 取 3 個單位，到 7，但 `string length 6`。常見成因是用另一條字串算出的 range，或以為 emoji 只佔 1 個單位。"
+hints: ["看類別名：__NSCFConstantString 告訴你它是什麼來源。", "Range {4, 3} 的結尾是幾？字串長度是幾？", "對 nil 送訊息會發生什麼？（2.2）"]
+feedback:
+  "1": "對 nil 送訊息會安靜地回 nil，不會丟例外；而且訊息裡有類別名，表示物件存在。"
+  "3": "__NSCFConstantString 是字面值，不可變，沒有人能改它。"

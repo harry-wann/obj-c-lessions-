@@ -1,0 +1,26 @@
+id: m00-0-5-fill-1
+chapter: "0.5"
+type: fill
+title: 從文件簽名寫出呼叫
+minutes: 2
+prompt: 依照註解裡的文件簽名，填出正確的呼叫、selector 與 @available 寫法。
+code: |
+  // 文件：- (void)insertObject:(id)anObject atIndex:(NSUInteger)index;
+  NSMutableArray *notes = [NSMutableArray array];
+  [notes ___1___:@"lunch" ___2___:0];
+  SEL s = @selector(___3___);
+  if (@available(iOS 17.0, ___4___)) { }
+blanks:
+  "1": { accept: ["insertObject"], chips: ["insertObject", "insert", "insertObject:", "addObject"] }
+  "2": { accept: ["atIndex"], chips: ["atIndex", "at", "index", "atIndex:"] }
+  "3": { accept: ["insertObject:atIndex:"], chips: ["insertObject:atIndex:", "insertObject:atIndex", "insert:at:", "insertObject"] }
+  "4": { accept: ["*"], chips: ["*", "...", "else", "macOS"] }
+feedback:
+  "1=insert": "insert 是 Swift 改寫後的名字，Objective-C 原名是 insertObject。"
+  "1=insertObject:": "冒號已經寫在空格後面了，再填一個會變成兩個冒號。"
+  "2=at": "at 是 Swift 的參數標籤，Objective-C 原名是 atIndex。"
+  "3=insertObject:atIndex": "少了最後一個冒號就對不到任何方法，編譯器只會警告 undeclared selector。"
+  "3=insert:at:": "那是 Swift 的名字。"
+  "4=...": "@available 的最後一個引數固定是 `*`，表示「其他平台一律視為可用」。"
+solution_note: "呼叫時把 selector 的每一段拆開、冒號後面接引數；`@selector()` 裡寫完整名字含所有冒號；`@available(iOS 17.0, *)` 的 `*` 是必要的結尾。"
+hints: ["把文件簽名的兩段標籤各自接到引數前面。", "selector 要寫全，數一數有幾個冒號。", "@available 的括號最後一定要有星號。"]

@@ -1,0 +1,19 @@
+id: m02-2-2-predict-1
+chapter: "2.2"
+type: predict
+title: 對 nil 送訊息會印出什麼？
+minutes: 2
+code: |
+  LBLedger *ledger = nil;
+  [ledger addAmount:NSDecimalNumber.one note:@"消失"];
+  NSLog(@"%lu", (unsigned long)[ledger count]);
+  NSLog(@"%@", [ledger total]);
+  NSLog(@"%d", [[ledger total] isEqual:NSDecimalNumber.zero]);
+options: ["0 (null) 0", "crash：unrecognized selector", "0 0 1", "(null) (null) 0"]
+accept: ["0 (null) 0"]
+note: "三行各印一個值，以空格分開"
+feedback:
+  "0 0 1": "`[ledger total]` 回傳的是物件型別，對 nil 送訊息回 nil，`%@` 印 nil 會顯示 (null)；最後一行是對 nil 送 isEqual:，回 NO 也就是 0。"
+  "crash：unrecognized selector": "nil 是合法接收者，runtime 直接回傳零值，不會查方法表。"
+solution_note: "整數型別回 0、物件回 nil（`%@` 印成 (null)）、BOOL 回 NO（`%d` 印 0）。第三行是兩層 nil 訊息：先 `[ledger total]` 得 nil，再對 nil 送 `isEqual:`。"
+hints: ["每個回傳型別的「零值」是什麼？", "`%@` 遇到 nil 會印什麼？", "第三行有兩層訊息，每一層的接收者都是 nil。"]

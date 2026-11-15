@@ -1,0 +1,17 @@
+id: m00-0-5-quiz-2
+chapter: "0.5"
+section: quiz
+type: quiz
+title: 開頭的 + 是什麼
+minutes: 1
+code: "+ (instancetype)arrayWithCapacity:(NSUInteger)numItems;"
+prompt: 開頭的 `+` 表示？
+options:
+  - 這個方法會回傳新物件
+  - 類別方法：對類別本身呼叫，像 Swift 的 static func
+  - 這個方法是公開的
+  - 這個方法可以被子類別覆寫
+answer: 1
+explain: "`+` 類別方法對類別呼叫：`[NSMutableArray arrayWithCapacity:8]`；`-` 實體方法對物件呼叫。`instancetype` 才是「回傳呼叫者自己類別的實體」的意思。"
+hints: ["呼叫它的時候方括號裡第一個東西是類別名還是變數？", "Swift 的 static func 對應哪個符號？"]
+feedback: { "0": "回傳什麼由括號裡的回傳型別決定，與 + / - 無關。", "2": "Objective-C 沒有 public / private 關鍵字，可見性靠 .h / .m。", "3": "+ 與 - 方法都能覆寫。" }

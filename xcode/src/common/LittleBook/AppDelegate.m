@@ -3,7 +3,7 @@
 @implementation AppDelegate
 
 - (BOOL)application:(UIApplication *)application
-    didFinishLaunchingWithOptions:(nullable NSDictionary<UIApplicationLaunchOptionsKey, id> *)launchOptions {
+    didFinishLaunchingWithOptions:(nullable NSDictionary *)launchOptions {
     return YES;
 }
 

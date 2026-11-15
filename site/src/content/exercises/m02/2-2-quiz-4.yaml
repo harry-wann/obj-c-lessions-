@@ -1,0 +1,14 @@
+id: m02-2-2-quiz-4
+chapter: "2.2"
+section: quiz
+type: quiz
+title: 為什麼不能這樣宣告？
+minutes: 1
+code: |
+  - (void)addAmount:(NSDecimalNumber *)amount;
+  - (void)addAmount:(double)amount;
+options: ["兩個方法的 selector 都是 `addAmount:`，Objective-C 沒有多載", "double 不能當方法參數", "方法名不能重複使用 add 開頭", "第二個應該是類別方法"]
+answer: 0
+explain: "selector 只看名字不看型別，所以兩個方法在 runtime 的方法表裡是同一個鍵。要靠標籤區分：`addAmount:` 與 `addCents:`。"
+hints: ["想想 selector 的組成有沒有型別。", "Foundation 的方法名為什麼那麼長？"]
+feedback: { "1": "基本型別當參數完全合法，例如 `-[NSArray objectAtIndex:]`。" }

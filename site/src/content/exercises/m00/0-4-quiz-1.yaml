@@ -1,0 +1,16 @@
+id: m00-0-4-quiz-1
+chapter: "0.4"
+section: quiz
+type: quiz
+title: 哪個放 .h
+minutes: 1
+prompt: 下列哪一項應該放在 `.h`，而不是 `.m`？
+options:
+  - "`@implementation LBLedger … @end`"
+  - "公開方法的宣告 `- (void)addTransaction:(LBTransaction *)tx;`"
+  - 只有這個檔用到的 static 輔助函式
+  - "私有屬性的類別延伸 `@interface LBLedger () … @end`"
+answer: 1
+explain: "`.h` 是對外合約：類別名、父類別、公開屬性與方法。實作、私有屬性、檔案內的輔助函式都留在 `.m`，外面看不到就是封裝。"
+hints: ["誰 #import 了你的 .h 就看得到裡面的東西；你想讓別人看到什麼？", "類別延伸 `()` 是 2.5 的私有宣告手法。"]
+feedback: { "0": "實作永遠在 .m；放進 .h 會被每個 import 它的檔案編一次 → duplicate symbol。", "3": "類別延伸就是為了「寫在 .m、對外隱藏」而存在的。" }

@@ -1,0 +1,16 @@
+id: m00-0-5-quiz-3
+chapter: "0.5"
+section: quiz
+type: quiz
+title: CF 與 CG 前綴
+minutes: 1
+prompt: "看到 `CFStringRef`、`CGRect`、`CFRelease()` 這些 `CF` / `CG` 開頭的名字，你可以知道什麼？"
+options:
+  - 它們是 Objective-C 類別，用方括號送訊息
+  - 它們是 C API（Core Foundation / Core Graphics）：沒有方括號、沒有 description、記憶體要自己管
+  - 它們已經被棄用
+  - 它們是私有 API，不能在 App Store 用
+answer: 1
+explain: "`NS` / `UI` 是 Objective-C 物件；`CF` / `CG` 是 C。`Ref` 結尾是 C 的不透明指標型別，函式以前綴開頭（`CFRelease`、`CGRectMake`）。模組 4 會教 NSString 與 CFStringRef 之間的免費橋接。"
+hints: ["Ref 結尾、函式呼叫的語法，是物件還是 C？", "哪些前綴是 Objective-C 物件、哪些是 C？對照課文的表。"]
+feedback: { "0": "CF 型別不能用方括號；[CFStringRef length] 編不過。", "2": "Core Foundation 與 Core Graphics 至今仍是 iOS 的底層，沒有棄用。", "3": "私有 API 是底線開頭（__NSArrayM、_UIFoo），CF / CG 是公開的。" }

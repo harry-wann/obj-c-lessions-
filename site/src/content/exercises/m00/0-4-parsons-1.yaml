@@ -1,0 +1,21 @@
+id: m00-0-4-parsons-1
+chapter: "0.4"
+type: parsons
+title: 排出一個標準的 .m 檔
+minutes: 3
+prompt: 把 LBLedger.m 的內容依慣例排好。有些行不該出現在 .m 裡。
+lines:
+  - '#import "LBLedger.h"'
+  - '#import "LBTransaction.h"'
+  - '@interface LBLedger ()'
+  - '@property (nonatomic, strong) NSMutableArray<LBTransaction *> *storage;'
+  - '@end  // 類別延伸結束'
+  - '@implementation LBLedger'
+  - '- (void)addTransaction:(LBTransaction *)tx { [self.storage addObject:tx]; }'
+  - '@end  // 實作結束'
+distractors:
+  - '#import "LBLedger.m"'
+  - '@import LBTransaction;'
+  - '@class LBLedger;'
+solution_note: 慣例順序：先 import 自己的 .h（確保 .h 能獨立編譯），再 import 相依的標頭，接著類別延伸放私有屬性，最後 @implementation。`.m` 不需要 `@class` 自己；`@import` 只給模組用；import `.m` 會 duplicate symbol。
+hints: ["第一行永遠是自己的標頭檔。", "私有屬性寫在 @implementation 之前的類別延伸裡。", "App 裡自己的類別不能 @import。"]

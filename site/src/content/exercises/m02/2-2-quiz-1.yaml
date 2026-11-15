@@ -1,0 +1,12 @@
+id: m02-2-2-quiz-1
+chapter: "2.2"
+section: quiz
+type: quiz
+title: 這個方法的 selector 是什麼？
+minutes: 1
+code: "- (void)addAmount:(NSDecimalNumber *)amount note:(NSString *)note;"
+options: ["`addAmount:note:`", "`addAmount`", "`addAmount:(NSDecimalNumber *)note:(NSString *)`", "`addAmountNote`"]
+answer: 0
+explain: "selector 是把所有標籤連冒號接起來，型別與參數名都不算。兩個冒號就是兩個參數。"
+hints: ["冒號的數量等於參數數量。", "crash log 與 Apple 文件都是用這個形式指方法。"]
+feedback: { "1": "少了冒號就變成無參數方法 addAmount，是另一個 selector。", "2": "型別不是名字的一部分，所以 Objective-C 才沒有多載。" }

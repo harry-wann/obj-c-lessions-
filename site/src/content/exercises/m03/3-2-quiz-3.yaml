@@ -1,0 +1,18 @@
+id: m03-3-2-quiz-3
+chapter: "3.2"
+section: quiz
+type: quiz
+title: struct 要怎麼放進 NSArray？
+minutes: 1
+prompt: 想把一個 `NSRange` 放進 `NSMutableArray`，該怎麼做？
+options:
+  - "直接 `[arr addObject:range]`，編譯器會自動裝箱"
+  - "`[arr addObject:[NSValue valueWithRange:range]]`，取出時用 `rangeValue`"
+  - "`[arr addObject:@(range)]`"
+  - "struct 不能放進集合，要改用兩個 NSNumber"
+answer: 1
+explain: 集合只收物件。struct 用 NSValue 包：`valueWithRange:`、`valueWithCGPoint:`（UIKit）、自訂 struct 用 `valueWithBytes:objCType:`。NSNumber 其實是 NSValue 的子類別。
+hints: ["NSArray 只能裝什麼？", "NSNumber 的父類別是誰？"]
+feedback:
+  "0": "addObject: 的參數是 id，傳 struct 會編譯錯誤。"
+  "2": "@( ) 只能裝箱數字、BOOL、C 字串，struct 不行。"

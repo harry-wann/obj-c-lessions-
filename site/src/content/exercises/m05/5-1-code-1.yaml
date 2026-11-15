@@ -1,0 +1,35 @@
+id: m05-5-1-code-1
+chapter: "5.1"
+type: code
+title: 宣告 LBTransactionFormatter 協定
+mobile: false
+minutes: 5
+prompt: "宣告一個協定 `LBTransactionFormatter`，繼承 NSObject 協定。必要方法 `- (NSString *)stringForTransaction:(LBTransaction *)tx;`，選用方法 `- (NSString *)stringForTotal:(NSDecimalNumber *)total;`。用 `@class` 前置宣告 LBTransaction，不要 #import。"
+starter: |
+  @class LBTransaction;
+
+checks:
+  - must_match: '@class LBTransaction;'
+    message: 要用 @class 前置宣告 LBTransaction
+  - must_match: '@protocol LBTransactionFormatter\s*<\s*NSObject\s*>'
+    message: "協定要宣告成 @protocol LBTransactionFormatter <NSObject>"
+  - selector_equals: "stringForTransaction:"
+    message: "缺少必要方法 stringForTransaction:"
+  - selector_equals: "stringForTotal:"
+    message: "缺少選用方法 stringForTotal:"
+  - must_match: '@optional[^@]*stringForTotal'
+    message: "stringForTotal: 要放在 @optional 之後"
+  - must_not_match: '#import\s*"LBTransaction\.h"'
+    message: 標頭檔之間用前置宣告，不要 #import LBTransaction.h
+  - must_match: '@end'
+solution: |
+  @class LBTransaction;
+
+  @protocol LBTransactionFormatter <NSObject>
+  @required
+  - (NSString *)stringForTransaction:(LBTransaction *)tx;
+  @optional
+  - (NSString *)stringForTotal:(NSDecimalNumber *)total;
+  @end
+solution_note: "`@class` 讓方法簽名能用 `LBTransaction *` 而不必 import 整個標頭檔；`<NSObject>` 讓 `id<LBTransactionFormatter>` 可以呼叫 respondsToSelector:；optional 方法放 `@optional` 之後。"
+hints: ["協定宣告以 @protocol 開頭、@end 結尾。", "繼承 NSObject 協定用角括號。", "@required 可以省略，@optional 不能。"]

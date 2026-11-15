@@ -16,7 +16,7 @@ int main(int argc, const char *argv[]) {
         NSDictionary<NSString *, NSNumber *> *amounts = @{@"早餐": @85, @"捷運": @32};
         for (NSString *note in notes) {
             NSNumber *amount = amounts[note];   // 找不到回 nil，不會當掉
-            NSLog(@"%@ → %@", note, amount ?: @"（無金額）");
+            NSLog(@"%@ → %@", note, amount ? amount.description : @"（無金額）");
         }
 
         // 金額一律用 NSDecimalNumber，double 會有 0.1 + 0.2 的問題

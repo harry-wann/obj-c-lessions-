@@ -1,0 +1,16 @@
+id: m00-0-1-quiz-3
+chapter: "0.1"
+section: quiz
+type: quiz
+title: 底線開頭的類別名
+minutes: 1
+prompt: "`NSLog(@\"%@\", NSStringFromClass([@[] class]));` 印出 `__NSArray0` 而不是 `NSArray`。這代表什麼？"
+options:
+  - 程式有 bug，陣列的類別被改掉了
+  - NSArray 是類別叢集：你宣告 NSArray，Foundation 給你最適合的私有子類別；crash log 裡會看到這些名字
+  - "`@[]` 字面值產生的不是 NSArray，要改用 `[NSArray array]`"
+  - 只有 Debug 組態才會這樣
+answer: 1
+explain: Foundation 的集合類別都是類別叢集。`__NSArray0` 是空陣列的單例類別、`__NSArrayM` 是可變陣列、`__NSCFString` 是字串，讀 log 時把它們當成 NSArray / NSMutableArray / NSString 看就對了。
+hints: ["底線開頭在 Apple 的世界代表什麼？", "0.5 的前綴表會再講一次。"]
+feedback: { "2": "`@[]` 與 `[NSArray array]` 都回傳同一個 __NSArray0 單例。", "3": "與組態無關，Release 也一樣。" }

@@ -1,0 +1,36 @@
+id: m00-0-4-spot-1
+chapter: "0.4"
+type: spot
+title: 這個標頭檔哪裡不對
+minutes: 3
+prompt: 這是同事寫的 LBLedger.h。點選有問題的行，並選出原因。
+code: |
+  // LBLedger.h
+  #import <Foundation/Foundation.h>
+  #import "LBTransaction.m"
+  #import "LBCategory.h"
+  #import "LBMonthSection.h"
+
+  @interface LBLedger : NSObject
+  - (void)addTransaction:(LBTransaction *)tx;
+  - (NSArray<LBMonthSection *> *)transactionsGroupedByMonth;
+  @end
+bug_lines: [3, 4, 5]
+reasons:
+  - "第 3 行 import 了 .m 會 duplicate symbol；第 4、5 行只用到指標型別（第 4 行根本沒用到），應改成 @class 避免循環與拖慢編譯"
+  - "第 2 行現代專案不能用 #import，必須改 @import"
+  - 第 9 行 NSArray 不能加泛型
+  - "第 7 行 @interface 應該寫在 .m"
+answer_reason: 0
+fix: |
+  // LBLedger.h
+  #import <Foundation/Foundation.h>
+  @class LBTransaction, LBMonthSection;
+
+  @interface LBLedger : NSObject
+  - (void)addTransaction:(LBTransaction *)tx;
+  - (NSArray<LBMonthSection *> *)transactionsGroupedByMonth;
+  @end
+solution_note: "`.h` 只 import 父類別與協定的標頭，其餘用 `@class`；`#import <Foundation/Foundation.h>` 在開了 modules 的專案與 `@import Foundation;` 等價，兩種都合法。"
+hints: ["哪一行 import 的副檔名不對？", "另外兩行 import 的類別在這個 .h 裡是怎麼被用的？只是指標嗎？"]
+feedback: { "1": "#import <Foundation/Foundation.h> 完全合法，開 modules 時會自動轉成模組載入。", "2": "輕量泛型 NSArray<X *> 是 Modern Objective-C 的標準寫法（3.6）。", "3": "公開的 @interface 就是要放在 .h 給別人看。" }

@@ -1,0 +1,16 @@
+id: m02-2-5-quiz-1
+chapter: "2.5"
+section: quiz
+type: quiz
+title: 這個空括號叫什麼？
+minutes: 1
+code: |
+  // LBCategory.m
+  @interface LBCategory ()
+  @property (nonatomic, strong) NSMutableArray *mutableChildren;
+  @end
+options: ["類別延伸（class extension），同一個類別宣告的延續，放在 .m 所以外面看不到", "匿名分類（category），不能加屬性", "協定宣告，括號裡放要遵循的協定", "寫錯了，括號裡一定要有名字"]
+answer: 0
+explain: "空括號是類別延伸，可以重新宣告屬性、加私有屬性（會合成 ivar）與私有方法。有名字的括號才是分類，分類不能加 ivar。"
+hints: ["比較 `@interface LBCategory ()` 與 `@interface LBCategory (Formatting)`。", "哪一種能合成 ivar？"]
+feedback: { "1": "常被這樣叫，但它和分類的關鍵差異就是「能加屬性與 ivar」，所以 Apple 另外命名為 class extension。", "2": "協定寫在角括號裡，例如 `<NSCopying>`。" }

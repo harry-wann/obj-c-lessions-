@@ -1,0 +1,30 @@
+id: m03-3-1-fill-1
+chapter: "3.1"
+section: quiz
+type: fill
+title: 填對格式指定子
+minutes: 2
+prompt: 幫這行 `stringWithFormat:` 填入正確的格式指定子與轉型。
+code: |
+  NSString *note = @"午餐";
+  NSInteger count = 3;
+  NSDecimalNumber *amount = [NSDecimalNumber decimalNumberWithString:@"120"];
+  BOOL paid = YES;
+  NSString *s = [NSString stringWithFormat:@"___1___ × ___2___ 筆，共 ___3___ 元，已付 ___4___",
+                 note, ___5___count, amount, paid];
+blanks:
+  "1": { accept: ["%@"], chips: ["%@", "%s", "%ld", "%d"] }
+  "2": { accept: ["%ld"], chips: ["%@", "%d", "%ld", "%lu"] }
+  "3": { accept: ["%@"], chips: ["%@", "%f", "%.2f", "%ld"] }
+  "4": { accept: ["%d"], chips: ["%@", "%d", "%ld", "%s"] }
+  "5": { accept: ["(long)"], chips: ["(long)", "(int)", "(NSInteger)", "(unsigned long)"] }
+hints:
+  - 物件一律 %@，包括 NSDecimalNumber。
+  - NSInteger 要 %ld，而且要轉型成 long。
+  - BOOL 在 C 裡是一個小整數。
+feedback:
+  "1=%s": "%s 是 C 字串（const char *）用的，傳 NSString 進去會印出垃圾或 crash。"
+  "3=%f": "NSDecimalNumber 是物件，用 %@ 會呼叫它的 description，印出精確的十進位值。"
+  "4=%@": "BOOL 不是物件。"
+  "5=(int)": "64 位元上 %ld 對應 long，轉成 int 會有警告。"
+solution_note: 物件（NSString、NSDecimalNumber）用 %@；NSInteger 用 %ld + (long)；BOOL 用 %d 會印 1 / 0。

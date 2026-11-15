@@ -1,0 +1,26 @@
+id: m00-0-5-spot-1
+chapter: "0.5"
+type: spot
+title: 從 Swift 文件翻過來的程式碼
+minutes: 2
+prompt: 這段是看 Swift 文件直接翻寫的，編不過。點選有問題的行並選出原因。
+code: |
+  NSMutableArray<NSString *> *notes = [NSMutableArray array];
+  [notes insert:@"lunch" at:0];
+  [notes addObject:@"dinner"];
+  NSUInteger n = notes.count;
+  if ([notes respondsToSelector:@selector(removeAllObjects)]) {
+      [notes removeAllObjects];
+  }
+bug_lines: [2]
+reasons:
+  - "第 2 行用了 Swift 文件的名字 insert(_:at:)；Objective-C 的原名是 insertObject:atIndex:"
+  - "第 4 行 count 在 Objective-C 叫 length"
+  - "第 5 行 respondsToSelector: 不能用在 NSMutableArray"
+  - "第 1 行 NSMutableArray 不能加泛型"
+answer_reason: 0
+fix: |
+  [notes insertObject:@"lunch" atIndex:0];
+solution_note: 錯誤訊息會是 No visible @interface for 'NSMutableArray' declares the selector 'insert:at:'。Swift 的名字是自動改寫的，查文件時先切到 Objective-C。
+hints: ["哪一行的方法名看起來像 Swift？", "NSArray 的元素個數在 Objective-C 叫什麼？（跟 Swift 一樣）"]
+feedback: { "1": "NSArray 的 count 在兩個語言都叫 count；length 是 NSString 的。", "2": "respondsToSelector: 是 NSObject 的方法，任何物件都能用。", "3": "輕量泛型是 Modern Objective-C 的標準寫法。" }

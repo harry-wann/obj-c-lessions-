@@ -1,0 +1,16 @@
+id: m00-0-3-quiz-1
+chapter: "0.3"
+section: quiz
+type: quiz
+title: 印出 NSInteger
+minutes: 1
+prompt: "`NSInteger count = 3;` 要印出它，哪個寫法沒有警告、也不會印錯？"
+options:
+  - 'NSLog(@"%d", count);'
+  - 'NSLog(@"%ld", (long)count);'
+  - 'NSLog(@"%@", count);'
+  - 'NSLog(@"%s", count);'
+answer: 1
+explain: 64 位元平台的 NSInteger 是 long，用 `%ld` 並轉型成 long 是 Apple 建議的寫法；`%zd` 是免轉型的替代。
+hints: ["NSInteger 在 64 位元是幾個 byte？%d 讀幾個？", "%@ 只能配物件。"]
+feedback: { "0": "會得到 Format specifies type 'int' but the argument has type 'NSInteger' 警告，值大時印錯。", "2": "%@ 要物件指標，給整數會把它當位址去讀 → EXC_BAD_ACCESS。", "3": "%s 要 C 字串 char *，給整數同樣是讀錯位址。" }

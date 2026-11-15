@@ -1,0 +1,16 @@
+id: m00-0-4-quiz-3
+chapter: "0.4"
+section: quiz
+type: quiz
+title: .h 裡的指標型別
+minutes: 1
+prompt: "在 `LBTransaction.h` 裡宣告 `@property (nonatomic, strong) LBCategory *category;`，最省也最安全的做法是？"
+options:
+  - "`#import \"LBCategory.h\"`"
+  - "`@class LBCategory;`"
+  - "`@import LBCategory;`"
+  - "`#include \"LBCategory.m\"`"
+answer: 1
+explain: 屬性只需要知道「LBCategory 是個類別」就能宣告指標，`@class` 前置宣告就夠。完整的 `#import` 留到 `.m` 真正要用它的方法時再做。
+hints: [".h 裡用到另一個類別時，編譯器需要知道多少？", "0.4 的原則：.h 用 @class，.m 用 #import。"]
+feedback: { "0": "可以編譯，但多了相依與循環引用的風險，也拖慢編譯。", "2": "App 裡自己的類別不是模組，不能 @import。", "3": "import .m 會 duplicate symbol。" }

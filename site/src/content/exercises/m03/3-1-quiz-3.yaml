@@ -1,0 +1,14 @@
+id: m03-3-1-quiz-3
+chapter: "3.1"
+section: quiz
+type: quiz
+title: length 數的是什麼？
+minutes: 1
+prompt: "`@\"台北🍜\".length` 是多少？"
+options: ["3", "4", "5", "9"]
+answer: 1
+explain: NSString 的 length 是 UTF-16 單位數。中文字各佔 1，🍜 在 BMP 之外要用代理對（surrogate pair）表示，佔 2，所以是 2 + 2 = 4。
+hints: ["中文一個字佔幾個 UTF-16 單位？", "emoji 的 code point 超過 U+FFFF，在 UTF-16 要幾個單位？"]
+feedback:
+  "0": "3 是人眼看到的字元數，要用 enumerateSubstringsInRange:options:usingBlock: 搭配 ByComposedCharacterSequences 才會得到。"
+  "3": "9 比較像 UTF-8 的位元組數（3 + 3 + 4 = 10，其實也不是 9）。"

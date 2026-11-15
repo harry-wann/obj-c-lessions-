@@ -1,0 +1,25 @@
+id: m05-5-1-crash-1
+chapter: "5.1"
+type: crash
+title: 讀懂這則崩潰訊息
+minutes: 2
+log: |
+  *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+  reason: '-[LBSettingsViewController ledgerDidReset:]: unrecognized selector sent to instance 0x7fb2c3d08f40'
+options:
+  - LBSettingsViewController 沒有宣告遵循 LBLedgerObserver
+  - "ledgerDidReset: 是 optional 方法，LBSettingsViewController 沒實作，而呼叫端沒先 respondsToSelector:"
+  - LBSettingsViewController 已經被釋放
+  - "ledgerDidReset: 的參數型別不符"
+answer: 1
+fix: |
+  // LBLedger.m
+  if ([self.delegate respondsToSelector:@selector(ledgerDidReset:)]) {
+      [self.delegate ledgerDidReset:self];
+  }
+solution_note: unrecognized selector = 物件活著但沒有這個方法。optional 協定方法沒實作就是這個下場。修法在呼叫端（LBLedger），不是逼每個 delegate 都實作。
+hints: ["物件位址存在，表示物件還活著。", "哪一種協定方法「可以沒有」？"]
+feedback:
+  "0": 有沒有宣告遵循不影響這個錯誤；沒宣告只會有編譯警告。
+  "2": 物件釋放後是 EXC_BAD_ACCESS 或 message sent to deallocated instance，不是 unrecognized selector。
+  "3": Objective-C 的 selector 不含型別，型別不符不會產生這個錯誤。

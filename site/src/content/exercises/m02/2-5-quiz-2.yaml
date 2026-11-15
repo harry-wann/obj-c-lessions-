@@ -1,0 +1,12 @@
+id: m02-2-5-quiz-2
+chapter: "2.5"
+section: quiz
+type: quiz
+title: 類別延伸裡可以改什麼？
+minutes: 1
+prompt: ".h 宣告 `@property (nonatomic, copy, readonly) NSString *name;`。在 .m 的類別延伸重新宣告時，哪一個是正確的？"
+options: ["`@property (nonatomic, copy, readwrite) NSString *name;`", "`@property (nonatomic, strong, readwrite) NSString *name;`", "`@property (nonatomic, copy) NSMutableString *name;`", "`@property (atomic, copy, readwrite) NSString *name;`"]
+answer: 0
+explain: "唯一允許改的是 readonly → readwrite（nullable / nonnull 可以補上）。copy 改 strong、nonatomic 改 atomic、型別改掉都會被編譯器抓：property attribute in class extension does not match the primary class。"
+hints: ["兩邊只能差一個字。", "複製貼上 .h 那行再改 readonly。"]
+feedback: { "1": "copy 與 strong 語意不同，編譯器會警告甚至報錯。", "3": "nonatomic 與 atomic 不能不一致。" }

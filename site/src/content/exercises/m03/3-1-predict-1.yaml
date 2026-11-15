@@ -1,0 +1,22 @@
+id: m03-3-1-predict-1
+chapter: "3.1"
+type: predict
+title: emoji 有幾個 length？
+minutes: 2
+code: |
+  NSString *s = @"👍好";
+  NSLog(@"%lu", (unsigned long)s.length);
+  NSLog(@"%@", [s substringToIndex:1]);
+options:
+  - "2 👍"
+  - "3 然後印出半個代理字元（亂碼）"
+  - "3 👍"
+  - "2 然後 crash"
+accept: ["3 然後印出半個代理字元（亂碼）"]
+hints:
+  - 👍 是 U+1F44D，超過 U+FFFF。
+  - substringToIndex:1 切的是 UTF-16 單位，不是字元。
+feedback:
+  "2 👍": "👍 佔 2 個 UTF-16 單位，length 是 3。"
+  "3 👍": "length 對了，但 substringToIndex:1 只拿到代理對的前半，印出來是亂碼，不是完整的 👍。"
+solution_note: length 是 UTF-16 單位數：👍 佔 2、好佔 1，共 3。`substringToIndex:1` 把代理對切成兩半。要安全截斷，先用 `rangeOfComposedCharacterSequenceAtIndex:0` 拿到完整範圍（這裡會是 {0, 2}）。

@@ -1,0 +1,30 @@
+id: m00-0-2-predict-1
+chapter: "0.2"
+type: predict
+title: 用 ⌘R 跑這段程式
+minutes: 2
+code: |
+  int main(int argc, const char * argv[]) {
+      @autoreleasepool {
+  #if DEBUG
+          NSLog(@"Debug");
+  #else
+          NSLog(@"Release");
+  #endif
+          NSLog(@"argc=%d", argc);
+      }
+      return 0;
+  }
+note: 用 ⌘R 執行、scheme 沒改過、沒有傳任何引數
+options:
+  - "Debug argc=1"
+  - "Release argc=1"
+  - "Debug argc=0"
+  - "Release argc=0"
+accept: ["Debug argc=1"]
+feedback:
+  "Release argc=1": ⌘R 走 scheme 的 Run 動作，預設組態是 Debug，DEBUG=1 成立。
+  "Debug argc=0": argv[0] 永遠是執行檔自己的路徑，所以 argc 至少是 1。
+  "Release argc=0": 兩個都錯：Run 預設 Debug；argc 至少 1。
+solution_note: Debug 組態的 Preprocessor Macros 有 DEBUG=1，所以第一行印 Debug。C 的 main 收到的第一個引數是程式路徑，沒傳任何東西 argc 也是 1。
+hints: ["⌘R 用哪個組態？", "C 的 argv[0] 是什麼？"]

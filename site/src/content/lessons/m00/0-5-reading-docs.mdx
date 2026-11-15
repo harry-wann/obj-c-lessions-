@@ -30,7 +30,8 @@ import Term from '../../../components/Term.astro';
 ```swift
 // Apple 文件切到 Swift 看到的樣子
 mutating func insert(_ newElement: Element, at i: Int)
-@available(iOS, introduced: 2.0, deprecated: 9.0, message: "Use UIAlertController")
+@available(iOS, introduced: 2.0, deprecated: 9.0,
+           message: "Use UIAlertController")
 class UIAlertView
 ```
 </Fragment>
@@ -82,9 +83,11 @@ Apple 文件、標頭檔、crash log 裡的方法都長這樣：
 
 int main(int argc, const char * argv[]) {
     @autoreleasepool {
-        // 文件：- (void)insertObject:(id)anObject atIndex:(NSUInteger)index;
-        NSMutableArray<NSString *> *notes = [NSMutableArray array];   // + 類別方法
-        [notes addObject:@"dinner"];                                 // - 實體方法
+        // 文件：
+        // - (void)insertObject:(id)anObject atIndex:(NSUInteger)index;
+        NSMutableArray<NSString *> *notes =
+            [NSMutableArray array];          // + 類別方法，對類別呼叫
+        [notes addObject:@"dinner"];         // - 實體方法，對物件呼叫
         [notes insertObject:@"lunch" atIndex:0];
         NSLog(@"%@", notes);
         // 輸出：(
@@ -132,8 +135,8 @@ Objective-C 沒有命名空間，所有類別名活在同一個全域空間，�
 
 ```text
 'UIAlertView' is deprecated: first deprecated in iOS 9.0 -
-UIAlertView is deprecated. Use UIAlertController with a preferredStyle of
-UIAlertControllerStyleAlert instead
+UIAlertView is deprecated. Use UIAlertController with a
+preferredStyle of UIAlertControllerStyleAlert instead
 ```
 
 它來自標頭檔上的巨集 `API_DEPRECATED("Use UIAlertController…", ios(2.0, 9.0))`：從 iOS 2.0 可用、iOS 9.0 起<Term en="deprecated" tw="已棄用" cn="已废弃" jp="非推奨" />。**Deprecated 不等於壞掉**，Apple 很少真的移除，但它表示「新系統上行為可能退化、沒人修 bug」。舊程式碼還會看到前輩寫法：`NS_DEPRECATED_IOS(2_0, 9_0)`、`DEPRECATED_ATTRIBUTE`、`__attribute__((deprecated))`，意思一樣。

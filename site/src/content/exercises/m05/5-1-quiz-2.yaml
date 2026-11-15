@@ -1,0 +1,18 @@
+id: m05-5-1-quiz-2
+chapter: "5.1"
+section: quiz
+type: quiz
+title: conformsToProtocol: 與 respondsToSelector: 的差別
+minutes: 1
+prompt: "LBConsoleObserver 宣告遵循 LBLedgerObserver，但沒實作 optional 的 `ledgerDidReset:`。下列哪個敘述正確？"
+options:
+  - "`conformsToProtocol:` 回傳 NO，因為沒有完整實作"
+  - "`respondsToSelector:@selector(ledgerDidReset:)` 回傳 YES，因為協定裡有宣告"
+  - "`conformsToProtocol:` 回傳 YES、`respondsToSelector:@selector(ledgerDidReset:)` 回傳 NO"
+  - 兩者都回傳 YES
+answer: 2
+explain: "`conformsToProtocol:` 只看 `@interface` 有沒有宣告遵循；`respondsToSelector:` 看執行期有沒有這個方法。optional 沒實作就是沒有。"
+hints: ["兩個方法問的問題不一樣：一個問「宣告」，一個問「有沒有方法」。", "沒實作的方法，runtime 的方法列表裡就是沒有。"]
+feedback:
+  "0": "`conformsToProtocol:` 不檢查實作完整性，連 required 漏掉它也回 YES。"
+  "1": 協定裡的宣告不會變出方法；`respondsToSelector:` 問的是實際有沒有。

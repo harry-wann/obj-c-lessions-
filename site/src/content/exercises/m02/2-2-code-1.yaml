@@ -1,0 +1,37 @@
+id: m02-2-2-code-1
+chapter: "2.2"
+type: code
+title: 宣告並呼叫一個具名參數方法
+mobile: false
+minutes: 4
+prompt: "在 `@interface` 裡宣告一個實體方法 `addAmount:note:`（第一個參數 `NSDecimalNumber *`、第二個 `NSString *`、無回傳值），然後在 `main` 裡對 `ledger` 送出這個訊息，金額用 `NSDecimalNumber.one`、備註 `@\"午餐\"`。"
+starter: |
+  @interface LBLedger : NSObject
+
+  @end
+
+  int main(int argc, const char *argv[]) {
+      LBLedger *ledger = [[LBLedger alloc] init];
+
+      return 0;
+  }
+checks:
+  - selector_equals: "addAmount:note:"
+    message: "方法名要是 addAmount:note:（兩個標籤、兩個冒號）"
+  - must_match: '-\s*\(\s*void\s*\)\s*addAmount\s*:\s*\(\s*NSDecimalNumber\s*\*\s*\)\s*\w+\s+note\s*:\s*\(\s*NSString\s*\*\s*\)\s*\w+\s*;'
+    message: "宣告要寫成 - (void)addAmount:(NSDecimalNumber *)amount note:(NSString *)note;"
+  - must_match: '\[\s*ledger\s+addAmount\s*:\s*NSDecimalNumber\.one\s+note\s*:\s*@"午餐"\s*\]\s*;'
+    message: "呼叫要寫成 [ledger addAmount:NSDecimalNumber.one note:@\"午餐\"];"
+  - brackets_balanced: true
+solution: |
+  @interface LBLedger : NSObject
+  - (void)addAmount:(NSDecimalNumber *)amount note:(NSString *)note;
+  @end
+
+  int main(int argc, const char *argv[]) {
+      LBLedger *ledger = [[LBLedger alloc] init];
+      [ledger addAmount:NSDecimalNumber.one note:@"午餐"];
+      return 0;
+  }
+solution_note: "宣告：每個參數是「標籤:(型別)名字」；呼叫：接收者放最前面，標籤與引數交錯。只宣告沒實作會有 warning，真的呼叫會 unrecognized selector——這題只練語法。"
+hints: ["宣告的形狀是 `- (回傳型別)標籤:(型別)名字 標籤:(型別)名字;`。", "呼叫時中括號最前面是接收者，接著是「標籤:值」。"]

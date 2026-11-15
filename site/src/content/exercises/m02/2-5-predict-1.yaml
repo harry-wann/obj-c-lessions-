@@ -1,0 +1,22 @@
+id: m02-2-5-predict-1
+chapter: "2.5"
+type: predict
+title: 快照會不會跟著變？
+minutes: 2
+prompt: "`children` 的 getter 回傳 `[self.mutableChildren copy]`，`addChild:` 會設定 `parent`。這段印出什麼？"
+code: |
+  LBCategory *food = [[LBCategory alloc] initWithName:@"飲食"];
+  NSArray *before = food.children;
+  [food addChild:[[LBCategory alloc] initWithName:@"午餐"]];
+  NSLog(@"%lu %lu", (unsigned long)before.count,
+        (unsigned long)food.children.count);
+  NSLog(@"%@", food.children.firstObject.parent.name);
+options: ["0 1 飲食", "1 1 飲食", "0 1 午餐", "0 1 (null)"]
+accept: ["0 1 飲食"]
+note: "兩行輸出以空格分開"
+feedback:
+  "1 1 飲食": "before 是 addChild: 之前拿到的不可變快照，之後的新增不會反映在它上面。"
+  "0 1 午餐": "firstObject 是「午餐」，但問的是它的 parent 的 name。"
+  "0 1 (null)": "addChild: 有設定 child.parent = self，而且 food 還活著，weak 不會變 nil。"
+solution_note: "快照是 copy 出來的新陣列，和內部狀態斷開；再取一次 children 才會看到新元素。parent 是 weak 但 food 還被區域變數持有，所以還在。"
+hints: ["before 是在 addChild: 之前還是之後取得的？", "copy 出來的陣列會跟著原本的改嗎？", "weak 的 parent 什麼時候才會變 nil？"]

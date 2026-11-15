@@ -1,0 +1,20 @@
+id: m02-2-3-predict-1
+chapter: "2.3"
+type: predict
+title: 初始化失敗之後
+minutes: 2
+prompt: "`LBTransaction` 的指定初始化器在金額為負時 `return nil`。這段會印出什麼？"
+code: |
+  NSDecimalNumber *bad = [NSDecimalNumber decimalNumberWithString:@"-5"];
+  LBTransaction *tx = [LBTransaction expenseWithAmount:bad note:@"錯的"];
+  NSLog(@"%@", tx);
+  NSLog(@"%@", [tx note]);
+  NSLog(@"%d", tx == nil);
+options: ["(null) (null) 1", "crash：init 回傳 nil 會丟例外", "<LBTransaction> 錯的 0", "(null) 錯的 1"]
+accept: ["(null) (null) 1"]
+note: "三行各印一個值，以空格分開"
+feedback:
+  "(null) 錯的 1": "tx 是 nil，`[tx note]` 是對 nil 送訊息，回 nil 而不是 @\"錯的\"。"
+  "crash：init 回傳 nil 會丟例外": "init 回 nil 是合法的失敗方式，不會丟例外；呼叫端要自己檢查。"
+solution_note: "工廠方法把 init 的 nil 原封不動傳出來；`%@` 印 nil 是 (null)；對 nil 送 `note` 也回 nil；`tx == nil` 為真印 1。這就是「失敗無聲往後傳」——所以呼叫端要檢查。"
+hints: ["init 回 nil 時工廠方法會回什麼？", "對 nil 送訊息回什麼？", "`%d` 印 BOOL 的 YES 是 1。"]

@@ -1,0 +1,19 @@
+id: m04-4-5-interview-2
+chapter: "4.5"
+type: flash
+tier: interview
+title: 面試題：為什麼不直接用 NSCache？
+minutes: 3
+front: "面試官：Foundation 有 `NSCache`，你為什麼要自己寫 LRU？NSCache 的淘汰策略是什麼？什麼情況該用哪一個？"
+back: |
+  **NSCache 的特性**：
+  - key-value、執行緒安全（不用自己加鎖）、key 不會 copy（用 isEqual: / hash 但不需 NSCopying）。
+  - 淘汰由系統決定：收到記憶體警告、或超過 `countLimit` / `totalCostLimit` 時清，**順序不保證**（文件明講 limits 是「指引」而非硬上限；實作上傾向先清沒被存取的，但不是嚴格 LRU）。
+  - 可設 `evictsObjectsWithDiscardableContent`，搭配 `NSDiscardableContent`（如 NSPurgeableData）。
+  - App 進背景、記憶體壓力時內容可能整個消失，下次 get 回 nil。
+  **自寫 LRU 的特性**：淘汰順序精確可預測、可寫單元測試斷言「誰先被淘汰」、容量是硬上限；但要自己處理執行緒安全（7.5 用串列佇列或鎖）。
+  **選用**：
+  - 大物件、掉了重算就好、希望系統在記憶體吃緊時幫你清 → `NSCache`（圖片解碼結果、下載的縮圖）。
+  - 小物件、命中率要可量測、行為要可測、或面試 → 自寫 LRU（本章的格式化字串快取）。
+  - 需要「永不淘汰」→ 兩個都不對，用 NSMutableDictionary。
+  Swift 對照：`NSCache` 直接可用；Kotlin / Android 有 `android.util.LruCache`（嚴格 LRU，`sizeOf` 可自訂）。

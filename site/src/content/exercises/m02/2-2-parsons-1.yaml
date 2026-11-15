@@ -1,0 +1,19 @@
+id: m02-2-2-parsons-1
+chapter: "2.2"
+type: parsons
+title: 拼出 total 方法
+minutes: 3
+prompt: "把 LBLedger 的 `total` 方法排好：用 `NSDecimalNumber` 累加 `_amounts` 裡的每一筆。有干擾行。"
+lines:
+  - "- (NSDecimalNumber *)total {"
+  - "    NSDecimalNumber *sum = NSDecimalNumber.zero;"
+  - "    for (NSDecimalNumber *a in _amounts) {"
+  - "        sum = [sum decimalNumberByAdding:a];"
+  - "    }"
+  - "    return sum;"
+  - "}"
+distractors:
+  - "        sum = sum + a;"
+  - "        [sum decimalNumberByAdding:a];"
+solution_note: "`NSDecimalNumber` 是物件，不能用 `+` 相加；`decimalNumberByAdding:` 回傳新的物件，要接回 `sum`，只呼叫不接回結果等於沒加。"
+hints: ["物件之間不能用 + 運算。", "by…ing 開頭的方法名表示回傳新值，不會改接收者本身。", "先宣告 sum，迴圈，再 return。"]

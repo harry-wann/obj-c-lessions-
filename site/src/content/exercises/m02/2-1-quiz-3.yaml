@@ -1,0 +1,12 @@
+id: m02-2-1-quiz-3
+chapter: "2.1"
+section: quiz
+type: quiz
+title: 只是提到另一個類別時怎麼寫
+minutes: 1
+prompt: "`LBTransaction.h` 裡有個屬性型別是 `LBCategory *`，但不會呼叫它的任何方法。標頭檔最上面該寫什麼？"
+options: ["`@class LBCategory;`", "`#import \"LBCategory.h\"`", "`@interface LBCategory;`", "什麼都不用寫，編譯器會自己找"]
+answer: 0
+explain: "前置宣告 `@class` 只告訴編譯器「有這麼一個類別」，夠讓指標型別通過編譯，又避免兩個標頭互相 import 的死結；真的要送訊息時才在 .m 裡 `#import`。"
+hints: ["0.4 講過兩個標頭互相 import 會怎樣。", "指標型別只需要知道「它是個類別」，不需要知道它有哪些方法。"]
+feedback: { "1": "能編譯，但會讓所有 import LBTransaction.h 的檔案也連帶編譯 LBCategory.h，且容易形成循環 import。", "3": "沒宣告過的型別名會得到 unknown type name 錯誤。" }

@@ -24,7 +24,7 @@
     XCTAssertEqual(tx.kind, LBTransactionKindIncome);
     XCTAssertEqualObjects(tx.date, date);
     XCTAssertEqualObjects(tx.note, @"薪水");
-    XCTAssertEqual(tx.category, food);
+    XCTAssertTrue(tx.category == food);
     XCTAssertEqual(tx.flags, LBTransactionFlagsNone);
 
     // 負數金額會被轉正

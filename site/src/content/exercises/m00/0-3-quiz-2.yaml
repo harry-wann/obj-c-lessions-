@@ -1,0 +1,16 @@
+id: m00-0-3-quiz-2
+chapter: "0.3"
+section: quiz
+type: quiz
+title: main 裡的 @autoreleasepool
+minutes: 1
+prompt: "Command Line Tool 的 main 為什麼要把內容包在 `@autoreleasepool { }` 裡？"
+options:
+  - 沒有它程式無法編譯
+  - 它讓程式變成多執行緒
+  - Command Line Tool 沒有執行迴圈替你建池子；延後釋放的物件需要一個池子收尾，否則會洩漏並印出 autoreleased with no pool in place
+  - 它會自動替 NSLog 加上時間戳
+answer: 2
+explain: App 裡 UIKit 的執行迴圈每一圈自動建池、清池；Command Line Tool 沒有執行迴圈，範本就幫你包一個。拿掉它能編譯也能跑，只是會洩漏。模組 4 詳講。
+hints: ["拿掉它會發生什麼？課文有寫主控台會出現的訊息。", "iOS App 為什麼不用自己寫？"]
+feedback: { "0": "拿掉它一樣能編譯，只是會洩漏。", "3": "時間戳是 NSLog 自己加的，與池子無關。" }

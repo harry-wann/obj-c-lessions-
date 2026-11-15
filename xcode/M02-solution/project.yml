@@ -1,0 +1,57 @@
+# XcodeGen 專案描述檔：在此資料夾執行 `xcodegen generate` 產生 LittleBook.xcodeproj
+name: LittleBook
+options:
+  bundleIdPrefix: com.littlebook
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    CLANG_ENABLE_OBJC_ARC: YES
+    CLANG_ENABLE_MODULES: YES
+    GCC_WARN_UNDECLARED_SELECTOR: YES
+    # 若 Xcode 抱怨 signing，取消下一行註解並填入你的 Team ID（模擬器通常不需要）
+    # DEVELOPMENT_TEAM: ABCDE12345
+targets:
+  LittleBook:
+    type: application
+    platform: iOS
+    sources:
+      - path: LittleBook
+        excludes:
+          - "Info.plist"
+    info:
+      path: LittleBook/Info.plist
+      properties:
+        CFBundleDisplayName: 小帳本
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        # 不用 Storyboard：由 SceneDelegate 以程式碼建立 UIWindow
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneDelegateClassName: SceneDelegate
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1"
+    scheme:
+      testTargets:
+        - LittleBookTests
+  LittleBookTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: LittleBookTests
+    dependencies:
+      - target: LittleBook
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        # 讓測試可以 #import "LBXxx.h"（Xcode 的 header map 通常已夠用，這行是保險）
+        HEADER_SEARCH_PATHS:
+          - "$(inherited)"
+          - "$(SRCROOT)/LittleBook/**"

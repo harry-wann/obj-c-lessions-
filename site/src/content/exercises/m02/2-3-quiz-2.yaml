@@ -1,0 +1,12 @@
+id: m02-2-3-quiz-2
+chapter: "2.3"
+section: quiz
+type: quiz
+title: instancetype 比 id 好在哪？
+minutes: 1
+prompt: "初始化器與工廠方法的回傳型別寫 `instancetype` 而不是 `id`，差別是什麼？"
+options: ["編譯器知道回傳的是「呼叫者那個類別」，子類別呼叫時型別跟著變，能做靜態檢查", "instancetype 執行比較快", "id 不能用在類別方法上", "兩者完全相同，只是新舊寫法"]
+answer: 0
+explain: "`[[LBExpense alloc] initWithAmount:…]` 若回傳 id，呼叫 LBExpense 專屬方法時編譯器幫不上忙；回傳 instancetype 就是 LBExpense *。子類別不用重新宣告。"
+hints: ["差別在編譯期，不在執行期。", "想想子類別呼叫父類別的初始化器時拿到什麼型別。"]
+feedback: { "1": "型別標註不影響執行速度，兩者執行期都是物件指標。" }

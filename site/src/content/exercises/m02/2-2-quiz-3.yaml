@@ -1,0 +1,11 @@
+id: m02-2-2-quiz-3
+chapter: "2.2"
+section: quiz
+type: quiz
+title: 巢狀呼叫哪個先執行？
+minutes: 1
+code: "NSString *n = [[[ledger transactions] firstObject] note];"
+options: ["`[ledger transactions]`", "`[… note]`", "`[… firstObject]`", "三個同時執行"]
+answer: 0
+explain: "由內往外讀：最裡面的 `[ledger transactions]` 先執行，結果當成 `firstObject` 的接收者，再當成 `note` 的接收者。等同 Java 的 `ledger.getTransactions().get(0).getNote()`。"
+hints: ["找最裡面那一對中括號。", "每一層的結果是下一層的接收者。"]

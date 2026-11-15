@@ -1,0 +1,36 @@
+id: m02-2-1-code-1
+chapter: "2.1"
+type: code
+title: 宣告 LBLedger 的公開介面
+mobile: false
+minutes: 5
+prompt: "寫出 `LBLedger.h` 的內容：前置宣告 `LBTransaction`、宣告繼承 `NSObject` 的 `LBLedger`，包含一個實體方法 `addTransaction:`（參數型別 `LBTransaction *`、無回傳值）與一個類別方法 `emptyLedger`（回傳 `instancetype`）。"
+starter: |
+  @import Foundation;
+
+checks:
+  - must_match: '@class LBTransaction\s*;'
+    message: "用 @class 前置宣告 LBTransaction，不要 #import"
+  - must_match: '@interface LBLedger\s*:\s*NSObject'
+    message: "要宣告 @interface LBLedger : NSObject"
+  - selector_equals: "addTransaction:"
+    message: "要有 addTransaction: 實體方法"
+  - must_match: '-\s*\(\s*void\s*\)\s*addTransaction\s*:\s*\(\s*LBTransaction\s*\*\s*\)'
+    message: "addTransaction: 是實體方法（-）、回傳 void、參數型別 LBTransaction *"
+  - must_match: '\+\s*\(\s*instancetype\s*\)\s*emptyLedger\s*;'
+    message: "emptyLedger 是類別方法（+）、回傳 instancetype"
+  - must_match: '@end'
+  - brackets_balanced: true
+solution: |
+  @import Foundation;
+
+  @class LBTransaction;
+
+  @interface LBLedger : NSObject
+
+  - (void)addTransaction:(LBTransaction *)transaction;
+  + (instancetype)emptyLedger;
+
+  @end
+solution_note: "`@class` 讓標頭檔只知道有 LBTransaction 這個型別、不需要它的細節。`-` 實體方法、`+` 類別方法；參數型別別忘了 `*`。`instancetype` 在 2.3 會細講。"
+hints: ["只是當參數型別用，標頭檔不需要 #import。", "實體方法減號、類別方法加號；參數型別要放在括號裡並加星號。"]

@@ -33,7 +33,9 @@ import Term from '../../../components/Term.astro';
 public final class Transaction {
     public let amount: Decimal
     private var raw: String      // 可見性靠存取控制，不靠檔案
-    init(amount: Decimal, raw: String) { self.amount = amount; self.raw = raw }
+    init(amount: Decimal, raw: String) {
+        self.amount = amount; self.raw = raw
+    }
 }
 ```
 </Fragment>

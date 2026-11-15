@@ -1,0 +1,23 @@
+id: m00-0-5-predict-1
+chapter: "0.5"
+type: predict
+title: "insertObject:atIndex: 與 selector 的字串"
+minutes: 2
+code: |
+  NSMutableArray *notes = [NSMutableArray arrayWithObjects:@"a", @"b", nil];
+  [notes insertObject:@"c" atIndex:1];
+  NSLog(@"%@", [notes componentsJoinedByString:@","]);
+  NSLog(@"%@", NSStringFromSelector(@selector(removeObjectAtIndex:)));
+note: 兩行輸出用空格分隔
+options:
+  - "a,c,b removeObjectAtIndex:"
+  - "a,b,c removeObjectAtIndex:"
+  - "c,a,b removeObjectAtIndex:"
+  - "a,c,b removeObjectAtIndex"
+accept: ["a,c,b removeObjectAtIndex:"]
+feedback:
+  "a,b,c removeObjectAtIndex:": "atIndex:1 是插在索引 1 的位置（原本 b 的位置），不是尾端。"
+  "c,a,b removeObjectAtIndex:": "索引 1 不是開頭，開頭是索引 0。"
+  "a,c,b removeObjectAtIndex": "冒號是 selector 的一部分，NSStringFromSelector 會印出來。"
+solution_note: "`insertObject:atIndex:` 把元素放在指定索引、後面的往後推；`arrayWithObjects:` 的 nil 是結尾標記。`NSStringFromSelector` 印出完整名字，含冒號。"
+hints: ["索引從 0 開始，1 是第二格。", "selector 的名字包含冒號嗎？"]

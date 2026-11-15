@@ -1,0 +1,12 @@
+id: m02-2-3-interview-1
+chapter: "2.3"
+type: flash
+tier: interview
+title: 面試題：self = [super init] 為什麼要賦值？
+minutes: 2
+front: "面試官：`self = [super init]` 為什麼要把回傳值接回 self？舉一個「不接會出錯」的真實例子。"
+back: |
+  因為 init 可以回傳與 alloc 不同的物件。兩種情況：
+  1. 失敗回 nil：`-[NSURL initWithString:]` 字串不合法、`-[NSData initWithContentsOfFile:]` 檔案不存在。不接回去，你會在 alloc 給的那塊「空物件」上繼續寫 ivar，然後回傳一個半成品。
+  2. 類別叢集換物件：`[[NSString alloc] init]`、`[[NSArray alloc] initWithObjects:…]` 的 alloc 給的是佈局用的 placeholder，init 丟掉它、回傳 `__NSCFConstantString` / `__NSArrayI` 等私有子類別。你若繼承 NSArray 又不接回 self，寫的 ivar 全部落在被丟掉的 placeholder 上。
+  延伸：這也是為什麼永遠用 `[[X alloc] init]` 的整體結果，而不是把 alloc 的結果存起來分開 init。

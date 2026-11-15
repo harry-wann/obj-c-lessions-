@@ -1,0 +1,29 @@
+id: m02-2-5-spot-1
+chapter: "2.5"
+type: spot
+title: 封裝破了一個洞
+minutes: 3
+prompt: "這段能編譯、測試也過，但外部可以繞過 addChild: 改掉內部狀態。點選有問題的行並選出原因。"
+code: |
+  - (NSArray<LBCategory *> *)children {
+      return self.mutableChildren;
+  }
+
+  - (void)addChild:(LBCategory *)child {
+      child.parent = self;
+      [self.mutableChildren addObject:child];
+  }
+bug_lines: [2]
+reasons:
+  - "直接回傳內部的 NSMutableArray，呼叫端轉型後就能 addObject: / removeAllObjects；應回傳 `[self.mutableChildren copy]`"
+  - "addChild: 應該用 `_mutableChildren` 不該用 self."
+  - "parent 應該宣告成 strong 才能在這裡賦值"
+  - "回傳型別應該寫 NSMutableArray 才誠實"
+answer_reason: 0
+fix: |
+  - (NSArray<LBCategory *> *)children {
+      return [self.mutableChildren copy];
+  }
+solution_note: "回傳型別只是編譯期的承諾，執行期物件還是 __NSArrayM。回傳 copy 得到的是 __NSArrayI，外面想改就會 unrecognized selector——那正是你要的。"
+hints: ["執行期那個物件是什麼類別？", "如果呼叫端寫 `[(NSMutableArray *)cat.children removeAllObjects]` 會怎樣？"]
+feedback: { "1": "init / dealloc 以外用 self.prop 是慣例，這行沒問題。", "2": "parent 是 weak 加 readwrite（類別延伸）就能賦值，改 strong 會循環參考。", "3": "把可變容器曝光給外面正是問題本身。" }

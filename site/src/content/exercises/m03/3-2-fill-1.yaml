@@ -1,0 +1,30 @@
+id: m03-3-2-fill-1
+chapter: "3.2"
+type: fill
+title: 設定四捨五入到分
+minutes: 3
+prompt: 填空，讓 `handler` 做一般四捨五入、保留 2 位小數，然後用它把 100 ÷ 3 算成 33.33。
+code: |
+  NSDecimalNumberHandler *handler =
+      [NSDecimalNumberHandler decimalNumberHandlerWithRoundingMode:___1___
+                                                             scale:___2___
+                                                  raiseOnExactness:NO
+                                                   raiseOnOverflow:YES
+                                                  raiseOnUnderflow:YES
+                                               raiseOnDivideByZero:YES];
+  NSDecimalNumber *hundred = [NSDecimalNumber decimalNumberWithString:@"100"];
+  NSDecimalNumber *three = [NSDecimalNumber decimalNumberWithString:@"3"];
+  NSDecimalNumber *each = [hundred ___3___:three withBehavior:handler];
+  NSLog(@"%@", each);   // 33.33
+blanks:
+  "1": { accept: ["NSRoundPlain"], chips: ["NSRoundPlain", "NSRoundBankers", "NSRoundDown", "NSRoundUp"] }
+  "2": { accept: ["2"], chips: ["0", "1", "2", "100"] }
+  "3": { accept: ["decimalNumberByDividingBy"], chips: ["decimalNumberByDividingBy", "decimalNumberByMultiplyingBy", "divide", "decimalNumberByAdding"] }
+hints:
+  - 「一般的四捨五入」對應哪個 rounding mode？
+  - scale 是小數位數。
+  - NSDecimalNumber 的運算方法都以 decimalNumberBy 開頭。
+feedback:
+  "1=NSRoundBankers": "銀行家進位遇到正好 .5 時取偶數，和「一般四捨五入」不同；這題要 NSRoundPlain。"
+  "2=100": "scale 是保留幾位小數，不是精度百分比。"
+solution_note: NSRoundPlain 是一般四捨五入、scale 2 保留兩位；運算方法帶 `withBehavior:` 就會在結果套用進位規則。整個 App 共用一個 handler 常數。

@@ -1,0 +1,32 @@
+id: m03-3-2-code-1
+chapter: "3.2"
+type: code
+title: 精確加總一串金額
+mobile: false
+minutes: 5
+prompt: 實作 `LBSumAmounts`，把 `NSArray<NSDecimalNumber *>` 加總後回傳。不能用 double，從零開始累加。
+starter: |
+  NSDecimalNumber *LBSumAmounts(NSArray<NSDecimalNumber *> *amounts) {
+
+  }
+checks:
+  - must_match: 'NSDecimalNumber\s*\.?\s*zero|decimalNumberWithString:\s*@"0"|decimalNumberWithString:\s*@"0\.0+"'
+    message: 起始值用 [NSDecimalNumber zero]（或從字串 @"0" 建立）
+  - must_match: 'decimalNumberByAdding:'
+    message: 用 decimalNumberByAdding: 累加
+  - must_match: 'for\s*\(|enumerateObjectsUsingBlock:'
+    message: 走訪陣列（快速列舉或 enumerateObjectsUsingBlock:）
+  - must_not_match: 'doubleValue|floatValue'
+    message: 不要拆成 double 再加
+  - must_match: 'return'
+  - brackets_balanced: true
+solution: |
+  NSDecimalNumber *LBSumAmounts(NSArray<NSDecimalNumber *> *amounts) {
+      NSDecimalNumber *total = [NSDecimalNumber zero];
+      for (NSDecimalNumber *a in amounts) {
+          total = [total decimalNumberByAdding:a];
+      }
+      return total;
+  }
+solution_note: NSDecimalNumber 不可變，每次 `decimalNumberByAdding:` 都回新物件，所以要把結果接回 `total`。這段邏輯就是 3.6 Xcode 任務 `totalForKind:` 的核心。
+hints: ["加總的起始值是什麼？NSDecimalNumber 有一個現成的零。", "decimalNumberByAdding: 回傳新物件，記得接回變數。"]

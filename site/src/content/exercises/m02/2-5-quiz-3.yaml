@@ -1,0 +1,15 @@
+id: m02-2-5-quiz-3
+chapter: "2.5"
+section: quiz
+type: quiz
+title: 為什麼 getter 要回傳 copy？
+minutes: 1
+code: |
+  - (NSArray<LBCategory *> *)children {
+      return [self.mutableChildren copy];
+  }
+options: ["回傳不可變快照：外面改不動內部狀態，內部之後再改也不影響外面手上那份", "copy 比較快", "不 copy 會記憶體洩漏", "NSArray 型別一定要用 copy 才能回傳 NSMutableArray"]
+answer: 0
+explain: "型別寫 NSArray 只騙得了編譯器，直接回傳 mutableChildren 的話物件還是可變的，一個轉型就能繞過 addChild:。NSMutableArray 的 copy 得到的是不可變的 NSArray。"
+hints: ["如果直接回傳 self.mutableChildren，呼叫端轉型成 NSMutableArray * 會怎樣？", "這是 🧱 說的「在邊界上把參考變成值」。"]
+feedback: { "1": "copy 是 O(n) 的複製，比直接回傳慢，但換到的是封裝。", "2": "ARC 下回傳物件不會洩漏，和 copy 無關。" }

@@ -18,7 +18,8 @@
 }
 
 - (NSString *)description {
-    return [NSString stringWithFormat:@"<%@: %p object=%@>", NSStringFromClass(self.class), self, _object];
+    return [NSString stringWithFormat:@"<%@: %p object=%@>",
+            NSStringFromClass(self.class), self, _object];
 }
 
 @end

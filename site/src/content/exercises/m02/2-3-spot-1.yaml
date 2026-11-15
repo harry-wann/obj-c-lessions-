@@ -1,0 +1,32 @@
+id: m02-2-3-spot-1
+chapter: "2.3"
+type: spot
+title: 便利初始化器走錯路
+minutes: 3
+prompt: "`initWithAmount:kind:date:note:category:` 是標了 NS_DESIGNATED_INITIALIZER 的指定初始化器。這個便利初始化器能編譯，但有一行會引來 warning 而且埋了 bug。點選它並選出原因。"
+code: |
+  - (instancetype)initWithAmount:(NSDecimalNumber *)amount note:(NSString *)note {
+      if (self = [super init]) {
+          _amount = amount;
+          _note = [note copy];
+      }
+      return self;
+  }
+bug_lines: [2]
+reasons:
+  - "便利初始化器應呼叫 self 的指定初始化器，不該直接 `[super init]`；這樣繞過了驗證，kind、date、identifier 也沒設"
+  - "應該寫 `self.amount = amount` 走 setter"
+  - "`_note` 不應該 copy，應該 strong 持有"
+  - "便利初始化器必須回傳 nil"
+answer_reason: 0
+fix: |
+  - (instancetype)initWithAmount:(NSDecimalNumber *)amount note:(NSString *)note {
+      return [self initWithAmount:amount
+                             kind:LBTransactionKindExpense
+                             date:[NSDate date]
+                             note:note
+                         category:nil];
+  }
+solution_note: "Clang 會給 `Convenience initializer should not invoke an initializer on 'super'`。每多一條直達 super 的路，就多一處會忘記設定欄位的地方，子類別覆寫指定初始化器也攔不到。"
+hints: ["標了 NS_DESIGNATED_INITIALIZER 之後，其他初始化器該呼叫誰？", "這個方法設定了哪些欄位？指定初始化器又設定了哪些？"]
+feedback: { "1": "init 裡用 _ivar 是正確的，問題不在這裡。", "2": "NSString 用 copy 是 2.4 的規則，這行沒錯。" }

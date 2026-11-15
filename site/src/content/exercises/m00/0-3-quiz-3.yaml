@@ -1,0 +1,17 @@
+id: m00-0-3-quiz-3
+chapter: "0.3"
+section: quiz
+type: quiz
+title: 忘了 @
+minutes: 1
+code: 'NSLog("Hello");'
+prompt: 少了 `@` 會怎樣？
+options:
+  - 正常印出 Hello
+  - "編譯錯誤：ARC 不允許把 C 字串 `char[6]` 隱式轉成 `NSString *`"
+  - 能編譯，印出亂碼
+  - 能編譯，執行期 crash
+answer: 1
+explain: "`\"Hello\"` 是 C 的 `char *`，`@\"Hello\"` 才是 NSString。ARC 把「非 Objective-C 指標轉成物件指標」視為錯誤，所以這題在編譯期就擋下來，算是好消息。"
+hints: ["NSLog 的第一個參數型別是什麼？", "ARC 對「非物件指標轉物件指標」的態度是？"]
+feedback: { "2": "反過來（把 NSString 傳給 printf 的 %s）才會印亂碼，而且那只有警告。", "3": "ARC 下這是編譯錯誤，不會跑到執行期。" }

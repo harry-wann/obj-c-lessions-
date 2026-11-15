@@ -1,0 +1,16 @@
+id: m00-0-2-quiz-2
+chapter: "0.2"
+section: quiz
+type: quiz
+title: 只讓 Debug 組態有 DEBUG 巨集
+minutes: 1
+prompt: "你想讓 Debug 組態定義 `DEBUG=1`，Release 不要。應該改哪裡？"
+options:
+  - Build Settings 裡的 Preprocessor Macros，展開後分別設定 Debug 與 Release 兩欄
+  - scheme 編輯器的 Run 動作
+  - Info.plist
+  - "在 main.m 開頭寫 `#define DEBUG 1`"
+answer: 0
+explain: 建置設定可以依組態給不同值。Xcode 範本與 XcodeGen 預設都已在 Debug 欄填了 DEBUG=1，所以 `#if DEBUG` 才會只在 Debug 成立。
+hints: ["「依組態不同」的東西住在哪一頁？", "scheme 只是「選用哪個組態」，不定義巨集。"]
+feedback: { "1": "scheme 選的是用 Debug 還是 Release，巨集本身定義在建置設定。", "3": "寫在程式碼裡兩個組態都會有，失去區分的意義。" }

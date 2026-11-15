@@ -20,7 +20,7 @@
     XCTAssertEqual(root.depth, (NSUInteger)0);
     XCTAssertEqual(food.depth, (NSUInteger)1);
     XCTAssertEqual(breakfast.depth, (NSUInteger)2);
-    XCTAssertEqual(breakfast.parent, food);
+    XCTAssertTrue(breakfast.parent == food);
     XCTAssertEqual(root.children.count, (NSUInteger)1);
 
     // children 對外是快照，不是內部的可變陣列

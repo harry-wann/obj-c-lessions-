@@ -1,0 +1,25 @@
+id: m00-0-2-crash-1
+chapter: "0.2"
+type: crash
+title: file not found
+minutes: 2
+prompt: 你用 Finder 把同事傳來的 LBLedger.h / LBLedger.m 放進 LittleBook 資料夾，然後在 LBViewController.m 加了一行 import，建置得到這個錯誤。原因是？
+log: |
+  /Users/you/xcode/LittleBook/LittleBook/LBViewController.m:3:9: fatal error: 'LBLedger.h' file not found
+  #import "LBLedger.h"
+          ^~~~~~~~~~~~
+  1 error generated.
+options:
+  - 檔案在磁碟上，但沒有透過 Xcode 加進專案（沒有 Target Membership），編譯器的搜尋清單裡沒有它
+  - LBLedger.h 裡有語法錯誤
+  - "應該改用 `@import LBLedger;`"
+  - 模擬器沒有啟動
+answer: 0
+fix: |
+  // 在 ⌘1 導覽器對 LittleBook 群組按右鍵
+  // → Add Files to "LittleBook"…
+  // → 勾 Copy items if needed、Add to targets: LittleBook
+  // （XcodeGen 專案：重跑 xcodegen generate）
+solution_note: Xcode 認的是專案檔裡的清單與 target 成員，不是磁碟上的資料夾。「file not found」九成是這個原因，其餘是角括號 / 雙引號用錯或檔名打錯。
+hints: ["Finder 跟 Xcode 的檔案清單是同一份嗎？", "⌘1 導覽器裡看得到 LBLedger.h 嗎？"]
+feedback: { "1": "語法錯誤會出現在 LBLedger.h 自己的行號，而且前置處理器得先找到檔案才會解析它。", "2": "App 裡自己的類別不是模組，不能 @import；而且問題是找不到檔案，不是 import 寫法。", "3": "這是建置階段的錯誤，還沒有跑到模擬器。" }

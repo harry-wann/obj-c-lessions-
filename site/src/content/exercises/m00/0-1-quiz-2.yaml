@@ -1,0 +1,16 @@
+id: m00-0-1-quiz-2
+chapter: "0.1"
+section: quiz
+type: quiz
+title: 純 Swift 專案的 crash 為什麼是 Objective-C 寫的
+minutes: 1
+prompt: "一支純 Swift 的 App 當掉，log 寫著 `-[NSNull length]: unrecognized selector sent to instance`。最合理的解釋是？"
+options:
+  - Foundation、UIKit 的執行期是 Objective-C；Swift 值橋接到 Foundation 之後，錯誤由 Objective-C 執行期用它的格式回報
+  - 專案裡一定有人偷偷放了 .m 檔
+  - Swift 的錯誤訊息預設會翻譯成 Objective-C 格式以便相容舊工具
+  - 這表示 App 跑在太舊的 iOS 版本上
+answer: 0
+explain: 你用 Swift 寫，但 JSONSerialization、UIKit 的行為都在 Objective-C 執行期裡發生。看懂這種訊息是學 Objective-C 的第一個實際回報。
+hints: ["JSONSerialization 是哪個框架的？那個框架用什麼語言寫？", "訊息的格式 -[類別 selector] 是哪個語言的習慣？"]
+feedback: { "1": "不需要任何 .m 檔，Foundation 本身就是 Objective-C。", "2": "Swift 沒有這種翻譯機制；這就是原始訊息。" }

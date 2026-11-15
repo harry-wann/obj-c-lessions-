@@ -1,0 +1,22 @@
+id: m02-2-5-xcode-1
+chapter: "2.5"
+type: xcode
+title: LBCategory 的 addChild: 與 weak parent
+mobile: false
+minutes: 15
+prompt: "為 LBCategory 補上類別延伸、addChild:、children 快照與 depth；parent 對外唯讀、weak。"
+starter: xcode/M02-starter
+steps:
+  - "在 LBCategory.m 加類別延伸：`parent` 重新宣告為 readwrite、新增 `NSMutableArray<LBCategory *> *mutableChildren`，在指定初始化器裡建立它。"
+  - "實作 `children` getter 回傳 `[self.mutableChildren copy]`。"
+  - "實作 `addChild:`：設定 `child.parent = self`、加入 mutableChildren。"
+  - "實作 `depth`：沒有 parent 回 0，否則回 `[self.parent depth] + 1`。"
+  - "⌘U 跑測試。"
+tests:
+  - LBCategoryTests/testDepth
+  - LBCategoryTests/testParentIsWeak
+acceptance:
+  - "根分類 depth 為 0，孫分類 depth 為 2。"
+  - "父分類被釋放後，子分類的 parent 自動變 nil（weak）。"
+  - "在 .h 對 parent 或 children 賦值會編譯錯誤。"
+solution_note: "testParentIsWeak 會在 @autoreleasepool 裡建父節點、離開後檢查 child.parent 是否為 nil；parent 若寫成 strong 這個測試就會失敗。4.3 會再從循環參考的角度看這件事。"

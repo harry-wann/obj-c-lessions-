@@ -47,7 +47,9 @@ let package = Package(
 // settings.gradle.kts：根專案含多個 module
 include(":app", ":core")
 // app/build.gradle.kts
-android { buildTypes { debug { } ; release { isMinifyEnabled = true } } }
+android {
+    buildTypes { debug { }; release { isMinifyEnabled = true } }
+}
 // ./gradlew :app:assembleDebug   ← 哪個 module、哪個 buildType
 ```
 </Fragment>

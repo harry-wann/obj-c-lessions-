@@ -1,0 +1,12 @@
+id: m02-2-1-quiz-1
+chapter: "2.1"
+section: quiz
+type: quiz
+title: 加號開頭的方法是什麼？
+minutes: 1
+prompt: "`+ (NSString *)defaultSymbolName;` 前面的 `+` 代表什麼？"
+options: ["類別方法，對應 Java 的 static / Kotlin 的 companion object", "公開方法（減號是私有方法）", "回傳值一定是正數", "協定裡的 optional 方法"]
+answer: 0
+explain: "`+` 是類別方法、`-` 是實體方法。Objective-C 沒有 public / private 關鍵字，正負號和可見度無關。"
+hints: ["想想 `[LBCategory defaultSymbolName]` 的接收者是誰。", "接收者是類別本身而不是某個物件。"]
+feedback: { "1": "可見度靠的是寫在 .h 還是 .m，和加減號無關。", "3": "optional 是協定的 @optional 區段，模組 5 才會講。" }

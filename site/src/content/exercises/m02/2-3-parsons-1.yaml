@@ -1,0 +1,20 @@
+id: m02-2-3-parsons-1
+chapter: "2.3"
+type: parsons
+title: init 樣板的正確順序
+minutes: 2
+prompt: "把指定初始化器排成正確順序。有三行干擾行不該用。"
+lines:
+  - "- (instancetype)initWithName:(NSString *)name {"
+  - "    self = [super init];"
+  - "    if (self) {"
+  - "        _name = [name copy];"
+  - "    }"
+  - "    return self;"
+  - "}"
+distractors:
+  - "    [super init];"
+  - "    return [super init];"
+  - "        self.name = name;"
+solution_note: "四步：接住 `[super init]` 的回傳值、判斷非 nil、直接寫 ivar、回傳 self。`[super init];` 丟掉回傳值、`return [super init]` 跳過設定、`self.name` 在 init 裡走 setter，三個都是本章陷阱。"
+hints: ["第一步是把父類別的回傳值接到 self。", "init 裡寫 ivar 不走 setter。", "最後回傳的是 self，不是再呼叫一次 super。"]

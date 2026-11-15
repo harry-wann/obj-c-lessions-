@@ -1,5 +1,9 @@
 #import "LBPollingService.h"
 
+@interface LBPollingService ()
+- (void)tick;
+@end
+
 @implementation LBPollingService {
     NSTimer *_timer;
 }

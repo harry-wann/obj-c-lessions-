@@ -1,0 +1,16 @@
+id: m00-0-4-quiz-2
+chapter: "0.4"
+section: quiz
+type: quiz
+title: "#import 與 #include"
+minutes: 1
+prompt: "`#import` 與 `#include` 的差別是？"
+options:
+  - "`#import` 在同一個編譯單元只貼一次，`#include` 每次出現都貼"
+  - "`#import` 比較快，因為它載入預先編譯好的模組"
+  - 沒有差別，只是風格
+  - "`#include` 只能用在 .h，`#import` 只能用在 .m"
+answer: 0
+explain: 兩者都是前置處理器的文字貼上，差在 `#import` 自帶「只貼一次」的保護，所以 Objective-C 的標頭不需要 `#ifndef` 守衛。
+hints: ["C 的標頭為什麼要寫 #ifndef / #define 守衛？", "「預先編譯好的模組」是哪個關鍵字的特性？"]
+feedback: { "1": "那是 @import（Clang modules）的特性，#import 仍是文字貼上。", "3": "兩者在 .h 與 .m 都能用。" }

@@ -1,0 +1,18 @@
+id: m05-5-1-quiz-3
+chapter: "5.1"
+section: quiz
+type: quiz
+title: 漏實作 @required 方法會怎樣
+minutes: 1
+prompt: 類別宣告遵循協定，卻沒實作其中一個 `@required` 方法。編譯與執行會發生什麼？
+options:
+  - 編譯錯誤，無法建置
+  - 編譯警告，能跑；呼叫到那個方法時 unrecognized selector
+  - 沒有任何警告，呼叫時回傳 nil
+  - 執行期自動產生空實作
+answer: 1
+explain: 編譯器只給 `method ... in protocol ... not implemented` 警告。程式照常建置，直到有人呼叫它才 crash。所以不要忽視這條警告，或開 -Werror。
+hints: ["Objective-C 對協定的檢查多半是警告而不是錯誤。", "沒有方法的物件收到訊息會怎樣？2.2 講過。"]
+feedback:
+  "0": 是警告不是錯誤，這正是它危險的地方。
+  "2": 對 nil 送訊息才回 nil；對存在的物件送它沒有的訊息會丟例外。

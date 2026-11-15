@@ -1,0 +1,23 @@
+id: m02-2-5-fill-1
+chapter: "2.5"
+section: quiz
+type: fill
+title: 補齊 LBCategory 的類別延伸
+minutes: 2
+prompt: ".h 裡 `parent` 是 `(nonatomic, weak, readonly, nullable)`、`children` 是 `(nonatomic, copy, readonly)`。補齊 .m 裡的類別延伸。"
+code: |
+  // LBCategory.m
+  @interface LBCategory ___1___
+  @property (nonatomic, weak, ___2___, nullable) LBCategory *parent;
+  @property (nonatomic, strong) ___3___<LBCategory *> *mutableChildren;
+  @end
+blanks:
+  "1": { accept: ["()"], chips: ["()", "(Private)", ": NSObject", "<NSCopying>"] }
+  "2": { accept: ["readwrite"], chips: ["readwrite", "readonly", "strong", "assign"] }
+  "3": { accept: ["NSMutableArray"], chips: ["NSMutableArray", "NSArray", "NSMutableSet", "NSMutableDictionary"] }
+feedback:
+  "1=(Private)": "有名字的括號是分類（category），分類不能加屬性 ivar；類別延伸的括號是空的。"
+  "2=strong": "weak 改 strong 會和 .h 不一致，而且父子互相 strong 會循環參考。只改 readonly → readwrite。"
+  "3=NSArray": "內部需要 addObject:，要用可變版本；對外 getter 再回傳 copy。"
+solution_note: "類別延伸空括號；parent 只把 readonly 換成 readwrite；內部儲存用 NSMutableArray，對外 children 回傳不可變快照。"
+hints: ["類別延伸的括號裡放什麼？", "重新宣告時唯一能改的修飾詞是哪個？", "addChild: 需要能 addObject: 的容器。"]

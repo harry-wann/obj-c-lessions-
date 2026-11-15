@@ -1,0 +1,27 @@
+id: m05-5-1-fill-1
+chapter: "5.1"
+section: quiz
+type: fill
+title: 補完 LBLedgerObserver 的宣告
+minutes: 2
+prompt: 填入關鍵字，讓這個協定有一個必要方法、一個選用方法，而且遵循者能被呼叫 respondsToSelector:。
+code: |
+  @class LBLedger, LBTransaction;
+
+  ___1___ LBLedgerObserver ___2___
+  @required
+  - (void)ledger:(LBLedger *)ledger didAddTransaction:(LBTransaction *)tx;
+  ___3___
+  - (void)ledgerDidReset:(LBLedger *)ledger;
+  ___4___
+blanks:
+  "1": { accept: ["@protocol"], chips: ["@protocol", "@interface", "@class", "protocol"] }
+  "2": { accept: ["<NSObject>"], chips: ["<NSObject>", ": NSObject", "(NSObject)", "<NSObjectProtocol>"] }
+  "3": { accept: ["@optional"], chips: ["@optional", "@required", "@private", "optional"] }
+  "4": { accept: ["@end"], chips: ["@end", "}", "@endprotocol", "end"] }
+hints: ["協定的宣告關鍵字跟類別不同。", "協定繼承用角括號，類別繼承才用冒號。", "Swift 的 @objc optional 在 ObjC 是哪個關鍵字？"]
+feedback:
+  "1=@interface": "@interface 是類別宣告；協定用 @protocol。"
+  "2=: NSObject": 冒號是類別繼承語法；協定繼承用角括號。
+  "2=<NSObjectProtocol>": 那是 Swift 端看到的名字，ObjC 這邊就叫 NSObject。
+solution_note: "`@protocol 名 <NSObject>` 開頭、`@end` 結尾；`@required` 預設可省，`@optional` 之後的方法可不實作。"

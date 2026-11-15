@@ -1,0 +1,28 @@
+id: m03-3-1-spot-1
+chapter: "3.1"
+type: spot
+title: 這段報表程式有兩個問題
+minutes: 3
+prompt: 這段能編譯（有一條警告），執行結果卻不對。點選有問題的行並選出原因。
+code: |
+  - (NSString *)summaryForNotes:(NSArray<NSString *> *)notes {
+      NSInteger count = notes.count;
+      NSString *first = notes.firstObject;
+      NSString *tag = (first == @"午餐") ? @"🍱" : @"";
+      return [NSString stringWithFormat:@"%d 筆 %@", count, tag];
+  }
+bug_lines: [4, 5]
+reasons:
+  - "第 4 行用 == 比字串內容；第 5 行 NSInteger 用了 %d"
+  - "第 2 行 count 應該宣告成 int"
+  - "第 3 行 firstObject 在空陣列會 crash，應改 notes[0]"
+  - "第 5 行 %@ 不能印空字串"
+answer_reason: 0
+fix: |
+  NSString *tag = [first isEqualToString:@"午餐"] ? @"🍱" : @"";
+  return [NSString stringWithFormat:@"%ld 筆 %@", (long)count, tag];
+solution_note: "`first == @\"午餐\"` 比的是指標，從陣列來的字串幾乎不會和字面值同位址；`%d` 配 NSInteger 在 64 位元會警告，正確是 `%ld` + `(long)`。順帶一提 first 是 nil 時 isEqualToString: 回 NO，不會 crash。"
+hints: ["哪一行在比較字串？用的是什麼運算子？", "哪個格式指定子配 NSInteger 會有警告？"]
+feedback:
+  "2": "firstObject 正好是不會越界的那個；notes[0] 才會在空陣列 crash。"
+  "3": "%@ 印空字串沒問題，就是什麼都不印。"

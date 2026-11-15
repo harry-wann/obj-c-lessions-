@@ -1,0 +1,12 @@
+id: m02-2-3-quiz-3
+chapter: "2.3"
+section: quiz
+type: quiz
+title: NS_UNAVAILABLE 擋得住什麼？
+minutes: 1
+code: "- (instancetype)init NS_UNAVAILABLE;"
+options: ["編譯期：有明確型別的 `[[LBTransaction alloc] init]` 會編譯錯誤；執行期不擋", "執行期：呼叫 init 會丟 NSInvalidArgumentException", "編譯期與執行期都擋", "把 init 變成私有方法，只有 .m 能呼叫"]
+answer: 0
+explain: "NS_UNAVAILABLE 是給編譯器看的屬性。透過 `Class` 變數或 `performSelector:` 動態呼叫時型別不明，照樣跑得過。要在執行期也擋，在 .m 實作 init 並呼叫 `[self doesNotRecognizeSelector:_cmd]`。"
+hints: ["它是一個編譯器屬性（attribute）。", "想想 `[[NSClassFromString(@\"LBTransaction\") alloc] init]` 編譯器知道多少。"]
+feedback: { "1": "執行期要自己丟，NS_UNAVAILABLE 不會。", "3": "Objective-C 沒有私有方法，而且 init 仍然存在於方法表。" }

@@ -28,7 +28,7 @@ import Term from '../../../components/Term.astro';
 <Fragment slot="swift">
 ```swift
 let ns = "午餐" as CFString                 // as 自動橋接，不用想擁有權
-let uuid = CFUUIDCreate(nil)                // Swift 知道 Create → 自動 release
+let uuid = CFUUIDCreate(nil)          // Swift 知道 Create → 自動 release
 let s = CFUUIDCreateString(nil, uuid)! as String
 
 // 沒有標注的 C API 回傳 Unmanaged<CFString>：
@@ -51,7 +51,8 @@ class Formatter : AutoCloseable {
 <Fragment slot="java">
 ```java
 // JNI 的 local / global reference 就是「借用 vs 擁有」
-jobject g = (*env)->NewGlobalRef(env, local);   // 擁有：之後要 DeleteGlobalRef
+// 擁有：之後要 DeleteGlobalRef
+jobject g = (*env)->NewGlobalRef(env, local);
 // local ref 離開本次 JNI 呼叫就失效 → 借用
 ```
 </Fragment>
@@ -72,7 +73,7 @@ Swift 已經把大多數 CF API 標注好，`as` 一轉就自動管；只有遇�
 
 <Term en="Core Foundation" tw="Core Foundation" cn="Core Foundation" jp="Core Foundation" />是 Foundation 底下的 C 函式庫：`CFStringRef`、`CFArrayRef`、`CFDictionaryRef`、`CFUUIDRef`……。你會在這些地方遇到它：Core Graphics（`CGColorRef`、`CGImageRef`）、Core Text、Security 框架（Keychain 的 `SecItemCopyMatching`）、`CFRunLoop`、以及所有以 C 寫成的第三方 SDK。
 
-關鍵事實：**ARC 不管 CF 物件**。CF 用自己的 `CFRetain` / `CFRelease`，規則跟 4.1 的 MRC 一模一樣，只是你得手寫。
+關鍵事實：**ARC 不管 CF 物件**。CF 用自己的 `CFRetain` / `CFRelease`，規則跟 4.1 的 MRC 一模一樣，只是你得手寫。好消息是 CF 物件只在少數邊界出現，大多數 App 只有幾十行程式碼會碰到它；壞消息是這幾十行一旦寫錯，症狀（洩漏或多放一次的 crash）會出現在離它很遠的地方。所以這一章的重點不是背 API，而是建立一個反射動作：看到 `CF` 開頭的型別，先問「這個東西現在算誰的？」
 
 ### Create / Get 規則：看名字就知道誰擁有
 
@@ -82,6 +83,10 @@ Swift 已經把大多數 CF API 標注好，`as` 一轉就自動管；只有遇�
 | `Get` | **+0，借用** | 不要 release；想留住就 `CFRetain` | `CFStringGetLength`、`CFDictionaryGetValue`、`CFLocaleGetIdentifier` |
 
 這就是 <Term en="Create / Get rule" tw="Create / Get 規則" cn="Create / Get 规则" jp="Create / Get ルール" />，對應 4.1 的「`alloc` / `new` / `copy` 開頭 = +1」。CF 的文件每個函式都會寫 "The caller is responsible for releasing"（Create）或 "Ownership follows the Get Rule"（Get），拿不準就查。
+
+借來的東西想留久一點怎麼辦？`CFRetain` 一次，它就變成你的 +1，之後照 Create 的規則處理。實務上更常見的做法是轉成 Foundation 物件後 `copy` 一份，讓 ARC 接手，後面範例的第 ③ 段就是這樣寫。
+
+一個每天會碰到的例子：Keychain 的 `SecItemCopyMatching(query, &result)`。名字裡有 Copy，所以 `result` 是 +1，拿到後要 `CFBridgingRelease` 交給 ARC 或自己 `CFRelease`；忘了就是每次讀 Keychain 漏一個物件。
 
 ### 免費橋接與三種轉型
 
@@ -105,9 +110,9 @@ Swift 已經把大多數 CF API 標注好，`as` 一轉就自動管；只有遇�
 int main(void) {
     @autoreleasepool {
         // ① Create → 我擁有 → CFBridgingRelease 交給 ARC
-        CFUUIDRef uuid = CFUUIDCreate(kCFAllocatorDefault);
+        CFUUIDRef uuid = CFUUIDCreate(NULL);        // NULL = 預設配置器
         NSString *identifier =
-            CFBridgingRelease(CFUUIDCreateString(kCFAllocatorDefault, uuid));
+            CFBridgingRelease(CFUUIDCreateString(NULL, uuid));
         CFRelease(uuid);                       // uuid 沒交給 ARC，自己放
         NSLog(@"① %lu 字", (unsigned long)identifier.length);
 
@@ -118,8 +123,8 @@ int main(void) {
         // 不能 CFRelease(cfNote)：它是 note 的，ARC 在管
 
         // ③ Get → 借用；擁有者放手後就不能再碰
-        CFLocaleRef locale = CFLocaleCopyCurrent();            // Copy → 我擁有
-        CFStringRef ident = CFLocaleGetIdentifier(locale);     // Get → 借用
+        CFLocaleRef locale = CFLocaleCopyCurrent();      // Copy → 我擁有
+        CFStringRef ident = CFLocaleGetIdentifier(locale);  // Get → 借用
         NSString *identCopy = [(__bridge NSString *)ident copy];
         CFRelease(locale);                 // locale 走了，ident 也跟著不可用
         NSLog(@"③ %@", identCopy);         // 事先 copy 過，安全
@@ -148,6 +153,8 @@ int main(void) {
 ### 本章的小帳本任務：LRU 快取
 
 `NSNumberFormatter` 很慢（建立要幾毫秒，格式化也不便宜），交易列表捲動時同一個金額會被格式化幾十次。本章的 Xcode 任務是用 4.4 的 `LBLinkedList` 加上 `NSMutableDictionary` 實作 <Term en="LRU cache" tw="LRU 快取" cn="LRU 缓存" jp="LRU キャッシュ" />（Least Recently Used，淘汰最久沒用的）：字典負責 O(1) 找到節點，鏈結串列負責 O(1) 把節點搬到最新端、從最舊端淘汰。這是鏈結串列 + 雜湊表的經典組合，也是面試常客。
+
+進階一點的玩法（選做）：在 `LBLRUCache` 加兩個計數器 `hits` / `misses`，跑一輪捲動後印出命中率。容量 50 和 500 的命中率差多少？記憶體多了多少？這組數字就是你之後決定「快取該多大」的依據，而不是憑感覺填一個 100。
 
 <Tip title="先查文件再決定 bridge">
 拿不準一個 CF 函式回傳的是 +1 還是 +0？Xcode 裡 ⌥ 點函式名看 Quick Help，或 ⌘ 點進標頭檔：標注 `CF_RETURNS_RETAINED` 的是 +1，`CF_RETURNS_NOT_RETAINED` 是 +0。沒標注就回到 Create / Copy / Get 命名規則。
@@ -194,7 +201,8 @@ NSString *s = [(__bridge NSString *)CFLocaleGetIdentifier(locale) copy];
 
 <Pitfall title="CFRelease(NULL) 會 crash">
 ```objc
-CFStringRef s = CFStringCreateWithCString(NULL, cstr, kCFStringEncodingUTF8);
+CFStringRef s = CFStringCreateWithCString(NULL, cstr,
+                                          kCFStringEncodingUTF8);
 // cstr 不是合法 UTF-8 時 s 會是 NULL
 CFRelease(s);          // 對 NULL 送訊息在 ObjC 是安全的，CF 這裡直接 crash
 ```
@@ -203,9 +211,11 @@ Objective-C 對 `nil` 送訊息安全，讓你養成不檢查的習慣。CF 函�
 
 <Pitfall title="CGColorRef 不是免費橋接">
 ```objc
+// 對：CF 物件可以用 __bridge id 放進 NSArray
 gradient.colors = @[ (__bridge id)UIColor.redColor.CGColor,
-                     (__bridge id)UIColor.blueColor.CGColor ];   // 這樣寫是對的
-UIColor *c = (__bridge UIColor *)someCGColor;                    // 這樣是錯的
+                     (__bridge id)UIColor.blueColor.CGColor ];
+// 錯：CGColorRef 與 UIColor 不是同一塊記憶體
+UIColor *c = (__bridge UIColor *)someCGColor;
 ```
 Core Graphics 的 `CGColorRef`、`CGImageRef`、`CGPathRef` 都是 CF 物件，可以用 `__bridge id` 放進 `NSArray`（`CAGradientLayer.colors` 就要這樣），但它們和任何 UIKit 類別都**不是**同一塊記憶體——`CGColorRef` 轉 `UIColor *` 要用 `[UIColor colorWithCGColor:]`。免費橋接只限 Foundation 那張清單裡的型別。
 </Pitfall>

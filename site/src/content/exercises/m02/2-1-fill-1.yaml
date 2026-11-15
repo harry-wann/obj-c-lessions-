@@ -1,0 +1,28 @@
+id: m02-2-1-fill-1
+chapter: "2.1"
+section: quiz
+type: fill
+title: 補齊類別宣告的關鍵字
+minutes: 2
+prompt: "填入缺少的關鍵字與符號，讓這對 .h / .m 能編譯。"
+code: |
+  // LBLedger.h
+  ___1___ LBLedger : NSObject
+  ___2___ (NSUInteger)count;
+  ___3___
+
+  // LBLedger.m
+  ___4___ LBLedger
+  - (NSUInteger)count { return 0; }
+  @end
+blanks:
+  "1": { accept: ["@interface"], chips: ["@interface", "@implementation", "@class", "class"] }
+  "2": { accept: ["-"], chips: ["-", "+", "func", "void"] }
+  "3": { accept: ["@end"], chips: ["@end", "}", "@endif", "end"] }
+  "4": { accept: ["@implementation"], chips: ["@implementation", "@interface", "@class", "impl"] }
+feedback:
+  "2=+": "count 要對某個帳本物件問，是實體方法，用減號。"
+  "1=@class": "@class 只是前置宣告「有這個類別」，不能用來宣告方法。"
+  "4=@interface": ".m 裡放實作，用 @implementation。.m 裡若出現 @interface，那是類別延伸（2.5）。"
+solution_note: ".h 是 @interface … @end，.m 是 @implementation … @end；兩段都要 @end 收尾。"
+hints: ["兩段宣告都用 @ 開頭的關鍵字開始、用同一個關鍵字結束。", "count 需要先有一個帳本實體才有意義。"]

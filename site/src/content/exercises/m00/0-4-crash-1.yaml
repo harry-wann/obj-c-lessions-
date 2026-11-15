@@ -1,0 +1,28 @@
+id: m00-0-4-crash-1
+chapter: "0.4"
+type: crash
+title: unknown type name
+minutes: 3
+prompt: "LBCategory.h 第 2 行有 `#import \"LBTransaction.h\"`，LBTransaction.h 也 `#import \"LBCategory.h\"`。建置時得到下面的錯誤。原因是？"
+log: |
+  In file included from LBCategory.m:1:
+  In file included from ./LBCategory.h:2:
+  ./LBTransaction.h:7:31: error: unknown type name 'LBCategory'
+  @property (nonatomic, strong) LBCategory *category;
+                                ^
+  1 error generated.
+options:
+  - 兩個 .h 互相 #import 形成循環：處理 LBTransaction.h 時 LBCategory.h 還在處理中被跳過，LBCategory 的宣告尚未出現
+  - LBCategory 這個名字拼錯了
+  - "LBTransaction.h 缺少 `@import Foundation;`"
+  - LBCategory.m 沒有加進 target
+answer: 0
+fix: |
+  // LBTransaction.h
+  @class LBCategory;              // 取代 #import "LBCategory.h"
+  // LBTransaction.m
+  #import "LBCategory.h"          // 真正要用時才 import
+  // LBCategory.h 同理
+solution_note: 從上往下的 In file included from 鏈是引用路徑，最後一行才是出錯點。`#import` 的「只貼一次」保護讓循環不會無限遞迴，但會讓其中一個標頭看不到另一個的宣告。`.h` 用 `@class`，`.m` 用 `#import`。
+hints: ["順著 In file included from 走一遍：LBCategory.m → LBCategory.h → LBTransaction.h → 想再進 LBCategory.h 時會怎樣？", "指標型別需要完整宣告嗎？"]
+feedback: { "1": "拼錯的話錯誤會出現在每一個用到它的地方，不會只在循環路徑上。", "2": "缺 Foundation 會先抱怨 NSObject，不是自己的類別。", "3": "沒加進 target 是連結期的 undefined symbol，不是前置處理期的 unknown type name。" }

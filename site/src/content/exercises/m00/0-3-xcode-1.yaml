@@ -1,0 +1,18 @@
+id: m00-0-3-xcode-1
+chapter: "0.3"
+type: xcode
+title: 在 Scratch 印出三種格式指定子
+mobile: false
+minutes: 10
+prompt: 用 Scratch 親手看一次正確輸出、格式警告與 EXC_BAD_ACCESS 各長什麼樣。
+starter: xcode/Scratch
+steps:
+  - "在 main.m 的 @autoreleasepool 裡宣告 `NSString *note = @\"午餐\";`、`NSInteger count = 3;`、`double amount = 120.5;`。"
+  - "用三個 NSLog 分別以 `%@`、`%ld`（加 `(long)` 轉型）、`%.2f` 印出它們，再用第四個 NSLog 把三個值印在同一行。⌘R 確認輸出。"
+  - "把 `%ld` 故意改成 `%d`，⌘B，在 ⌘5 問題導覽器讀那條 Format specifies type 警告的全文，再改回來。"
+  - "把 `%@` 那行的引數故意換成 `count`（不轉型），⌘R，看到 EXC_BAD_ACCESS 與 address 的值之後改回來。"
+acceptance:
+  - 主控台出現 午餐、3、120.50 三行與合併成一行的第四行
+  - 看過 Format specifies type 'int' but the argument has type 'NSInteger' 警告的全文
+  - 親眼看過一次 EXC_BAD_ACCESS（address=0x3）並修好
+solution_note: address=0x3 就是 count 的值 3 被當成位址。之後在工作上看到位址很小的 EXC_BAD_ACCESS，你會立刻想到格式指定子。

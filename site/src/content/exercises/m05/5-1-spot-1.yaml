@@ -1,0 +1,35 @@
+id: m05-5-1-spot-1
+chapter: "5.1"
+type: spot
+title: 這個 reset 方法哪裡會出事
+minutes: 3
+prompt: 協定如下方第 1–6 行。點選 reset 方法裡有問題的行，並選出原因。
+code: |
+  @protocol LBLedgerObserver <NSObject>
+  @required
+  - (void)ledger:(LBLedger *)ledger didAddTransaction:(LBTransaction *)tx;
+  @optional
+  - (void)ledgerDidReset:(LBLedger *)ledger;
+  @end
+
+  - (void)reset {
+      [_items removeAllObjects];
+      [self.delegate ledgerDidReset:self];
+      [self.delegate ledger:self didAddTransaction:nil];
+  }
+bug_lines: [10]
+reasons:
+  - "ledgerDidReset: 是 optional，呼叫前沒有 respondsToSelector: 檢查，delegate 沒實作就 crash"
+  - "delegate 可能是 nil，對 nil 送訊息會 crash"
+  - "ledger:didAddTransaction: 是 required，不能在 reset 裡呼叫"
+  - "removeAllObjects 應該改成 _items = nil"
+answer_reason: 0
+fix: |
+  if ([self.delegate respondsToSelector:@selector(ledgerDidReset:)]) {
+      [self.delegate ledgerDidReset:self];
+  }
+solution_note: 編譯器允許你對 `id<LBLedgerObserver>` 呼叫協定裡所有方法，含 optional。optional 方法的保險要在呼叫端自己加。第 11 行雖然語意怪（傳 nil 交易）但不會 crash，required 方法可以直接呼叫。
+hints: ["協定裡哪個方法是 optional？", "optional 方法呼叫前要做什麼？"]
+feedback:
+  "1": 對 nil 送訊息是安全的，不會 crash；問題在 delegate 存在但沒有那個方法。
+  "2": required 方法保證存在，可以直接呼叫；語意對不對是另一回事。

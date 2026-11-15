@@ -1,0 +1,19 @@
+id: m03-3-1-quiz-2
+chapter: "3.1"
+section: quiz
+type: quiz
+title: 比較字串內容
+minutes: 1
+prompt: 想判斷使用者輸入的 `input` 是不是「午餐」，哪個寫法正確？
+options:
+  - "`if (input == @\"午餐\")`"
+  - "`if ([input isEqualToString:@\"午餐\"])`"
+  - "`if ([input compare:@\"午餐\"])`"
+  - "`if (input.hash == @\"午餐\".hash)`"
+answer: 1
+explain: "`==` 比指標位址；`compare:` 回傳 NSComparisonResult，相等時是 NSOrderedSame（0），放進 if 反而是「不相等才成立」；hash 相同不代表內容相同。"
+hints: ["== 在 Objective-C 永遠比的是什麼？", "compare: 相等時回傳的值是 0 還是非 0？"]
+feedback:
+  "0": "`==` 比的是兩個指標是否指到同一個物件。字面值合併與 tagged pointer 會讓它「有時候對」，上線後才出事。"
+  "2": "`compare:` 相等時回傳 NSOrderedSame，也就是 0，這個 if 會在「不相等」時成立。"
+  "3": "不同內容的字串可能有相同 hash（碰撞）。"

@@ -1,0 +1,16 @@
+id: m00-0-2-quiz-3
+chapter: "0.2"
+section: quiz
+type: quiz
+title: 想快速試一段 Objective-C
+minutes: 1
+prompt: 想快速試一段 Objective-C 語法，下列哪個做法可行？
+options:
+  - 建一個 Xcode Playground，語言選 Objective-C
+  - 用 Scratch（macOS Command Line Tool）專案的 main.m
+  - 在 iPad 的 Swift Playgrounds 建新頁面
+  - 在 Storyboard 的 Identity Inspector 裡寫
+answer: 1
+explain: Playground 與 Swift Playgrounds 都只接受 Swift。這門課用 Command Line Tool 專案 `Scratch` 當草稿本，所有範例都能貼進 main.m 跑。
+hints: ["Playground 的新建對話框有 Objective-C 的選項嗎？", "課文裡建了哪個專案當草稿本？"]
+feedback: { "0": "Playground 沒有 Objective-C 選項，這是整門課最重要的環境事實。", "2": "Swift Playgrounds 同樣只有 Swift，而且 iPad 上沒有任何 Objective-C 執行環境。" }

@@ -1,0 +1,19 @@
+id: m00-0-2-xcode-1
+chapter: "0.2"
+type: xcode
+title: 建立 Scratch 草稿本與 LittleBook 專案
+mobile: false
+minutes: 20
+prompt: 把這門課的兩個 Xcode 專案都跑起來：Scratch 印出 `Hello, 小帳本`，LittleBook 在模擬器啟動。
+starter: xcode/Scratch
+steps:
+  - "`brew install xcodegen`，在 `xcode/Scratch` 執行 `xcodegen generate`，打開 `Scratch.xcodeproj`。沒有 project.yml 的話用 File → New → Project → macOS → Command Line Tool，Language 選 Objective-C 手動建一個。"
+  - 把 main.m 的 NSLog 改成印 `Hello, 小帳本`，⌘R，在偵錯區（⇧⌘Y）右半看到帶時間戳的那一行。
+  - 貼入課文的 `#if DEBUG` 範例，在 scheme 編輯器把 Run 的 Build Configuration 改成 Release 再跑一次，確認第一行變了，然後改回 Debug。
+  - File → New → Project → iOS → App：Product Name `LittleBook`，Interface 選 Storyboard，Language 選 Objective-C，勾 Include Tests，存到 `xcode/`。
+  - 選一台 iOS 17 以上的模擬器，⌘R。白畫面、主控台沒有紅字，就通關。
+acceptance:
+  - Scratch 的主控台印出 Hello, 小帳本
+  - 把 Run 改成 Release 後，#if DEBUG 範例的第一行輸出改變
+  - LittleBook 在模擬器啟動且沒有錯誤
+solution_note: M0 沒有自動測試，這一關的目的是把環境打通。之後每一章的範例都貼進 Scratch 跑，Xcode 任務都在 LittleBook 做。

@@ -1,0 +1,34 @@
+id: m02-2-1-spot-1
+chapter: "2.1"
+type: spot
+title: 這段為什麼編譯不過？
+minutes: 2
+prompt: "點選編譯錯誤的那一行並選出原因。"
+code: |
+  #import "LBCategory.h"
+
+  @implementation LBCategory {
+      NSString *_name;
+  }
+
+  - (void)rename:(NSString *)newName {
+      NSString copy = [newName copy];
+      _name = copy;
+  }
+
+  @end
+bug_lines: [8]
+reasons:
+  - "忘記 `*`：物件變數一定是指標，應寫 `NSString *copy`"
+  - "`copy` 是保留字，不能當變數名"
+  - "`_name` 必須先在 .h 宣告才能用"
+  - "rename: 應該宣告成類別方法 `+`"
+answer_reason: 0
+fix: |
+  - (void)rename:(NSString *)newName {
+      NSString *copy = [newName copy];
+      _name = copy;
+  }
+solution_note: "錯誤訊息會是 interface type cannot be statically allocated，Clang 還會在底下畫一個 `*` 提示你補上。`copy` 當變數名雖然不建議（會和方法名混淆），但不是錯誤。"
+hints: ["Objective-C 的物件只能活在堆積上，變數一定是什麼？", "看每個 NSString 後面有沒有星號。"]
+feedback: { "1": "copy 不是保留字，只是一個常見的方法名，當區域變數合法但不建議。", "2": "ivar 寫在 .m 的 @implementation 大括號裡就能用，現代 runtime 不要求放 .h。" }

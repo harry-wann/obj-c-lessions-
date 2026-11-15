@@ -1,0 +1,20 @@
+id: m03-3-2-predict-1
+chapter: "3.2"
+type: predict
+title: 裝箱、拆箱、description
+minutes: 2
+code: |
+  NSNumber *a = @3.0;
+  NSNumber *b = @(7 / 2);
+  NSNumber *c = @(7 / 2.0);
+  NSLog(@"%@ %@ %@ %ld", a, b, c, (long)c.integerValue);
+options: ["3.0 3 3.5 3", "3 3 3.5 3", "3 3.5 3.5 4", "3.0 3.5 3.5 3"]
+accept: ["3 3 3.5 3"]
+hints:
+  - NSNumber 的 description 對 3.0 會印什麼？
+  - 7 / 2 在裝箱前先用 C 的規則算。
+  - integerValue 是截斷還是四捨五入？
+feedback:
+  "3.0 3 3.5 3": "NSNumber 的 description 會把 3.0 印成 3。"
+  "3 3.5 3.5 4": "7 / 2 是整數除法得 3；integerValue 是截斷，3.5 → 3。"
+solution_note: "`@3.0` 的 description 是 `3`（NSNumber 不印多餘的 .0）；`7 / 2` 先整數除法得 3 再裝箱；`7 / 2.0` 是 3.5；`integerValue` 截斷成 3。"

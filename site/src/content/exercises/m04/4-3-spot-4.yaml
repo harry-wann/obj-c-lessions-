@@ -38,7 +38,8 @@ fix: |
   - (void)dealloc {
       [NSNotificationCenter.defaultCenter removeObserver:_token];
   }
-solution_note: 這不是嚴格的循環，是「被長壽物件抓著」：NSNotificationCenter → block → self。結果一樣是永不釋放。兩個修正都要做：block 內用 weakSelf 讓 dealloc 有機會執行；dealloc 裡 remove 的是 addObserverForName: 回傳的 token。selector 版 iOS 9 之後不用手動移除，但 block 版永遠要。
+solution_note: |
+  這不是嚴格的循環，是「被長壽物件抓著」：NSNotificationCenter → block → self。結果一樣是永不釋放。兩個修正都要做：block 內用 weakSelf 讓 dealloc 有機會執行；dealloc 裡 remove 的是 addObserverForName: 回傳的 token。selector 版 iOS 9 之後不用手動移除，但 block 版永遠要。
 hints: ["通知中心什麼時候會釋放？它持有的 block 呢？", "addObserverForName: 回傳了什麼？removeObserver: 要收什麼？"]
 feedback:
   "1": "block 版沒問題，問題在捕獲與移除的方式。"

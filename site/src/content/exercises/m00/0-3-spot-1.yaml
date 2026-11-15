@@ -1,0 +1,27 @@
+id: m00-0-3-spot-1
+chapter: "0.3"
+type: spot
+title: 找出會印錯或 crash 的 NSLog
+minutes: 3
+prompt: 這段程式能編譯（有警告）。點選有問題的行，並選出原因。
+code: |
+  NSInteger total = 128000;
+  NSString *note = @"午餐";
+  int retries = 2;
+  NSLog(@"%d 分", total);
+  NSLog(@"%@ 重試 %d 次", note, retries);
+  NSLog(@"%@", retries);
+bug_lines: [4, 6]
+reasons:
+  - "第 4 行 `%d` 配 NSInteger（64 位元是 long）會警告並可能印錯；第 6 行 `%@` 配 int 會把 2 當位址去讀 → EXC_BAD_ACCESS"
+  - 第 2 行 NSString 字面值不能放中文
+  - 第 5 行一個 NSLog 不能混用兩種指定子
+  - 第 1 行 NSInteger 存不下 128000
+answer_reason: 0
+fix: |
+  NSLog(@"%ld 分", (long)total);
+  NSLog(@"%@ 重試 %d 次", note, retries);
+  NSLog(@"%d", retries);
+solution_note: 格式字串警告一律當錯誤處理：`%d` 配 long 是印錯值，`%@` 配整數是 crash。第 5 行完全正確，一個格式字串可以放任意多個指定子。
+hints: ["每個指定子配什麼型別？對照課文的表。", "哪一行會讓 NSLog 把一個很小的數字當成物件位址？"]
+feedback: { "1": "NSString 字面值完整支援 Unicode，中文沒問題。", "2": "一個格式字串可以放任意多個指定子，只要依序對上引數。", "3": "NSInteger 在 64 位元是 8 bytes，存 128000 綽綽有餘。" }

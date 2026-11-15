@@ -1,0 +1,23 @@
+id: m00-0-1-crash-1
+chapter: "0.1"
+type: crash
+title: 第一次讀 Objective-C 的 crash log
+minutes: 3
+prompt: 這是一支混編 App 的 crash。拆開訊息，選出最可能的原因。
+log: |
+  *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+  reason: '-[NSNull length]: unrecognized selector sent to instance 0x1e4a2b8f0'
+  Thread 1: signal SIGABRT
+options:
+  - 伺服器 JSON 的某個欄位是 null，被轉成 NSNull 物件；程式把它當 NSString 問 length，NSNull 沒有這個方法
+  - 字串太長，超過 length 能表示的範圍
+  - NSNull 類別沒有被 import，所以找不到方法
+  - 記憶體不足，物件被系統釋放了
+answer: 0
+fix: |
+  id value = json[@"note"];
+  NSString *note = [value isKindOfClass:[NSString class]] ? value : @"";
+  // Swift 端：let note = json["note"] as? String ?? ""
+solution_note: 讀法：`-` 實體方法、`NSNull` 收件物件的類別、`length` 送出的 selector、「unrecognized selector」= 這個物件沒有這個方法。SIGABRT 是例外沒人接、程式自行中止，不是記憶體錯誤。
+hints: ["訊息裡的類別是 NSNull，不是 NSString。哪裡會冒出 NSNull？", "「unrecognized selector」的意思是「收件人不認識這個訊息」。", "在型別邊界檢查 isKindOfClass:。"]
+feedback: { "1": "length 回傳 NSUInteger，沒有「太長」的問題；而且訊息說的是「不認識這個方法」。", "2": "Objective-C 的方法查找在執行期，沒 import 只會編譯警告，不會出這種訊息。", "3": "被釋放的物件會是 EXC_BAD_ACCESS 或殭屍物件訊息，不是 unrecognized selector。" }

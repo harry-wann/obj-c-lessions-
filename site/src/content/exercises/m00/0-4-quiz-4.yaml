@@ -1,0 +1,16 @@
+id: m00-0-4-quiz-4
+chapter: "0.4"
+section: quiz
+type: quiz
+title: 什麼時候 @class 不夠
+minutes: 1
+prompt: "哪種情況下 `.h` 裡**必須** `#import` 另一個自己的 `.h`，不能用 `@class` 代替？"
+options:
+  - 屬性的型別是那個類別
+  - 方法的參數是那個類別
+  - 繼承那個類別（它是父類別）
+  - 方法的回傳值是那個類別
+answer: 2
+explain: 父類別的完整宣告編譯器一定要看到，`@class` 只說「有這個名字」不夠；採用它宣告的協定、用到它的 enum / struct 也一樣。其餘只用指標的情況都用 `@class`。
+hints: ["指標只需要知道名字；哪種關係需要知道內部結構？", "錯誤訊息 Cannot find interface declaration for 'X', superclass of 'Y' 出現在哪種情況？"]
+feedback: { "0": "指標型別只需要 @class。", "1": "參數是指標，只需要 @class。", "3": "回傳值是指標，只需要 @class。" }

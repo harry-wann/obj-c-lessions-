@@ -1,0 +1,18 @@
+id: m05-5-1-quiz-1
+chapter: "5.1"
+section: quiz
+type: quiz
+title: 協定後面的 <NSObject> 是什麼
+minutes: 1
+prompt: "`@protocol LBLedgerObserver <NSObject>` 裡的 `<NSObject>` 代表什麼？"
+options:
+  - 這個協定只能被 NSObject 的子類別遵循
+  - 這個協定繼承 NSObject 協定，遵循者保證有 respondsToSelector: 等基本方法
+  - 這個協定會自動取得 NSObject 類別的所有實作
+  - 這是必填的語法，沒有意義
+answer: 1
+explain: 角括號裡是協定繼承。`NSObject` 這裡是**協定**（跟類別同名），帶進 `respondsToSelector:`、`isEqual:`、`description` 等宣告，`id<LBLedgerObserver>` 才能呼叫它們而不被警告。
+hints: ["NSObject 既是類別名也是協定名。", "想想 id<Proto> 型別的變數能呼叫哪些方法。"]
+feedback:
+  "0": 協定沒有限制遵循者的父類別；要限制類別用 `UIView<Proto> *` 這種型別。
+  "2": 協定沒有實作可以取得，它只有宣告。

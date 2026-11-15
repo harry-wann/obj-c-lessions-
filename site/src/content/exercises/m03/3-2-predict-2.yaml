@@ -1,0 +1,24 @@
+id: m03-3-2-predict-2
+chapter: "3.2"
+type: predict
+title: 0.1 + 0.2
+minutes: 2
+code: |
+  double d = 0.1 + 0.2;
+  NSDecimalNumber *x = [[NSDecimalNumber decimalNumberWithString:@"0.1"]
+                        decimalNumberByAdding:
+                        [NSDecimalNumber decimalNumberWithString:@"0.2"]];
+  NSLog(@"%.17g %@", d, x);
+options:
+  - "0.3 0.3"
+  - "0.30000000000000004 0.3"
+  - "0.30000000000000004 0.30000000000000004"
+  - "0.3 0.30"
+accept: ["0.30000000000000004 0.3"]
+hints:
+  - "%.17g 會把 double 的 17 位有效數字全印出來。"
+  - NSDecimalNumber 用十進位存，0.1 與 0.2 都精確。
+feedback:
+  "0.3 0.3": "double 的 0.1 + 0.2 其實是 0.30000000000000004，用 %.17g 就會露出來。"
+  "0.3 0.30": "NSDecimalNumber 的 description 不會補零。"
+solution_note: 二進位浮點數存不準 0.1，加總後誤差浮現；NSDecimalNumber 以十進位存，結果就是 0.3。這就是金額一律用 NSDecimalNumber 的理由。

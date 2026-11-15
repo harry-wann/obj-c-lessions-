@@ -1,0 +1,22 @@
+id: m03-3-2-crash-1
+chapter: "3.2"
+type: crash
+title: 數字被當成字串
+minutes: 2
+log: |
+  *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+  reason: '-[__NSCFNumber length]: unrecognized selector sent to instance 0xb000000000000543'
+options:
+  - 某個 NSNumber 被當成 NSString 使用（呼叫了 length）；很可能 JSON 欄位是數字而程式以為是字串
+  - NSNumber 太大溢位了
+  - 位址 0xb000000000000543 是無效指標，物件已被釋放
+  - length 方法要在主執行緒呼叫
+answer: 0
+fix: |
+  id raw = json[@"id"];
+  NSString *identifier = [raw isKindOfClass:[NSString class]] ? raw : [raw description];
+solution_note: "`__NSCFNumber` 是 NSNumber 的實際類別，`length` 是 NSString 的方法。0xb000000000000543 開頭 0xb、結尾小數字，是 tagged pointer 的典型長相，值就寫在指標裡，不是懸空指標。"
+hints: ["類別名是 __NSCFNumber，它是哪個公開類別的實作？", "length 是誰的方法？", "位址長得很規則（0xb000…）代表什麼？"]
+feedback:
+  "2": "懸空指標的訊息通常是 EXC_BAD_ACCESS 或 unrecognized selector 送到一個不相關的類別；這個位址是 tagged pointer，物件活得好好的。"
+  "1": "溢位不會產生 unrecognized selector。"

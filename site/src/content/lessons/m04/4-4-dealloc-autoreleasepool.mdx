@@ -64,7 +64,7 @@ try (Ledger l = new Ledger()) { l.load(); }     // try-with-resources
 class Ledger implements Disposable {
     [Symbol.dispose]() { clearInterval(this.timer); }
 }
-{ using ledger = new Ledger(); }   // TS 5.2 explicit resource management
+{ using ledger = new Ledger(); }   // TS 5.2 的 using
 // FinalizationRegistry 只能「可能」在 GC 後被通知，不能依賴
 ```
 </Fragment>
@@ -77,7 +77,7 @@ Swift 的 `deinit` 和 Objective-C 的 `dealloc` 是同一件事，時機確定�
 
 ```objc
 - (void)dealloc {
-    [_timer invalidate];                              // timer 用的是 block 版
+    [_timer invalidate];                   // timer 用的是 block 版
     [NSNotificationCenter.defaultCenter removeObserver:_observerToken];
     [_ledger removeObserver:self forKeyPath:@"transactions"];   // KVO
     if (_fileHandle) { close(_fileHandle); }          // C 資源
@@ -175,9 +175,11 @@ int main(void) {
 ```objc
 // 匯入 10 萬筆交易
 for (NSDictionary *row in rows) {
-    NSString *note = [NSString stringWithFormat:@"%@ %@", row[@"a"], row[@"b"]];
+    NSString *note = [NSString stringWithFormat:@"%@ %@",
+                      row[@"a"], row[@"b"]];
     NSNumber *n = [formatter numberFromString:row[@"amount"]];
-    [ledger addTransaction:[LBTransaction transactionWithNote:note amount:n]];
+    [ledger addTransaction:[LBTransaction transactionWithNote:note
+                                                       amount:n]];
 }
 ```
 
@@ -206,9 +208,9 @@ for (NSDictionary *row in rows) {
 本章的 Xcode 任務是實作 `LBLinkedList`（<Term en="doubly linked list" tw="雙向鏈結串列" cn="双向链表" jp="双方向連結リスト" />）。畫出來就懂：
 
 ```text
-list.head ──strong──▶ [A] ──next(strong)──▶ [B] ──next(strong)──▶ [C] ◀──strong── list.tail
-                       ▲                      │
-                       └─────prev(weak)───────┘
+head ─strong─▶ [A] ─next(strong)─▶ [B] ─next(strong)─▶ [C] ◀─ tail
+                ▲                    │
+                └────prev(weak)──────┘
 ```
 
 `next` 是 strong：串列從 `head` 一路往下持有每個節點。`prev` 如果也是 strong，A ↔ B 就是 4.3 的循環參考，整條串列在 `list` 釋放後全部洩漏。改成 `weak` 之後，每個節點只被前一個節點（或 `head`）持有一份，`list` 一放手，從 A 開始連鎖釋放到 C。`prev` 仍然指得到，因為只要節點還在串列裡，它的前一個節點一定活著。

@@ -1,0 +1,25 @@
+id: m02-2-3-fill-1
+chapter: "2.3"
+section: quiz
+type: fill
+title: 補齊初始化器
+minutes: 2
+code: |
+  - (___1___)initWithAmount:(NSDecimalNumber *)amount {
+      if (self = [___2___ init]) {
+          ___3___ = amount;
+      }
+      return ___4___;
+  }
+blanks:
+  "1": { accept: ["instancetype"], chips: ["instancetype", "id", "void", "LBTransaction *"] }
+  "2": { accept: ["super"], chips: ["super", "self", "NSObject", "LBTransaction"] }
+  "3": { accept: ["_amount"], chips: ["_amount", "self.amount", "amount", "self->amount"] }
+  "4": { accept: ["self"], chips: ["self", "_self", "nil", "super"] }
+feedback:
+  "1=id": "能編譯，但子類別呼叫時會失去型別資訊。現代寫法一律 instancetype。"
+  "2=self": "`[self init]` 會呼叫到自己類別的 init，形成無窮遞迴或繞過父類別設定。"
+  "3=self.amount": "init 裡走 setter 可能觸發子類別覆寫或 KVO，物件還沒建好。而且 amount 若是 readonly 根本沒有 setter。"
+  "4=nil": "回傳 nil 代表初始化失敗，正常路徑要回傳 self。"
+solution_note: "回傳 instancetype、呼叫 super 的 init、直接寫 `_amount` ivar、回傳 self。"
+hints: ["回傳型別要讓子類別也拿到正確型別。", "init 裡用 ivar 不用屬性。"]

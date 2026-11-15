@@ -1,0 +1,20 @@
+id: m00-0-3-crash-1
+chapter: "0.3"
+type: crash
+title: 位址很小的 EXC_BAD_ACCESS
+minutes: 2
+prompt: "執行到 `NSLog(@\"%@ 筆\", 42);` 這一行時程式停住，Xcode 顯示下面的訊息。原因是？"
+log: |
+  Thread 1: EXC_BAD_ACCESS (code=1, address=0x2a)
+options:
+  - "`%@` 要的是物件指標，42 被當成位址 0x2a 去讀 description，那裡沒有任何物件"
+  - 42 超過 NSLog 能印的範圍
+  - 少了 @autoreleasepool
+  - 字串太短放不下數字
+answer: 0
+fix: |
+  NSLog(@"%d 筆", 42);     // 整數用 %d
+  NSLog(@"%@ 筆", @42);    // 或包成 NSNumber 再用 %@
+solution_note: 0x2a 就是十進位 42。位址很小的 EXC_BAD_ACCESS 幾乎都是「把數字當指標」；address=0x0 是 nil 解參考。編譯器其實早就給了 Format specifies type 'id' but the argument has type 'int' 的警告。
+hints: ["0x2a 換成十進位是多少？", "%@ 會對引數做什麼？引數不是物件時會怎樣？"]
+feedback: { "1": "NSLog 沒有範圍限制；問題是指定子與型別不符。", "2": "少了池子只會洩漏並印一行警告，不會 EXC_BAD_ACCESS。", "3": "格式字串長度不影響。" }

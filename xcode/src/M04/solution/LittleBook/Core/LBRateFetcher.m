@@ -16,7 +16,7 @@
     return self;
 }
 
-- (void)fetchWithCompletion:(LBRateFetcherCompletion)completion {
+- (void)fetchWithCompletion:(nullable LBRateFetcherCompletion)completion {
     // 修正：block 裡不要直接用 self。self → _pendingCompletion → self 會形成循環參考。
     __weak LBRateFetcher *weakSelf = self;
     _pendingCompletion = ^(NSDecimalNumber *rate) {

@@ -1,0 +1,14 @@
+id: m03-3-2-quiz-1
+chapter: "3.2"
+section: quiz
+type: quiz
+title: 裝箱發生在什麼時候？
+minutes: 1
+code: "NSNumber *n = @(7 / 2);"
+prompt: "`n` 的值是多少？"
+options: ["3.5", "3", "4", "編譯錯誤"]
+answer: 1
+explain: "`@( )` 裡面是純 C 表達式，`7 / 2` 是整數除法先算出 3，然後才裝箱。要 3.5 得寫 `7 / 2.0`。"
+hints: ["@( ) 裡面先發生什麼？", "C 的整數除法會怎樣？"]
+feedback:
+  "0": "裝箱發生在運算之後；7 / 2 兩邊都是 int，結果是 3。"

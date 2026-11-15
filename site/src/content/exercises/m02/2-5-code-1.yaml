@@ -1,0 +1,48 @@
+id: m02-2-5-code-1
+chapter: "2.5"
+type: code
+title: 寫出類別延伸與 children getter
+mobile: false
+minutes: 6
+prompt: "在 `LBCategory.m` 寫出：類別延伸（空括號）把 `parent` 重新宣告為 `(nonatomic, weak, readwrite, nullable)`、加一個 `(nonatomic, strong)` 的 `NSMutableArray<LBCategory *> *mutableChildren`；然後在 `@implementation` 裡寫 `children` getter 回傳 `mutableChildren` 的 copy。"
+starter: |
+  #import "LBCategory.h"
+
+
+
+  @implementation LBCategory
+
+  @end
+checks:
+  - must_match: '@interface LBCategory\s*\(\s*\)'
+    message: "類別延伸要寫成 @interface LBCategory ()"
+  - property_attrs: { name: parent, attrs: [nonatomic, weak, readwrite, nullable] }
+    message: "parent 要 nonatomic、weak、readwrite、nullable（只把 readonly 改成 readwrite）"
+  - property_attrs: { name: mutableChildren, attrs: [nonatomic, strong] }
+    message: "mutableChildren 要 nonatomic、strong"
+  - must_match: 'NSMutableArray\s*<\s*LBCategory\s*\*\s*>\s*\*\s*mutableChildren'
+    message: "mutableChildren 的型別是 NSMutableArray<LBCategory *> *"
+  - selector_equals: "children"
+    message: "要實作 children getter"
+  - must_match: '\[\s*(self\.)?_?mutableChildren\s+copy\s*\]'
+    message: "children 要回傳 [self.mutableChildren copy]"
+  - must_match: '@end[\s\S]*@end'
+    message: "類別延伸與 @implementation 各要一個 @end"
+  - brackets_balanced: true
+solution: |
+  #import "LBCategory.h"
+
+  @interface LBCategory ()
+  @property (nonatomic, weak, readwrite, nullable) LBCategory *parent;
+  @property (nonatomic, strong) NSMutableArray<LBCategory *> *mutableChildren;
+  @end
+
+  @implementation LBCategory
+
+  - (NSArray<LBCategory *> *)children {
+      return [self.mutableChildren copy];
+  }
+
+  @end
+solution_note: "類別延伸放在 @implementation 之前、.m 檔內。parent 只改 readonly → readwrite；內部可變容器對外不曝光，getter 回傳不可變快照。手寫 getter 後編譯器不會為 children 合成 ivar，這是正常的。"
+hints: ["類別延伸的形狀是 `@interface 類別名 () … @end`。", "重新宣告屬性時複製 .h 那行只改一個字。", "NSMutableArray 的 copy 是 NSArray。"]

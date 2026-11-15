@@ -1,0 +1,30 @@
+id: m05-5-1-predict-1
+chapter: "5.1"
+type: predict
+title: 兩種內省各回什麼
+minutes: 2
+code: |
+  @protocol LBNamed <NSObject>
+  - (NSString *)lb_displayName;
+  @optional
+  - (NSString *)lb_shortName;
+  @end
+
+  @interface LBCategory : NSObject <LBNamed>
+  @end
+  @implementation LBCategory
+  - (NSString *)lb_displayName { return @"餐飲"; }
+  @end
+
+  LBCategory *c = [LBCategory new];
+  NSLog(@"%d %d %d",
+        [c conformsToProtocol:@protocol(LBNamed)],
+        [c respondsToSelector:@selector(lb_displayName)],
+        [c respondsToSelector:@selector(lb_shortName)]);
+options: ["1 1 1", "1 1 0", "0 1 0", "1 0 0"]
+accept: ["1 1 0"]
+feedback:
+  "1 1 1": "lb_shortName 是 optional 且沒實作，runtime 的方法列表裡沒有它。"
+  "0 1 0": "@interface 有寫 <LBNamed>，conformsToProtocol: 就回 YES。"
+solution_note: "`conformsToProtocol:` 看宣告（有）；`respondsToSelector:` 看方法是否存在：lb_displayName 有實作、lb_shortName 沒有。"
+hints: ["第一個問「有沒有宣告遵循」。", "後兩個問「方法存不存在」，跟 optional 與否無關，只看有沒有實作。"]

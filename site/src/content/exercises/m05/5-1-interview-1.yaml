@@ -1,0 +1,14 @@
+id: m05-5-1-interview-1
+chapter: "5.1"
+type: flash
+tier: interview
+title: 面試題：ObjC 協定能不能有預設實作？
+minutes: 2
+front: "面試官：Swift 的 protocol extension 可以給預設實作。Objective-C 的 @protocol 可以嗎？不行的話你怎麼做？"
+back: |
+  不行。@protocol 只有宣告，沒有程式碼可以放。
+  替代方案依序：
+  1. 把方法標 @optional，呼叫端用 respondsToSelector: 判斷，沒實作就走預設行為。這是 Cocoa 的標準做法（UITableViewDelegate 幾乎全是 optional）。
+  2. 提供一個基底類別實作空方法，讓人繼承。
+  3. 在 NSObject 上寫分類加那個方法（Apple 自己偶爾這樣做），但會污染所有物件，不建議。
+  補充：Swift 的 protocol extension 預設實作是靜態派送，@objc 協定的 extension 方法在 ObjC 端看不到，所以混編專案也不能靠它。

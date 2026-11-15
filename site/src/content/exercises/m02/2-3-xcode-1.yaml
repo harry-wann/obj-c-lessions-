@@ -1,0 +1,19 @@
+id: m02-2-3-xcode-1
+chapter: "2.3"
+type: xcode
+title: LBTransaction 的指定初始化器與工廠
+mobile: false
+minutes: 15
+prompt: "打開 M02 起始專案，為 LBTransaction 寫出指定初始化器、禁用 init / new，並加上 +expenseWithAmount:note: 工廠。"
+starter: xcode/M02-starter
+steps:
+  - "在 LBTransaction.h 宣告 `- (instancetype)initWithAmount:kind:date:note:category:` 並加 NS_DESIGNATED_INITIALIZER；把 `init` 與 `new` 標 NS_UNAVAILABLE。"
+  - "在 LBTransaction.m 實作它：`identifier` 用 `[NSUUID UUID]`、`date` 與 `note` 要 copy、`flags` 設 `LBTransactionFlagsNone`，全部直接寫 ivar。"
+  - "加上 `+ (instancetype)expenseWithAmount:(NSDecimalNumber *)amount note:(NSString *)note;`，內部用 `[self alloc]`、kind 用 LBTransactionKindExpense、date 用 `[NSDate date]`、category 傳 nil。"
+  - "⌘U 跑測試。"
+tests:
+  - LBTransactionTests/testDesignatedInitializerSetsProperties
+acceptance:
+  - "`[[LBTransaction alloc] init]` 編譯錯誤（init unavailable）。"
+  - "工廠建出的物件 kind 是 Expense、category 是 nil、identifier 每次不同。"
+solution_note: "工廠裡寫 `[self alloc]` 不寫 `[LBTransaction alloc]`，子類別才會建出子類別。通關後 diff 一下 M02-solution 的寫法。"

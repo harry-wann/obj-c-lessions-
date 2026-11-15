@@ -1,0 +1,31 @@
+id: m03-3-1-code-1
+chapter: "3.1"
+type: code
+title: 組出一行交易摘要
+mobile: false
+minutes: 5
+prompt: 實作 `LBTransaction` 的 `summaryLine` 方法，回傳像「午餐 × 3 筆，共 120 元」的字串。`note` 是 NSString、`count` 是 NSInteger、`amount` 是 NSDecimalNumber。格式指定子要寫對、不能有警告。
+starter: |
+  - (NSString *)summaryLine {
+      // self.note / self.count / self.amount
+  }
+checks:
+  - must_match: 'stringWithFormat:'
+    message: 用 stringWithFormat: 組字串
+  - must_match: '%@[^"]*(%ld|%zd)[^"]*%@'
+    message: 順序是 note（%@）、count（%ld 或 %zd）、amount（%@）
+  - must_not_match: '%d(?![a-zA-Z])'
+    message: NSInteger 不要用 %d
+  - must_not_match: '%f'
+    message: 金額是 NSDecimalNumber 物件，用 %@ 不用 %f
+  - must_match: '\(long\)|%zd'
+    message: 用 %ld 時 count 要轉型 (long)
+  - must_match: 'return'
+  - brackets_balanced: true
+solution: |
+  - (NSString *)summaryLine {
+      return [NSString stringWithFormat:@"%@ × %ld 筆，共 %@ 元",
+              self.note, (long)self.count, self.amount];
+  }
+solution_note: 物件用 %@（NSDecimalNumber 的 description 會印精確的十進位），NSInteger 用 %ld 並轉型 (long)。真正給使用者看的金額之後要換成 NSNumberFormatter（5.2 會做成分類）。
+hints: ["三個值各是什麼型別？物件還是 C 基本型別？", "NSInteger 的格式指定子是 %ld，記得轉型。"]

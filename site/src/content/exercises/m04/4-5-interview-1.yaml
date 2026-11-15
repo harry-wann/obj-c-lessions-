@@ -1,0 +1,26 @@
+id: m04-4-5-interview-1
+chapter: "4.5"
+type: flash
+tier: interview
+title: 面試題：LRU 做完了，LFU 怎麼做？
+minutes: 4
+front: "面試官：你用鏈結串列 + 字典做了 O(1) 的 LRU。如果改成 LFU（淘汰使用次數最少的；次數相同時淘汰最久沒用的），還能 O(1) 嗎？講資料結構設計。"
+back: |
+  可以，經典解法是**兩層字典 + 多條鏈結串列**：
+  - `keyToNode`：key → 節點（節點存 key、value、freq）。
+  - `freqToList`：使用次數 → 一條 LRU 順序的雙向鏈結串列（該次數下所有節點，tail 最近用過）。
+  - `minFreq`：目前最小的使用次數。
+  **get**：查節點；從 freq 那條串列移除，freq+1，接到新串列的尾；若原串列空了且 freq == minFreq，minFreq+1。
+  **set 新 key**：若滿了，從 `freqToList[minFreq]` 的 head 淘汰（次數最少、又最久沒用）；新節點 freq = 1 放進 list[1]，minFreq = 1。
+  ```objc
+  @interface LBLFUNode : NSObject
+  @property (nonatomic, copy) id<NSCopying> key;
+  @property (nonatomic, strong) id value;
+  @property (nonatomic, assign) NSUInteger freq;
+  @end
+  // ivar：NSMutableDictionary<id, LBLinkedListNode *> *keyToNode;
+  //       NSMutableDictionary<NSNumber *, LBLinkedList *> *freqToList;
+  //       NSUInteger minFreq, capacity;
+  ```
+  每一步都是字典 O(1) + 鏈結串列 O(1)。Swift 寫法相同；Kotlin / Java 用 `LinkedHashMap`（本身就是 LRU 順序）當每個 freq 的桶，程式碼會短很多——面試可以提這點。
+  ARC 細節：節點被串列的 next strong 持有、被字典 strong 持有，兩處都移除才釋放；prev 一樣 weak。

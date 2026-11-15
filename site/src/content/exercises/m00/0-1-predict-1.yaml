@@ -1,0 +1,21 @@
+id: m00-0-1-predict-1
+chapter: "0.1"
+type: predict
+title: 第一次送訊息
+minutes: 2
+code: |
+  NSString *note = @"午餐";
+  NSString *full = [note stringByAppendingString:@"（公司樓下）"];
+  NSLog(@"%@ / %lu", full, (unsigned long)full.length);
+options:
+  - "午餐（公司樓下） / 8"
+  - "午餐（公司樓下） / 24"
+  - "午餐 / 2"
+  - "(null) / 0"
+accept: ["午餐（公司樓下） / 8"]
+feedback:
+  "午餐（公司樓下） / 24": "length 算的是 UTF-16 單位數，不是 UTF-8 的 byte 數（8 個字 × 3 bytes = 24）。"
+  "午餐 / 2": "stringByAppendingString: 回傳新字串，full 是接起來的結果。"
+  "(null) / 0": "note 有值，不是 nil；只有對 nil 送訊息才會得到 nil。"
+solution_note: "方括號是「對 note 送 stringByAppendingString: 訊息」，回傳新的 NSString。`length` 是 8：午餐（2）＋全形括號（2）＋公司樓下（4）。"
+hints: ["中文字與全形括號在 NSString 裡各算一個 UTF-16 單位。", "數一數「午餐（公司樓下）」有幾個字元。"]

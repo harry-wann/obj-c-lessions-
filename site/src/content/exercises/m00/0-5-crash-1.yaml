@@ -1,0 +1,25 @@
+id: m00-0-5-crash-1
+chapter: "0.5"
+type: crash
+title: 用方法簽名的讀法拆 crash
+minutes: 3
+prompt: 用本章的四段讀法拆這則訊息，選出原因。
+log: |
+  *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+  reason: '*** -[__NSArrayM insertObject:atIndex:]: object cannot be nil'
+  Thread 1: signal SIGABRT
+options:
+  - "對 NSMutableArray 送 insertObject:atIndex: 時第一個參數 anObject 是 nil；文件寫明這個值不可為 nil，否則丟 NSInvalidArgumentException"
+  - 索引超出陣列範圍
+  - __NSArrayM 是私有類別，不應該直接使用
+  - 陣列是不可變的 NSArray，不能插入
+answer: 0
+fix: |
+  LBTransaction *tx = [self transactionFromRow:row];
+  if (tx != nil) {
+      [self.transactions insertObject:tx atIndex:0];
+  }
+  // 更根本：回頭查為什麼 tx 會是 nil（常是字典鍵名打錯）
+solution_note: "`-` 實體方法；`__NSArrayM` 是 NSMutableArray 的私有具體類別；`insertObject:atIndex:` 是 selector；「object cannot be nil」是原因。切到 Objective-C 的文件讀參數說明：anObject「This value must not be nil」。"
+hints: ["把 -[類別 selector]: 原因 三段分開讀。", "__NSArrayM 對應你宣告的哪個類別？", "文件裡 anObject 參數的說明寫了什麼？"]
+feedback: { "1": "越界的訊息是 index 3 beyond bounds [0 .. 2]，不是這個。", "2": "__NSArrayM 是你宣告 NSMutableArray 時 Foundation 自動給的具體類別，正常現象。", "3": "不可變陣列的訊息是 unrecognized selector 或 mutating method sent to immutable object。" }

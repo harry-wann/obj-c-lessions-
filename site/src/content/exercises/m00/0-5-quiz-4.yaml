@@ -1,0 +1,16 @@
+id: m00-0-5-quiz-4
+chapter: "0.5"
+section: quiz
+type: quiz
+title: 部署目標比 API 舊
+minutes: 1
+prompt: "部署目標是 iOS 17，你用了一個標著 `API_AVAILABLE(ios(18.0))` 的方法，編譯器警告 only available on iOS 18.0 or newer。正確處理是？"
+options:
+  - 把部署目標改成 iOS 18，警告就消失
+  - "用 `if (@available(iOS 18.0, *)) { … } else { … }` 包起來，並給舊系統一條替代路徑"
+  - "加 `#pragma` 把這條警告關掉"
+  - "用 `respondsToSelector:` 判斷就好，不用管警告"
+answer: 1
+explain: "`@available` 讓編譯器確認新 API 只在夠新的系統上執行，舊系統走 else。沒包的話在 iOS 17 裝置上呼叫會 crash。"
+hints: ["這是編譯器在幫你防 crash，不是雜訊。", "課文裡 @available 的範例長什麼樣？"]
+feedback: { "0": "這會讓所有 iOS 17 使用者無法更新，是產品決策，不是修警告的方法。", "2": "關掉警告不會讓 iOS 17 的裝置長出那個方法，上線就 crash。", "3": "那是 @available 出現前的舊辦法，仍可用但不精確，編譯器也不認它。" }

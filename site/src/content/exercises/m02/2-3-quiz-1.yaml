@@ -1,0 +1,12 @@
+id: m02-2-3-quiz-1
+chapter: "2.3"
+section: quiz
+type: quiz
+title: 為什麼要寫 if (self = [super init])
+minutes: 1
+prompt: "init 樣板裡為什麼要把 `[super init]` 的回傳值賦給 `self` 再判斷？"
+options: ["父類別的 init 可能回傳 nil（失敗）或另一個物件（類別叢集），要用它回傳的那個", "這只是風格，寫 `[super init];` 效果完全一樣", "不賦值會編譯錯誤", "為了觸發 KVO 通知"]
+answer: 0
+explain: "init 的回傳值才是真正該用的物件。繼承 NSObject 時兩種寫法剛好結果相同，所以很多人不知道自己寫錯；換成會失敗或換物件的父類別就會出事。"
+hints: ["init 有回傳值，而且不保證是 alloc 給你的那個。", "想想 `[[NSString alloc] init]` 回來的實際類別。"]
+feedback: { "1": "繼承 NSObject 時碰巧一樣，但父類別若回 nil 或換物件就會在錯的物件上寫 ivar。", "2": "不賦值只是邏輯錯，編譯器不會抱怨，這才是危險的地方。" }

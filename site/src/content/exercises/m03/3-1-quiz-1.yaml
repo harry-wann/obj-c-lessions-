@@ -1,0 +1,19 @@
+id: m03-3-1-quiz-1
+chapter: "3.1"
+section: quiz
+type: quiz
+title: NSInteger 該用哪個格式指定子？
+minutes: 1
+prompt: "`NSInteger count = 3;` 要用 `stringWithFormat:` 印出來，哪一個寫法在 32 與 64 位元都正確、也不會有警告？"
+options:
+  - "`@\"%d\", count`"
+  - "`@\"%ld\", (long)count`"
+  - "`@\"%@\", count`"
+  - "`@\"%f\", count`"
+answer: 1
+explain: NSInteger 在 64 位元是 long、32 位元是 int。Apple 的慣例是 `%ld` 加轉型 `(long)`；`%zd` 是不用轉型的替代方案。
+hints: ["NSInteger 不是物件，所以不能用 %@。", "想想它在 64 位元上實際是什麼 C 型別。"]
+feedback:
+  "0": "`%d` 對 64 位元的 long 會有「Values of type 'NSInteger' should not be used as format arguments」警告。"
+  "2": "`%@` 只能給 Objective-C 物件；NSInteger 是 C 整數，傳進去會 crash 或印出垃圾。"
+  "3": "`%f` 是 double 用的。"

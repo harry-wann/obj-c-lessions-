@@ -1,0 +1,16 @@
+id: m00-0-1-quiz-1
+chapter: "0.1"
+section: quiz
+type: quiz
+title: Objective-C 與 C 的關係
+minutes: 1
+prompt: 下列哪個敘述正確描述 Objective-C 與 C 的關係？
+options:
+  - Objective-C 是 C 的嚴格超集：任何合法的 C 程式都是合法的 Objective-C 程式
+  - Objective-C 是 C++ 的子集，去掉了模板
+  - Objective-C 與 C 無關，只是語法長得像
+  - Objective-C 是 Swift 的舊版本，由 Apple 在 2010 年設計
+answer: 0
+explain: Objective-C 是 1980 年代把 Smalltalk 式的訊息傳遞加在 C 上的結果，C 的一切（指標、struct、函式、前置處理器）原封不動保留，所以模組 1 要補 C。
+hints: ["想想 main.m 裡的 printf、struct 是哪個語言的。", "「超集」表示包含原本的全部，再加東西。"]
+feedback: { "1": "Objective-C 與 C++ 是兄弟（都是在 C 上加物件），不是父子；要混用得靠 .mm。", "3": "Objective-C 誕生於 1984 年前後，比 Swift 早三十年。" }

@@ -1,0 +1,19 @@
+id: m03-3-1-predict-2
+chapter: "3.1"
+type: predict
+title: == 比的到底是什麼
+minutes: 2
+code: |
+  NSString *a = @"午餐";
+  NSString *b = [NSString stringWithFormat:@"午%@", @"餐"];
+  NSString *c = @"午餐";
+  NSLog(@"%d %d %d", a == b, [a isEqualToString:b], a == c);
+options: ["0 1 1", "1 1 1", "0 1 0", "0 0 1"]
+accept: ["0 1 1"]
+hints:
+  - == 比指標位址。a 是字面值，b 是執行期組出來的新物件。
+  - 兩個相同內容的字面值，編譯器會怎麼處理？
+feedback:
+  "1 1 1": "a 與 b 是不同物件（一個是字面值、一個是執行期組的），== 比位址會是 0。"
+  "0 1 0": "兩個相同的 @\"午餐\" 字面值會被編譯器合併成同一個物件，所以 a == c 是 1——這正是 == 「有時候對」的原因。"
+solution_note: "`a == b` 是 0 因為它們是不同物件；`isEqualToString:` 比內容是 1；`a == c` 是 1 只因為編譯器把相同字面值合併了。把 @\"午餐\" 換成短 ASCII 像 @\"ok\"，b 可能變成 tagged pointer，結果又不一樣。這種「看情況」就是為什麼絕不能用 == 比字串。"

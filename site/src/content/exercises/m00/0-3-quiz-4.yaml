@@ -1,0 +1,19 @@
+id: m00-0-3-quiz-4
+chapter: "0.3"
+section: quiz
+type: quiz
+title: 用 %@ 印 nil
+minutes: 1
+code: |
+  NSString *s = nil;
+  NSLog(@"%@", s);
+prompt: 這兩行印出什麼？
+options:
+  - 一個空行
+  - "(null)"
+  - crash：EXC_BAD_ACCESS
+  - "nil"
+answer: 1
+explain: "`%@` 遇到 nil 不會送 description（對 nil 送訊息什麼都不做），而是印出字面的 `(null)`。看 log 時看到 (null) 就知道那個變數是 nil。"
+hints: ["對 nil 送訊息會 crash 嗎？（0.1 的陷阱）", "log 裡常見的 (null) 是哪來的？"]
+feedback: { "2": "對 nil 送訊息不會 crash；會 crash 的是把「非指標的數字」當物件。", "3": "印出來的是括號包的 (null)，不是 nil 這個字。" }

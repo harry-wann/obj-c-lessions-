@@ -53,7 +53,7 @@ static const double LBHashMapMaxLoadFactor = 0.75;
 }
 
 - (void)setHead:(nullable LBHashMapEntry *)head ofBucket:(NSUInteger)index {
-    _buckets[index] = head ?: [NSNull null];
+    _buckets[index] = (head != nil) ? (id)head : (id)[NSNull null];
 }
 
 #pragma mark - 存取

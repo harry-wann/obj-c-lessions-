@@ -1,0 +1,14 @@
+id: m02-2-2-quiz-2
+chapter: "2.2"
+section: quiz
+type: quiz
+title: 對 nil 送訊息
+minutes: 1
+code: |
+  LBLedger *ledger = nil;
+  NSUInteger n = [ledger count];
+options: ["n 是 0，程式繼續跑", "拋出 NSInvalidArgumentException", "EXC_BAD_ACCESS 當掉", "編譯錯誤：ledger 可能是 nil"]
+answer: 0
+explain: "對 nil 送訊息什麼都不做，回傳值依型別補零：整數 0、物件 nil、BOOL NO。這是語言規格，不是未定義行為。"
+hints: ["Objective-C 沒有 Kotlin 的 NPE。", "objc_msgSend 看到接收者是 nil 會直接回傳。"]
+feedback: { "1": "unrecognized selector 才會丟這個例外，而且那需要有一個真實的物件。", "2": "nil 是合法的接收者，runtime 會攔下來。" }

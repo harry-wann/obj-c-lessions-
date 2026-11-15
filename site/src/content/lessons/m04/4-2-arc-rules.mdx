@@ -73,6 +73,8 @@ Swift 的 `weak` / `unowned` / `[weak self]` 和 Objective-C 的 `__weak` / `__u
 
 所以 4.1 的四條擁有權規則一字不改，只是換成編譯器執行；也因此 ARC 管不到的地方（Core Foundation 物件、C 的 `malloc`、循環參考）還是要你自己來。
 
+想親眼確認？在 Xcode 對任何一個方法用 Debug → Debug Workflow → Always Show Disassembly 看組合語言，你會看到一堆 `objc_retain`、`objc_release`、`objc_storeStrong` 的呼叫——那就是編譯器替你寫的 MRC。這也解釋了 ARC 的兩個特性：釋放時機與手寫一樣**確定**，以及它完全不知道「這個物件還有沒有人用得到」，只知道數字。
+
 ### 四種變數修飾
 
 每個指向物件的變數都有一個<Term en="ownership qualifier" tw="擁有權修飾" cn="所有权修饰符" jp="所有権修飾子" />，不寫就是 `__strong`：
@@ -123,7 +125,7 @@ int main(void) {
 // 3: (null)
 ```
 
-`dealloc` 印在第 1、2 行之間：`tx = nil` 當下物件就走了，`weakTx` 同一瞬間變 `nil`。如果把 `__weak` 換成 `__unsafe_unretained`，第 2 行會印出一個看起來正常的位址，第 3 行則可能印垃圾、可能 crash——這就是<Term en="dangling pointer" tw="懸空指標" cn="野指针" jp="ダングリングポインタ" />。
+`dealloc` 印在第 1、2 行之間：`tx = nil` 當下物件就走了，`weakTx` 同一瞬間變 `nil`。這個「拿一個 weak 變數在旁邊看」的技巧，之後寫洩漏測試會一直用到：建立物件、觸發行為、放掉所有 strong 參考，然後斷言 weak 變數是 `nil`（4.3 的 `LBLeakTests` 就是這樣寫的）。如果把 `__weak` 換成 `__unsafe_unretained`，第 2 行會印出一個看起來正常的位址，第 3 行則可能印垃圾、可能 crash——這就是<Term en="dangling pointer" tw="懸空指標" cn="野指针" jp="ダングリングポインタ" />。
 
 ### weakSelf / strongSelf 樣板
 
@@ -132,10 +134,10 @@ block 會 retain 它捕獲的物件（5.5 細講）。`self` 持有 block、bloc
 ```objc
 __weak typeof(self) weakSelf = self;             // ① block 外：轉 weak
 self.onChange = ^{
-    __strong typeof(weakSelf) strongSelf = weakSelf;   // ② block 內：轉回 strong
+    __strong typeof(weakSelf) strongSelf = weakSelf;   // ② 轉回 strong
     if (!strongSelf) { return; }                  // ③ 物件已經走了就什麼都不做
     [strongSelf.tableView reloadData];
-    [strongSelf updateTotal];                     // block 執行期間保證 self 活著
+    [strongSelf updateTotal];          // 執行期間保證 self 活著
 };
 ```
 

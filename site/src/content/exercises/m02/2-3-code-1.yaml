@@ -1,0 +1,47 @@
+id: m02-2-3-code-1
+chapter: "2.3"
+type: code
+title: 寫出 LBCategory 的指定初始化器
+mobile: false
+minutes: 6
+prompt: "為 `LBCategory` 寫出指定初始化器 `initWithName:symbolName:` 的實作：兩個參數都是 `NSString *`，照樣板呼叫 `[super init]`、把兩個值 copy 進 `_name` 與 `_symbolName`、回傳 `self`。回傳型別用 `instancetype`。"
+starter: |
+  @implementation LBCategory {
+      NSString *_name;
+      NSString *_symbolName;
+  }
+
+  @end
+checks:
+  - selector_equals: "initWithName:symbolName:"
+    message: "方法名要是 initWithName:symbolName:"
+  - must_match: '-\s*\(\s*instancetype\s*\)\s*initWithName'
+    message: "回傳型別用 instancetype"
+  - must_match: 'self\s*=\s*\[\s*super\s+init\s*\]'
+    message: "要把 [super init] 的回傳值賦給 self"
+  - must_match: '_name\s*=\s*\[\s*name\s+copy\s*\]'
+    message: "_name 要存 [name copy]"
+  - must_match: '_symbolName\s*=\s*\[\s*symbolName\s+copy\s*\]'
+    message: "_symbolName 要存 [symbolName copy]"
+  - must_match: 'return\s+self\s*;'
+    message: "最後要 return self"
+  - must_not_match: 'self\.(name|symbolName)\s*='
+    message: "init 裡直接寫 ivar，不要走 self.prop"
+  - brackets_balanced: true
+solution: |
+  @implementation LBCategory {
+      NSString *_name;
+      NSString *_symbolName;
+  }
+
+  - (instancetype)initWithName:(NSString *)name symbolName:(NSString *)symbolName {
+      if (self = [super init]) {
+          _name = [name copy];
+          _symbolName = [symbolName copy];
+      }
+      return self;
+  }
+
+  @end
+solution_note: "樣板：`if (self = [super init]) { … } return self;`。NSString 參數要 copy（2.4 會解釋為什麼）。.h 裡這個方法應加上 NS_DESIGNATED_INITIALIZER。"
+hints: ["先寫方法簽名：`- (instancetype)initWithName:(NSString *)name symbolName:(NSString *)symbolName`。", "樣板四步：接住 super init、判斷、寫 ivar、回傳 self。", "ivar 名字是底線開頭。"]

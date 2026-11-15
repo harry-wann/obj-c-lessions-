@@ -1,0 +1,22 @@
+id: m00-0-3-fill-1
+chapter: "0.3"
+type: fill
+title: 填入正確的格式指定子
+minutes: 2
+prompt: 讓這行 NSLog 印出註解裡的結果。
+code: |
+  NSString *note = @"午餐";
+  NSUInteger count = 3;
+  double rate = 0.3125;
+  NSLog(@"___1___ x___2___，匯率 ___3___", note, (unsigned long)count, rate);
+  // 午餐 x3，匯率 0.3125
+blanks:
+  "1": { accept: ["%@"], chips: ["%@", "%s", "%d", "%lu", "%f", "%.4f"] }
+  "2": { accept: ["%lu"], chips: ["%@", "%s", "%d", "%lu", "%f", "%.4f"] }
+  "3": { accept: ["%.4f"], chips: ["%@", "%s", "%d", "%lu", "%f", "%.4f"] }
+feedback:
+  "1=%s": "%s 要 C 字串 char *；NSString 要用 %@（或先 UTF8String）。"
+  "2=%d": "引數已轉型成 unsigned long，要配 %lu；%d 會有格式警告。"
+  "3=%f": "%f 預設印六位小數，會變成 0.312500。"
+solution_note: 物件用 `%@`，`(unsigned long)` 轉型過的無號整數用 `%lu`，要精確到四位小數用 `%.4f`。
+hints: ["第一個引數是 NSString 物件。", "第二個引數前面有 (unsigned long) 轉型，指定子要跟它一致。", "預期輸出只有四位小數。"]

@@ -1,0 +1,27 @@
+id: m02-2-2-crash-1
+chapter: "2.2"
+type: crash
+title: 讀懂 unrecognized selector
+minutes: 2
+log: |
+  *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+  reason: '-[LBTransaction amout]: unrecognized selector sent to instance 0x600000c0c1e0'
+  *** First throw call stack:
+  (
+    2   CoreFoundation   -[NSObject(NSObject) doesNotRecognizeSelector:] + 116
+    3   CoreFoundation   ___forwarding___ + 1300
+    4   LittleBook       -[LBSummaryViewController refreshTotal] + 88
+  )
+options:
+  - "在 refreshTotal 裡把 amount 打成 amout，接收者型別是 id 所以編譯器沒抓到"
+  - "接收者是 nil，對 nil 送訊息會 crash"
+  - "LBTransaction 沒有 #import 進 LBSummaryViewController.m"
+  - "amount 屬性是 readonly，所以沒有 getter"
+answer: 0
+fix: |
+  // LBSummaryViewController.m, refreshTotal
+  LBTransaction *tx = self.transactions.firstObject;   // 給明確型別，編譯器才會檢查
+  NSDecimalNumber *amount = [tx amount];               // amout → amount
+solution_note: "讀法：`-[類別 selector]`、`unrecognized selector`、`instance 0x…`，然後往下找第一個自己專案的 frame（`refreshTotal`）就是出事的行。訊息裡有物件位址，表示接收者不是 nil。"
+hints: ["比對訊息裡的 selector 和你知道的屬性名。", "為什麼編譯器會放過拼錯的方法名？想想接收者的型別。"]
+feedback: { "1": "對 nil 送訊息不會 crash；而且訊息裡有實體位址 0x600000c0c1e0，表示物件存在。", "3": "沒 import 會是編譯警告或錯誤，不會跑到執行期。", "2": "readonly 只是沒有 setter，getter amount 還在；訊息裡的 selector 是 amout 不是 setAmount:。" }

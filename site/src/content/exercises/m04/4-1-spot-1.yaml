@@ -25,7 +25,8 @@ fix: |
   [tx release];                 // 我的那一份放掉，ledger 還持有
   NSString *title = [NSString stringWithFormat:@"%@ 已加入", tx.note];
   [self.statusLabel setText:title];   // title 是 +0，不是我的，不准 release
-solution_note: 四句話對照：第 2 行 alloc → 我擁有 → 要 release（漏了）；第 4 行 stringWithFormat: 回傳 +0 → 不是我的 → 第 6 行 release 是替別人取消預約，池子排空時會再 release 一次，變成多放。
+solution_note: |
+  四句話對照：第 2 行 alloc → 我擁有 → 要 release（漏了）；第 4 行 stringWithFormat: 回傳 +0 → 不是我的 → 第 6 行 release 是替別人取消預約，池子排空時會再 release 一次，變成多放。
 hints: ["每個 alloc 都要有一個對應的 release。", "stringWithFormat: 開頭是 alloc / new / copy 嗎？"]
 feedback:
   "1": "retain 是「接收方」的事，addTransaction: 內部自己會 retain。"

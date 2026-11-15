@@ -1,0 +1,17 @@
+id: m00-0-5-quiz-1
+chapter: "0.5"
+section: quiz
+type: quiz
+title: 這個方法叫什麼名字
+minutes: 1
+code: "- (void)insertObject:(id)anObject atIndex:(NSUInteger)index;"
+prompt: 這個方法的 selector（名字）是？
+options:
+  - "insertObject"
+  - "insertObject:atIndex:"
+  - "insertObject:anObject atIndex:index"
+  - "insert(_:at:)"
+answer: 1
+explain: selector 是所有標籤加冒號串起來的整串，不含參數型別與參數名。數冒號就知道有兩個參數。
+hints: ["冒號是名字的一部分。", "參數名 anObject、index 是給實作用的，不屬於名字。"]
+feedback: { "0": "少了冒號就是另一個（不存在的）無參數方法。", "2": "anObject 與 index 是參數名，不屬於 selector。", "3": "那是 Swift 自動改寫後的名字，Objective-C 文件裡查不到它。" }

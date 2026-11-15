@@ -1,0 +1,15 @@
+id: m00-0-2-quiz-4
+chapter: "0.2"
+section: quiz
+type: quiz
+title: ⌘R 與 Archive 用哪個組態
+minutes: 1
+prompt: 按 ⌘R 執行時，Xcode 預設套用哪個組態？Product → Archive 呢？
+options:
+  - 兩者都用 Debug
+  - Run 用 Debug，Archive 用 Release
+  - Run 用 Release，Archive 用 Debug
+  - 兩者都用 Release
+answer: 1
+explain: scheme 的每個動作各自綁一個組態：Run / Test 預設 Debug，Profile / Archive 預設 Release。「本機好好的、上線就壞」常常就是這個差別。
+hints: ["上架用的是哪個動作？它需要最佳化過的程式碼。", "偵錯需要符號與未最佳化的程式碼。"]

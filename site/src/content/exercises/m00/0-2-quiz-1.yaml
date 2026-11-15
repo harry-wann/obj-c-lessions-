@@ -1,0 +1,16 @@
+id: m00-0-2-quiz-1
+chapter: "0.2"
+section: quiz
+type: quiz
+title: LittleBook 與 LittleBookTests 是什麼關係
+minutes: 1
+prompt: "`LittleBook` 與 `LittleBookTests` 在 Xcode 裡是什麼關係？"
+options:
+  - 同一個專案裡的兩個 target，各有自己的檔案清單與建置設定
+  - 兩個不同的專案（兩個 .xcodeproj）
+  - 同一個 target 的兩個 scheme
+  - 同一個 target 的兩個組態（Debug / Release）
+answer: 0
+explain: target 是「一個產出物」：App 是一個、測試 bundle 是另一個。它們住在同一個專案裡，共用檔案樹但各自決定要編哪些檔。
+hints: ["測試 bundle 跟 App 是不是同一個「產出物」？", "對應 Gradle 的 module 或 SwiftPM 的 target。"]
+feedback: { "2": "scheme 是「用哪個 target、哪個組態、做什麼動作」的組合，不是產出物。", "3": "組態是建置設定的版本，兩個 target 各自都有 Debug 與 Release。" }

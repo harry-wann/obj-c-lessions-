@@ -1,0 +1,12 @@
+id: m02-2-1-quiz-2
+chapter: "2.1"
+section: quiz
+type: quiz
+title: 什麼該放在 .h？
+minutes: 1
+prompt: "下列哪一項最適合寫在 `LBCategory.h` 裡？"
+options: ["公開方法 `- (void)addChild:(LBCategory *)child;` 的宣告", "ivar `NSMutableArray *_children;`", "`addChild:` 的實作本體", "只有內部會用到的工具方法宣告"]
+answer: 0
+explain: ".h 只放別人需要知道的事：類別名、父類別、公開方法與屬性。ivar、私有方法、實作都放 .m。"
+hints: ["問自己：import 這個檔的人需要知道這件事嗎？", "ivar 寫在 .h 是 2010 年前的歷史包袱。"]
+feedback: { "1": "ivar 放 .m 的 @implementation 大括號裡，或讓 @property 自動合成。", "2": "實作一律在 @implementation 裡，也就是 .m。" }

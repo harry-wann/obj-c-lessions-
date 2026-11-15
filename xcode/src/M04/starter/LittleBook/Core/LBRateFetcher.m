@@ -16,7 +16,7 @@
     return self;
 }
 
-- (void)fetchWithCompletion:(LBRateFetcherCompletion)completion {
+- (void)fetchWithCompletion:(nullable LBRateFetcherCompletion)completion {
     // TODO: M04 — block 捕獲 self，而 self 又用 _pendingCompletion 持有 block：循環參考。
     // 改成 weakSelf / strongSelf 樣板，並在用完後把 _pendingCompletion 設為 nil。
     _pendingCompletion = ^(NSDecimalNumber *rate) {

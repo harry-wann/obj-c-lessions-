@@ -1,0 +1,11 @@
+id: m02-2-2-interview-1
+chapter: "2.2"
+type: flash
+tier: interview
+title: 面試題：對 nil 送訊息為什麼不會當？
+minutes: 2
+front: "面試官：`[nil doSomething]` 在 Objective-C 會發生什麼？為什麼？這個設計有什麼代價？"
+back: |
+  每一次送訊息都會編譯成 `objc_msgSend(receiver, selector, …)`。這個函式第一件事就是檢查 receiver 是否為 nil，是就直接回傳，不查方法表、不執行任何方法。回傳值：指標與整數回 0 / nil、BOOL 回 NO、浮點回 0.0、小於暫存器大小的 struct 回全零（大 struct 在舊架構曾是未定義，現代 ARM64 也回零）。
+  好處：少寫一堆 if，`[self.delegate …]` 之類的選配呼叫天然安全。
+  代價：錯誤無聲地往後傳——畫面空白、數字是 0，離真正的 nil 來源可能很遠；Swift 用 Optional 把這件事搬到編譯期檢查就是在修這個問題。偵錯時看到奇怪的零值，先懷疑上游是 nil；Debug 建置多用 NSParameterAssert。

@@ -34,9 +34,10 @@ class Ledger {
     var timer: Timer?
     func start() {
         onChange = { [weak self] in self?.reload() }
+        // target: 版同樣持有 self
         timer = Timer.scheduledTimer(timeInterval: 60, target: self,
                                      selector: #selector(save),
-                                     userInfo: nil, repeats: true)  // 同樣持有 target
+                                     userInfo: nil, repeats: true)
     }
 }
 ```
@@ -46,7 +47,9 @@ class Ledger {
 // Android：GC 會回收循環參考，但「可達」的東西收不掉
 object Analytics { var listener: Activity? = null }   // 單例持有 Activity
 class MainActivity : AppCompatActivity() {
-    override fun onCreate(s: Bundle?) { Analytics.listener = this }   // Activity 洩漏
+    override fun onCreate(s: Bundle?) {
+        Analytics.listener = this          // Activity 洩漏
+    }
 }
 ```
 </Fragment>
@@ -142,7 +145,7 @@ int main(void) {
     @autoreleasepool {
         LBLedger *leaky = [[LBLedger alloc] init];
         leaky.name = @"洩漏";
-        leaky.onChange = ^{ NSLog(@"%@", leaky.name); };   // block 捕獲 leaky
+        leaky.onChange = ^{ NSLog(@"%@", leaky.name); };   // 捕獲 leaky
         leaky = nil;                      // 區域變數放手，但 block 還抓著
         NSLog(@"放掉 leaky");
 

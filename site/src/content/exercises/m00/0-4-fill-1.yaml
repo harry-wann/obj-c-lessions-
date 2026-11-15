@@ -1,0 +1,35 @@
+id: m00-0-4-fill-1
+chapter: "0.4"
+type: fill
+title: 選對 import 關鍵字
+minutes: 2
+prompt: 依照「.h 用 @class、.m 用 #import、系統框架用 @import」的原則填空。
+code: |
+  // LBCategory.h
+  ___1___ Foundation;
+  ___2___ LBTransaction;
+
+  @interface LBCategory : NSObject
+  - (void)attach:(LBTransaction *)tx;
+  @end
+
+  // LBCategory.m
+  ___3___ "LBCategory.h"
+  ___4___ "LBTransaction.h"
+
+  @implementation LBCategory
+  @end
+blanks:
+  "1": { accept: ["@import"], chips: ["@import", "@class", "#import", "#include"] }
+  "2": { accept: ["@class"], chips: ["@import", "@class", "#import", "#include"] }
+  "3": { accept: ["#import"], chips: ["@import", "@class", "#import", "#include"] }
+  "4": { accept: ["#import"], chips: ["@import", "@class", "#import", "#include"] }
+feedback:
+  "1=#import": "#import 後面要接檔名（`<Foundation/Foundation.h>`），接模組名的是 @import。"
+  "2=#import": "能編譯，但 .h 裡只用到指標時 @class 就夠，還能避免循環引用。"
+  "2=@import": "自己的類別不是模組，不能 @import。"
+  "3=#include": "能動，但沒有「只貼一次」的保護；Objective-C 一律用 #import。"
+  "4=#include": "能動，但沒有「只貼一次」的保護；Objective-C 一律用 #import。"
+  "4=@class": "這裡要呼叫 LBTransaction 的方法，需要完整宣告，必須 #import。"
+solution_note: "系統框架 `@import Foundation;`；`.h` 對另一個自己的類別只需 `@class`；`.m` 先 `#import` 自己的 `.h`，再 `#import` 真正要用的相依標頭。"
+hints: ["後面接模組名還是檔名，決定是 @import 還是 #import。", ".h 裡只有一個指標參數，需要完整宣告嗎？", "C 的 #include 在 Objective-C 裡幾乎不用。"]

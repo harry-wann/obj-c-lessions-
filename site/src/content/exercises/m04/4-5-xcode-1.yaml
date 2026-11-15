@@ -1,0 +1,24 @@
+id: m04-4-5-xcode-1
+chapter: "4.5"
+type: xcode
+title: 用鏈結串列 + NSMutableDictionary 實作 LBLRUCache
+mobile: false
+minutes: 45
+prompt: 在 M04 起始專案實作 `LBLRUCache`：`initWithCapacity:`、`objectForKey:`、`setObject:forKey:`、`count`。用 4.4 的 `LBLinkedList` 維護使用順序（tail = 最近用過、head = 最久沒用），`NSMutableDictionary` 從 key 找到節點。之後用它快取金額格式化字串。
+starter: xcode/M04-starter
+steps:
+  - "宣告一個小的內部類別 `LBLRUEntry`（`key`、`value` 兩個 strong 屬性）當節點的 object，淘汰時才知道要從字典移除哪個 key。"
+  - "ivar：`LBLinkedList *_list`、`NSMutableDictionary<id, LBLinkedListNode *> *_nodes`、`NSUInteger _capacity`。capacity 為 0 時全部不存。"
+  - "objectForKey:：字典查不到回 nil；查到就 `[_list removeNode:node]` 再 `appendObject:` 同一個 entry 得到新節點、更新字典，回傳 entry.value。這就是「用過搬到最新端」。"
+  - "setObject:forKey:：key 已存在 → 更新 value 並搬到最新端；不存在 → 建 entry、append、寫進字典；若 count 超過 capacity → 取 `_list.head`，從字典移除它的 key，再 removeNode:。key 一律 copy。"
+  - "count 回傳 _nodes.count。寫完先在 Scratch 手動跑：capacity 2，set a、set b、get a、set c → b 被淘汰。"
+  - "接上小帳本：在金額格式化的地方加一層 LBLRUCache（key 用 NSDecimalNumber，capacity 200），命中就回快取字串，否則呼叫 NSNumberFormatter 再存進去。"
+tests:
+  - LBLRUCacheTests/testEvictsLeastRecentlyUsed
+  - LBLRUCacheTests/testGetMovesToFront
+  - LBLRUCacheTests/testCapacity
+acceptance:
+  - 交易列表快速捲動時 NSNumberFormatter 的呼叫次數明顯下降（在 formatter 呼叫處加計數器確認）
+  - Memory Graph 篩「只看洩漏」沒有 LBLRUEntry / LBLinkedListNode
+solution_note: |
+  get / set 都是 O(1)：字典 O(1) 找節點，鏈結串列 O(1) 搬動與淘汰。這就是為什麼 LRU 一定是「雜湊表 + 雙向鏈結串列」，而不是陣列（搬到最前要 O(n)）。對照 Foundation：`NSCache` 也是 key-value 快取，但淘汰策略由系統決定（記憶體壓力時清、不保證 LRU），適合「掉了也沒關係」的大物件；自己寫 LRU 適合「要可預測、要能測」的小物件。

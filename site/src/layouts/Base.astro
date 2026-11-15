@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import { url } from '../lib/base';
+import { pwaInfo } from 'virtual:pwa-info';
 interface Props { title: string; description?: string; nav?: 'lessons' | 'exercises' | 'project' | 'cheatsheet' | 'home'; back?: { href: string; label: string }; }
 const { title, description = '', nav = 'home', back } = Astro.props;
 const path = Astro.url.pathname;
@@ -23,6 +24,7 @@ const navItems = [
     <meta name="description" content={description} />
     <link rel="icon" href={url('/icon.svg')} type="image/svg+xml" />
     <link rel="apple-touch-icon" href={url('/icon.svg')} />
+    { pwaInfo && <Fragment set:html={pwaInfo.webManifest.linkTag} /> }
     <script is:inline>
       (function(){try{var p=JSON.parse(localStorage.getItem('lb-progress-v1')||'{}');var s=(p.settings)||{};var h=document.documentElement;h.style.setProperty('--fs',String(s.fontScale||1));if(s.wrapCode)h.classList.add('code-wrap');var t=s.theme||'system';if(t==='system')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';h.setAttribute('data-theme',t);}catch(e){}})();
     </script>

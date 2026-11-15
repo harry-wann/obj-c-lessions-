@@ -1,0 +1,20 @@
+id: m07-7-4-quiz-3
+chapter: "7.4"
+section: quiz
+type: quiz
+title: 什麼時候該選 NSOperation
+minutes: 2
+prompt: 以下哪些需求比較適合用 NSOperation / NSOperationQueue 而不是直接用 GCD？（可複選）
+multi: true
+options:
+  - CSV 匯入要有「取消」按鈕
+  - 先下載、再解析、再寫入，三步有相依順序，而且步驟會動態增減
+  - 把一段計算丟到背景，做完回主執行緒更新標籤
+  - 建立 +[LBSettings shared] 單例
+  - 同時下載的圖片數量要依網路狀況在 2 到 6 之間調整
+answer: [0, 1, 4]
+explain: 取消、相依性、限制同時數量（而且常改）是 NSOperation 的三個強項。單純丟背景再回主執行緒用 dispatch_async 兩層就好；單例用 dispatch_once。
+hints: ["GCD 的 block 丟出去之後有把手可以抓嗎？", "maxConcurrentOperationCount 可以隨時改嗎？"]
+feedback:
+  "2": 這是 GCD 最擅長的事，加一層 NSOperation 只是多寫。
+  "3": 單例是 dispatch_once 的工作。

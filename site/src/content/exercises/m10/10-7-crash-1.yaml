@@ -1,0 +1,33 @@
+id: m10-10-7-crash-1
+chapter: "10.7"
+type: crash
+title: 讀 jetsam 報告
+minutes: 3
+prompt: 匯入 10 萬筆時 App 消失，Xcode 只顯示一行訊息，裝置上有這份報告。判斷原因與修法。
+log: |
+  Message from debugger: Terminated due to memory issue
+
+  Exception Type:  EXC_RESOURCE
+  Exception Subtype: MEMORY
+  Termination Reason: Namespace JETSAM, Code 0x0
+  Highest-memory process:
+    LittleBook  [7310]  rpages: 393216  (1536 MB)  reason: per-process-limit
+options:
+  - 系統因 App 超過單一行程記憶體上限而強制終止（jetsam）；用 Allocations 找峰值來源，例如匯入迴圈缺 @autoreleasepool、快取無上限，並在記憶體警告時清快取
+  - "EXC_BAD_ACCESS，存取了已釋放的物件"
+  - 主執行緒卡住 10 秒被 watchdog 殺掉
+  - 使用者手動滑掉 App
+answer: 0
+fix: |
+  for (NSUInteger i = 0; i < lines.count; i++) {
+      @autoreleasepool {                       // 每行排水（10.3）
+          [batch addObject:[LBTransaction transactionWithCSVLine:lines[i]]];
+      }
+  }
+  self.vmCache.totalCostLimit = 20 * 1024 * 1024;
+  // 並聽 UIApplicationDidReceiveMemoryWarningNotification 清空快取
+solution_note: "關鍵字是 JETSAM 與 per-process-limit：不是程式存取錯誤，所以沒有自己的堆疊。rpages × 4 KB 約 1.5 GB。watchdog 是 0x8BADF00D、EXC_BAD_ACCESS 是 SIGSEGV / SIGBUS，跟這份都不同。修完用 Allocations 確認峰值 < 150 MB。"
+hints: ["Termination Reason 的 Namespace 是什麼？", "有沒有自己程式的堆疊？"]
+feedback:
+  "1": EXC_BAD_ACCESS 的 Exception Type 會是它本身，並附 crash 的執行緒堆疊。
+  "2": watchdog 的代碼是 0x8BADF00D，Namespace 是 FRONTBOARD。

@@ -1,0 +1,24 @@
+id: m08-8-5-xcode-1
+chapter: "8.5"
+type: xcode
+title: 編輯頁 present 與 delegate 回傳
+mobile: false
+minutes: 40
+prompt: 接上導覽流程：列表「＋」present 編輯頁（包 nav），儲存透過 LBTransactionEditorDelegate 回到列表；分類列 push 分類選擇、用 onSelect block 回傳。`testSaveCallsDelegateWithTransaction` 轉綠。
+starter: xcode/M08-starter
+steps:
+  - "`LBTransactionEditorViewController.h`：`initWithLedger:transaction:` 標 `NS_DESIGNATED_INITIALIZER`，`delegate` 宣告成 `weak`；`init` / `initWithCoder:` 標 `NS_UNAVAILABLE`。"
+  - "`viewDidLoad`：title 依 `transaction` 是否為 nil 設「新增交易」/「編輯交易」；左邊 `UIBarButtonSystemItemCancel` 接 `cancelTapped`，右邊 `UIBarButtonSystemItemSave` 接 `saveTapped`。"
+  - "`cancelTapped` 只呼叫 `[self.delegate editorDidCancel:self]`；`saveTapped` 呼叫 `saveWithError:`，成功時由它呼叫 `editor:didSaveTransaction:`。"
+  - "列表的 `addTapped`：建 editor、設 `delegate = self`、包 `UINavigationController`、`presentViewController:`；在 delegate 方法裡加資料、更新表格並 dismiss。"
+  - "分類那一列點了 `showCategoryPicker`：每次建新的 picker，`onSelect` 用 weakSelf 設定分類並 pop。"
+  - "⌘U 跑 `LBTransactionEditorViewControllerTests/testSaveCallsDelegateWithTransaction`。"
+tests:
+  - LBTransactionEditorViewControllerTests/testSaveCallsDelegateWithTransaction
+acceptance:
+  - 按列表右上「＋」從下方升起卡片 sheet，頂部有 grabber、標題「新增交易」、左「取消」、右「儲存」
+  - 輸入金額後按「取消」，sheet 收起，列表筆數與各月合計完全不變（取消不儲存）
+  - 輸入合法金額按「儲存」，sheet 收起，列表對應月份多一列且 header 合計更新
+  - 點「分類」push 到分類選擇，選一個子分類後自動返回，編輯頁顯示剛選的分類；連點兩下不 crash
+  - 關掉 sheet 後在 dealloc 放的 NSLog 會印出（編輯頁有被釋放）
+solution_note: "testSaveCallsDelegateWithTransaction 用一個假 delegate 物件記錄收到的交易：設 `amountField.text = @\"120\"` 後呼叫 `saveWithError:`，檢查回傳 YES、delegate 收到一筆金額 120 的交易。delegate 若寫成 strong 測試照樣會過，所以最後一項驗收要用 NSLog 或 Memory Graph 自己確認。"

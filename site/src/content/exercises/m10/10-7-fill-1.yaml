@@ -1,0 +1,36 @@
+id: m10-10-7-fill-1
+chapter: "10.7"
+type: fill
+title: 記憶體警告清快取、懶載入 formatter
+minutes: 3
+prompt: 補完 view model 快取的記憶體警告處理與懶載入 formatter。
+code: |
+  - (instancetype)init {
+      if ((self = [super init])) {
+          _cache = [NSCache new];
+          _cache.___1___ = 20 * 1024 * 1024;     // 20 MB（cost 加總）
+          [[NSNotificationCenter defaultCenter]
+              addObserver:self selector:@selector(purge:)
+                     name:___2___ object:nil];
+      }
+      return self;
+  }
+  - (void)purge:(NSNotification *)n { [_cache ___3___]; }
+  - (NSDateFormatter *)formatter {
+      if (___4___) {
+          _formatter = [NSDateFormatter new];
+          _formatter.dateFormat = @"M/d EEE";
+      }
+      return _formatter;
+  }
+blanks:
+  "1": { accept: ["totalCostLimit"], chips: ["totalCostLimit", "countLimit", "capacity", "maxSize"] }
+  "2": { accept: ["UIApplicationDidReceiveMemoryWarningNotification"], chips: ["UIApplicationDidReceiveMemoryWarningNotification", "UIApplicationWillTerminateNotification", "UIApplicationDidEnterBackgroundNotification", "NSProcessInfoThermalStateDidChangeNotification"] }
+  "3": { accept: ["removeAllObjects"], chips: ["removeAllObjects", "removeAll", "clear", "release"] }
+  "4": { accept: ["!_formatter", "_formatter == nil", "_formatter==nil", "nil == _formatter"], chips: ["!_formatter", "_formatter", "self.formatter", "YES"] }
+hints: ["以 cost 加總為上限的屬性。", "記憶體警告的通知名稱。", "NSCache 清空的方法。", "第一次用到才建。"]
+feedback:
+  "1=countLimit": countLimit 限制的是筆數，這裡的數字是位元組。
+  "2=UIApplicationWillTerminateNotification": 那是 App 要結束時，不是記憶體警告。
+  "4=self.formatter": 在 getter 裡呼叫 self.formatter 會無限遞迴。
+solution_note: "totalCostLimit 要搭配 setObject:forKey:cost: 才有意義；兩種限制都只是提示。記憶體警告在主執行緒送達，purge 要快。懶載入 getter 若會被多條執行緒呼叫，改用 dispatch_once。"

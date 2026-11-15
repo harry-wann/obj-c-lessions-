@@ -1,0 +1,46 @@
+id: m08-8-5-code-1
+chapter: "8.5"
+type: code
+title: 實作 LBTransactionEditorDelegate 的兩個方法
+mobile: false
+minutes: 8
+prompt: "在 LBTransactionListViewController 實作 `editor:didSaveTransaction:`（加進帳本、`reloadSections`、`reloadData`、收掉 sheet）與 `editorDidCancel:`（只收掉 sheet，**不動資料**）。由 present 的這一方負責 dismiss。"
+starter: |
+  #pragma mark - LBTransactionEditorDelegate
+
+  - (void)editor:(LBTransactionEditorViewController *)editor
+      didSaveTransaction:(LBTransaction *)transaction {
+
+  }
+
+  - (void)editorDidCancel:(LBTransactionEditorViewController *)editor {
+
+  }
+checks:
+  - must_match: 'didSaveTransaction\s*:\s*\(\s*LBTransaction\s*\*\s*\)\s*\w+\s*\{[^}]*addTransaction\s*:'
+    message: "儲存時呼叫 [self.ledger addTransaction:]"
+  - must_match: 'reloadSections'
+    message: 重算 sections
+  - must_match: 'reloadData'
+    message: 更新表格
+  - must_match: 'didSaveTransaction[^}]*dismissViewControllerAnimated\s*:\s*YES'
+    message: 儲存後收掉 sheet
+  - must_match: 'editorDidCancel\s*:\s*\(\s*LBTransactionEditorViewController\s*\*\s*\)\s*\w+\s*\{[^}]*dismissViewControllerAnimated\s*:'
+    message: 取消時收掉 sheet
+  - must_not_match: 'editorDidCancel[^}]*addTransaction'
+    message: 取消不能儲存
+  - "brackets_balanced: true"
+solution: |
+  - (void)editor:(LBTransactionEditorViewController *)editor
+      didSaveTransaction:(LBTransaction *)transaction {
+      [self.ledger addTransaction:transaction];
+      [self reloadSections];
+      [self.tableView reloadData];
+      [editor dismissViewControllerAnimated:YES completion:nil];
+  }
+
+  - (void)editorDidCancel:(LBTransactionEditorViewController *)editor {
+      [editor dismissViewControllerAnimated:YES completion:nil];
+  }
+solution_note: "對包在 nav 裡的 editor 呼叫 dismiss，UIKit 會往上找到被 present 的 nav 一起收掉；寫 `[self dismissViewControllerAnimated:...]` 也可以。編輯頁不用知道自己是被 present 還是 push，重用性比較好。進階：用 8.4 的二元搜尋算出插入點，改成 insertRowsAtIndexPaths:。"
+hints: ["先改資料，再改畫面，最後收畫面。", "取消的方法裡只需要一行。"]

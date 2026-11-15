@@ -1,7 +1,7 @@
 id: m10-10-6-code-1
 chapter: "10.6"
 type: code
-title: 寫出帶世代計數的 search:results:
+title: "寫出帶世代計數的 search:results:"
 mobile: false
 minutes: 12
 prompt: "實作 `search:results:`：遞增 `_generation`、取消佇列裡的舊過濾、`debounceInterval` 秒後在主佇列醒來（世代不符就 return）；醒來後建一個 `NSBlockOperation` 在背景過濾 `_ledger.transactions` 的快照（備註含 query），迴圈每 1024 筆檢查 `isCancelled`；結果回主佇列，套用前再比一次世代。`_generation` 只在主執行緒讀寫。"

@@ -1,0 +1,18 @@
+id: m07-7-4-quiz-2
+chapter: "7.4"
+section: quiz
+type: quiz
+title: 上游被取消，下游會不會跑
+minutes: 1
+prompt: "`[save addDependency:parse];` 之後，在兩者都還沒開始時呼叫 `[parse cancel]`。`save` 會怎樣？"
+options:
+  - save 也自動被取消
+  - save 永遠不會開始，因為相依的 operation 沒有成功完成
+  - parse 被標成 finished，save 的相依性滿足，照樣開始執行
+  - 佇列丟出 NSInvalidArgumentException
+answer: 2
+explain: 相依性只保證順序，不傳遞取消也不判斷成敗。被取消的 operation 一樣會進入 finished，下游照跑，所以下游要自己檢查 dependencies 裡有沒有 isCancelled 的。
+hints: ["被取消的 operation 最後的 isFinished 是什麼？", "addDependency: 等的是「完成」還是「成功」？"]
+feedback:
+  "0": NSOperation 不會幫你傳遞取消，要自己寫。
+  "1": 相依性只看 isFinished，被取消的也會 finished。

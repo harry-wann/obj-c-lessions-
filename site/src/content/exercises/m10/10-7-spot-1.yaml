@@ -1,0 +1,34 @@
+id: m10-10-7-spot-1
+chapter: "10.7"
+type: spot
+title: 列表偶爾整片空白
+minutes: 3
+prompt: App 從背景回來或用了一陣子後，帳本列表偶爾整片空白，重新啟動就好。點出有問題的行並選出原因。
+code: |
+  - (void)loadLedger {
+      LBLedger *ledger = [self.persistence loadLedgerWithError:NULL];
+      [self.cache setObject:ledger forKey:@"ledger"];   // NSCache
+  }
+  - (NSInteger)tableView:(UITableView *)tv
+   numberOfRowsInSection:(NSInteger)section {
+      LBLedger *ledger = [self.cache objectForKey:@"ledger"];
+      return ledger.transactions.count;
+  }
+bug_lines: [3, 7]
+reasons:
+  - 把資料本身放進 NSCache：記憶體緊或進背景時 NSCache 會丟掉內容，objectForKey 回 nil，筆數變 0
+  - NSCache 不是執行緒安全，要加鎖
+  - "key 要用 NSString copy，否則會被改掉"
+  - "loadLedgerWithError: 傳 NULL 會 crash"
+answer_reason: 0
+fix: |
+  @property (nonatomic, strong) LBLedger *ledger;   // 資料用強參考持有
+  - (void)loadLedger {
+      self.ledger = [self.persistence loadLedgerWithError:NULL];
+  }
+  // NSCache 只放可重算的衍生資料，例如 view model、縮圖
+solution_note: NSCache 的內容隨時可能消失，也不會通知你（除非設 delegate）。對 nil 送訊息不會 crash，所以 bug 表現為安靜的空白，很難重現；Simulate Memory Warning 一按就出來。
+hints: ["NSCache 什麼時候會丟東西？", "對 nil 呼叫 transactions.count 得到什麼？"]
+feedback:
+  "1": NSCache 本身就是執行緒安全的。
+  "3": NSCache 不複製 key，但字串字面值不會被改，這不是問題所在。

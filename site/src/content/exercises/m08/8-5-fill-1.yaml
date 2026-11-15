@@ -1,0 +1,28 @@
+id: m08-8-5-fill-1
+chapter: "8.5"
+type: fill
+title: 按「＋」present 編輯頁
+minutes: 3
+prompt: 補完列表的 `addTapped`：建編輯頁、設往回傳值的對象、包一層導覽控制器、用卡片 sheet 呈現。
+code: |
+  - (void)addTapped {
+      LBTransactionEditorViewController *editor =
+          [[LBTransactionEditorViewController alloc] initWithLedger:self.ledger
+                                                        transaction:___1___];
+      editor.___2___ = self;
+      UINavigationController *nav =
+          [[UINavigationController alloc] ___3___:editor];
+      nav.modalPresentationStyle = UIModalPresentationPageSheet;
+      [self ___4___:nav animated:YES completion:nil];
+  }
+blanks:
+  "1": { accept: ["nil"], chips: ["nil", "self.ledger", "[LBTransaction new]", "NULL"] }
+  "2": { accept: ["delegate"], chips: ["delegate", "dataSource", "parentViewController", "navigationController"] }
+  "3": { accept: ["initWithRootViewController"], chips: ["initWithRootViewController", "pushViewController", "initWithNibName", "addChildViewController"] }
+  "4": { accept: ["presentViewController"], chips: ["presentViewController", "pushViewController", "showViewController", "addSubview"] }
+hints: ["新增模式要傳什麼交易？", "往回傳值的協定屬性叫什麼？", "present 的是 nav 還是 editor？"]
+feedback:
+  "1=[LBTransaction new]": 介面約定 nil 代表新增；傳空交易進去會讓編輯頁以為是「編輯」模式。
+  "2=navigationController": 那是唯讀屬性，而且往回傳值要設在真正發事件的編輯頁的 delegate 上。
+  "4=pushViewController": push 是推進現有堆疊；這裡要另起一疊，而且 nav 不能被 push 進另一個 nav。
+solution_note: "present 的是 nav、delegate 設在 editor 上，這兩件事最容易弄反。之後由列表在 `editor:didSaveTransaction:` / `editorDidCancel:` 裡 dismiss。"

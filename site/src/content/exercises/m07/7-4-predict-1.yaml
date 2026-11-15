@@ -1,0 +1,28 @@
+id: m07-7-4-predict-1
+chapter: "7.4"
+type: predict
+title: 預測輸出：相依性鏈上取消第一個
+minutes: 3
+prompt: 命令列程式（所以可以 waitUntilFinished:YES）。依序會印出什麼？
+code: |
+  NSOperationQueue *queue = [[NSOperationQueue alloc] init];
+  queue.maxConcurrentOperationCount = 1;
+  NSBlockOperation *download =
+      [NSBlockOperation blockOperationWithBlock:^{ NSLog(@"download"); }];
+  NSBlockOperation *parse =
+      [NSBlockOperation blockOperationWithBlock:^{ NSLog(@"parse"); }];
+  NSBlockOperation *save =
+      [NSBlockOperation blockOperationWithBlock:^{ NSLog(@"save"); }];
+  [parse addDependency:download];
+  [save addDependency:parse];
+  [download cancel];
+  [queue addOperations:@[save, parse, download] waitUntilFinished:YES];
+  NSLog(@"done");
+options: ["download\nparse\nsave\ndone", "parse\nsave\ndone", "done", "save\nparse\ndone"]
+accept: ["parse save done"]
+feedback:
+  "download parse save done": download 在入列前就被取消，佇列直接把它標成 finished，block 不會執行。
+  "done": 取消不會沿著相依性往下傳；parse 只等 download「結束」，被取消也算結束。
+  "save parse done": 加入順序不重要，save 要等 parse，相依性決定順序。
+solution_note: download 被取消 → 不執行 block、直接 finished → parse 的相依性滿足、照跑 → save 接著跑。這就是 Pitfall「上游被取消，下游照樣開始」：真實專案裡 parse 會拿到 nil 資料。下游要自己檢查 dependencies 裡有沒有被取消的。
+hints: ["被取消、還沒開始的 operation 會執行 block 嗎？", "相依性等的是「完成」還是「成功」？", "addOperations: 陣列的順序有影響嗎？"]

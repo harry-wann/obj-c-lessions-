@@ -1,0 +1,18 @@
+id: m07-7-4-quiz-1
+chapter: "7.4"
+section: quiz
+type: quiz
+title: cancel 之後正在跑的任務
+minutes: 1
+prompt: "一個 `NSBlockOperation` 正在跑 10 萬筆的匯入迴圈，迴圈裡沒有檢查任何旗標。這時呼叫 `[op cancel]` 會怎樣？"
+options:
+  - 迴圈立刻中斷，block 從 cancel 那一刻停止
+  - 迴圈照跑到底；cancel 只是把 isCancelled 設成 YES，要任務自己檢查
+  - 系統會在下一次 importRow 呼叫時丟出例外終止 block
+  - 佇列會把執行中的執行緒殺掉
+answer: 1
+explain: 取消是合作式的，NSOperation、Swift Task、Kotlin Job、Java Future 都一樣。還沒開始的會被跳過；已經開始的要自己看 isCancelled 決定收手。
+hints: ["cancel 這個方法實際改了什麼？", "強行中斷一條執行緒會留下什麼狀態？"]
+feedback:
+  "0": 沒有任何機制能從外面安全地中斷一段正在跑的程式，所以 cancel 只升旗子。
+  "3": 殺掉執行緒會讓鎖、記憶體停在不一致的狀態，GCD 與 NSOperationQueue 都不會這麼做。

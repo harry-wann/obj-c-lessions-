@@ -57,7 +57,8 @@
 #pragma mark - 預設分類樹
 
 /// 建一個根分類並掛上子分類；children 是 (名稱, SF Symbol) 成對的陣列。
-static LBCategory *LBMakeCategory(NSString *name, NSString *symbol, NSArray<NSArray<NSString *> *> *children) {
+static LBCategory *LBMakeCategory(NSString *name, NSString *symbol,
+                                  NSArray<NSArray<NSString *> *> *children) {
     LBCategory *root = [[LBCategory alloc] initWithName:name symbolName:symbol];
     for (NSArray<NSString *> *pair in children) {
         [root addChild:[[LBCategory alloc] initWithName:pair[0] symbolName:pair[1]]];

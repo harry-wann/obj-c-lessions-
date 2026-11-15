@@ -62,6 +62,9 @@ static const CGFloat LBTransactionRowHeight = 64;
 
 - (void)reloadFromLedger {
     _sections = [self.ledger transactionsGroupedByMonth];
+    if (!self.isViewLoaded) {
+        return;   // 還沒顯示過：只更新資料，第一次載入 view 時 viewDidLoad 會再讀一次
+    }
     [self.tableView reloadData];
     [self lb_updateChrome];
 }
@@ -72,12 +75,12 @@ static const CGFloat LBTransactionRowHeight = 64;
     self.navigationItem.leftBarButtonItem.enabled = self.undoStack.canUndo;
 }
 
-- (LBTransaction *)lb_transactionAtIndexPath:(NSIndexPath *)indexPath {
-    if ((NSUInteger)indexPath.section >= _sections.count) {
+- (nullable LBTransaction *)lb_transactionAtIndexPath:(NSIndexPath *)indexPath {
+    if (indexPath.section < 0 || (NSUInteger)indexPath.section >= _sections.count) {
         return nil;
     }
     NSArray<LBTransaction *> *rows = _sections[(NSUInteger)indexPath.section].transactions;
-    if ((NSUInteger)indexPath.row >= rows.count) {
+    if (indexPath.row < 0 || (NSUInteger)indexPath.row >= rows.count) {
         return nil;
     }
     return rows[(NSUInteger)indexPath.row];
@@ -108,9 +111,12 @@ static const CGFloat LBTransactionRowHeight = 64;
     UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
     [button setTitle:@"新增交易" forState:UIControlStateNormal];
     button.titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
-    [button addTarget:self action:@selector(lb_addTapped) forControlEvents:UIControlEventTouchUpInside];
+    [button addTarget:self
+               action:@selector(lb_addTapped)
+     forControlEvents:UIControlEventTouchUpInside];
 
-    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[icon, title, hint, button]];
+    UIStackView *stack =
+        [[UIStackView alloc] initWithArrangedSubviews:@[icon, title, hint, button]];
     stack.axis = UILayoutConstraintAxisVertical;
     stack.alignment = UIStackViewAlignmentCenter;
     stack.spacing = 12;
@@ -119,8 +125,10 @@ static const CGFloat LBTransactionRowHeight = 64;
     [NSLayoutConstraint activateConstraints:@[
         [stack.centerXAnchor constraintEqualToAnchor:container.centerXAnchor],
         [stack.centerYAnchor constraintEqualToAnchor:container.centerYAnchor constant:-40],
-        [stack.leadingAnchor constraintGreaterThanOrEqualToAnchor:container.leadingAnchor constant:32],
-        [stack.trailingAnchor constraintLessThanOrEqualToAnchor:container.trailingAnchor constant:-32],
+        [stack.leadingAnchor constraintGreaterThanOrEqualToAnchor:container.leadingAnchor
+                                                         constant:32],
+        [stack.trailingAnchor constraintLessThanOrEqualToAnchor:container.trailingAnchor
+                                                       constant:-32],
     ]];
     self.emptyStateView = container;
     return container;
@@ -133,13 +141,15 @@ static const CGFloat LBTransactionRowHeight = 64;
         [[LBTransactionEditorViewController alloc] initWithLedger:self.ledger transaction:nil];
     editor.delegate = self;
     // 新增用 modal（包一層 navigation controller 才有導覽列放取消 / 儲存）
-    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:editor];
+    UINavigationController *nav =
+        [[UINavigationController alloc] initWithRootViewController:editor];
     [self presentViewController:nav animated:YES completion:nil];
 }
 
 - (void)lb_undoTapped {
     [self.undoStack undo];
-    [self reloadFromLedger];   // 復原動作可能是「加回來」（有 delegate 回呼）或「再刪掉」（沒有），一律重載
+    // 復原動作可能是「加回來」（有 delegate 回呼）或「再刪掉」（沒有），一律重載
+    [self reloadFromLedger];
 }
 
 /// 收起編輯頁：modal 就 dismiss，push 進來的就 pop 回自己。
@@ -170,7 +180,9 @@ static const CGFloat LBTransactionRowHeight = 64;
                                             handler:^(UIAlertAction *action) {
         [weakSelf deleteTransactionAtIndexPath:indexPath];
     }]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"取消"
+                                              style:UIAlertActionStyleCancel
+                                            handler:nil]];
     [self presentViewController:alert animated:YES completion:nil];
 }
 
@@ -181,12 +193,12 @@ static const CGFloat LBTransactionRowHeight = 64;
     }
     LBMonthSection *section = _sections[(NSUInteger)indexPath.section];
     BOOL removesSection = section.transactions.count == 1;   // 該月最後一筆：連 section 一起刪
-    if (![self.ledger removeTransactionWithIdentifier:tx.identifier]) {
+    LBLedger *ledger = self.ledger;
+    if (![ledger removeTransactionWithIdentifier:tx.identifier]) {
         return;
     }
 
     // 登記復原：undo = 加回去（ledger 會透過 delegate 通知我們重載）、redo = 再刪一次（要自己重載）
-    LBLedger *ledger = self.ledger;
     __weak typeof(self) weakSelf = self;
     [self.undoStack registerUndo:^{
         [ledger addTransaction:tx];
@@ -194,6 +206,11 @@ static const CGFloat LBTransactionRowHeight = 64;
         [ledger removeTransactionWithIdentifier:tx.identifier];
         [weakSelf reloadFromLedger];
     }];
+
+    if (!self.isViewLoaded) {
+        _sections = [ledger transactionsGroupedByMonth];   // 沒有畫面就不用動畫
+        return;
+    }
 
     UITableView *tableView = self.tableView;
     [tableView performBatchUpdates:^{
@@ -212,9 +229,9 @@ static const CGFloat LBTransactionRowHeight = 64;
 
     if (!removesSection) {
         // 該月合計變了：直接更新現有的 header，不用 reloadSections（會和 deleteRows 打架）
-        LBMonthHeaderView *header = (LBMonthHeaderView *)[tableView headerViewForSection:indexPath.section];
+        UITableViewHeaderFooterView *header = [tableView headerViewForSection:indexPath.section];
         if ([header isKindOfClass:[LBMonthHeaderView class]]) {
-            [header configureWithSection:_sections[(NSUInteger)indexPath.section]];
+            [(LBMonthHeaderView *)header configureWithSection:_sections[(NSUInteger)indexPath.section]];
         }
     }
     [self lb_updateChrome];
@@ -230,11 +247,13 @@ static const CGFloat LBTransactionRowHeight = 64;
     return (NSInteger)_sections[(NSUInteger)section].transactions.count;
 }
 
-- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+- (UITableViewCell *)tableView:(UITableView *)tableView
+         cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     LBTransactionCell *cell =
         [tableView dequeueReusableCellWithIdentifier:[LBTransactionCell defaultReuseIdentifier]
                                         forIndexPath:indexPath];
-    LBTransaction *tx = _sections[(NSUInteger)indexPath.section].transactions[(NSUInteger)indexPath.row];
+    LBMonthSection *section = _sections[(NSUInteger)indexPath.section];
+    LBTransaction *tx = section.transactions[(NSUInteger)indexPath.row];
     [cell configureWithViewModel:[LBTransactionViewModel viewModelWithTransaction:tx]];
     return cell;
 }

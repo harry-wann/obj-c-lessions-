@@ -51,7 +51,7 @@ val cache = object : LruCache<String, Bitmap>(20 * 1024 * 1024) {
     override fun sizeOf(key: String, v: Bitmap) = v.byteCount
 }
 class App : Application() {
-    override fun onTrimMemory(level: Int) {           // ↔ memory warning
+    override fun onTrimMemory(level: Int) {   // ↔ memory warning
         if (level >= TRIM_MEMORY_RUNNING_LOW) cache.evictAll()
     }
 }

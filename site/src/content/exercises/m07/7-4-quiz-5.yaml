@@ -1,0 +1,17 @@
+id: m07-7-4-quiz-5
+chapter: "7.4"
+section: quiz
+type: quiz
+title: 環狀佇列為什麼要另存 count
+minutes: 1
+prompt: "環狀佇列用 `head`（下一個要拿的位置）與 `tail`（下一個要放的位置），走到尾端取餘數繞回 0。為什麼還要另外存一個 `count`？"
+options:
+  - 因為取餘數很慢，count 拿來加速
+  - 因為「全空」和「全滿」兩種情況 head == tail 都成立，只看兩個索引分不出來
+  - 因為 NSMutableArray 的 count 不可靠
+  - 不需要，head == tail 就代表空
+answer: 1
+explain: 放滿 capacity 個之後 tail 繞一圈回到 head，跟一開始的空佇列看起來一樣。另一種做法是故意空一格（最多只放 capacity − 1 個），用 (tail + 1) % capacity == head 判斷滿。
+hints: ["放滿之後 tail 在哪裡？", "一開始空的時候 head 和 tail 在哪裡？"]
+feedback:
+  "3": 滿的時候也是 head == tail，只看這個條件會把滿的佇列當成空的。

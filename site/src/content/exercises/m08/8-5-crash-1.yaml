@@ -1,0 +1,37 @@
+id: m08-8-5-crash-1
+chapter: "8.5"
+type: crash
+title: 連點兩下分類列就 crash
+minutes: 2
+prompt: QA 回報：在編輯頁快速連點兩下「分類」那一列，App 直接閃退。讀訊息選出原因。
+log: |
+  *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+  reason: 'Pushing the same view controller instance more than once is not supported
+  (<LBCategoryPickerViewController: 0x7fa3c2e0a400>)'
+  *** First throw call stack:
+  (
+    2  UIKitCore  -[UINavigationController pushViewController:animated:]
+    3  LittleBook -[LBTransactionEditorViewController showCategoryPicker]
+  )
+options:
+  - 分類選擇頁被存成屬性重複使用，第一下的 push 動畫還沒跑完，第二下又 push 了同一個實體
+  - 分類選擇頁沒有設 title，導覽列不知道返回鍵要顯示什麼
+  - "編輯頁是被 present 的，不能再 push 任何東西"
+  - "onSelect block 是 nil，push 時 UIKit 檢查失敗"
+answer: 0
+fix: |
+  - (void)showCategoryPicker {
+      if (self.navigationController.topViewController != self) return;  // 已經在 push
+      LBCategoryPickerViewController *picker =
+          [[LBCategoryPickerViewController alloc]
+              initWithRootCategories:[LBCategory defaultTree]
+                            selected:self.category];
+      // ... onSelect 用 weakSelf
+      [self.navigationController pushViewController:picker animated:YES];
+  }
+solution_note: "同一個實體只能在堆疊裡出現一次。每次需要就建新的（VC 很便宜），並在 push 前確認 topViewController 還是自己，連點就不會重複進來。present 版的同款訊息是 Application tried to present modally an active controller。"
+feedback:
+  "1": 沒 title 只是返回鍵顯示「Back」，不會 crash。
+  "2": 編輯頁包在 nav 裡，nav 裡面可以 push；這正是課文的流程。
+  "3": 對 nil block 不呼叫就沒事，UIKit 不認識你的 onSelect。
+hints: ["訊息裡的關鍵字是 same instance。", "什麼情況下會有兩個 push 指向同一個物件？"]

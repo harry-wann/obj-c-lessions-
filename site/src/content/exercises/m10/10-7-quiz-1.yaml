@@ -1,0 +1,19 @@
+id: m10-10-7-quiz-1
+chapter: "10.7"
+section: quiz
+type: quiz
+title: NSCache 還是自寫 LRU
+minutes: 2
+prompt: 以下哪些情境適合用 NSCache？（可複選）
+multi: true
+options:
+  - 分類圖示的縮圖，丟了可以重新產生
+  - 需要精準控制「只留最近 500 筆」並統計命中率的 view model 快取
+  - 格式化好的金額字串，記憶體緊時可以犧牲
+  - 使用者尚未存檔的編輯草稿
+answer: [0, 2]
+explain: NSCache 會在記憶體緊時自動丟、限制只是提示、丟哪個不保證。只放「拿不到就重算」的東西；要精準容量與統計用 LBLRUCache；資料本身（草稿）絕不能放快取。
+hints: ["NSCache 會在什麼時候、丟哪一筆？", "丟了會不會遺失資料？"]
+feedback:
+  "1": NSCache 的 countLimit 不是嚴格上限，也沒有命中率可看，這種需求自寫 LRU。
+  "3": 草稿丟了就沒了，這是資料不是快取。

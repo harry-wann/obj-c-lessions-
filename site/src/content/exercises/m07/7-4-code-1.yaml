@@ -1,0 +1,47 @@
+id: m07-7-4-code-1
+chapter: "7.4"
+type: code
+title: 寫一個可取消的匯入 operation
+mobile: false
+minutes: 8
+prompt: "補完 `importOperationForRows:`：回傳一個 `NSBlockOperation`，block 裡逐筆呼叫 `[self importRow:row]`。要求：用 `__weak` 參考 operation 自己（避免循環參考）；**迴圈每一圈**先檢查 `isCancelled`，被取消就 return；全部做完且沒被取消時，回主佇列呼叫 `[self.delegate importDidFinish]`（用 `[NSOperationQueue mainQueue]` 或 `dispatch_get_main_queue()` 都可以）。"
+starter: |
+  - (NSOperation *)importOperationForRows:(NSArray<NSString *> *)rows {
+      NSBlockOperation *op = [[NSBlockOperation alloc] init];
+
+      return op;
+  }
+checks:
+  - must_match: '__weak\s+[^;]*\b(\w+)\s*=\s*op\s*;'
+    message: 先宣告一個指向 op 的 __weak 變數
+  - must_match: 'addExecutionBlock\s*:\s*\^'
+    message: 用 addExecutionBlock: 加入 block
+  - must_match: 'for\s*\([^)]*\bin\s+rows\s*\)\s*\{\s*if\s*\(\s*(\w+\.isCancelled|\[\s*\w+\s+isCancelled\s*\])\s*\)\s*(return\s*;|\{\s*return\s*;\s*\})'
+    message: 迴圈每一圈的第一件事就是檢查 isCancelled，取消就 return
+  - must_not_match: '\bop\.isCancelled|\[\s*op\s+isCancelled\s*\]'
+    message: block 裡不要直接引用 op（會循環參考），用 weak 變數
+  - must_match: '\[\s*self\s+importRow\s*:\s*row\s*\]'
+    message: 迴圈裡呼叫 [self importRow:row]
+  - must_match: '\[\s*NSOperationQueue\s+mainQueue\s*\]\s*addOperationWithBlock|dispatch_async\s*\(\s*dispatch_get_main_queue\s*\(\s*\)'
+    message: 完成通知要回主佇列
+  - must_match: 'importDidFinish'
+    message: 完成時呼叫 [self.delegate importDidFinish]
+  - brackets_balanced: true
+solution: |
+  - (NSOperation *)importOperationForRows:(NSArray<NSString *> *)rows {
+      NSBlockOperation *op = [[NSBlockOperation alloc] init];
+      __weak NSBlockOperation *weakOp = op;
+      [op addExecutionBlock:^{
+          for (NSString *row in rows) {
+              if (weakOp.isCancelled) return;
+              [self importRow:row];
+          }
+          if (weakOp.isCancelled) return;          // 最後一筆後才被取消
+          [[NSOperationQueue mainQueue] addOperationWithBlock:^{
+              [self.delegate importDidFinish];
+          }];
+      }];
+      return op;
+  }
+solution_note: "weakOp 在 block 執行期間不會變 nil，因為佇列在執行時持有 operation。迴圈後再檢查一次，避免「最後一筆做完才取消」的情況還通知完成。`[NSOperationQueue mainQueue]` 是主佇列的 operation 版本，跟 dispatch_async(main) 效果一樣。"
+hints: ["第一行：__weak NSBlockOperation *weakOp = op;", "迴圈第一行：if (weakOp.isCancelled) return;", "完成後用 [[NSOperationQueue mainQueue] addOperationWithBlock:] 回主佇列。"]

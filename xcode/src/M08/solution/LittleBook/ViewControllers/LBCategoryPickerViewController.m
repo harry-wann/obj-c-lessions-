@@ -9,7 +9,9 @@ static const CGFloat LBCategoryIndentWidth = 20;
 /// 自訂 cell：leading 約束的 constant 隨深度變化，就是「縮排」。
 @interface LBCategoryCell : UITableViewCell
 @property (nonatomic, copy, nullable) dispatch_block_t onToggle;
-- (void)configureWithCategory:(LBCategory *)category selected:(BOOL)selected expanded:(BOOL)expanded;
+- (void)configureWithCategory:(LBCategory *)category
+                     selected:(BOOL)selected
+                     expanded:(BOOL)expanded;
 - (void)setExpanded:(BOOL)expanded;
 @end
 
@@ -20,7 +22,8 @@ static const CGFloat LBCategoryIndentWidth = 20;
     NSLayoutConstraint *_leadingConstraint;
 }
 
-- (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)reuseIdentifier {
+- (instancetype)initWithStyle:(UITableViewCellStyle)style
+              reuseIdentifier:(NSString *)reuseIdentifier {
     if ((self = [super initWithStyle:style reuseIdentifier:reuseIdentifier])) {
         UIView *content = self.contentView;
 
@@ -44,18 +47,20 @@ static const CGFloat LBCategoryIndentWidth = 20;
         [content addSubview:_nameLabel];
         [content addSubview:_toggleButton];
 
-        _leadingConstraint = [_symbolView.leadingAnchor constraintEqualToAnchor:content.leadingAnchor
-                                                                       constant:16];
+        _leadingConstraint =
+            [_symbolView.leadingAnchor constraintEqualToAnchor:content.leadingAnchor constant:16];
         [NSLayoutConstraint activateConstraints:@[
             _leadingConstraint,
             [_symbolView.centerYAnchor constraintEqualToAnchor:content.centerYAnchor],
             [_symbolView.widthAnchor constraintEqualToConstant:28],
             [_symbolView.heightAnchor constraintEqualToConstant:28],
-            [_nameLabel.leadingAnchor constraintEqualToAnchor:_symbolView.trailingAnchor constant:12],
+            [_nameLabel.leadingAnchor constraintEqualToAnchor:_symbolView.trailingAnchor
+                                                     constant:12],
             [_nameLabel.centerYAnchor constraintEqualToAnchor:content.centerYAnchor],
-            [_toggleButton.leadingAnchor constraintGreaterThanOrEqualToAnchor:_nameLabel.trailingAnchor
-                                                                     constant:8],
-            [_toggleButton.trailingAnchor constraintEqualToAnchor:content.trailingAnchor constant:-8],
+            [_toggleButton.leadingAnchor
+                constraintGreaterThanOrEqualToAnchor:_nameLabel.trailingAnchor constant:8],
+            [_toggleButton.trailingAnchor constraintEqualToAnchor:content.trailingAnchor
+                                                         constant:-8],
             [_toggleButton.centerYAnchor constraintEqualToAnchor:content.centerYAnchor],
             [_toggleButton.widthAnchor constraintEqualToConstant:44],
             [_toggleButton.heightAnchor constraintEqualToConstant:44],
@@ -65,13 +70,16 @@ static const CGFloat LBCategoryIndentWidth = 20;
     return self;
 }
 
-- (void)configureWithCategory:(LBCategory *)category selected:(BOOL)selected expanded:(BOOL)expanded {
+- (void)configureWithCategory:(LBCategory *)category
+                     selected:(BOOL)selected
+                     expanded:(BOOL)expanded {
     _nameLabel.text = category.name;
     _symbolView.image = [UIImage systemImageNamed:category.symbolName];
     _leadingConstraint.constant = 16 + LBCategoryIndentWidth * (CGFloat)category.depth;
     _toggleButton.hidden = category.children.count == 0;
     [self setExpanded:expanded];
-    self.accessoryType = selected ? UITableViewCellAccessoryCheckmark : UITableViewCellAccessoryNone;
+    self.accessoryType = selected ? UITableViewCellAccessoryCheckmark
+                                  : UITableViewCellAccessoryNone;
 }
 
 - (void)setExpanded:(BOOL)expanded {
@@ -102,7 +110,8 @@ static const CGFloat LBCategoryIndentWidth = 20;
     NSMutableSet<NSString *> *_expanded;   // 已展開節點的 identifier
 }
 
-- (instancetype)initWithRootCategories:(NSArray<LBCategory *> *)roots selected:(LBCategory *)selected {
+- (instancetype)initWithRootCategories:(NSArray<LBCategory *> *)roots
+                              selected:(LBCategory *)selected {
     NSParameterAssert(roots != nil);
     if ((self = [super initWithStyle:UITableViewStyleInsetGrouped])) {
         _rootCategories = [roots copy];
@@ -122,7 +131,8 @@ static const CGFloat LBCategoryIndentWidth = 20;
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.title = @"選擇分類";
-    [self.tableView registerClass:[LBCategoryCell class] forCellReuseIdentifier:LBCategoryCellIdentifier];
+    [self.tableView registerClass:[LBCategoryCell class]
+           forCellReuseIdentifier:LBCategoryCellIdentifier];
     self.tableView.rowHeight = 48;
 }
 
@@ -197,7 +207,8 @@ static const CGFloat LBCategoryIndentWidth = 20;
     return (NSInteger)_visibleRows.count;
 }
 
-- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+- (UITableViewCell *)tableView:(UITableView *)tableView
+         cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     LBCategoryCell *cell = [tableView dequeueReusableCellWithIdentifier:LBCategoryCellIdentifier
                                                            forIndexPath:indexPath];
     LBCategory *category = _visibleRows[(NSUInteger)indexPath.row];

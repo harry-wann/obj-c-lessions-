@@ -1,0 +1,18 @@
+id: m10-10-7-quiz-3
+chapter: "10.7"
+section: quiz
+type: quiz
+title: 用哪個工具找問題
+minutes: 2
+prompt: 進出搜尋頁 10 次，記憶體從 80 MB 長到 300 MB，但 Leaks 沒有任何紅色。下一步最該用什麼？
+options:
+  - "Allocations 的 Mark Generation：進出前後各標一次，看 Persistent 持續成長的類別，再用 Memory Graph 看誰持有它們"
+  - 什麼都不用做，Leaks 沒報就是沒問題
+  - Time Profiler
+  - App Launch Instrument
+answer: 0
+explain: Leaks 只抓「沒有人指到」的記憶體；被循環參考或無上限快取囤住的物件仍然有人指，它不報。Generation 比較找出成長，Memory Graph 的持有鏈找出兇手。
+hints: ["Leaks 的定義是什麼？", "哪個工具能比較「做同一件事前後」？"]
+feedback:
+  "1": 快取沒上限、或頁面被 timer 強持有，都不算 leak 但會一直長。
+  "2": Time Profiler 量 CPU 時間，不是記憶體。

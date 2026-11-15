@@ -191,7 +191,8 @@ void onInput(String q) {
 ### 接到 UISearchController（畫面 03 搜尋中）
 
 ```objc
-- (void)updateSearchResultsForSearchController:(UISearchController *)sc {
+- (void)updateSearchResultsForSearchController:
+        (UISearchController *)sc {
     CFTimeInterval t0 = CACurrentMediaTime();
     __weak typeof(self) weakSelf = self;
     [self.searcher search:sc.searchBar.text

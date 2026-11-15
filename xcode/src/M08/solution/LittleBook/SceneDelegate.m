@@ -21,7 +21,8 @@
     self.undoStack = [[LBUndoStack alloc] init];
 
     LBTransactionListViewController *list =
-        [[LBTransactionListViewController alloc] initWithLedger:self.ledger undoStack:self.undoStack];
+        [[LBTransactionListViewController alloc] initWithLedger:self.ledger
+                                                      undoStack:self.undoStack];
     UIViewController *stats = [self lb_placeholderWithTitle:@"統計" message:@"M12 用 Swift 實作統計頁"];
     UIViewController *settings = [self lb_placeholderWithTitle:@"設定" message:@"M09 實作設定頁"];
 
@@ -67,8 +68,10 @@
     [NSLayoutConstraint activateConstraints:@[
         [label.centerXAnchor constraintEqualToAnchor:vc.view.centerXAnchor],
         [label.centerYAnchor constraintEqualToAnchor:vc.view.centerYAnchor],
-        [label.leadingAnchor constraintGreaterThanOrEqualToAnchor:vc.view.leadingAnchor constant:32],
-        [label.trailingAnchor constraintLessThanOrEqualToAnchor:vc.view.trailingAnchor constant:-32],
+        [label.leadingAnchor constraintGreaterThanOrEqualToAnchor:vc.view.leadingAnchor
+                                                         constant:32],
+        [label.trailingAnchor constraintLessThanOrEqualToAnchor:vc.view.trailingAnchor
+                                                       constant:-32],
     ]];
     return vc;
 }

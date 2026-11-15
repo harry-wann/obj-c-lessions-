@@ -1,0 +1,19 @@
+id: m08-8-5-quiz-2
+chapter: "8.5"
+section: quiz
+type: quiz
+title: 分類選擇用什麼回傳
+minutes: 1
+prompt: 分類選擇頁只需要回傳「使用者選了哪個分類」這一件事，選完就 pop。用哪種方式最合適？
+options:
+  - 宣告 LBCategoryPickerDelegate 協定，裡面放一個 required 方法
+  - "copy 屬性的 block onSelect，呼叫端在 block 裡用 weakSelf"
+  - 選完後發一個 LBCategoryDidSelectNotification 通知
+  - 呼叫端 push 之後讀 picker.selected 屬性
+answer: 1
+explain: 單一事件、一次性回呼用 block 最輕：一個 copy 屬性就好。陷阱是 block 捕獲 self 造成循環，所以呼叫端寫 weakSelf。
+hints: ["事件只有一個時，協定是不是太重？", "block 屬性用什麼記憶體語意？"]
+feedback:
+  "0": 可以，但只為一個事件寫一整個協定太囉嗦；多事件、長期關係才用 delegate。
+  "2": 通知是廣播，誰都可能收到；一對一回傳不用它。
+  "3": push 立刻回傳，使用者還沒點；跟從 present 拿回傳值是同一個錯誤。

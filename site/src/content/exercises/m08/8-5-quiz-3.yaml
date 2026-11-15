@@ -1,0 +1,19 @@
+id: m08-8-5-quiz-3
+chapter: "8.5"
+section: quiz
+type: quiz
+title: present 之後導覽列按鈕不見了
+minutes: 1
+prompt: "列表直接 `[self presentViewController:editor animated:YES completion:nil]`，編輯頁在 `viewDidLoad` 設了 `navigationItem.rightBarButtonItem`，畫面上卻看不到儲存按鈕。原因？"
+options:
+  - "rightBarButtonItem 要在 viewDidAppear: 才能設"
+  - 被 present 的 VC 是新的一疊，不在原本的 nav 裡；沒有包 UINavigationController 就沒有導覽列可以顯示按鈕
+  - "present 只能用 UIModalPresentationFullScreen 才有導覽列"
+  - 編輯頁要繼承 UINavigationController 才行
+answer: 1
+explain: "此時 `self.navigationController` 是 nil，navigationItem 設了也沒地方顯示。present 之前先 `[[UINavigationController alloc] initWithRootViewController:editor]`，present 那個 nav。"
+hints: ["編輯頁的 self.navigationController 是什麼？", "present 是 push 進原本的堆疊嗎？"]
+feedback:
+  "0": viewDidLoad 設 navigationItem 是標準做法；問題是沒有導覽列。
+  "2": 全螢幕也一樣沒有導覽列，跟呈現樣式無關。
+  "3": 不要繼承 UINavigationController，用組合：把編輯頁包進去。

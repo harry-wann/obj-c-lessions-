@@ -1,0 +1,18 @@
+id: m10-10-7-quiz-2
+chapter: "10.7"
+section: quiz
+type: quiz
+title: +load 與 +initialize
+minutes: 1
+prompt: "`LBThemeManager` 要在第一次使用前註冊預設主題。為什麼放 `+initialize` 比放 `+load` 好？"
+options:
+  - "+load 在 main 之前的 dyld 階段、主執行緒上對每個類別都跑，拖慢冷啟動；+initialize 第一次送訊息給該類別時才跑，等於懶載入"
+  - "+initialize 在背景執行緒跑，不會卡主執行緒"
+  - "+load 不保證會被呼叫"
+  - 兩者時機相同，只是名稱不同
+answer: 0
+explain: "+load 的時間會算進 App Launch 的 Static Runtime Initialization。+initialize 在第一次用到時、於呼叫端的執行緒跑一次；子類別沒覆寫時也會觸發父類別的版本，所以要檢查 self == [LBThemeManager class]。"
+hints: ["哪一個在 main 之前跑？", "沒用到的類別會不會付出成本？"]
+feedback:
+  "1": +initialize 跑在第一次送訊息的那條執行緒，通常就是主執行緒。
+  "2": +load 一定會被呼叫，這正是它昂貴的原因。

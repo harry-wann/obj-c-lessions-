@@ -1,0 +1,47 @@
+id: m07-7-4-spot-1
+chapter: "7.4"
+type: spot
+title: 按了取消，匯入還在跑
+minutes: 3
+prompt: 使用者按「取消匯入」後，進度條還是一路跑到 100%，而且 Memory Graph 顯示 operation 一直沒被釋放。點選有問題的行並選出原因。
+code: |
+  - (void)startImport:(NSArray<NSString *> *)rows {
+      NSBlockOperation *op = [[NSBlockOperation alloc] init];
+      [op addExecutionBlock:^{
+          if (op.isCancelled) return;
+          for (NSString *row in rows) {
+              [self importRow:row];
+          }
+      }];
+      self.importOperation = op;
+      [self.queue addOperation:op];
+  }
+  - (void)cancelImport {
+      [self.importOperation cancel];
+  }
+bug_lines: [4, 5]
+reasons:
+  - "第 4 行在 block 裡強捕獲 op（op 持有 block、block 持有 op，循環參考）；而且只在開頭檢查一次，第 5 行的迴圈每圈都沒看 isCancelled，開始之後 cancel 就沒有作用"
+  - "第 13 行 cancel 應該改成 [self.queue cancelAllOperations] 才會真的中斷"
+  - 第 10 行應該在 addOperation 之前先 start
+  - "第 2 行應該用 blockOperationWithBlock: 建立，alloc init 的 operation 不能取消"
+answer_reason: 0
+fix: |
+  - (void)startImport:(NSArray<NSString *> *)rows {
+      NSBlockOperation *op = [[NSBlockOperation alloc] init];
+      __weak NSBlockOperation *weakOp = op;
+      [op addExecutionBlock:^{
+          for (NSString *row in rows) {
+              if (weakOp.isCancelled) return;     // 每圈都看
+              [self importRow:row];
+          }
+      }];
+      self.importOperation = op;
+      [self.queue addOperation:op];
+  }
+solution_note: 兩個問題來自同一個誤解。取消是合作式的，長迴圈要每圈檢查；在 block 裡引用 op 自己要用 __weak，否則 op → block → op 的循環讓它永遠不會釋放。cancelAllOperations 只是對每個 operation 呼叫 cancel，一樣要任務自己檢查。
+hints: ["block 被誰持有？block 裡又捕獲了誰？", "isCancelled 檢查了幾次？匯入開始之後還會再看嗎？"]
+feedback:
+  "1": cancelAllOperations 對每個 operation 呼叫 cancel，跟直接 cancel 效果一樣，還是要任務自己檢查。
+  "2": 交給佇列的 operation 不能自己 start，會 raise 例外。
+  "3": 兩種建法的 operation 都能取消，差別只在 block 是建立時給還是之後加。

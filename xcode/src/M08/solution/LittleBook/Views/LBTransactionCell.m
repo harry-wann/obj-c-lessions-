@@ -11,7 +11,8 @@ static const CGFloat LBIconSize = 40;
     return @"LBTransactionCell";
 }
 
-- (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)reuseIdentifier {
+- (instancetype)initWithStyle:(UITableViewCellStyle)style
+              reuseIdentifier:(NSString *)reuseIdentifier {
     if ((self = [super initWithStyle:style reuseIdentifier:reuseIdentifier])) {
         [self lb_buildSubviews];
     }
@@ -44,7 +45,8 @@ static const CGFloat LBIconSize = 40;
     _subtitleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleCaption1];
     _subtitleLabel.textColor = UIColor.secondaryLabelColor;
 
-    UIStackView *textStack = [[UIStackView alloc] initWithArrangedSubviews:@[_titleLabel, _subtitleLabel]];
+    UIStackView *textStack =
+        [[UIStackView alloc] initWithArrangedSubviews:@[_titleLabel, _subtitleLabel]];
     textStack.axis = UILayoutConstraintAxisVertical;
     textStack.spacing = 2;
     textStack.translatesAutoresizingMaskIntoConstraints = NO;
@@ -74,7 +76,8 @@ static const CGFloat LBIconSize = 40;
         [_iconView.centerXAnchor constraintEqualToAnchor:_iconBackground.centerXAnchor],
         [_iconView.centerYAnchor constraintEqualToAnchor:_iconBackground.centerYAnchor],
 
-        [textStack.leadingAnchor constraintEqualToAnchor:_iconBackground.trailingAnchor constant:12],
+        [textStack.leadingAnchor constraintEqualToAnchor:_iconBackground.trailingAnchor
+                                                constant:12],
         [textStack.centerYAnchor constraintEqualToAnchor:content.centerYAnchor],
 
         [_amountLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:textStack.trailingAnchor
@@ -88,7 +91,8 @@ static const CGFloat LBIconSize = 40;
     _titleLabel.text = viewModel.title;
     _subtitleLabel.text = viewModel.subtitle;
     _amountLabel.text = viewModel.amountText;
-    _amountLabel.textColor = viewModel.isExpense ? UIColor.systemRedColor : UIColor.systemGreenColor;
+    _amountLabel.textColor = viewModel.isExpense ? UIColor.systemRedColor
+                                                 : UIColor.systemGreenColor;
     _iconView.image = [UIImage systemImageNamed:viewModel.symbolName];
     self.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
 }

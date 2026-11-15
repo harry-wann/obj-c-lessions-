@@ -1,0 +1,45 @@
+id: m08-8-5-spot-1
+chapter: "8.5"
+type: spot
+title: 分類選擇存成屬性之後，編輯頁不釋放
+minutes: 3
+prompt: 為了「省得每次重建」，編輯頁把分類選擇頁存成 strong 屬性。之後每開關一次編輯頁，Memory Graph 就多一個 LBTransactionEditorViewController。點出有問題的行並選原因。
+code: |
+  - (void)showCategoryPicker {
+      if (!self.picker) {
+          self.picker = [[LBCategoryPickerViewController alloc]
+                            initWithRootCategories:[LBCategory defaultTree]
+                                          selected:self.category];
+      }
+      self.picker.onSelect = ^(LBCategory *category) {
+          self.category = category;
+          [self.navigationController popViewControllerAnimated:YES];
+      };
+      [self.navigationController pushViewController:self.picker animated:YES];
+  }
+bug_lines: [8, 9]
+reasons:
+  - "block 直接捕獲 self：編輯頁 → picker → onSelect block → 編輯頁，形成循環參考"
+  - "popViewControllerAnimated: 不能在 block 裡呼叫"
+  - "onSelect 應該宣告成 strong 而不是 copy"
+  - defaultTree 每次呼叫都建新的樹，所以記憶體一直長
+answer_reason: 0
+fix: |
+  - (void)showCategoryPicker {
+      LBCategoryPickerViewController *picker =       // 每次建新的，VC 很便宜
+          [[LBCategoryPickerViewController alloc]
+              initWithRootCategories:[LBCategory defaultTree]
+                            selected:self.category];
+      __weak typeof(self) weakSelf = self;
+      picker.onSelect = ^(LBCategory *category) {
+          weakSelf.category = category;
+          [weakSelf.navigationController popViewControllerAnimated:YES];
+      };
+      [self.navigationController pushViewController:picker animated:YES];
+  }
+solution_note: "block 往回傳值的陷阱就是捕獲 self（5.4、5.5）。改成 weakSelf 打斷循環；順便不要把 picker 存成屬性，否則還會踩到 `Pushing the same view controller instance more than once`。"
+hints: ["畫出持有鏈：self.picker 是 strong，onSelect 是 copy，block 裡用了誰？", "8.4 的 undo block 是怎麼寫的？"]
+feedback:
+  "1": 在 block 裡 pop 是本章課文的寫法，沒問題。
+  "2": block 屬性用 copy 是慣例（ARC 下 strong 也會 copy），不是問題來源。
+  "3": 那棵樹會在 picker 釋放時一起釋放；不釋放的是編輯頁本身。

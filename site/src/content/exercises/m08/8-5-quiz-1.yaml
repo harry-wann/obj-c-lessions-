@@ -1,0 +1,19 @@
+id: m08-8-5-quiz-1
+chapter: "8.5"
+section: quiz
+type: quiz
+title: 往前 / 往回傳值該用什麼
+minutes: 2
+prompt: 編輯頁需要 `LBLedger` 與要編輯的交易（往前傳）；使用者按「儲存」或「取消」時要通知列表（往回傳，兩個事件）。哪個組合最符合本章做法？
+options:
+  - "往前用指定初始化器 initWithLedger:transaction:，往回用 weak 的 LBTransactionEditorDelegate"
+  - 往前用全域單例 LBLedger.shared，往回用 NSNotificationCenter 廣播
+  - "往前用屬性注入，往回讀 presentViewController: 之後 editor.result 的值"
+  - 往前把交易序列化成字典傳進去，往回用 strong 的 delegate 確保它不會被釋放
+answer: 0
+explain: 程式碼建的 VC 把必要依賴放進指定初始化器，少一個就編譯不過；往回有多個事件（儲存 / 取消）、是長期關係，用 delegate，而且一定 weak。
+hints: ["必要的依賴，能不能讓編譯器幫你檢查？", "往回有兩個事件，block 要幾個？", "present 什麼時候回傳？"]
+feedback:
+  "1": 單例讓編輯頁測不了；通知有去無回，不知道誰收到，本章明列為不要用的方法。
+  "2": "present 立刻回傳，使用者還沒輸入，result 永遠是 nil；往回傳值一定走回呼。"
+  "3": iOS 的 VC 在同一個程序裡，直接傳物件就好，不用像 Android Intent 那樣序列化；strong delegate 會循環參考。

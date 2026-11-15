@@ -20,7 +20,8 @@
         _summaryLabel.adjustsFontSizeToFitWidth = YES;
         _summaryLabel.minimumScaleFactor = 0.8;
 
-        UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[_titleLabel, _summaryLabel]];
+        UIStackView *stack =
+            [[UIStackView alloc] initWithArrangedSubviews:@[_titleLabel, _summaryLabel]];
         stack.axis = UILayoutConstraintAxisVertical;
         stack.spacing = 2;
         stack.translatesAutoresizingMaskIntoConstraints = NO;

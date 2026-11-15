@@ -1,0 +1,17 @@
+id: m07-7-4-quiz-4
+chapter: "7.4"
+section: quiz
+type: quiz
+title: 用 NSMutableArray 當佇列的成本
+minutes: 1
+prompt: "用 `[array addObject:x]` 當 enqueue、`[array removeObjectAtIndex:0]` 當 dequeue。處理 n 筆資料時 dequeue 的成本是？"
+options:
+  - O(1)，NSMutableArray 刪頭跟刪尾一樣快
+  - 每次 O(n)，因為後面的元素要全部往前搬；全部處理完是 O(n²)
+  - O(log n)
+  - 只有第一次是 O(n)，之後都是 O(1)
+answer: 1
+explain: 把陣列當佇列時，刪頭端要搬移後面所有元素。幾百筆沒差，10 萬筆的匯入就會明顯變慢。改用頭指標、鏈結串列或環狀佇列都能做到 O(1)。
+hints: ["拿走索引 0 之後，索引 1 的元素要去哪？", "這是 5.5「兩個堆疊做佇列」想避開的問題。"]
+feedback:
+  "0": 刪尾是 O(1)，刪頭要搬移。（實作上 CFArray 有優化，但不能當作保證，面試也不會這樣算。）

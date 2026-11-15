@@ -129,7 +129,8 @@
                      action:@selector(lb_kindChanged)
            forControlEvents:UIControlEventValueChanged];
 
-    UIStackView *amountStack = [[UIStackView alloc] initWithArrangedSubviews:@[_amountField, _kindControl]];
+    UIStackView *amountStack =
+        [[UIStackView alloc] initWithArrangedSubviews:@[_amountField, _kindControl]];
     amountStack.axis = UILayoutConstraintAxisVertical;
     amountStack.spacing = 12;
     [_formStack addArrangedSubview:[self lb_cardWrapping:amountStack]];
@@ -142,14 +143,19 @@
     _categoryValueLabel = [[UILabel alloc] init];
     _categoryValueLabel.textColor = UIColor.secondaryLabelColor;
     _categoryValueLabel.textAlignment = NSTextAlignmentRight;
-    UIImageView *chevron = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"chevron.right"]];
+    UIImageView *chevron =
+        [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"chevron.right"]];
     chevron.tintColor = UIColor.tertiaryLabelColor;
-    UIStackView *categoryValue = [[UIStackView alloc] initWithArrangedSubviews:@[_categoryValueLabel, chevron]];
+    UIStackView *categoryValue =
+        [[UIStackView alloc] initWithArrangedSubviews:@[_categoryValueLabel, chevron]];
     categoryValue.spacing = 6;
     categoryValue.alignment = UIStackViewAlignmentCenter;
 
     UILabel *currencyLabel = [[UILabel alloc] init];
-    currencyLabel.text = @"TWD";   // M09 的 LBSettings 接上後改成讀設定
+    // 主幣別：直接讀 NSUserDefaults（key 與 M09 的 LBSettings 相同），還沒設定過就是 TWD
+    NSString *currency =
+        [NSUserDefaults.standardUserDefaults stringForKey:@"LBSettings.currencyCode"];
+    currencyLabel.text = currency.length > 0 ? currency : @"TWD";
     currencyLabel.textColor = UIColor.secondaryLabelColor;
 
     _noteField = [[UITextField alloc] init];
@@ -221,7 +227,8 @@
     UILabel *label = [[UILabel alloc] init];
     label.text = title;
     label.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
-    [label setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+    [label setContentHuggingPriority:UILayoutPriorityRequired
+                             forAxis:UILayoutConstraintAxisHorizontal];
     [label setContentCompressionResistancePriority:UILayoutPriorityRequired
                                            forAxis:UILayoutConstraintAxisHorizontal];
 
@@ -269,7 +276,9 @@
             [UIAlertController alertControllerWithTitle:@"無法儲存"
                                                 message:error.localizedDescription
                                          preferredStyle:UIAlertControllerStyleAlert];
-        [alert addAction:[UIAlertAction actionWithTitle:@"好" style:UIAlertActionStyleDefault handler:nil]];
+        [alert addAction:[UIAlertAction actionWithTitle:@"好"
+                                                  style:UIAlertActionStyleDefault
+                                                handler:nil]];
         [self presentViewController:alert animated:YES completion:nil];
     }
 }
@@ -289,7 +298,9 @@
                                             handler:^(UIAlertAction *action) {
         [weakSelf lb_performDelete];
     }]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"取消"
+                                              style:UIAlertActionStyleCancel
+                                            handler:nil]];
     [self presentViewController:alert animated:YES completion:nil];
 }
 

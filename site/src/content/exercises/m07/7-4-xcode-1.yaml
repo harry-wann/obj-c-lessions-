@@ -1,0 +1,24 @@
+id: m07-7-4-xcode-1
+chapter: "7.4"
+type: xcode
+title: 實作 LBSyncQueue 離線待同步佇列
+mobile: false
+minutes: 30
+prompt: 完成 LBSyncQueue：離線時的操作排成 FIFO，一個做完才做下一個；flushWithCompletion: 等全部完成後在主佇列回呼。
+starter: xcode/M07-starter
+steps:
+  - "打開 `LBSyncQueue.h`，介面固定：`enqueueTask:`（task 收到一個 `done` block，做完時呼叫）、`flushWithCompletion:`、readonly `pendingCount`。"
+  - "`.m` 宣告四個 ivar：`_state`（串列佇列，只保護 `_pending`）、`_work`（串列佇列，任務一個接一個跑）、`_group`（`dispatch_group_create()`）、`_pending`（`NSMutableArray`）。兩條佇列用反向 DNS 命名。"
+  - "`enqueueTask:`：先 `dispatch_group_enter(_group)`；`dispatch_sync(_state, ...)` 把 task 加進 `_pending`；再 `dispatch_async(_work, ...)`：建一個初始值 0 的 semaphore，呼叫 `task(^{ signal })`，接著 `dispatch_semaphore_wait` 等它做完，然後在 `_state` 上移除頭端、`dispatch_group_leave`。"
+  - "`flushWithCompletion:` 只有一行：`dispatch_group_notify(_group, dispatch_get_main_queue(), completion)`。"
+  - "`pendingCount`：`__block NSUInteger n; dispatch_sync(_state, ^{ n = ...; });`。不要用 `_work` 讀，否則會被正在等待的任務卡住。"
+  - "加分：用 `__block BOOL called` 擋掉 `done` 被呼叫兩次（否則 semaphore 會多一，下一個任務不等就開始）。"
+  - ⌘U 跑 LBSyncQueueTests。
+tests:
+  - LBSyncQueueTests/testFIFOOrder
+  - LBSyncQueueTests/testFlushWaitsForAll
+acceptance:
+  - testFIFOOrder：三個任務各自延遲不同時間才呼叫 done，完成順序仍是入列順序。
+  - testFlushWaitsForAll：flush 的 completion 在所有 done 之後、而且在主執行緒被呼叫。
+  - "把 `_work` 改成 `DISPATCH_QUEUE_CONCURRENT` 再跑一次 testFIFOOrder，看它變紅，再改回來。"
+solution_note: "FIFO 來自 `_work` 是串列佇列，再加上 semaphore 讓「非同步的 done」也算在同一個 block 裡；在背景佇列上等 semaphore 是安全的。enter 在入列時、leave 在任務做完時，flush 只需要 notify。狀態跟工作分兩條佇列是為了讓 pendingCount 不被長任務卡住。"

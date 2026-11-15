@@ -1,0 +1,19 @@
+id: m08-8-3-quiz-2
+chapter: "8.3"
+section: quiz
+type: quiz
+title: 誰先被截斷
+minutes: 2
+prompt: 標題 label 與金額 label 同一列，空間不夠。要讓金額永遠完整、標題被截斷，該怎麼設？
+options:
+  - 金額的 content hugging priority 設 Required
+  - 金額的 compression resistance priority 設 Required（或標題的降低）
+  - 標題加 widthAnchor 約束等於 100
+  - 金額的 numberOfLines 設 0
+answer: 1
+explain: 空間不夠時求解器看抗壓優先度（compression resistance），低的被壓縮截斷；hugging 是空間太多時誰被拉長。固定寬度會讓短標題旁邊留一塊空白，不是好解法。
+hints: ["「不夠」看抗壓、「太多」看抗拉。", "預設兩者都是 750，誰高誰贏。"]
+feedback:
+  "0": hugging 管的是空間太多時誰不要被拉長；這題是空間不夠。
+  "2": 可以動，但標題短時旁邊會留空，而且 Dynamic Type 變大就壞。
+  "3": 那會讓金額換行，不是我們要的。

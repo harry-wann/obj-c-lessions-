@@ -1,0 +1,18 @@
+id: m12-12-3-quiz-4
+chapter: "12.3"
+section: quiz
+type: quiz
+title: ObjC 的 @testable 在哪
+minutes: 1
+prompt: "Swift 測試用 `@testable import` 碰 internal 成員。ObjC 測試要呼叫 `LBLedger.m` 類別延伸裡的私有方法 `-lb_recalculateTotal`，怎麼做？"
+options:
+  - "ObjC 沒辦法，私有方法不能測"
+  - "在測試檔宣告 @interface LBLedger (Testing) 列出那個方法，runtime 找得到實作就能呼叫"
+  - "在測試 target 的 Build Settings 開 ENABLE_TESTABILITY"
+  - "把 .m 檔也加進測試 target 編一次"
+answer: 1
+explain: ObjC 的「私有」只是標頭沒宣告；編譯器只需要知道 selector 存在，runtime 動態派送找得到實作就能跑。更正式的做法是 `LBLedger+Private.h`。
+hints: ["ObjC 的私有是編譯期還是執行期的概念？", "分類可以宣告但不實作方法嗎？"]
+feedback:
+  "2": ENABLE_TESTABILITY 是給 Swift @testable 用的，對 ObjC 可見性沒影響。
+  "3": 把 .m 編兩次會得到 duplicate symbol 或兩個同名類別的 runtime 警告。

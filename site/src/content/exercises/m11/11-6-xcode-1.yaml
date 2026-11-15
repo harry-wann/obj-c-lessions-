@@ -1,0 +1,25 @@
+id: m11-11-6-xcode-1
+chapter: "11.6"
+type: xcode
+title: LittleBook-Legacy：修完埋雷 3–6，LegacyAudit 六個勾全打
+mobile: false
+minutes: 45
+prompt: 用第一天 SOP 走一遍 LittleBook-Legacy，修掉剩下四處埋雷（斷線 outlet、segue identifier、-ObjC、NSURLConnection dealloc 未取消），把 LegacyAudit.plist 六個 BOOL 全勾 YES。
+starter: xcode/M11-starter
+steps:
+  - "SOP 第 1–2 步：跑起來、列出 target 與 Build Settings。記下 `Other Linker Flags` 目前的值與有 `-fno-objc-arc` 的檔案清單。"
+  - "埋雷 3：進列表頁 crash `NSUnknownKeyException ... key totalLabel`。開 `Main.storyboard`，LBLegacyListViewController 的 Connections inspector 找黃色三角形，刪掉、重拖到正確屬性。"
+  - "埋雷 4：點某一列 crash `has no segue with identifier 'showDetail'`。點選 segue 箭頭，Identifier 欄把打錯的字改成 `showDetail`（跟程式碼常數一致）。"
+  - "埋雷 5：啟動後 `-[__NSCFString lb_trimmed]: unrecognized selector`。主 target Build Settings → Other Linker Flags 加 `$(inherited) -ObjC`。"
+  - "埋雷 6：進出列表頁快速來回，偶爾 crash 在 `LBLegacyRateService` 的 delegate 回呼。在 `LBLegacyListViewController` 的 `dealloc` 加 `_rateService.delegate = nil; [_rateService cancel];`（若 11.2 已改成 NSURLSession，則 `[self.currentTask cancel]`）。開 Zombie Objects 再來回 20 次。"
+  - "打開 `LegacyAudit.plist`，六個 key（`overReleaseFixed`、`setterLeakFixed`、`outletReconnected`、`segueIdentifierFixed`、`objcLinkerFlagAdded`、`connectionCancelledInDealloc`）全部設 YES。⌘U 跑 `LBLegacyAuditTests/testLegacyChecklistComplete`。"
+  - "每個埋雷一個 commit；最後補 `docs/ONBOARDING.md`（SOP 第 9 步）。"
+tests:
+  - LBLegacyAuditTests/testLegacyChecklistComplete
+acceptance:
+  - "Zombie Objects 開啟下，列表 ↔ 詳情 ↔ 設定頁來回 20 次不 crash"
+  - "啟動 log 無 unrecognized selector"
+  - "git log 六個獨立 commit，每個訊息說明修的是哪個埋雷"
+  - "ONBOARDING.md 列出 target 表、Singleton 清單、通知清單、-fno-objc-arc 檔案清單"
+  - "面試能口頭解釋 -ObjC 與 category 的關係、xcworkspace 與 xcodeproj 的差別"
+solution_note: "testLegacyChecklistComplete 只是讀 plist 的六個 BOOL；它存在的目的是逼你**做完才勾**，而非真的驗證。六個雷涵蓋本模組的六章：MRC（1、2）、Storyboard（3、4）、連結（5）、淘汰 API 的生命週期（6）。"

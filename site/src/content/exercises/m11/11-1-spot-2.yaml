@@ -1,0 +1,33 @@
+id: m11-11-1-spot-2
+chapter: "11.1"
+type: spot
+title: 找錯：多了一個 release
+minutes: 3
+prompt: 這是 MRC 檔案。跑起來會 EXC_BAD_ACCESS。點出多釋放的那一行並選原因。
+code: |
+  @property (nonatomic, retain) NSDecimalNumber *amount;
+  @property (nonatomic, assign) id<LBLegacyLedgerDelegate> delegate;
+
+  - (void)dealloc {
+      [_amount release];
+      [_delegate release];
+      [super dealloc];
+  }
+bug_lines: [6]
+reasons:
+  - "delegate 是 assign 屬性，從未 retain 過，在 dealloc 裡 release 它就是 over-release"
+  - "[_amount release] 應該改成 [self.amount release]"
+  - "[super dealloc] 應該放第一行"
+  - "dealloc 裡不能 release 任何 ivar，應該全部設 nil"
+answer_reason: 0
+fix: |
+  - (void)dealloc {
+      [_amount release];
+      // _delegate 是 assign，不 release
+      [super dealloc];
+  }
+solution_note: "dealloc 裡該 release 的清單 = `retain` / `copy` 屬性 + 自己 alloc 的 ivar。`assign` 不在清單上。對 delegate release 一次，delegate 物件會提早歸零，之後任何人碰它就 crash，位置常離這裡很遠。"
+hints: ["看每個屬性的修飾詞。", "規則 4：不是你擁有的，不准 release。"]
+feedback:
+  "2": "[super dealloc] 一定在最後，它之後記憶體就沒了。"
+  "3": "MRC 的 dealloc 就是要 release 自己擁有的 ivar，設 nil 不會放掉計數。"

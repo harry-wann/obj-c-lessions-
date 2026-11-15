@@ -1,0 +1,25 @@
+id: m10-10-1-xcode-1
+chapter: "10.1"
+type: xcode
+title: LBRingBuffer、LBFPSMonitor 與效能面板
+mobile: false
+minutes: 40
+prompt: 完成 LBRingBuffer 與 LBFPSMonitor，並做出效能面板（畫面 10）顯示即時 FPS 與最近 60 幀。
+starter: xcode/M10-starter
+steps:
+  - "`LBRingBuffer.h`：`initWithCapacity:`、`append:`、`average`、`max`、`count`、`values`（由舊到新）。用 `calloc` 配置 double 陣列，`dealloc` 要 `free`。"
+  - "`LBFPSMonitor`：`+shared` 用 `dispatch_once`；`start` 建立 CADisplayLink 加進 `NSRunLoopCommonModes`；`stop` 呼叫 `invalidate`。`tick:` 用兩幀 timestamp 差算毫秒，append 進容量 60 的 history。"
+  - "`+classifyFrameDuration:`：< 16.7 回 0、< 33.4 回 1、其餘回 2。這是純函式，測試直接呼叫。"
+  - "`LBPerformanceViewController`（`#if DEBUG`）：頂端兩個 label 顯示 fps 與 lastFrameMilliseconds，下方 60 根長條依分類上色；每 0.5 秒刷新一次。"
+  - "設定頁加「效能面板」入口（DEBUG only）。"
+  - "⌘U 跑三個測試；⌘I 選 Animation Hitches 捲動列表 10 秒，對照面板讀數。"
+tests:
+  - LBRingBufferTests/testOverwritesOldest
+  - LBRingBufferTests/testAverageAndMax
+  - LBFPSMonitorTests/testClassifiesDroppedFrames
+acceptance:
+  - 效能面板顯示 FPS 與單幀毫秒，靜止時 FPS ≈ 60（或 120）、單幀 < 8 ms
+  - 捲動帳本列表時面板持續更新（common modes 生效），不會凍結
+  - 最近 60 幀長條顏色正確：綠 < 16.7、黃 < 33.4、紅其餘
+  - Animation Hitches 錄 10 秒捲動，hitch 比率 < 5 ms/s，紅色區段與面板紅條時間吻合
+solution_note: "測試 testOverwritesOldest 檢查容量 3 寫入 4 筆後 values 是後三筆且順序由舊到新；testAverageAndMax 檢查寫滿前與寫滿後的平均與最大值。classifyFrameDuration: 做成類別方法就是為了不用真的跑 CADisplayLink 也能測。"

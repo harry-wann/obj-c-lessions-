@@ -1,0 +1,260 @@
+---
+title: CocoaPods 與第三方庫
+module: 11
+chapter: "11.5"
+order: 5
+minutes: 40
+prereq: ["11.1", "8.2"]
+objectives:
+  - 寫出一份 Podfile，說出 pod install 與 pod update 的差別、為什麼 Podfile.lock 要進版控、為什麼開 .xcworkspace
+  - 讀懂 AFNetworking、Masonry、SDWebImage、MJRefresh、FMDB、YYModel 的 API 風格，特別是 Masonry 的鏈式 DSL
+  - 知道 Swift 專案怎麼用 ObjC pod（module map / use_frameworks!），以及 SPM 對 ObjC 的支援
+summary: "Podfile、pod install vs pod update、Podfile.lock 進版控、開 .xcworkspace、use_frameworks! 與靜態 / 動態、版本鎖定寫法；老牌庫 API 風格（AFNetworking、Masonry 鏈式 DSL、SDWebImage、MJRefresh、FMDB、YYKit / YYModel）；Swift 用 ObjC pod 的 module map；SPM 的 ObjC 支援。"
+terms:
+  - { en: dependency manager, tw: 相依性管理工具, cn: 依赖管理器, jp: 依存関係マネージャ }
+  - { en: Podfile.lock, tw: 鎖定檔, cn: 锁定文件, jp: ロックファイル }
+  - { en: workspace, tw: 工作區（.xcworkspace）, cn: 工作空间, jp: ワークスペース }
+  - { en: static / dynamic library, tw: 靜態 / 動態函式庫, cn: 静态 / 动态库, jp: 静的 / 動的ライブラリ }
+  - { en: chainable DSL, tw: 鏈式 DSL, cn: 链式 DSL, jp: メソッドチェーン DSL }
+  - { en: module map, tw: 模組對應檔, cn: 模块映射, jp: モジュールマップ }
+appProgress: 專案多了 Podfile 與 Masonry；編輯頁的 Auto Layout 用 Masonry 重寫一次，可用 CocoaPods 建置。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// Swift 專案用 ObjC pod：Podfile 加 use_frameworks! 後直接 import 模組
+import Masonry
+view.mas_makeConstraints { make in
+    make?.edges.equalTo()(self.view)   // 鏈式 DSL 在 Swift 裡會多出 () 和 ?
+}
+// 新 Swift 專案多半改用 SPM：File → Add Package Dependencies...
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// Gradle（build.gradle.kts）：宣告相依，版本鎖在 gradle.lockfile / version catalog
+dependencies {
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")   // 精確版本
+    implementation("io.coil-kt:coil:2.+")                      // 浮動：不建議
+}
+// ./gradlew build 自動解析；Podfile ≈ build.gradle、Podfile.lock ≈ gradle.lockfile
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// Maven pom.xml：同一件事，XML 寫法
+// <dependency>
+//   <groupId>com.squareup.okhttp3</groupId>
+//   <artifactId>okhttp</artifactId>
+//   <version>4.12.0</version>
+// </dependency>
+// mvn install 解析到 ~/.m2；CocoaPods 解析到專案的 Pods/ 目錄
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// package.json + package-lock.json；npm ci ≈ pod install、npm update ≈ pod update
+// {
+//   "dependencies": { "axios": "^1.7.0" }     // ^ ≈ CocoaPods 的 ~> 1.7
+// }
+// node_modules/ 不進版控 ≈ Pods/ 多半不進版控（但 lock 檔一定進）
+```
+</Fragment>
+每個生態系都有「宣告檔 + 鎖定檔 + 安裝目錄」三件組：Gradle / Maven、npm、CocoaPods 都是。你在 Android 或 Web 學到的紀律（鎖定檔進版控、CI 用 install 不用 update、不要寫浮動版本）原封不動搬過來。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### Podfile 三件組
+
+<Term en="dependency manager" tw="相依性管理工具" cn="依赖管理器" jp="依存関係マネージャ" /> CocoaPods 是 Ruby 寫的，`Podfile` 是一段 Ruby DSL：
+
+```ruby
+# Podfile
+platform :ios, '13.0'
+inhibit_all_warnings!            # 第三方庫的警告不要淹掉自己的
+
+target 'LittleBook' do
+  pod 'Masonry', '~> 1.1'        # 1.1.x 任何版本，不升到 1.2
+  pod 'FMDB', '2.7.5'            # 精確鎖定
+  pod 'YYModel', '>= 1.0.4', '< 2.0'
+
+  target 'LittleBookTests' do
+    inherit! :search_paths       # 測試 target 看得到主 target 的 pod
+  end
+end
+
+post_install do |installer|      # 常見：統一所有 pod 的 deployment target
+  installer.pods_project.targets.each do |t|
+    t.build_configurations.each do |c|
+      c.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+    end
+  end
+end
+```
+
+版本寫法：`'1.1.0'` 精確；`'~> 1.1'` 樂觀鎖（≥ 1.1、&lt; 2.0）；`'~> 1.1.0'`（≥ 1.1.0、&lt; 1.2）；不寫版本 = 最新，**不要這樣寫**。
+
+<Steps title="從零到跑起來">
+<ol>
+<li>終端機 <code>cd</code> 到 <code>.xcodeproj</code> 所在目錄，<code>pod init</code> 產生 Podfile 骨架（已有 Podfile 就跳過）。</li>
+<li>編輯 Podfile 加入 <code>pod 'Masonry', '~&gt; 1.1'</code>。</li>
+<li><code>pod install</code>。第一次會下載 spec 索引（CDN），然後產生 <code>Pods/</code>、<code>Podfile.lock</code>、<code>LittleBook.xcworkspace</code>。</li>
+<li><strong>關掉</strong>開著的 <code>LittleBook.xcodeproj</code>，改開 <code>LittleBook.xcworkspace</code>（終端機 <code>open LittleBook.xcworkspace</code>）。</li>
+<li>⌘B。第一次會先編所有 pod（<code>Pods</code> 專案裡的 target），之後就快了。</li>
+<li>在 <code>.m</code> 寫 <code>#import &lt;Masonry/Masonry.h&gt;</code>（或 <code>@import Masonry;</code>），⌘R。</li>
+<li><code>git add Podfile Podfile.lock</code> 一起 commit；<code>Pods/</code> 依團隊決定（見 Tip）。</li>
+</ol>
+</Steps>
+
+### pod install 與 pod update 的差別
+
+這是面試必問、工作上必踩：
+
+| | `pod install` | `pod update [PodName]` |
+|---|---|---|
+| 讀 `Podfile.lock`？ | **讀**：lock 裡有的 pod 用 lock 的版本 | **不讀**（指定的那個 pod）：解析 Podfile 允許的最新版 |
+| 什麼時候用 | clone 專案後、Podfile 加減 pod 後、CI | 刻意要升某個庫 |
+| 改 `Podfile.lock`？ | 只在新加的 pod 加一行 | 會改被升級的版本號 |
+
+<Term en="Podfile.lock" tw="鎖定檔" cn="锁定文件" jp="ロックファイル" /> 的意義是「全隊、CI、半年後的你，裝到的都是同一組版本」。它**一定進版控**；看到 `.gitignore` 裡有 `Podfile.lock` 的專案，第一天就把它拿出來。`Pods/` 目錄則兩派：進版控（clone 即建置、離線可用、CocoaPods 官方推薦）vs 不進（repo 小、diff 乾淨）；接手專案就跟原本的決定。
+
+### 為什麼要開 .xcworkspace
+
+`pod install` 產生一個 `Pods.xcodeproj` 放所有第三方庫，再用一個 <Term en="workspace" tw="工作區（.xcworkspace）" cn="工作空间" jp="ワークスペース" /> 把它跟你的 `.xcodeproj` 包在一起，並在你的 target 加上 `Pods-LittleBook.debug.xcconfig` 等設定檔，裡面寫了 `HEADER_SEARCH_PATHS`、`OTHER_LDFLAGS`。只開 `.xcodeproj` 的話，Xcode 看不到 `Pods.xcodeproj`，於是 `#import <Masonry/Masonry.h>` 變成 `file not found`，連結時一堆 `Undefined symbols`。11.6 的面試題會再問一次。
+
+### use_frameworks!：靜態還是動態
+
+```ruby
+use_frameworks!                   # 每個 pod 建成動態 framework
+use_frameworks! :linkage => :static   # 建成靜態 framework（CocoaPods 1.9+）
+# 不寫：靜態函式庫（.a），所有 ObjC 符號連進主執行檔
+```
+
+純 ObjC 專案**不需要** `use_frameworks!`；本課程的 Podfile 也不加。Swift pod 以前必須用動態 framework，CocoaPods 1.9 之後靜態也行。<Term en="static / dynamic library" tw="靜態 / 動態函式庫" cn="静态 / 动态库" jp="静的 / 動的ライブラリ" />的取捨：動態 framework 多，App 啟動時 dyld 要逐個載入，超過幾十個就看得到啟動變慢；靜態連結啟動快但 `-ObjC` 旗標與 category 問題（11.6）就是這裡來的。
+
+### 老牌庫怎麼讀
+
+接手 2012–2018 的專案，Podfile 裡幾乎一定有這幾個。你不需要會寫，但要讀得懂它們的「風格」：
+
+**AFNetworking**（網路）：`AFHTTPSessionManager` 單例 + success / failure 兩個 block。現代替代是直接用 `NSURLSession`（7.x），或 Alamofire（Swift）。
+
+```objc
+[[AFHTTPSessionManager manager] GET:@"https://api.example.com/rates"
+    parameters:@{ @"base": @"TWD" } headers:nil progress:nil
+    success:^(NSURLSessionDataTask *task, id json) { /* 已解析成 NSDictionary */ }
+    failure:^(NSURLSessionDataTask *task, NSError *error) { }];
+```
+
+**Masonry**（Auto Layout）：<Term en="chainable DSL" tw="鏈式 DSL" cn="链式 DSL" jp="メソッドチェーン DSL" />，每個「屬性」其實是回傳 block 的方法，所以寫成 `.left.equalTo(view).offset(16)`。這是本章 Xcode 任務要重寫的：
+
+```objc
+// 8.2 的原生寫法
+[NSLayoutConstraint activateConstraints:@[
+    [self.amountField.leadingAnchor constraintEqualToAnchor:guide.leadingAnchor constant:16],
+    [self.amountField.trailingAnchor constraintEqualToAnchor:guide.trailingAnchor constant:-16],
+    [self.amountField.topAnchor constraintEqualToAnchor:guide.topAnchor constant:12],
+    [self.amountField.heightAnchor constraintEqualToConstant:44],
+]];
+
+// Masonry 寫法：同一組約束
+[self.amountField mas_makeConstraints:^(MASConstraintMaker *make) {
+    make.left.right.equalTo(self.view.mas_safeAreaLayoutGuide).insets(UIEdgeInsetsMake(0, 16, 0, 16));
+    make.top.equalTo(self.view.mas_safeAreaLayoutGuideTop).offset(12);
+    make.height.mas_equalTo(44);
+}];
+// mas_updateConstraints: 更新既有約束；mas_remakeConstraints: 全部拆掉重建
+```
+
+讀法：`make.<屬性鏈>.<關係>(目標).<修飾>`。`equalTo()` 的參數可以是 view（取同名屬性）、`NSNumber`（常數）、或 `view.mas_left` 這類具名 attribute。`mas_equalTo()` 是巨集，會把 C 數值自動包成 `NSValue`。SnapKit 是它的 Swift 版，讀法完全一樣。
+
+**SDWebImage**（圖片快取）：`UIImageView` 的 category，一行載圖、自動快取、自動取消重用 cell 的舊請求。`[imageView sd_setImageWithURL:url placeholderImage:ph];`
+
+**MJRefresh**（下拉更新）：`UIScrollView` 的 category。`tableView.mj_header = [MJRefreshNormalHeader headerWithRefreshingBlock:^{ ... }];`，結束時 `[tableView.mj_header endRefreshing]`。
+
+**FMDB**（SQLite 包裝）：`FMDatabaseQueue` 保證串列存取；`[queue inDatabase:^(FMDatabase *db) { [db executeUpdate:@"INSERT ..." withArgumentsInArray:args]; }]`。對照 9.x 的 JSON 持久化。
+
+**YYKit / YYModel**（JSON ↔ 物件）：靠 runtime 讀屬性名自動對應，`[LBTransaction yy_modelWithJSON:json]`；自訂對應靠實作 `+modelCustomPropertyMapper`。對照 9.4 手寫的 `initWithDictionary:error:`——YYModel 快但出錯時無聲，手寫慢但能做防禦。
+
+### Swift 專案用 ObjC pod、SPM 的 ObjC 支援
+
+Swift target 加了 `use_frameworks!` 之後，每個 pod 變成一個 Clang module，CocoaPods 會自動產生 <Term en="module map" tw="模組對應檔" cn="模块映射" jp="モジュールマップ" />（`module.modulemap`），Swift 端直接 `import Masonry`。沒有 `use_frameworks!` 時要走 bridging header：`#import <Masonry/Masonry.h>` 寫進 `LittleBook-Bridging-Header.h`（12.x）。
+
+Swift Package Manager 從 5.3 起支援 ObjC target：`Package.swift` 裡一個 target 的 `Sources/<name>/include/` 放公開標頭，SPM 自動生 module map。限制：一個 target 不能混 Swift 與 ObjC 檔（要拆兩個 target）、沒有 `-ObjC` 旗標的概念（靜態連結時 category 問題一樣存在，要靠 `-force_load` 或 `unsafeFlags`）。新專案如果只有 Swift，SPM 就夠；接手的 ObjC 專案多半短期內留在 CocoaPods。
+
+<Tip title="Pods/ 進不進版控，先看 CI">
+如果 CI 每次 clone 後跑 `pod install`，`Pods/` 不進版控 repo 小；如果 CI 直接 `xcodebuild`，`Pods/` 必須進。兩種都對，**換掉既有決定要全隊同意**：有人進有人不進，`.xcworkspace` 的參考會壞，出現 `The sandbox is not in sync with the Podfile.lock`。
+</Tip>
+
+<Pitfall title="pod install 後開錯檔">
+<Fragment slot="bad">
+```text
+open LittleBook.xcodeproj
+→ 'Masonry/Masonry.h' file not found
+→ ld: library not found for -lPods-LittleBook
+```
+</Fragment>
+<Fragment slot="good">
+```text
+open LittleBook.xcworkspace
+# 或在 Finder 把 .xcodeproj 的 Spotlight 建議排在後面：
+# 很多團隊乾脆在 README 第一行寫「開 workspace」
+```
+</Fragment>
+`pod install` 結尾會印一行 `[!] Please close any current Xcode sessions and use LittleBook.xcworkspace for this project from now on.`，看到它就照做。
+</Pitfall>
+
+<Pitfall title="CI 跑 pod update">
+<Fragment slot="bad">
+```bash
+# .github/workflows/ios.yml
+- run: pod update          # 每次 CI 都拿最新版，今天綠明天紅
+```
+</Fragment>
+<Fragment slot="good">
+```bash
+- run: pod install --repo-update   # 照 lock 裝；--repo-update 只更新 spec 索引
+```
+</Fragment>
+`pod update` 只在你**打算**升級時手動跑，然後把 `Podfile.lock` 的變動連同程式碼修正一起 commit、一起 review。
+</Pitfall>
+
+<Pitfall title="Masonry 的 equalTo 跟 mas_equalTo 混用">
+<Fragment slot="bad">
+```objc
+make.height.equalTo(44);          // 44 是 int，不是物件 → 編譯警告 / 執行期 crash
+make.width.mas_equalTo(self.view); // 雖能用，但巨集包物件多此一舉
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+make.height.mas_equalTo(44);      // C 數值用 mas_ 巨集
+make.width.equalTo(self.view);    // 物件用 equalTo
+// 或定義 MAS_SHORTHAND_GLOBALS 之後全部用 equalTo，巨集自動包裝
+```
+</Fragment>
+鏈式 DSL 看起來像語法糖，底層還是 ObjC 的 block 回傳與 `id` 參數。數值要包成 `NSNumber` / `NSValue`，這是 `mas_equalTo` 存在的唯一理由。
+</Pitfall>
+
+<Crash message={`diff: /../Podfile.lock: No such file or directory
+diff: /Manifest.lock: No such file or directory
+error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.`}>
+這是 Xcode 建置階段「[CP] Check Pods Manifest.lock」腳本的輸出。它比對兩個檔案：repo 裡的 `Podfile.lock` 與 `Pods/Manifest.lock`（上次 `pod install` 時複製的一份）。兩者不同 = 你 pull 到了別人改過的 Podfile.lock，但本機的 `Pods/` 還是舊的。
+
+修法：終端機跑 `pod install`（不是 `update`），再 ⌘B。如果訊息第一行是 `No such file or directory`，表示 `Pods/` 根本不存在——這個專案沒把 `Pods/` 進版控，clone 下來後第一步永遠是 `pod install`。這也是為什麼 README 要寫清楚。
+</Crash>
+
+## 小結
+
+- `Podfile` 宣告、`Podfile.lock` 鎖定（**一定進版控**）、`Pods/` 安裝；三件組對應 Gradle、npm 的同一套概念。
+- `pod install` 照 lock 裝（clone 後、CI、加減 pod）；`pod update` 刻意升級；開 `.xcworkspace` 不開 `.xcodeproj`。
+- 純 ObjC 不用 `use_frameworks!`；動態 framework 多會拖慢啟動，靜態連結要留意 `-ObjC`（11.6）。
+- 老牌庫的風格：AFNetworking 的 success / failure block、Masonry 的鏈式 DSL（`make.left.equalTo(view).offset(16)`）、SDWebImage / MJRefresh 的 category 擴充、FMDB 的 queue、YYModel 的 runtime 對應。
+- Swift 用 ObjC pod 靠 module map 或 bridging header；SPM 支援純 ObjC target 但不能混語言、沒有 `-ObjC` 概念。

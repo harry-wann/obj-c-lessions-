@@ -1,0 +1,17 @@
+id: m10-10-1-interview-1
+chapter: "10.1"
+type: flash
+tier: interview
+title: 面試題：無鎖的單生產者單消費者佇列
+minutes: 5
+front: |
+  一條執行緒只寫、另一條只讀的環狀緩衝區（SPSC queue），為什麼可以不加鎖？要靠什麼保證正確？
+back: |
+  關鍵是「每個索引只有一個寫入者」：生產者只改 head（寫入位置），消費者只改 tail（讀取位置），兩者都只讀對方的索引。沒有兩條執行緒寫同一個變數，就沒有資料競爭。
+
+  但還需要兩件事：
+  1. 索引的讀寫必須是原子的且有記憶體順序：先寫資料、再發布 head（release）；消費者先讀 head（acquire）、再讀資料。ObjC 用 C11 的 `atomic_store_explicit(&_head, h, memory_order_release)` / `atomic_load_explicit(..., memory_order_acquire)`，或 `OSAtomic` 系列（已淘汰）。沒有順序保證，消費者可能看到新的 head 卻讀到舊資料。
+  2. 滿 / 空的判斷：head == tail 是空；(head + 1) % cap == tail 是滿。要犧牲一格，或另外存 count（但 count 兩邊都會改，就又需要原子加減）。
+
+  一旦有兩個生產者（MPSC）就不能這樣寫，head 的「讀—加—寫」會互相覆蓋，得用 CAS（compare-and-swap）迴圈或回到鎖。面試追問「那你會選哪個」：產品程式碼用 os_unfair_lock 版本，60 個 double 的鎖成本 nanosecond 級，無鎖版本的正確性成本遠高於收益；SPSC 無鎖只在音訊回呼這種「不准鎖」的場合才值得。
+  Swift：`UnsafeMutablePointer` + `Atomics` 套件的 `ManagedAtomic<Int>`；Kotlin/JVM：`AtomicInteger` 的 `lazySet` / `get`，`java.util.concurrent` 的 `Disruptor` 模式就是這個。

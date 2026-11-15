@@ -1,0 +1,20 @@
+id: m11-11-6-quiz-3
+chapter: "11.6"
+section: quiz
+type: quiz
+title: 第一天讀專案的順序
+minutes: 2
+prompt: 接手舊 ObjC 專案的第一天，哪些是 SOP 裡的步驟？（可複選）
+multi: true
+options:
+  - "先讓它跑起來（pod install、開 workspace、選 scheme、⌘R）"
+  - "讀 AppDelegate 的 didFinishLaunchingWithOptions: 找 Singleton 與根 VC"
+  - "讀 .pch 與巨集，列出隱含 import 與環境切換"
+  - "grep postNotificationName: 畫出「誰發誰聽」"
+  - "把所有 @synthesize 刪掉當第一個 PR"
+  - "找最大的三個 .m 檔"
+answer: [0, 1, 2, 3, 5]
+explain: "前四項與第六項都是 SOP。刪 `@synthesize` 是純風格洗版，會讓 `git blame` 全變成你，不該是第一個 PR；第一個 PR 要零風險（`#pragma mark`、`$(inherited)`、lock 檔進版控、ONBOARDING.md）。"
+hints: ["第一個 PR 的原則是什麼？", "SOP 九步在課文的 Steps 裡。"]
+feedback:
+  "4": "純語法洗版不改行為但汙染 blame，不開專門的 PR。"

@@ -1,0 +1,16 @@
+id: m10-10-4-predict-3
+chapter: "10.4"
+type: predict
+title: 預測結果：主執行緒 sync 主佇列
+minutes: 1
+prompt: 這段在主執行緒執行（例如 viewDidLoad）。
+code: |
+  NSLog(@"A");
+  dispatch_sync(dispatch_get_main_queue(), ^{ NSLog(@"B"); });
+  NSLog(@"C");
+options: ["A\nB\nC", "A，然後死結，B 與 C 永遠不印", "A\nC\nB", "B\nA\nC"]
+accept: ["A，然後死結，B 與 C 永遠不印", "死結"]
+feedback:
+  "A B C": 主執行緒正在等 B，B 排在主佇列要等主執行緒空出來：互相等。
+solution_note: 死結第一形：串列佇列（主佇列）裡 sync 回自己。印出 A 後卡住，10 秒後被 watchdog 殺（0x8badf00d）。改成 dispatch_async 或直接呼叫。
+hints: ["主佇列是串列的。", "dispatch_sync 等誰？誰在等它？"]

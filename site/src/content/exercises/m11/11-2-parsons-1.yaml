@@ -1,0 +1,22 @@
+id: m11-11-2-parsons-1
+chapter: "11.2"
+type: parsons
+title: 排出 NSURLSession 版的 fetchRates
+minutes: 3
+prompt: 把 NSURLConnection 的四個 delegate 方法改成一個 completion 版本。排出正確順序，有干擾行。
+lines:
+  - "- (void)fetchRatesForBase:(NSString *)base completion:(LBRatesCompletion)completion {"
+  - "    NSURL *url = [self urlForBase:base];"
+  - "    NSURLSessionDataTask *task = [self.session dataTaskWithURL:url"
+  - "        completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {"
+  - "            NSError *parseError = nil;"
+  - "            NSDictionary *rates = error ? nil : [LBRateService ratesFromJSONData:data error:&parseError];"
+  - "            dispatch_async(dispatch_get_main_queue(), ^{ completion(rates, error ?: parseError); });"
+  - "        }];"
+  - "    [task resume];"
+  - "}"
+distractors:
+  - "    [self.buffer appendData:data];"
+  - "    [[NSURLConnection alloc] initWithRequest:request delegate:self];"
+solution_note: "`didReceiveData:` 累積的 buffer 不需要了，整個 `data` 一次到；`connectionDidFinishLoading:` 與 `didFailWithError:` 合併成一個 block 的兩個參數。別忘了最後的 `[task resume]`——沒有它什麼都不會發生。"
+hints: ["task 建立後要做什麼才會真的發出請求？", "回呼要在哪條佇列？"]

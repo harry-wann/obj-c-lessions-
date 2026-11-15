@@ -1,0 +1,31 @@
+id: m12-12-5-spot-1
+chapter: "12.5"
+type: spot
+title: 這個標頭違反了哪些命名慣例
+minutes: 3
+prompt: 這份標頭能編譯，但 code review 會被退。點出違反 Apple Coding Guidelines 的行並選原因。
+code: |
+  @interface Ledger : NSObject
+  @property (nonatomic, assign) BOOL empty;
+  - (NSDecimalNumber *)getTotal;
+  - (void)add:(LBTransaction *)tx;
+  - (void)_reset;
+  @end
+bug_lines: [1, 2, 3, 4, 5]
+reasons:
+  - "類別沒前綴；BOOL 屬性沒有 isEmpty getter；get 前綴不是 Cocoa 慣例；add: 沒說加什麼；底線前綴是 Apple 保留的"
+  - "assign 應該改成 strong"
+  - "方法應該全部改成類別方法"
+  - "@interface 應該放在 .m"
+answer_reason: 0
+fix: |
+  @interface LBLedger : NSObject
+  @property (nonatomic, assign, getter=isEmpty) BOOL empty;
+  - (NSDecimalNumber *)total;
+  - (void)addTransaction:(LBTransaction *)transaction;
+  - (void)lb_reset;   // 或直接 reset，私有方法放類別延伸
+  @end
+solution_note: "五行各踩一條：三字母前綴 `LB`；`BOOL` 用 `getter=isX`；不用 `get`（保留給透過指標回傳的方法）；方法名是一句話 `addTransaction:`；`_` 前綴 Apple 自己在用，撞到不會有警告。"
+hints: ["每一行都有事。", "Cocoa API 裡哪個方法以 get 開頭？getBytes:length: 之外幾乎沒有。"]
+feedback:
+  "1": BOOL 用 assign 是正確的，標量不需要 strong。

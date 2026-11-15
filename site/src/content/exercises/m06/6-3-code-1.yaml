@@ -1,0 +1,40 @@
+id: m06-6-3-code-1
+chapter: "6.3"
+type: code
+title: JSON 防禦：建立交易
+mobile: false
+minutes: 10
+prompt: "實作 `transactionWithJSON:`：參數不是 NSDictionary 回 nil；`amount` 必須是 NSString 或 NSNumber，否則回 nil；`note` 若不是 NSString（包含 NSNull）就用空字串。最後用 `[amount description]` 建 NSDecimalNumber，呼叫 `expenseWithAmount:note:`。"
+starter: |
+  + (nullable instancetype)transactionWithJSON:(id)json {
+
+  }
+checks:
+  - must_match: 'json\s+isKindOfClass\s*:\s*\[\s*NSDictionary\s+class\s*\]'
+    message: 先確認整個 json 是 NSDictionary
+  - must_match: 'isKindOfClass\s*:\s*\[\s*NSString\s+class\s*\]'
+    message: "用 isKindOfClass:[NSString class] 判斷字串"
+  - must_match: 'isKindOfClass\s*:\s*\[\s*NSNumber\s+class\s*\]'
+    message: amount 也接受 NSNumber
+  - must_match: 'decimalNumberWithString\s*:'
+    message: "用 decimalNumberWithString: 建立金額"
+  - must_match: 'expenseWithAmount\s*:[^;]*note\s*:'
+    message: "最後呼叫 expenseWithAmount:note:"
+  - must_not_match: 'isMemberOfClass'
+    message: "類別叢集下 isMemberOfClass: 會給錯答案，用 isKindOfClass:"
+  - "brackets_balanced: true"
+solution: |
+  + (nullable instancetype)transactionWithJSON:(id)json {
+      if (![json isKindOfClass:[NSDictionary class]]) return nil;
+      NSDictionary *dict = json;
+      id amount = dict[@"amount"];
+      if (![amount isKindOfClass:[NSString class]] &&
+          ![amount isKindOfClass:[NSNumber class]]) return nil;
+      id note = dict[@"note"];
+      NSString *safeNote = [note isKindOfClass:[NSString class]] ? note : @"";
+      NSDecimalNumber *value =
+          [NSDecimalNumber decimalNumberWithString:[amount description]];
+      return [self expenseWithAmount:value note:safeNote];
+  }
+solution_note: 每個從 JSON 取出的值都先 `isKindOfClass:`；`note` 的判斷同時處理了 nil、NSNull 與型別錯誤三種情況。模組 7 會把回 nil 改成帶 NSError。
+hints: ["先守整體型別，再守每個欄位。", "note 的三種壞情況：nil、NSNull、不是字串，一個 isKindOfClass: 全擋。", "amount 兩種合法型別用 && 串兩個否定。"]

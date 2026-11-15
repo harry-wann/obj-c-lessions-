@@ -1,0 +1,34 @@
+id: m09-9-1-spot-1
+chapter: "9.1"
+type: spot
+title: 寫死的沙盒路徑
+minutes: 3
+prompt: 這段程式在開發者的模擬器上跑得好好的，裝到使用者手機上第一次開就讀不到檔。點選有問題的行並選出原因。
+code: |
+  - (NSURL *)ledgerFileURL {
+      NSString *path = @"/Users/dev/Library/Developer/CoreSimulator/Devices/"
+                       @"A1B2C3D4-0000-0000-0000-000000000000/data/Containers/"
+                       @"Data/Application/9F8E7D6C-1111-2222-3333-444455556666/"
+                       @"Documents/ledger.json";
+      return [NSURL fileURLWithPath:path];
+  }
+bug_lines: [2, 3, 4, 5]
+reasons:
+  - 沙盒路徑寫死了：容器 UUID 每台裝置、每次安裝、甚至每次啟動都可能不同，而且這是模擬器的路徑，真機上根本不存在
+  - 字串字面值不能跨行串接
+  - "應該用 URLWithString: 而不是 fileURLWithPath:"
+  - ledger.json 應該放 Caches
+answer_reason: 0
+fix: |
+  - (NSURL *)ledgerFileURL {
+      NSURL *docs = [[NSFileManager defaultManager]
+          URLsForDirectory:NSDocumentDirectory
+                 inDomains:NSUserDomainMask].firstObject;
+      return [docs URLByAppendingPathComponent:@"ledger.json"];
+  }
+solution_note: 路徑一律執行期查。要存位置就只存檔名或相對路徑，啟動時接回 Documents。
+hints: ["這條路徑裡有哪些部分是這台電腦、這次安裝才有的？", "Documents 目錄怎麼在執行期拿到？"]
+feedback:
+  "1": 相鄰的字串字面值會由編譯器自動串接，這是合法的 C 語法。
+  "2": "fileURLWithPath: 才是檔案路徑該用的；問題在路徑內容。"
+  "3": 帳本弄丟不能重生，Documents 是對的目錄。

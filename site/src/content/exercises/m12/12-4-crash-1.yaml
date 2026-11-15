@@ -1,0 +1,28 @@
+id: m12-12-4-crash-1
+chapter: "12.4"
+type: crash
+title: Swift 端的訊息、ObjC 端的原因
+minutes: 2
+log: |
+  Fatal error: Unexpectedly found nil while implicitly unwrapping an Optional value
+  StatsViewModel.swift, line 27
+  #0  StatsViewModel.categoryBreakdown()
+  #1  StatsViewController.viewDidLoad()
+  // line 27: let name = tx.category.name
+options:
+  - "ObjC 的 LBTransaction.h 沒標 nullability，category 在 Swift 端是 LBCategory!，沒分類的交易讓隱式解包遇到 nil"
+  - Swift 的 String 不能接 ObjC 的 NSString
+  - viewDidLoad 太早呼叫，ledger 還沒載入
+  - categoryBreakdown 應該改成 async
+answer: 0
+fix: |
+  // LBTransaction.h
+  NS_ASSUME_NONNULL_BEGIN
+  @property (nonatomic, strong, nullable) LBCategory *category;
+  NS_ASSUME_NONNULL_END
+  // Swift 端編譯器隨即要求：tx.category?.name ?? "未分類"
+solution_note: 「implicitly unwrapping」四個字就是線索：只有沒標 nullability 的 ObjC 成員會匯入成 `!`。修在 ObjC 標頭，Swift 端自然會被編譯器逼著改成 `?.`；只在 Swift 端加 `if let` 是治標。
+hints: ["implicitly unwrapping 代表這個型別是什麼？", "哪種宣告會變成 ! 型別？"]
+feedback:
+  "1": NSString 與 String 自動橋接，沒有問題。
+  "2": ledger 若是 nil 會死在更早的地方，而且訊息會指向 ledger 那一行。

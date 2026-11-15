@@ -1,0 +1,18 @@
+id: m11-11-2-quiz-4
+chapter: "11.2"
+section: quiz
+type: quiz
+title: "@synthesize 沒寫底線"
+minutes: 1
+prompt: "舊檔案寫 `@synthesize note;`（沒有 `= _note`）。它產生的 ivar 叫什麼？"
+options:
+  - "_note，跟自動合成一樣"
+  - "note，跟屬性同名；之後寫 _note 會是未宣告的識別字"
+  - "不產生 ivar，必須自己在大括號裡宣告"
+  - "noteIvar"
+answer: 1
+explain: "沒寫 `= _name` 的 `@synthesize name;` 產生**同名** ivar `name`。自動合成（不寫 `@synthesize`）才是 `_name`。舊專案裡兩種混用時，先 ⌘F 看這個名字怎麼被用。"
+hints: ["@synthesize 等號右邊是 ivar 名；沒寫等號時預設是什麼？", "自動合成的規則跟明寫 @synthesize 不同。"]
+feedback:
+  "0": "那是「完全不寫 @synthesize」的自動合成規則。"
+  "2": "@synthesize 會產生 ivar；大括號裡沒宣告也行。"

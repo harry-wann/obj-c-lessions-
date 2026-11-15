@@ -1,0 +1,34 @@
+id: m12-12-4-crash-2
+chapter: "12.4"
+type: crash
+title: 這份 crash log 只有位址
+minutes: 3
+log: |
+  Exception Type:  EXC_CRASH (SIGABRT)
+  Last Exception Backtrace:
+  0   CoreFoundation   0x00000001a5e2c8d4 __exceptionPreprocess + 164
+  1   libobjc.A.dylib  0x00000001a0f3e0d8 objc_exception_throw + 60
+  2   CoreFoundation   0x00000001a5ef8ab4 -[__NSArrayI objectAtIndexedSubscript:] + 0
+  3   LittleBook       0x0000000102a3c1f4 0x102a30000 + 49652
+  4   LittleBook       0x0000000102a41b20 0x102a30000 + 72480
+  5   UIKitCore        0x00000001a8c4e0c8 -[UITableView _selectRowAtIndexPath:...] + 1064
+
+  Binary Images:
+  0x102a30000 - 0x102aeffff LittleBook arm64 <7d2b4f1a3c5e4b8a9f0e1d2c3b4a5f60>
+options:
+  - "第 3、4 行是自己的程式但沒符號；找 UUID 7D2B4F1A... 的 dSYM，用 atos -l 0x102a30000 還原兩個位址，再開那一行"
+  - "crash 在 CoreFoundation，是系統 bug，無法處理"
+  - "直接看第 0 行 __exceptionPreprocess，那就是出錯的地方"
+  - "重新建置一次就會有符號"
+answer: 0
+fix: |
+  $ atos -arch arm64 -o LittleBook.app.dSYM/Contents/Resources/DWARF/LittleBook \
+         -l 0x102a30000 0x0000000102a3c1f4 0x0000000102a41b20
+  -[LBTransactionListViewController transactionAtIndexPath:] (LBTransactionListViewController.m:214)
+  -[LBTransactionListViewController tableView:didSelectRowAtIndexPath:] (LBTransactionListViewController.m:198)
+solution_note: "讀法：系統 frame（0–2）說「陣列下標越界丟了例外」，第一個自己的 frame（3）說「在哪裡」。位址還原要用**那一次建置**的 dSYM，UUID 必須與 Binary Images 一致；重新建置產生的是另一個 UUID，對不上。"
+hints: ["哪幾行屬於自己的 binary？", "0x102a30000 + 49652 的前半是什麼？", "為什麼不能用現在重新建置的 dSYM？"]
+feedback:
+  "1": 系統 frame 只是「誰丟的」，原因在往下第一個自己的 frame。
+  "2": 第 0 行永遠是例外處理機制本身，不是原因。
+  "3": 新建置的 UUID 不同，符號化結果會是錯的函式名。

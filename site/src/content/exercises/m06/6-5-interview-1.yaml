@@ -1,0 +1,19 @@
+id: m06-6-5-interview-1
+chapter: "6.5"
+type: flash
+tier: interview
+title: 面試題：swizzling 的風險與正確作法
+minutes: 4
+front: |
+  「你會怎麼 swizzle UIViewController 的 viewDidAppear:？有哪些風險？什麼情況下你反對用 swizzling？」
+back: |
+  正確作法：
+  1. 放 +load（main 之前、每類別一次、不走派送），包 dispatch_once 防重複。
+  2. 先 class_addMethod 嘗試把新 IMP 掛成本類別自己的 originalSel；成功代表本類別原本只是繼承，再 class_replaceMethod 把父類別 IMP 掛到 swizzledSel；失敗才 method_exchangeImplementations。避免換到父類別影響兄弟類別。
+  3. 新實作裡呼叫 swizzledSel（名字對調了），一定要呼叫原實作。
+  4. 前綴唯一（lb_），集中在一個檔案，檔頭說明。
+  另一種寫法：存原 IMP 到靜態變數，用 method_setImplementation 換，新實作透過函式指標直接呼叫原 IMP，_cmd 不會變、也不會跟別人撞名。
+
+  風險：多個 SDK 換同一個方法時行為取決於載入順序，任何一方沒呼叫原實作後面全斷；_cmd 改變；型別編碼不符 runtime 不檢查；可讀性差、審查難；Swift 純方法不可 swizzle。
+
+  反對的情況：有正常擴充點（子類別、delegate、通知、UIAppearance）就不該用；只對一兩個類別生效的需求用子類別；要改第三方 SDK 行為時先問能不能升版或用它的設定。swizzling 只留給「橫切所有類別、沒有擴充點」的場景：埋點、效能監測、暫時繞過系統 bug。

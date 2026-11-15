@@ -1,0 +1,19 @@
+id: m12-12-6-quiz-1
+chapter: "12.6"
+section: quiz
+type: quiz
+title: 第一天開哪個檔
+minutes: 1
+prompt: 到職第一天拿到一個有 CocoaPods 的 ObjC 專案。clone 下來之後第一個動作是？
+options:
+  - "開 .xcodeproj，⌘R 看看能不能跑"
+  - "看 README 與 Gemfile / .ruby-version，跑 bundle exec pod install，然後開 .xcworkspace"
+  - 先把所有 warning 修掉
+  - "先把 Podfile 裡過期的 pod 全部升級"
+answer: 1
+explain: 有 Pods 的專案要開 `.xcworkspace`，開 `.xcodeproj` 會建置失敗。`pod install` 之前先確認 CocoaPods 版本（`Gemfile.lock` 鎖的），不然 `Podfile.lock` 會被改掉。第一天的目標是「建得起來、跑得起來、記下基準線」。
+hints: ["Pods 專案跟主專案是怎麼接在一起的？", "第一天改任何東西都是風險。"]
+feedback:
+  "0": 會看到 file not found 或連結器找不到 libPods。
+  "2": 你還不知道哪些 warning 是故意留的；先記下數量當基準線。
+  "3": 升級相依是高風險變更，第一個月不碰。

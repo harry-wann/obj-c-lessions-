@@ -1,0 +1,27 @@
+id: m11-11-5-spot-1
+chapter: "11.5"
+type: spot
+title: 找錯：Masonry 的 equalTo 與 mas_equalTo
+minutes: 2
+prompt: 用 Masonry 重寫編輯頁約束，執行期 crash。點出有問題的行並選原因。
+code: |
+  [self.amountField mas_makeConstraints:^(MASConstraintMaker *make) {
+      make.left.right.equalTo(self.view).insets(UIEdgeInsetsMake(0, 16, 0, 16));
+      make.top.equalTo(self.view.mas_safeAreaLayoutGuideTop).offset(12);
+      make.height.equalTo(44);
+  }];
+bug_lines: [4]
+reasons:
+  - "equalTo() 的參數是 id，傳 C 數值 44 會被當成指標；C 數值要用 mas_equalTo() 巨集包成 NSNumber"
+  - "height 不能用 Masonry 設，要用原生 heightAnchor"
+  - "insets 應該改成 offset"
+  - "mas_safeAreaLayoutGuideTop 不存在"
+answer_reason: 0
+fix: |
+  make.height.mas_equalTo(44);
+  // 或 make.height.equalTo(@44);
+solution_note: "鏈式 DSL 底層還是 ObjC：`equalTo` 的參數型別是 `id`。數值要包成 `NSNumber` / `NSValue`，`mas_equalTo` 巨集就是在做這件事。定義 `MAS_SHORTHAND_GLOBALS` 後可以全部用 `equalTo`。"
+hints: ["equalTo 的參數型別是什麼？", "44 是物件嗎？"]
+feedback:
+  "1": "height.mas_equalTo(44) 完全可以。"
+  "3": "Masonry 1.1 有 mas_safeAreaLayoutGuideTop。"

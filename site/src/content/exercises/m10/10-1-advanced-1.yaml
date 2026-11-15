@@ -1,0 +1,60 @@
+id: m10-10-1-advanced-1
+chapter: "10.1"
+type: code
+tier: advanced
+title: 進階：執行緒安全的環狀緩衝區
+mobile: false
+minutes: 15
+prompt: "FPS 監視器在主執行緒 append，效能面板的匯出功能可能在背景佇列呼叫 `values`。用 `os_unfair_lock` 保護 `append:` 與 `values`：鎖住的區間要最小，`values` 在鎖內只拷貝 double，包成 NSNumber 在鎖外做。"
+starter: |
+  #import <os/lock.h>
+  @implementation LBRingBuffer {
+      double *_slots;
+      NSUInteger _capacity, _head, _count;
+      os_unfair_lock _lock;   // init 時 = OS_UNFAIR_LOCK_INIT
+  }
+  - (void)append:(double)value {
+
+  }
+  - (NSArray<NSNumber *> *)values {
+
+  }
+  @end
+checks:
+  - must_match: 'os_unfair_lock_lock\s*\(\s*&\s*_lock\s*\)'
+    message: 用 os_unfair_lock_lock(&_lock) 加鎖
+  - must_match: 'os_unfair_lock_unlock\s*\(\s*&\s*_lock\s*\)'
+    message: 記得 os_unfair_lock_unlock(&_lock)
+  - must_match: '_slots\s*\[\s*_head\s*\]\s*=\s*value'
+    message: append 寫入 _slots[_head]
+  - must_match: 'double\s+\w+\s*\[|malloc|calloc|memcpy|double\s*\*\s*\w+'
+    message: values 在鎖內先把 double 拷到暫存區（C 陣列或 malloc）
+  - must_match: '@\(\s*\w+\s*\['
+    message: 包成 NSNumber 的動作放在鎖外
+  - must_not_match: '@synchronized'
+    message: 本題用 os_unfair_lock，不用 @synchronized
+  - "brackets_balanced: true"
+solution: |
+  - (void)append:(double)value {
+      os_unfair_lock_lock(&_lock);
+      _slots[_head] = value;
+      _head = (_head + 1) % _capacity;
+      if (_count < _capacity) _count++;
+      os_unfair_lock_unlock(&_lock);
+  }
+  - (NSArray<NSNumber *> *)values {
+      os_unfair_lock_lock(&_lock);
+      NSUInteger count = _count;
+      NSUInteger start = (_count < _capacity) ? 0 : _head;
+      double *snapshot = malloc(sizeof(double) * MAX(count, 1));
+      for (NSUInteger i = 0; i < count; i++) {
+          snapshot[i] = _slots[(start + i) % _capacity];
+      }
+      os_unfair_lock_unlock(&_lock);
+      NSMutableArray *out = [NSMutableArray arrayWithCapacity:count];
+      for (NSUInteger i = 0; i < count; i++) [out addObject:@(snapshot[i])];
+      free(snapshot);
+      return out;
+  }
+solution_note: 鎖的粒度（10.4）：鎖內只做無法分割的那幾行（拷貝 60 個 double 不到 1 µs），建立 60 個 NSNumber 的 ObjC 配置放鎖外，主執行緒的 append 幾乎不會被擋。os_unfair_lock 不可遞迴，所以 values 裡不能再呼叫同樣加鎖的 count。
+hints: ["兩個方法都要先 lock 後 unlock。", "values 在鎖內只拷貝原始 double 到 C 陣列。", "NSNumber 包裝與 free 在 unlock 之後。"]

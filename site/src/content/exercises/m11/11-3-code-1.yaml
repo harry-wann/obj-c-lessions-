@@ -1,0 +1,40 @@
+id: m11-11-3-code-1
+chapter: "11.3"
+type: code
+title: 寫出處理 UINavigationController 的 prepareForSegue
+mobile: false
+minutes: 6
+prompt: "實作 `prepareForSegue:sender:`：identifier 是 `\"editTransaction\"` 時，目的地可能直接是 `LBTransactionEditorViewController`，也可能包在 `UINavigationController` 裡；兩種都要正確拿到 editor，設定 `editor.ledger = self.ledger`、`editor.delegate = self`。其他 identifier 不處理。"
+starter: |
+  - (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
+
+  }
+checks:
+  - selector_equals: "prepareForSegue:sender:"
+  - must_match: 'isEqualToString\s*:\s*@"editTransaction"'
+    message: "先用 isEqualToString: 比對 identifier"
+  - must_match: 'destinationViewController'
+    message: 從 segue.destinationViewController 取目的地
+  - must_match: 'isKindOfClass\s*:\s*\[\s*UINavigationController\s+class\s*\]'
+    message: 要判斷目的地是不是 UINavigationController
+  - must_match: 'topViewController'
+    message: 包在導覽控制器裡時取 topViewController
+  - must_match: '\.ledger\s*=\s*self\.ledger'
+    message: 設定 editor.ledger
+  - must_match: '\.delegate\s*=\s*self'
+    message: 設定 editor.delegate
+  - "brackets_balanced: true"
+solution: |
+  - (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
+      if (![segue.identifier isEqualToString:@"editTransaction"]) return;
+      UIViewController *dest = segue.destinationViewController;
+      if ([dest isKindOfClass:[UINavigationController class]]) {
+          dest = [(UINavigationController *)dest topViewController];
+      }
+      LBTransactionEditorViewController *editor =
+          (LBTransactionEditorViewController *)dest;
+      editor.ledger = self.ledger;
+      editor.delegate = self;
+  }
+solution_note: "這段是舊專案裡會抄一百次的樣板。`isKindOfClass:` 那段是防禦：segue 從 Show 改成 Present Modally + embed 時，程式碼不用跟著改。"
+hints: ["先比 identifier，不符就 return。", "destinationViewController 可能是兩種型別。", "UINavigationController 的頂層 VC 怎麼拿？"]

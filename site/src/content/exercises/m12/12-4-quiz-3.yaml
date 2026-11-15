@@ -1,0 +1,17 @@
+id: m12-12-4-quiz-3
+chapter: "12.4"
+section: quiz
+type: quiz
+title: Zombie、ASan、TSan 各抓什麼
+minutes: 2
+prompt: 把工具配對給症狀：A. 對已釋放物件送訊息 B. C 陣列越界寫壞隔壁記憶體 C. 兩個執行緒同時改一個 nonatomic 屬性。哪個配對正確？
+options:
+  - "A→Zombie Objects、B→Address Sanitizer、C→Thread Sanitizer"
+  - "A→Address Sanitizer、B→Zombie Objects、C→Thread Sanitizer"
+  - "A→Thread Sanitizer、B→Address Sanitizer、C→Zombie Objects"
+  - 三個都開就好
+answer: 0
+explain: Zombie 把釋放的物件換成 `_NSZombie_` 類別攔訊息；ASan 在每次記憶體存取插檢查抓越界與 use-after-free；TSan 抓資料競爭。Zombie 與 ASan 不能同時開，TSan 慢五到十倍，所以不是「全開」。
+hints: ["Zombie 的字面意思：死了還會回應訊息。", "Address 是記憶體位址，Thread 是執行緒。"]
+feedback:
+  "3": Zombie 與 ASan 互斥，而且三個都開會慢到無法操作 App。

@@ -1,0 +1,58 @@
+id: m07-7-2-code-1
+chapter: "7.2"
+type: code
+title: 把 @throw 改寫成斷言 + NSError
+mobile: false
+minutes: 8
+prompt: "下面的方法用例外處理兩種狀況：參數 nil（程式錯誤）與金額字串解析失敗（可預期的失敗）。改寫成：nil 用 `NSParameterAssert` 攔；解析失敗回 nil 並填 `LBErrorDomain` / `LBErrorCodeUnexpectedType` 的 NSError（有 `NSLocalizedDescriptionKey`）。方法簽名改成帶 `error:` 參數、回傳 nullable。"
+starter: |
+  // 原始版本（要改掉）：
+  // - (NSDecimalNumber *)amountFromString:(NSString *)text {
+  //     if (!text) @throw [NSException exceptionWithName:@"LBArg" reason:@"nil" userInfo:nil];
+  //     NSDecimalNumber *d = [NSDecimalNumber decimalNumberWithString:text];
+  //     if ([d isEqual:[NSDecimalNumber notANumber]]) {
+  //         @throw [NSException exceptionWithName:@"LBParse" reason:@"不是數字" userInfo:nil];
+  //     }
+  //     return d;
+  // }
+
+  - (nullable NSDecimalNumber *)amountFromString:(NSString *)text error:(NSError **)error {
+
+  }
+checks:
+  - must_match: 'NSParameterAssert\s*\(\s*text\s*(!=\s*nil)?\s*\)'
+    message: 參數 nil 是程式錯誤，用 NSParameterAssert(text) 或 NSParameterAssert(text != nil)
+  - must_match: 'decimalNumberWithString\s*:\s*text'
+    message: 用 [NSDecimalNumber decimalNumberWithString:text] 解析
+  - must_match: 'notANumber'
+    message: 用 [NSDecimalNumber notANumber] 判斷解析失敗
+  - must_match: 'if\s*\(\s*error\s*\)'
+    message: 寫 *error 之前先 if (error)
+  - must_match: 'errorWithDomain\s*:\s*LBErrorDomain'
+    message: domain 用 LBErrorDomain
+  - must_match: 'code\s*:\s*LBErrorCodeUnexpectedType'
+    message: code 用 LBErrorCodeUnexpectedType
+  - must_match: 'NSLocalizedDescriptionKey'
+    message: userInfo 要有 NSLocalizedDescriptionKey
+  - must_match: 'return\s+nil\s*;'
+    message: 解析失敗回 nil
+  - must_not_match: '@throw|NSException|@try'
+    message: 兩種狀況都不該用例外
+  - "brackets_balanced: true"
+solution: |
+  - (nullable NSDecimalNumber *)amountFromString:(NSString *)text error:(NSError **)error {
+      NSParameterAssert(text != nil);
+      NSDecimalNumber *d = [NSDecimalNumber decimalNumberWithString:text];
+      if ([d isEqual:[NSDecimalNumber notANumber]]) {
+          if (error) {
+              *error = [NSError errorWithDomain:LBErrorDomain
+                                           code:LBErrorCodeUnexpectedType
+                                       userInfo:@{ NSLocalizedDescriptionKey: @"金額不是數字",
+                                                   @"input": text }];
+          }
+          return nil;
+      }
+      return d;
+  }
+solution_note: 兩種失敗兩種工具：傳 nil 是呼叫端的 bug → 斷言，Debug 立刻停、Release 走 decimalNumberWithString:nil 回 NaN 的防禦路徑；字串不是數字是使用者輸入 → NSError。注意 Release 下斷言消失，所以後面的程式對 nil 也要安全，這裡剛好 decimalNumberWithString:nil 不會 crash。
+hints: ["第一行：參數檢查用哪個巨集？", "解析失敗的判斷：notANumber。", "填 error 的三步：if (error)、*error = ...、return nil。"]

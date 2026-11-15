@@ -1,0 +1,45 @@
+id: m11-11-7-code-1
+chapter: "11.7"
+type: code
+title: 為 LBRateService.h 補 nullability
+mobile: false
+minutes: 6
+prompt: "為下面的標頭補 nullability：整檔包 `NS_ASSUME_NONNULL_BEGIN / END`；`ratesFromJSONData:error:` 解析失敗回 nil 所以 `nullable`，它的 `error` 參數寫成 `NSError * _Nullable * _Nullable`；`LBRatesCompletion` 的兩個參數都可能為 nil，各標 `_Nullable`。其他維持 nonnull。"
+starter: |
+  typedef void (^LBRatesCompletion)(NSDictionary<NSString *, NSDecimalNumber *> *rates, NSError *error);
+
+  @interface LBRateService : NSObject
+  - (instancetype)initWithSession:(NSURLSession *)session baseURL:(NSURL *)baseURL;
+  + (NSDictionary<NSString *, NSDecimalNumber *> *)ratesFromJSONData:(NSData *)data error:(NSError **)error;
+  - (void)fetchRatesForBase:(NSString *)base completion:(LBRatesCompletion)completion;
+  @end
+checks:
+  - must_match: 'NS_ASSUME_NONNULL_BEGIN[\s\S]*@interface'
+    message: "NS_ASSUME_NONNULL_BEGIN 要在 @interface 之前"
+  - must_match: '@end[\s\S]*NS_ASSUME_NONNULL_END'
+    message: "NS_ASSUME_NONNULL_END 要在 @end 之後"
+  - must_match: '\*\s*_Nullable\s+rates\s*,\s*NSError\s*\*\s*_Nullable\s+error\s*\)'
+    message: "completion 的 rates 與 error 都標 _Nullable"
+  - must_match: '\+\s*\(\s*nullable\s+NSDictionary'
+    message: "ratesFromJSONData:error: 回傳標 nullable"
+  - must_match: 'NSError\s*\*\s*_Nullable\s*\*\s*_Nullable\s*\)\s*error'
+    message: "error 參數寫成 NSError * _Nullable * _Nullable"
+  - must_not_match: 'nullable\s+NSURLSession|nullable\s+NSURL\b|nullable\s+NSString'
+    message: "session、baseURL、base 不該是 nullable"
+  - "brackets_balanced: true"
+solution: |
+  NS_ASSUME_NONNULL_BEGIN
+
+  typedef void (^LBRatesCompletion)(NSDictionary<NSString *, NSDecimalNumber *> * _Nullable rates,
+                                    NSError * _Nullable error);
+
+  @interface LBRateService : NSObject
+  - (instancetype)initWithSession:(NSURLSession *)session baseURL:(NSURL *)baseURL;
+  + (nullable NSDictionary<NSString *, NSDecimalNumber *> *)ratesFromJSONData:(NSData *)data
+                                                                        error:(NSError * _Nullable * _Nullable)error;
+  - (void)fetchRatesForBase:(NSString *)base completion:(LBRatesCompletion)completion;
+  @end
+
+  NS_ASSUME_NONNULL_END
+solution_note: "block 參數的 nullability 用型別後面的 `_Nullable`；方法回傳用括號內的 `nullable`；雙重指標每一層都標。Swift 端看到的會是 `([String: NSDecimalNumber]?, Error?) -> Void` 與 `throws`。"
+hints: ["巨集成對包整檔。", "block 參數的標注放型別後面。", "NSError ** 兩層都要 _Nullable。"]

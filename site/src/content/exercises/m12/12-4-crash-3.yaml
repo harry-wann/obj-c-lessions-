@@ -1,0 +1,27 @@
+id: m12-12-4-crash-3
+chapter: "12.4"
+type: crash
+title: Exception Breakpoint 會停在哪
+minutes: 2
+log: |
+  // 沒開 Exception Breakpoint 時，Xcode 停在：
+  // main.m: return UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));
+  *** Terminating app due to uncaught exception 'NSRangeException',
+  reason: '*** -[__NSArrayI objectAtIndex:]: index 3 beyond bounds [0 .. 2]'
+  *** First throw call stack:
+  (0x1a5e2c8d4 0x1a0f3e0d8 0x1a5ef8ab4 0x102a3c1f4 0x102a41b20 ...)
+options:
+  - "開 Objective-C Exception Breakpoint、On Throw，重現後會停在自己 .m 檔呼叫 objectAtIndex: 的那一行，bt 直接看到呼叫鏈"
+  - "開 Exception Breakpoint 後會停在 main.m 同一行，只是多印訊息"
+  - "開 All Exceptions 才會停，Objective-C 選項抓不到 NSRangeException"
+  - Exception Breakpoint 只對 Swift 的 fatalError 有效
+answer: 0
+fix: |
+  // ⌘8 → + → Exception Breakpoint → Exception: Objective-C, Break: On Throw
+  // 右鍵 → Move Breakpoint To → User（所有專案生效）
+  // 選擇性 Action：Debugger Command「po $arg1」印出例外物件
+solution_note: 例外丟出後一路冒到 UIApplicationMain 才被攔，所以沒開斷點時停在 main。Exception Breakpoint 停在 `objc_exception_throw` 的瞬間，往上一個 frame 就是你的程式碼。選 Objective-C 而不是 All，因為某些系統框架內部正常使用 C++ 例外，All 會一直誤停。
+hints: ["例外是在哪裡「丟」、在哪裡「被攔」？", "First throw call stack 那串位址裡哪兩個是你的？"]
+feedback:
+  "1": 開了之後會停在丟出的瞬間，位置完全不同。
+  "2": NSRangeException 是 ObjC 例外，Objective-C 選項就會停。

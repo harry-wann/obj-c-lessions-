@@ -1,0 +1,19 @@
+id: m09-9-2-quiz-3
+chapter: "9.2"
+section: quiz
+type: quiz
+title: "registerDefaults: 的語意"
+minutes: 1
+prompt: "關於 `[defaults registerDefaults:@{ @\"currencyCode\": @\"TWD\" }]`，哪一句是對的？"
+options:
+  - 它會把 TWD 寫進 plist，之後不用再呼叫
+  - "它只登記在記憶體，每次啟動都要呼叫；使用者設過的值優先，removeObjectForKey: 之後會回到 TWD"
+  - 它會覆蓋使用者已經設定的值
+  - 它只能登記字串，布林要用另一個方法
+answer: 1
+explain: "registerDefaults: 是「查不到時的備案」，住在記憶體裡。所以放在 LBSettings 初始化裡每次啟動都跑；remove 之後不是 nil 而是回到預設值。"
+hints: ["它跟 setObject:forKey: 哪裡不同？", "App 重啟後登記的東西還在嗎？"]
+feedback:
+  "0": 不會寫進磁碟，重啟就沒了。
+  "2": 恰好相反：使用者設過的值優先，預設值只在查不到時用。
+  "3": 字典裡任何 plist 型別都可以，@YES 也行。

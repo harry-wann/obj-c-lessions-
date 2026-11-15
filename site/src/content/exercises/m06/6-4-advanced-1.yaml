@@ -1,0 +1,35 @@
+id: m06-6-4-advanced-1
+chapter: "6.4"
+type: code
+tier: advanced
+title: 進階：KVO 相依鍵
+mobile: false
+minutes: 10
+prompt: "`LBLedger` 有 `total`（可寫）與 `totalText`（readonly 計算屬性，把 total 格式化成 `NT$ 120`）。有人觀察 `totalText`，但 `total` 改變時他收不到通知。用 **相依鍵**（`keyPathsForValuesAffecting<Key>`）修好，不要在 setter 裡手動 willChange / didChange。"
+starter: |
+  @implementation LBLedger
+  - (NSString *)totalText {
+      return [NSString stringWithFormat:@"NT$ %@", self.total];
+  }
+  // 在這裡加上相依鍵宣告
+
+  @end
+checks:
+  - must_match: '\+\s*\(\s*NSSet\s*(<[^>]*>)?\s*\*\s*\)\s*keyPathsForValuesAffectingTotalText'
+    message: "宣告類別方法 + (NSSet *)keyPathsForValuesAffectingTotalText"
+  - must_match: 'NSSet\s+setWithObject[s]?\s*:\s*@"total"'
+    message: "回傳含 @\"total\" 的 NSSet"
+  - must_not_match: 'willChangeValueForKey|didChangeValueForKey'
+    message: 題目要求用相依鍵，不要手動通知
+  - "brackets_balanced: true"
+solution: |
+  @implementation LBLedger
+  - (NSString *)totalText {
+      return [NSString stringWithFormat:@"NT$ %@", self.total];
+  }
+  + (NSSet<NSString *> *)keyPathsForValuesAffectingTotalText {
+      return [NSSet setWithObject:@"total"];
+  }
+  @end
+solution_note: "方法名是 `keyPathsForValuesAffecting` 接首字大寫的鍵名；KVO 會在 total 的 didChange 時順便對 totalText 的觀察者發通知。通用版是 `+keyPathsForValuesAffectingValueForKey:`，要記得呼叫 super 並合併結果。相依鍵可以是鍵路徑（例如 @\"category.name\"），但不能跨越 to-many 關係。"
+hints: ["是類別方法，加號開頭。", "方法名把鍵名首字大寫接在 keyPathsForValuesAffecting 後面。", "回傳 NSSet，裡面放會影響它的鍵名。"]

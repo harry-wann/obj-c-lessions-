@@ -1,0 +1,18 @@
+id: m10-10-4-quiz-1
+chapter: "10.4"
+section: quiz
+type: quiz
+title: 哪種鎖適合哪種情境
+minutes: 3
+prompt: 把情境配對到最適合的工具。「FPS 監視器每幀更新一個 double，另一條執行緒偶爾讀」「帳本讀多寫少，寫可非同步」「方法 A 加鎖後呼叫同樣加鎖的方法 B」「最多 4 個網路請求同時進行」依序是？
+options:
+  - "os_unfair_lock／並行佇列 + barrier／NSRecursiveLock／dispatch_semaphore(4)"
+  - "@synchronized／NSLock／os_unfair_lock／NSCondition"
+  - "NSCondition／NSLock／os_unfair_lock／@synchronized"
+  - "串列佇列／pthread_rwlock／NSLock／dispatch_group"
+answer: 0
+explain: 極短高頻 → os_unfair_lock；讀多寫少且寫可非同步 → barrier；需要遞迴 → NSRecursiveLock（os_unfair_lock 與 NSLock 都會出事）；限流 → 計數 semaphore。
+hints: ["每幀一次、幾奈秒的臨界區要最快的。", "「加鎖後呼叫也加鎖的方法」是遞迴。", "限流是「最多 N 個同時」。"]
+feedback:
+  "1": 第三格 os_unfair_lock 遇到遞迴會直接 crash。
+  "3": dispatch_group 是「等全部完成」，不是限流。

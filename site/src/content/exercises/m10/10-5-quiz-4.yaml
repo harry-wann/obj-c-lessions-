@@ -1,0 +1,19 @@
+id: m10-10-5-quiz-4
+chapter: "10.5"
+section: quiz
+type: quiz
+title: dispatch_group 的配對
+minutes: 2
+prompt: 以下關於 dispatch_group 的敘述哪些正確？（可複選）
+multi: true
+options:
+  - enter 與 leave 必須成對，少一次 leave 則 notify 永遠不觸發
+  - 多一次 leave 會 crash（Unbalanced call to dispatch_group_leave）
+  - "`dispatch_group_wait` 可以帶逾時，回傳非零表示逾時"
+  - group 會限制同時執行的數量
+  - "`dispatch_group_async` 自動幫你 enter / leave"
+answer: [0, 1, 2, 4]
+explain: group 只負責「等全部完成」，不限流；限流是 semaphore 或 maxConcurrentOperationCount 的工作。
+hints: ["group 是計數器：enter +1、leave −1、歸零觸發 notify。", "限流是誰的工作？"]
+feedback:
+  "3": group 不限制並行度，50 個 enter 就是 50 個同時跑。

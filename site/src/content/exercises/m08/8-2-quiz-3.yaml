@@ -1,0 +1,18 @@
+id: m08-8-2-quiz-3
+chapter: "8.2"
+section: quiz
+type: quiz
+title: Android 對照
+minutes: 1
+prompt: Android 的 Fragment `onStop` 最接近 iOS 的哪個回呼？
+options:
+  - "viewWillDisappear:"
+  - "viewDidDisappear:"
+  - dealloc
+  - didReceiveMemoryWarning
+answer: 1
+explain: onStop 是「畫面已經看不到了」，對應 viewDidDisappear:；onPause 比較像 viewWillDisappear:。onDestroy 才對應 dealloc。iOS 沒有 onDestroyView：view 不會單獨被釋放。
+hints: ["onPause 在前、onStop 在後。", "iOS 也有 will / did 兩個。"]
+feedback:
+  "0": 這對應 onPause：即將離開但還看得到。
+  "2": onDestroy 才是 dealloc。

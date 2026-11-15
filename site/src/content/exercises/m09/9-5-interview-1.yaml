@@ -1,0 +1,20 @@
+id: m09-9-5-interview-1
+chapter: "9.5"
+type: flash
+tier: interview
+title: 面試題：Core Data 的 context 執行緒規則
+minutes: 4
+front: |
+  NSManagedObjectContext 的執行緒規則是什麼？背景匯入一萬筆交易後要在主畫面顯示，正確流程怎麼走？怎麼在開發期抓到違規？
+back: |
+  規則：
+  1. 每個 context 綁一個佇列：viewContext 綁主佇列，newBackgroundContext 綁私有佇列。
+  2. 只能在它的佇列上碰 context 以及它管的 NSManagedObject。
+  3. 進入佇列用 performBlock:（非同步）/ performBlockAndWait:（同步），不要自己 dispatch_async。
+  4. 物件不能跨 context 傳；傳 NSManagedObjectID，另一邊 objectWithID: 拿自己的副本。
+
+  背景匯入流程：`bg = [container newBackgroundContext]` → `[bg performBlock:^{ 建一萬個物件; [bg save:&e]; 收集 objectID; dispatch_async(main, ^{ 用 viewContext objectWithID: 取回; 更新畫面 }); }]`。背景 save 後 viewContext 若設了 `automaticallyMergesChangesFromParent = YES` 會自動合併。
+
+  偵錯：Scheme Arguments 加 `-com.apple.CoreData.ConcurrencyDebug 1`，違規立刻停在 `__Multithreading_Violation_AllThatIsLeftToUsIsHonor__`。不開的話是幾天後隨機壞資料。
+
+  追問：為什麼不用一個 context 加鎖？因為 context 內部有快取與 faulting，鎖不住；Apple 的設計就是一個佇列一個 context。

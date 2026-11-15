@@ -1,0 +1,25 @@
+id: m11-11-2-xcode-1
+chapter: "11.2"
+type: xcode
+title: NSURLConnection 版匯率服務改成 NSURLSession
+mobile: false
+minutes: 30
+prompt: 把 LittleBook-Legacy 的 LBLegacyRateService 從 NSURLConnection delegate 改成 NSURLSession completion，行為不變、M07 的 LBRateServiceTests 照過。
+starter: xcode/M11-starter
+steps:
+  - "讀 `LBLegacyRateService.m`：找出四個 delegate 方法（`didReceiveResponse:`、`didReceiveData:`、`connectionDidFinishLoading:`、`didFailWithError:`）與累積用的 `_buffer`。"
+  - "**先包一層**：加 `fetchRatesForBase:completion:`，內部暫時仍用 NSURLConnection，把 delegate 的兩個結果轉成 completion 的兩個參數。呼叫端（`LBLegacyListViewController`）全部改用新介面。⌘U。"
+  - "把內部換成 `NSURLSession`：`dataTaskWithURL:completionHandler:`，解析後 `dispatch_async` 回主佇列呼叫 completion，`[task resume]`。刪掉四個 delegate 方法與 `_buffer`。"
+  - "dealloc 裡原本的 `[_connection cancel]` 改成持有 task 並 `[self.currentTask cancel]`（埋雷 6 的對應，11.6 會驗收）。"
+  - "測試用 M07 的 `LBStubURLProtocol`：`NSURLSessionConfiguration.protocolClasses` 注入 stub，不打真網路。"
+  - "⌘U 跑 LBRateServiceTests 四個，全綠後 commit「Migrate LBLegacyRateService to NSURLSession」。"
+tests:
+  - LBRateServiceTests/testParsesRatesFromStubJSON
+  - LBRateServiceTests/testReportsErrorOnMalformedJSON
+  - LBRateServiceTests/testReportsErrorWhenRateIsNotNumber
+  - LBRateServiceTests/testCompletionCalledOnMainQueue
+acceptance:
+  - "列表頁匯率顯示結果與改寫前一致"
+  - "關網路時顯示錯誤提示而非 crash"
+  - "LBLegacyRateService.m 不再 import 或參考 NSURLConnection"
+solution_note: "兩步走（先包一層、再換內部）讓每個 commit 都能獨立 revert。`testCompletionCalledOnMainQueue` 專門抓「忘了切回主佇列」；`NSURLConnection` 時代不用切所以舊碼沒這行，這是改寫最常漏的一步。"

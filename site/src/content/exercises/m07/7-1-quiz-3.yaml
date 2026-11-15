@@ -1,0 +1,20 @@
+id: m07-7-1-quiz-3
+chapter: "7.1"
+section: quiz
+type: quiz
+title: 寫方法端時要注意什麼
+minutes: 2
+prompt: "你在實作 `- (BOOL)saveWithError:(NSError **)error`。以下哪些是正確的做法？（可複選）"
+multi: true
+options:
+  - "寫 `*error = ...` 之前先 `if (error)`，因為呼叫端可以傳 NULL"
+  - "失敗時回 NO 並填 error；成功時回 YES，不需要刻意把 *error 設成 nil"
+  - "成功時也要 `*error = nil`，否則呼叫端判不出來"
+  - "把底層 API 的 NSError 放進 NSUnderlyingErrorKey，對外用自己的 domain / code"
+  - "失敗時只要 NSLog 原始錯誤再回 NO 就好，呼叫端不需要細節"
+answer: [0, 1, 3]
+explain: 呼叫端靠回傳值判成敗，所以成功時不用碰 error；填 error 前要檢查指標非 NULL；往上傳時包裝並保留底層錯誤。
+hints: ["呼叫端不在意原因時會傳什麼？", "成功時誰負責判斷？", "印完就丟的錯誤，上層怎麼知道原因？"]
+feedback:
+  "2": 呼叫端應該用回傳值判斷，不應該依賴 error 是否為 nil；多寫一行無害，但不是「否則判不出來」。
+  "4": 這叫吞掉錯誤。上層只知道失敗、不知道為什麼，應該包裝進 NSUnderlyingErrorKey。

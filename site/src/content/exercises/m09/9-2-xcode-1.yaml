@@ -1,0 +1,22 @@
+id: m09-9-2-xcode-1
+chapter: "9.2"
+type: xcode
+title: LBSettings：用 NSUserDefaults 存設定
+mobile: false
+minutes: 20
+prompt: 實作 LBSettings，用注入的 NSUserDefaults 存預設貨幣、是否顯示分、外觀，預設值走 registerDefaults:。
+starter: xcode/M09-starter
+steps:
+  - "LBSettings.h 宣告：`+ (instancetype)shared;`、`- (instancetype)initWithUserDefaults:(NSUserDefaults *)defaults;`、屬性 `currencyCode`（copy）、`showsCents`（assign BOOL）、`appearance`（assign NSInteger）。"
+  - "在 .m 用 `static NSString * const` 定義三個 key 常數（加 LB 前綴），不要在方法裡重打字串。"
+  - "`initWithUserDefaults:` 存下 defaults 並 `registerDefaults:`：currencyCode `@\"TWD\"`、showsCents `@YES`、appearance `@0`。"
+  - "三組 getter / setter 手寫：`stringForKey:` / `setObject:forKey:`、`boolForKey:` / `setBool:forKey:`、`integerForKey:` / `setInteger:forKey:`。不要呼叫 `synchronize`。"
+  - "`+shared` 用 `dispatch_once` 建立，傳 `[NSUserDefaults standardUserDefaults]`。"
+  - "看 LBSettingsTests 的 setUp：它用 `initWithSuiteName:@\"LBSettingsTests\"` 建獨立套組、tearDown 用 `removePersistentDomainForName:` 清掉。⌘U 跑兩個測試。"
+tests:
+  - LBSettingsTests/testDefaultsRegistered
+  - LBSettingsTests/testCurrencyCodePersists
+acceptance:
+  - "testDefaultsRegistered：全新套組上 currencyCode 是 TWD、showsCents 是 YES、appearance 是 0。"
+  - "testCurrencyCodePersists：設 JPY 後用同一個 suiteName 另建一個 LBSettings 讀回仍是 JPY。"
+solution_note: "注入 NSUserDefaults 是為了測試可以用獨立套組，不污染模擬器上 App 的真設定；這跟 7.x 注入 NSURLSession 是同一個想法。registerDefaults: 只在記憶體，所以放在初始化裡每次都登記。"

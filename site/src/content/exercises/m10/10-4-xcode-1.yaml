@@ -1,0 +1,23 @@
+id: m10-10-4-xcode-1
+chapter: "10.4"
+type: xcode
+title: LBLedger 讀寫鎖與 LBLockBenchmark
+mobile: false
+minutes: 45
+prompt: 把 LBLedger 改成並行佇列 + barrier 讀寫鎖，寫 LBLockBenchmark 比較四種鎖，效能面板加「鎖 benchmark」壓力測試。
+starter: xcode/M10-starter
+steps:
+  - "`LBLedger`：`_queue` 用 `DISPATCH_QUEUE_CONCURRENT` 建立；所有讀（`transactions`、`total`、`count`、`transactionWithIdentifier:`）用 `dispatch_sync`，所有寫（`add` / `remove` / `reset` / `performBatchImport:`）用 `dispatch_barrier_async`。block 內只碰 ivar，不呼叫自己的公開方法。"
+  - "KVO 的 `total` 通知（模組 6）在 barrier block 結尾切回主佇列發出。"
+  - "`LBLockBenchmark +runWithIterations:threads:`：四個計數器分別用 `@synchronized`、`NSLock`、`os_unfair_lock`、串列佇列保護，`dispatch_group` 等全部執行緒結束，用 `CACurrentMediaTime` 計時；回傳字典 keys 為 `synchronized` / `NSLock` / `unfair_lock` / `serialQueue`，值是秒數。串列佇列版最後要 `dispatch_sync` 排空再計數。"
+  - "效能面板加「鎖 benchmark」按鈕：n = 200,000、t = 4，在背景跑，結果顯示四行數字。"
+  - "⌘U 跑兩個測試。Edit Scheme → Diagnostics 開 Thread Sanitizer 再跑一次 `LBLedgerConcurrencyTests`。"
+tests:
+  - LBLedgerConcurrencyTests/testBarrierWritesAreSerialized
+  - LBLockBenchmarkTests/testAllLocksProduceSameCount
+acceptance:
+  - 1,000 次並行讀寫帳本無 crash（testBarrierWritesAreSerialized 用 8 條執行緒）
+  - Thread Sanitizer 下跑 LBLedgerConcurrencyTests 零警告
+  - 效能面板 benchmark 四個數字都有，且能說出為什麼 os_unfair_lock 最快、串列佇列最慢
+  - 匯入（10.3）期間新增交易，兩種寫入都走 barrier、筆數正確
+solution_note: testBarrierWritesAreSerialized 讓 8 條執行緒各加 125 筆、同時另 8 條各讀 125 次，結束後 count 必須是 1,000。testAllLocksProduceSameCount 只檢查四個計數器都等於 n*t，不檢查時間（CI 機器時間不穩）。benchmark 數字的典型比例：unfair 1×、NSLock 2×、@synchronized 4×、串列佇列 8×。

@@ -1,0 +1,23 @@
+id: m09-9-2-xcode-2
+chapter: "9.2"
+type: xcode
+title: 設定頁 LBSettingsViewController（程式碼版，畫面 08）
+mobile: false
+minutes: 30
+prompt: 用程式碼（不用 Storyboard）做設定頁：一個 grouped 樣式的 UITableView，三列分別改貨幣、顯示分、外觀，改完立刻寫進 LBSettings。M11 會改成 Storyboard 版。
+starter: xcode/M09-starter
+steps:
+  - "新增 `LBSettingsViewController : UITableViewController`，`initWithStyle:UITableViewStyleInsetGrouped`，持有 `LBSettings *settings`（init 時注入，預設 `[LBSettings shared]`）。"
+  - "三列：第 0 列「貨幣」右側顯示 `settings.currencyCode`，點選用 `UIAlertController`（actionSheet）列出 TWD / USD / JPY，選完寫回並 `reloadRows`。"
+  - "第 1 列「顯示小數」放一個 `UISwitch` 當 `accessoryView`，`on = settings.showsCents`，`UIControlEventValueChanged` 寫回 `settings.showsCents`。"
+  - "第 2 列「外觀」用 `UISegmentedControl`（系統 / 淺 / 深）當 accessoryView，選完寫回 `settings.appearance` 並設 `self.view.window.overrideUserInterfaceStyle`。"
+  - "在 AppDelegate / SceneDelegate 的 tab 列第三個分頁放 `UINavigationController` 包這個頁面，標題「設定」。"
+  - "帳本列表頁在 `viewWillAppear:` 重讀 `showsCents` 與 `currencyCode`，重新整理表格。"
+tests: []
+acceptance:
+  - 畫面 08：設定分頁顯示三列，右側值對應目前設定。
+  - 點「貨幣」出現選單，選 JPY 後列上顯示 JPY；回帳本頁金額符號跟著變。
+  - 關掉「顯示小數」後回帳本頁，金額不顯示小數；完全關閉 App 再開，設定仍是關閉。
+  - 外觀切到「深」整個 App 立刻變深色；重開 App 仍是深色。
+  - Xcode 主控台沒有 non-property-list 的錯誤或警告。
+solution_note: 設定頁本身很薄，所有狀態都住在 LBSettings 裡；畫面只是讀與寫。「完全關閉 App 再開仍保留」就是 NSUserDefaults 在做事，你沒呼叫 synchronize 也一樣。

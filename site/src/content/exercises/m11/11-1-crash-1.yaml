@@ -1,0 +1,25 @@
+id: m11-11-1-crash-1
+chapter: "11.1"
+type: crash
+title: 讀 crash：MRC over-release
+minutes: 2
+log: |
+  Thread 1: EXC_BAD_ACCESS (code=1, address=0x8)
+
+  // 開 Zombie Objects 後：
+  *** -[LBLegacyTransaction release]: message sent to deallocated instance 0x7fb2c3d08f40
+options:
+  - "某處對計數已歸零的 LBLegacyTransaction 再送了一次 release；要找的是「前一次」多出來的 −1，不是補 retain"
+  - "LBLegacyTransaction 沒有實作 release 方法"
+  - "物件被 ARC 自動釋放了，MRC 檔案不應該再 release"
+  - "記憶體位址 0x8 太小，是空指標"
+answer: 0
+fix: |
+  // 1. Exception Breakpoint 停下，看堆疊找到送 release 的那行（多半是 dealloc 或 setter）
+  // 2. 回頭數這個物件的 +1 / −1：assign 屬性被 release？autorelease 過又 release？
+  // 3. 刪掉多的那個 −1。不要用補 retain 來「平衡」，那只是把 crash 換成洩漏
+solution_note: "殭屍訊息的 selector 是 `release` 本身，表示這是計數歸零後的第二次 release。殭屍只告訴你第二次在哪，第一次（真正多的那個）要自己往回數。"
+hints: ["訊息裡的 selector 是什麼？", "message sent to deallocated instance 表示物件已經走了。"]
+feedback:
+  "2": "這個檔案在 MRC 下，release 是必要的；問題是多了一次，不是不該有。"
+  "3": "address=0x8 是對已釋放物件的某個 offset 存取，不是 nil；對 nil 送訊息不會 crash。"

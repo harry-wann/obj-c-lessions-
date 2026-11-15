@@ -1,0 +1,24 @@
+id: m09-9-1-predict-1
+chapter: "9.1"
+type: predict
+title: 預測輸出：NSURL 的路徑片段
+minutes: 2
+code: |
+  NSURL *dir = [NSURL fileURLWithPath:@"/tmp/LittleBook" isDirectory:YES];
+  NSURL *file = [dir URLByAppendingPathComponent:@"ledger.json"];
+  NSLog(@"%@", file.lastPathComponent);
+  NSLog(@"%@", file.pathExtension);
+  NSLog(@"%@", [file URLByDeletingPathExtension].lastPathComponent);
+  NSLog(@"%@", file.URLByDeletingLastPathComponent.lastPathComponent);
+options:
+  - "ledger.json\njson\nledger\nLittleBook"
+  - "ledger.json\n.json\nledger\n/tmp/LittleBook"
+  - "/tmp/LittleBook/ledger.json\njson\nledger\nLittleBook"
+  - "ledger.json\njson\nledger.json\ntmp"
+accept: ["ledger.json json ledger LittleBook"]
+feedback:
+  "ledger.json .json ledger /tmp/LittleBook": pathExtension 不含點；lastPathComponent 只取最後一段，不是整條路徑。
+  "/tmp/LittleBook/ledger.json json ledger LittleBook": lastPathComponent 只取最後一段。
+  "ledger.json json ledger.json tmp": URLByDeletingPathExtension 會拿掉 .json；刪掉最後一段後最後一段是 LittleBook 不是 tmp。
+solution_note: "`lastPathComponent` 是最後一段、`pathExtension` 不含點、`URLByDeletingPathExtension` 拿掉副檔名、`URLByDeletingLastPathComponent` 回到上一層目錄。"
+hints: ["每個方法只動路徑的最後一段。", "pathExtension 有沒有包含那個點？"]

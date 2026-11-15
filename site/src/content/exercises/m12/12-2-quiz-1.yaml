@@ -1,0 +1,19 @@
+id: m12-12-2-quiz-1
+chapter: "12.2"
+section: quiz
+type: quiz
+title: LittleBook-Swift.h 要在哪裡 import
+minutes: 1
+prompt: ObjC 端要用 Swift 寫的 `StatsViewController`。`#import "LittleBook-Swift.h"` 應該放在哪？
+options:
+  - "放在 AppDelegate.h，這樣所有 import AppDelegate.h 的檔案都看得到"
+  - "放在 .m 檔；.h 裡用 @class StatsViewController; 前向宣告"
+  - 放在橋接標頭檔，兩邊互通
+  - 放在 .pch，全專案一次搞定
+answer: 1
+explain: 產生 `-Swift.h` 需要先編 Swift，編 Swift 要先讀橋接標頭，橋接標頭 import 的 `.h` 若再 import `-Swift.h` 就循環了。所以它只能出現在實作檔；標頭用 `@class` / `@protocol` 前向宣告。
+hints: ["想想誰先編：Swift 還是 ObjC 標頭？", "錯誤訊息會是 file not found，而且時有時無。"]
+feedback:
+  "0": AppDelegate.h 可能被橋接標頭間接 import，形成循環。
+  "2": 橋接標頭是「給 Swift 看的 ObjC」，方向反了。
+  "3": .pch 會被所有檔案（包含橋接標頭 import 的）讀到，一樣循環。

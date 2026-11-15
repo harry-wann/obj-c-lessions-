@@ -1,0 +1,62 @@
+id: m08-8-3-code-1
+chapter: "8.3"
+type: code
+title: 月份 header 的版面
+mobile: false
+minutes: 12
+prompt: "寫 `LBMonthHeaderView` 的 `setupViews`：`_monthLabel` 貼 `contentView.layoutMarginsGuide` 左邊、`_totalLabel` 貼右邊，兩者垂直置中，`_totalLabel` 的水平抗壓優先度設 Required，兩個 label 之間至少 8 pt。記得三步驟。"
+starter: |
+  - (void)setupViews {
+      _monthLabel = [UILabel new];
+      _totalLabel = [UILabel new];
+      // 1. 關 translatesAutoresizingMaskIntoConstraints
+      // 2. addSubview: 到 contentView
+      // 3. 約束
+      // 4. 優先度
+  }
+checks:
+  - must_match: '_monthLabel\.translatesAutoresizingMaskIntoConstraints\s*=\s*NO|for\s*\(.*in\s*@\[.*_monthLabel.*\]\)\s*\{[^}]*translatesAutoresizingMaskIntoConstraints\s*=\s*NO'
+    message: _monthLabel 要關 translatesAutoresizingMaskIntoConstraints
+  - must_match: '_totalLabel\.translatesAutoresizingMaskIntoConstraints\s*=\s*NO|for\s*\(.*in\s*@\[.*_totalLabel.*\]\)\s*\{[^}]*translatesAutoresizingMaskIntoConstraints\s*=\s*NO'
+    message: _totalLabel 要關 translatesAutoresizingMaskIntoConstraints
+  - must_match: 'self\.contentView\s+addSubview\s*:'
+    message: 子視圖加到 contentView
+  - must_match: 'activateConstraints\s*:'
+    message: "用 activateConstraints: 啟用"
+  - must_match: '_monthLabel\.leadingAnchor\s+constraintEqualToAnchor\s*:\s*\w+\.leadingAnchor'
+    message: _monthLabel.leadingAnchor 對 layoutMarginsGuide.leadingAnchor
+  - must_match: '_totalLabel\.trailingAnchor\s+constraintEqualToAnchor\s*:\s*\w+\.trailingAnchor'
+    message: _totalLabel.trailingAnchor 對 layoutMarginsGuide.trailingAnchor
+  - must_match: 'layoutMarginsGuide'
+    message: 左右邊距用 layoutMarginsGuide
+  - must_match: '_monthLabel\.centerYAnchor\s+constraintEqualToAnchor'
+    message: _monthLabel 垂直置中
+  - must_match: '_totalLabel\.centerYAnchor\s+constraintEqualToAnchor'
+    message: _totalLabel 垂直置中
+  - must_match: '_totalLabel\.leadingAnchor\s+constraintGreaterThanOrEqualToAnchor\s*:\s*_monthLabel\.trailingAnchor\s+constant\s*:\s*8'
+    message: 兩個 label 之間至少 8 pt（GreaterThanOrEqual）
+  - must_match: '_totalLabel\s+setContentCompressionResistancePriority\s*:\s*UILayoutPriorityRequired\s+forAxis\s*:\s*UILayoutConstraintAxisHorizontal'
+    message: _totalLabel 水平抗壓優先度 Required
+  - "brackets_balanced: true"
+solution: |
+  - (void)setupViews {
+      _monthLabel = [UILabel new];
+      _totalLabel = [UILabel new];
+      for (UIView *v in @[ _monthLabel, _totalLabel ]) {
+          v.translatesAutoresizingMaskIntoConstraints = NO;
+          [self.contentView addSubview:v];
+      }
+      UILayoutGuide *m = self.contentView.layoutMarginsGuide;
+      [NSLayoutConstraint activateConstraints:@[
+          [_monthLabel.leadingAnchor constraintEqualToAnchor:m.leadingAnchor],
+          [_monthLabel.centerYAnchor constraintEqualToAnchor:self.contentView.centerYAnchor],
+          [_totalLabel.trailingAnchor constraintEqualToAnchor:m.trailingAnchor],
+          [_totalLabel.centerYAnchor constraintEqualToAnchor:self.contentView.centerYAnchor],
+          [_totalLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:_monthLabel.trailingAnchor
+                                                                constant:8],
+      ]];
+      [_totalLabel setContentCompressionResistancePriority:UILayoutPriorityRequired
+                                                   forAxis:UILayoutConstraintAxisHorizontal];
+  }
+solution_note: 「至少 8 pt」用 GreaterThanOrEqual，讓中間的空白吸收多餘寬度；合計金額 Required 保證不被截斷，月份名稱過長時才截斷。
+hints: ["用 for-in 一次處理兩個 view 的前兩步。", "UITableViewHeaderFooterView 也有 contentView 與 layoutMarginsGuide。", "「至少」是 constraintGreaterThanOrEqualToAnchor:constant:。"]

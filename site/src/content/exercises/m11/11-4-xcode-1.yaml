@@ -1,0 +1,24 @@
+id: m11-11-4-xcode-1
+chapter: "11.4"
+type: xcode
+title: LBTransactionCell 的 XIB 版本，與程式碼版並存
+mobile: false
+minutes: 35
+prompt: "做 LBTransactionCell.xib，拉四個 outlet 與 Auto Layout 約束，registerNib: 註冊，用 #if LB_USE_NIB_CELL 跟程式碼版切換；testNibLoadsCellWithOutlets 轉綠。"
+starter: xcode/M11-starter
+steps:
+  - "File → New → User Interface → Empty，命名 `LBTransactionCell.xib`，Target Membership 勾 LittleBook。"
+  - "拖 Table View Cell 到畫布。Class 設 `LBTransactionCell`，Identifier 填 `LBTransactionCell`。**File's Owner 不碰。**"
+  - "放 iconView（Image View 28×28）、titleLabel、subtitleLabel、amountLabel。拉約束：icon leading 16 垂直置中；title leading 對 icon trailing 12、top 10；subtitle 對齊 title、top 4、bottom 10；amount trailing 16 垂直置中，Content Hugging Horizontal 251。"
+  - "從 **cell**（不是 File's Owner）Control-拖四條 outlet 到 `LBTransactionCell.m` 的類別延伸。"
+  - "在 `LBTransactionCell.m` 加 `awakeFromNib`（呼叫 super、設 amountLabel 字型）；確認 `prepareForReuse` 兩個版本共用。"
+  - "`LBTransactionListViewController` 的 `viewDidLoad` 改成 `#if LB_USE_NIB_CELL` 二選一註冊；Build Settings → Preprocessor Macros 的 Debug 加 `LB_USE_NIB_CELL=1`。"
+  - "⌘U 跑 `LBTransactionCellNibTests/testNibLoadsCellWithOutlets` 與 M08 的 `testCellResetsAllFields`。切掉巨集再跑一次確認程式碼版也過。"
+tests:
+  - LBTransactionCellNibTests/testNibLoadsCellWithOutlets
+  - LBTransactionListViewControllerTests/testCellResetsAllFields
+acceptance:
+  - "兩種版本的列表在模擬器上肉眼看不出差別"
+  - "Connections inspector 裡四條 outlet 都列在 cell 上，File's Owner 底下沒有任何連線"
+  - "XIB 旋轉 / Dynamic Type 放大時版面不破（約束完整）"
+solution_note: "testNibLoadsCellWithOutlets 用 `bundleForClass:` 載 XIB、取第一個頂層物件、檢查四個 outlet 非 nil 與 reuseIdentifier。拉錯來源（File's Owner）時這個測試會直接告訴你 outlet 是 nil。"

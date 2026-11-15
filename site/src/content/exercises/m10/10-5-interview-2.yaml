@@ -1,0 +1,23 @@
+id: m10-10-5-interview-2
+chapter: "10.5"
+type: flash
+tier: interview
+title: 面試題：合併 K 路有序串列
+minutes: 5
+front: |
+  K 個帳本各自依日期排好序，合併成一個依日期排序的列表。兩兩合併之外，用堆積怎麼做？複雜度？
+back: |
+  **最小堆積存每一路的「目前頭元素」**（連同它來自哪一路、索引到哪）。每次 extractMin 拿出最早的那筆放進結果，再把同一路的下一筆 insert 進去。堆積大小永遠 ≤ K，總共 n 個元素各進出一次：O(n log K)。兩兩合併是 O(n K)，K 大時差很多。
+
+  typedef struct { NSUInteger list, idx; } LBCursor;
+  // 堆積元素：@[ tx, @(list), @(idx) ]，比較 tx.date
+  for (NSUInteger i = 0; i < lists.count; i++)
+      if (lists[i].count) [heap insert:@[lists[i][0], @(i), @0]];
+  while (heap.count) {
+      NSArray *top = [heap extractMax];           // 最小堆積的 extractMin
+      [out addObject:top[0]];
+      NSUInteger l = [top[1] unsignedIntegerValue], i = [top[2] unsignedIntegerValue] + 1;
+      if (i < lists[l].count) [heap insert:@[lists[l][i], @(l), @(i)]];
+  }
+
+  追問：這跟 10.3 匯入時「把新批次合進已排序的列表」有什麼關係？K = 2 時就是一次合併，用 8.4 的二元搜尋找插入點是另一種解；資料量大時 merge 比逐筆 insert 的 O(n) 搬移便宜。Java：`PriorityQueue` 存 iterator；Kotlin：`sequence { }` 搭 `PriorityQueue`。

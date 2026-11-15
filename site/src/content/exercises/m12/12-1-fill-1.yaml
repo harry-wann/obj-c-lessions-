@@ -1,0 +1,26 @@
+id: m12-12-1-fill-1
+chapter: "12.1"
+section: quiz
+type: fill
+title: NS_SWIFT_NAME 與 NS_REFINED_FOR_SWIFT
+minutes: 2
+prompt: 補上巨集，讓工廠方法在 Swift 端變成初始化器、讓回傳 NSNumber 陣列的方法在 Swift 端藏起來給 extension 包裝、讓一個 debug 方法在 Swift 端不可用。
+code: |
+  + (instancetype)transactionWithAmount:(NSDecimalNumber *)amount
+                                   note:(NSString *)note
+      ___1___(init(amount:note:));
+
+  - (NSArray<NSNumber *> *)amountsAsNumbers ___2___;
+  // Swift 端：extension LBTransaction { var amounts: [Decimal] { ___3___.map { $0.decimalValue } } }
+
+  - (void)lb_debugDump ___4___("Use description instead");
+blanks:
+  "1": { accept: ["NS_SWIFT_NAME"], chips: ["NS_SWIFT_NAME", "NS_SWIFT_ASYNC_NAME", "NS_REFINED_FOR_SWIFT", "NS_SWIFT_UNAVAILABLE"] }
+  "2": { accept: ["NS_REFINED_FOR_SWIFT"], chips: ["NS_REFINED_FOR_SWIFT", "NS_SWIFT_NAME", "NS_SWIFT_UNAVAILABLE", "NS_SWIFT_DISABLE_ASYNC"] }
+  "3": { accept: ["__amountsAsNumbers", "self.__amountsAsNumbers"], chips: ["__amountsAsNumbers", "amountsAsNumbers", "_amountsAsNumbers", "amounts"] }
+  "4": { accept: ["NS_SWIFT_UNAVAILABLE"], chips: ["NS_SWIFT_UNAVAILABLE", "NS_UNAVAILABLE", "NS_REFINED_FOR_SWIFT", "NS_SWIFT_NAME"] }
+hints: ["改名字的、藏起來的、禁用的，各一個巨集。", "REFINED 之後 Swift 端的名字前面多了什麼？"]
+feedback:
+  "3=amountsAsNumbers": NS_REFINED_FOR_SWIFT 會在 Swift 端名字前加兩條底線，原名不存在。
+  "4=NS_UNAVAILABLE": NS_UNAVAILABLE 是對 ObjC 與 Swift 都禁用；只禁 Swift 用 NS_SWIFT_UNAVAILABLE。
+solution_note: "`NS_SWIFT_NAME` 改名（工廠方法 → init）、`NS_REFINED_FOR_SWIFT` 加雙底線藏起來、`NS_SWIFT_UNAVAILABLE` 附訊息禁用。"

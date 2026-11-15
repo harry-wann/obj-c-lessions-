@@ -1,0 +1,293 @@
+---
+title: 例外與斷言
+module: 7
+chapter: "7.2"
+order: 2
+minutes: 25
+prereq: ["7.1"]
+objectives:
+  - "說出 ObjC 的例外（NSException）為什麼不拿來做流程控制，以及 Foundation 丟出的例外代表什麼"
+  - "看懂 @try / @catch / @finally / @throw 語法，知道僅有的幾個合理使用時機"
+  - "用 NSAssert / NSParameterAssert / NSCAssert 在 Debug 把程式錯誤攔在最靠近源頭的地方"
+summary: "@try / @catch / @finally / @throw 與 NSException；ObjC 不用例外做流程控制（ARC 下不保證釋放、Foundation 的例外都是程式錯誤）；NSAssert / NSParameterAssert 只在 Debug 生效、NSCAssert 在 C 函式用。"
+terms:
+  - { en: exception, tw: 例外, cn: 异常, jp: 例外 }
+  - { en: assertion, tw: 斷言, cn: 断言, jp: アサーション }
+  - { en: programmer error, tw: 程式錯誤, cn: 编程错误, jp: プログラマエラー }
+  - { en: uncaught exception, tw: 未捕捉例外, cn: 未捕获异常, jp: 未処理例外 }
+  - { en: precondition, tw: 前置條件, cn: 前置条件, jp: 事前条件 }
+appProgress: "LBLedger 與 LBTransaction 的公開方法加上 NSParameterAssert，傳錯參數在 Debug 立刻停在正確的那一行。"
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// Swift 沒有可捕捉的例外；throws 是回傳值的語法糖
+func add(_ tx: Transaction) {
+    precondition(tx.amount >= 0, "amount must be non-negative")   // Release 也生效
+    assert(tx.note.count < 200)                                    // 只在 Debug
+}
+let x = array[10]        // Fatal error: Index out of range → 直接終止，無法 catch
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+fun add(tx: Transaction) {
+    require(tx.amount >= BigDecimal.ZERO) { "amount must be non-negative" }  // IllegalArgumentException
+    check(isOpen) { "ledger closed" }                                        // IllegalStateException
+}
+try {
+    val x = list[10]     // IndexOutOfBoundsException，可以 catch 繼續跑
+} finally {
+    close()
+}
+```
+</Fragment>
+<Fragment slot="java">
+```java
+void add(Transaction tx) {
+    if (tx == null) throw new IllegalArgumentException("tx");   // unchecked
+    assert tx.amount().signum() >= 0;                             // 要加 -ea 才生效
+}
+try {
+    list.get(10);        // IndexOutOfBoundsException（RuntimeException）
+} catch (IndexOutOfBoundsException e) {
+    // 可以接住繼續跑
+} finally {
+    close();
+}
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+function add(tx: Transaction) {
+  if (tx.amount < 0) throw new RangeError("amount must be non-negative");
+}
+try {
+  JSON.parse(text);      // SyntaxError 是日常流程的一部分
+} catch (e) {
+  console.error(e);
+} finally {
+  close();
+}
+```
+</Fragment>
+Kotlin、Java、TS 的例外是日常工具：陣列越界、JSON 壞掉、檔案打不開都丟例外，`try / catch` 寫在正常流程裡。Swift 走另一條路：`throws` 是給可預期的失敗，`precondition` / 越界則直接終止程式、無法接住。**Objective-C 比較靠近 Swift 的這一端**：它有完整的 `@try / @catch` 語法，但 Cocoa 的約定是「例外只代表程式寫錯了」，可預期的失敗一律用上一章的 `NSError`。這一章要講的是為什麼，以及什麼時候你還是會碰到它。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 語法：跟 Java 幾乎一樣，多個 `@`
+
+```objc
+@try {
+    [array objectAtIndex:10];
+} @catch (NSException *e) {            // 沒有 @catch (NSRangeException *e) 這種寫法：那是字串常數不是類別
+    NSLog(@"name=%@ reason=%@", e.name, e.reason);
+} @finally {
+    NSLog(@"finally 一定執行");
+}
+```
+
+<Term en="exception" tw="例外" cn="异常" jp="例外" />物件是 `NSException`，三個欄位：`name`（字串，例如 `NSRangeException`、`NSInvalidArgumentException`）、`reason`（人看的說明）、`userInfo`。跟 Java 不同的是 Foundation 幾乎不靠子類別區分例外種類，全部都是 `NSException`，靠 `name` 字串辨認。所以 `@catch` 子句通常只有一個 `(NSException *e)`，要分流就在裡面比對 `e.name`。自己丟用 `@throw` 或 `[NSException raise:format:]`：
+
+```objc
+[NSException raise:NSInvalidArgumentException
+            format:@"amount 不能為 nil（tx=%@）", tx];
+```
+
+### 為什麼不拿它做流程控制
+
+三個理由，每一個都夠：
+
+1. **Foundation 丟的例外全是<Term en="programmer error" tw="程式錯誤" cn="编程错误" jp="プログラマエラー" />。** `objectAtIndex:` 越界、`insertObject:atIndex:` 塞 nil、`setValue:forKey:` 用了不存在的 key、`unrecognized selector`。這些都不是「使用者沒網路」那種可以重試的狀況，是程式邏輯錯了。接住它然後繼續跑，等於把壞掉的狀態藏起來，炸在更遠、更難查的地方。
+2. **ARC 下例外不保證釋放。** ARC 預設用 `-fno-objc-arc-exceptions` 編譯：例外飛過一個方法時，那個方法裡的區域強參考**不會**被釋放，直接洩漏。開啟 `-fobjc-arc-exceptions` 可以修，但每個方法都要多插清理程式，效能有感，而且 Apple 的 framework 本身沒開。所以就算你自己的程式小心翼翼，例外穿過 UIKit 的 callback 時中間那幾層就漏了。
+3. **Cocoa 的 API 沒有準備好被例外穿過。** `UITableView` 的 `reloadData` 執行到一半被例外打斷，內部狀態不一致，之後任何操作都可能 crash。這跟 Java 集合類「例外安全」的設計哲學不同。
+
+所以一個健康的 ObjC 專案裡，`@try` 幾乎不會出現在業務邏輯中。被丟出來而沒被接住的例外叫<Term en="uncaught exception" tw="未捕捉例外" cn="未捕获异常" jp="未処理例外" />，runtime 會印出 `*** Terminating app due to uncaught exception` 然後終止程式，這就是你在 crash log 裡最常看到的開頭。
+
+### 那什麼時候會寫 `@try`？
+
+- 跟**第三方或舊程式碼**打交道，對方的 API 文件明說會 raise，而你沒辦法改它。
+- `NSFileHandle` 的 `writeData:` 一類老 API，失敗方式是 raise（iOS 13 起有 `writeData:error:` 的新版，優先用新版）。
+- KVC 的 `valueForKey:` 對未知 key 會 raise `NSUnknownKeyException`，寫通用工具（例如 6.x 的反射小工具）時用 `@try` 包起來轉成 nil。
+- 程式最外層裝一個 `NSSetUncaughtExceptionHandler`，在閃退前把 `name` / `reason` / `callStackSymbols` 寫進 log，下次啟動上傳。這是「記錄」不是「恢復」：handler 結束後程式還是會終止。
+
+除此之外，看到 `@try` 先懷疑設計。
+
+### 斷言：在 Debug 把程式錯誤攔在門口
+
+既然 Foundation 用例外表達程式錯誤，你自己的程式錯誤也應該在最靠近源頭的地方攔下。這就是<Term en="assertion" tw="斷言" cn="断言" jp="アサーション" />：
+
+```objc
+- (void)addTransaction:(LBTransaction *)tx {
+    NSParameterAssert(tx != nil);                       // 參數檢查專用
+    NSAssert(tx.amount.doubleValue >= 0, @"amount 不能為負：%@", tx.amount);
+    ...
+}
+
+static NSDecimalNumber *LBSum(NSArray<NSDecimalNumber *> *values) {
+    NSCAssert(values != nil, @"values 不能為 nil");    // C 函式裡用 NSCAssert
+    ...
+}
+```
+
+| 巨集 | 用在哪 | 失敗時 |
+|---|---|---|
+| `NSAssert(條件, 格式, ...)` | ObjC 方法裡 | raise `NSInternalInconsistencyException`，reason 含類別、方法、檔名、行號 |
+| `NSParameterAssert(條件)` | 方法開頭檢查<Term en="precondition" tw="前置條件" cn="前置条件" jp="事前条件" /> | 同上，reason 是 `Invalid parameter not satisfying: 條件` |
+| `NSCAssert` / `NSCParameterAssert` | C 函式裡（沒有 `self`） | 同上 |
+
+重點：**這些巨集只在 Debug 生效。** Release 組態預設定義了 `NS_BLOCK_ASSERTIONS`，整個 `NSAssert(...)` 展開成空白，條件表達式連執行都不會。這跟 Swift 的 `assert` 一樣、跟 `precondition` 不一樣。所以斷言是給你跟同事在開發期用的安全網，不是保護使用者的輸入驗證。使用者輸入該用上一章的 `NSError`。
+
+`NSAssert` 為什麼不能在 C 函式用？因為它的展開式裡會引用 `self` 與 `_cmd` 來組訊息，C 函式裡沒有這兩個東西，編譯錯誤 `use of undeclared identifier 'self'`。同理，在 block 裡用 `NSAssert` 會隱含捕獲 `self`，5.5 的循環參考判斷要記得算它。
+
+### 完整範例（可貼進 Scratch）
+
+```objc
+#import <Foundation/Foundation.h>
+
+@interface LBLedger : NSObject
+- (void)addAmount:(NSDecimalNumber *)amount;
+@end
+@implementation LBLedger
+- (void)addAmount:(NSDecimalNumber *)amount {
+    NSParameterAssert(amount != nil);
+    NSLog(@"加入 %@", amount);
+}
+@end
+
+int main(void) {
+    @autoreleasepool {
+        NSArray *items = @[@"a", @"b"];
+
+        // 1. Foundation 的例外是程式錯誤；這裡故意接住只為了示範語法
+        @try {
+            NSLog(@"開始");
+            id x = items[5];
+            NSLog(@"拿到 %@", x);                       // 不會執行
+        } @catch (NSException *e) {
+            NSLog(@"接到 %@：%@", e.name, e.reason);
+        } @finally {
+            NSLog(@"finally");
+        }
+
+        // 2. 自己 raise
+        @try {
+            [NSException raise:@"LBLedgerException" format:@"餘額不足：%d", 100];
+        } @catch (NSException *e) {
+            NSLog(@"%@ / %@", e.name, e.reason);
+        }
+
+        // 3. 斷言：Debug 組態會 raise；Release 整行消失
+        LBLedger *ledger = [LBLedger new];
+        [ledger addAmount:[NSDecimalNumber decimalNumberWithString:@"120"]];
+        @try {
+            [ledger addAmount:nil];
+        } @catch (NSException *e) {
+            NSLog(@"%@", e.reason);
+        }
+    }
+    return 0;
+}
+// 預期輸出（Debug）：
+// 開始
+// 接到 NSRangeException：*** -[__NSArrayI objectAtIndex:]: index 5 beyond bounds [0 .. 1]
+// finally
+// LBLedgerException / 餘額不足：100
+// 加入 120
+// Invalid parameter not satisfying: amount != nil
+// （Release 組態第 3 段不會 raise，會印「加入 (null)」）
+```
+
+請真的切到 Release 跑一次，看第三段的差異，這比任何文字說明都有效。
+
+<Tip title="斷言 vs NSError 的分界線">
+問一句：「這個狀況是**我的程式**寫錯，還是**外面的世界**不配合？」參數傳 nil、索引越界、狀態機走到不該到的分支，是前者，用斷言，Debug 立刻炸、Release 走防禦路徑（early return）。使用者輸入格式錯、沒網路、檔案被刪、伺服器回 500，是後者，用 `NSError`，兩個組態都要處理。Swift 的 `precondition` / `throws` 分界線在同一個地方。
+</Tip>
+
+<Pitfall title="用 @catch 接住 NSRangeException 然後繼續跑">
+<Fragment slot="bad">
+```objc
+@try {
+    cell.textLabel.text = self.rows[indexPath.row].title;
+} @catch (NSException *e) {
+    cell.textLabel.text = @"";       // 「至少不會 crash」
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+if (indexPath.row < self.rows.count) {
+    cell.textLabel.text = self.rows[indexPath.row].title;
+} else {
+    NSAssert(NO, @"rows 與 table 不同步：%ld / %lu",
+             (long)indexPath.row, (unsigned long)self.rows.count);
+    cell.textLabel.text = @"";
+}
+```
+</Fragment>
+越界代表資料源跟畫面不同步，真正的 bug 在別處（忘了 `reloadData`、背景執行緒改了陣列）。接住例外讓症狀消失，bug 留著，下次炸在 `deleteRowsAtIndexPaths:` 裡，離源頭更遠。用斷言把它在 Debug 揪出來，Release 走防禦路徑。
+</Pitfall>
+
+<Pitfall title="@throw 當 return 用，ARC 下洩漏">
+<Fragment slot="bad">
+```objc
+- (LBTransaction *)parse:(NSDictionary *)json {
+    NSMutableArray *buffer = [NSMutableArray array];
+    if (!json[@"amount"]) {
+        @throw [NSException exceptionWithName:@"LBParseError" reason:@"缺 amount" userInfo:nil];
+    }
+    ...
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (nullable LBTransaction *)parse:(NSDictionary *)json error:(NSError **)error {
+    if (!json[@"amount"]) {
+        if (error) *error = [NSError errorWithDomain:LBErrorDomain
+                                                code:LBErrorCodeUnexpectedType
+                                            userInfo:@{ NSLocalizedDescriptionKey: @"缺 amount" }];
+        return nil;
+    }
+    ...
+}
+```
+</Fragment>
+例外飛出去時 `buffer` 不會被釋放（`-fno-objc-arc-exceptions` 是預設）。Instruments 的 Leaks 會看到每次解析失敗就多一個 `NSMutableArray`。資料格式錯是可預期的失敗，走 `NSError`。
+</Pitfall>
+
+<Pitfall title="斷言裡放有副作用的表達式">
+`NSAssert([self.ledger removeTransactionWithIdentifier:id], @"移除失敗");` 在 Debug 會移除交易，到了 Release 整個 `NSAssert(...)` 消失，交易沒被移除。症狀是「Debug 一切正常、上架後資料刪不掉」，極難追。規則：斷言的條件只能是純讀取。要執行的動作寫在外面，把結果存進變數再斷言那個變數。
+</Pitfall>
+
+<Pitfall title="在 C 函式或 C++ 程式裡用 NSAssert">
+`use of undeclared identifier 'self'`：`NSAssert` 的展開會用到 `self` 與 `_cmd` 組訊息。C 函式換 `NSCAssert` / `NSCParameterAssert`。反過來在 block 裡用 `NSAssert` 會隱含捕獲 `self`，若那個 block 被 `self` 持有就是循環參考，用 `NSCAssert` 可以避開。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInternalInconsistencyException', reason: 'Invalid parameter not satisfying: tx != nil'
+*** First throw call stack:
+(
+    0   CoreFoundation    __exceptionPreprocess + 242
+    1   libobjc.A.dylib   objc_exception_throw + 48
+    2   Foundation        -[NSAssertionHandler handleFailureInMethod:object:file:lineNumber:description:] + 196
+    3   LittleBook        -[LBLedger addTransaction:] + 131
+    4   LittleBook        -[LBImportService importRow:] + 88
+)
+libc++abi: terminating due to uncaught exception of type NSException`}>
+這是 `NSParameterAssert` 失敗的標準長相。第一行說明例外種類（`NSInternalInconsistencyException` 是斷言專用）與 reason（`Invalid parameter not satisfying:` 後面接的就是你寫的條件原文）。call stack 從上往下找第一個是自己模組的 frame：`-[LBLedger addTransaction:]` 是斷言所在、`-[LBImportService importRow:]` 是傳 nil 進來的罪魁禍首。斷言的價值就在這裡：沒有它，nil 會被塞進 `NSMutableArray` 變成 `attempt to insert nil object` 的 crash，或是更晚才在畫面上炸。修法是去 `importRow:` 看為什麼會產生 nil，不是把斷言拿掉。想在 Xcode 停在 raise 的那一刻：Breakpoint Navigator 左下 + → Exception Breakpoint，之後任何例外都會先停在丟出的位置。
+</Crash>
+
+## 小結
+
+- ObjC 有 `@try / @catch / @finally / @throw`，語法像 Java，但 Cocoa 的約定是**例外只代表程式錯誤**，可預期的失敗一律用 `NSError`。
+- 不用例外做流程控制的三個理由：Foundation 的例外全是 bug 訊號、ARC 預設不釋放被例外穿過的區域變數、Cocoa API 不是例外安全的。
+- `@try` 的合理場合：第三方 / 舊 API 會 raise、KVC 未知 key、最外層的 `NSSetUncaughtExceptionHandler` 記錄。
+- `NSAssert` / `NSParameterAssert` 只在 Debug 生效，Release 整行消失，所以條件不能有副作用；C 函式用 `NSCAssert`。
+- 分界線一句話：我的程式寫錯 → 斷言；外面的世界不配合 → `NSError`。

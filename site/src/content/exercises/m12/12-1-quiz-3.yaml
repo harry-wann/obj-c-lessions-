@@ -1,0 +1,19 @@
+id: m12-12-1-quiz-3
+chapter: "12.1"
+section: quiz
+type: quiz
+title: NSError ** 什麼時候變成 throws
+minutes: 2
+prompt: 下面哪個 ObjC 方法在 Swift 端會變成 `throws`，而且回傳值是非 Optional 的 `LBLedger`？
+options:
+  - "- (BOOL)saveLedger:(LBLedger *)ledger error:(NSError **)error;"
+  - "- (nullable LBLedger *)loadLedgerWithError:(NSError **)error;"
+  - "- (LBLedger *)loadLedgerWithError:(NSError **)error;（在 NS_ASSUME_NONNULL 內）"
+  - "- (void)loadLedger:(LBLedger **)outLedger error:(NSError **)error;"
+answer: 1
+explain: 規則是「最後一個參數 NSError **，回傳 BOOL 或 nullable 物件」。回傳 nullable 物件的版本變成 `func loadLedger() throws -> LBLedger`：nil 對應丟錯，所以成功時型別不必是 Optional。回傳 BOOL 的變成 `throws` 但回傳 Void。
+hints: ["成功 / 失敗由什麼判斷：BOOL 或 nil？", "nonnull 的回傳值沒辦法用 nil 表示失敗。"]
+feedback:
+  "0": 這個會變 throws，但回傳 Void（BOOL 被吃掉了）。
+  "2": nonnull 回傳值沒有「nil = 失敗」的訊號，Swift 不會把它轉成 throws，error 會留成 NSErrorPointer 參數。
+  "3": 透過雙重指標回傳物件不符合規則，Swift 端會是 AutoreleasingUnsafeMutablePointer，非常難用。

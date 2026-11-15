@@ -1,0 +1,35 @@
+id: m10-10-2-spot-1
+chapter: "10.2"
+type: spot
+title: 捲動掉幀的 cell
+minutes: 3
+prompt: 這個 cell 捲動時 Time Profiler 顯示 configure 占 40%。點出造成掉幀的行並選出原因。
+code: |
+  - (void)configureWithTransaction:(LBTransaction *)tx {
+      self.titleLabel.text = tx.note;
+      NSDateFormatter *f = [NSDateFormatter new];
+      f.dateFormat = @"M/d EEE";
+      self.dateLabel.text = [f stringFromDate:tx.date];
+      self.amountLabel.text = [tx.amount lb_currencyString];
+      self.amountLabel.textColor = tx.isExpense ? UIColor.systemRedColor
+                                                : UIColor.labelColor;
+  }
+bug_lines: [3, 4, 5]
+reasons:
+  - 每次配置都新建 NSDateFormatter 並格式化，毫秒級成本乘上每幀多列；字串應在 view model 建立時算好
+  - dateFormat 字串太長
+  - textColor 不該在這裡設
+  - note 可能是 nil
+answer_reason: 0
+fix: |
+  - (void)configureWithViewModel:(LBTransactionViewModel *)vm {
+      self.titleLabel.text = vm.title;
+      self.dateLabel.text = vm.subtitle;        // 背景算好的字串
+      self.amountLabel.text = vm.amountText;
+      self.amountLabel.textColor = vm.isExpense ? UIColor.systemRedColor
+                                                : UIColor.labelColor;
+  }
+solution_note: 建 formatter 約 0.15 ms，加上格式化，一列兩個就超過 0.3 ms；一幀畫 3 列加 layout 就逼近 8 ms 預算。字串搬進 view model，cell 只貼。設顏色是賦值，可以留下。
+hints: ["哪一行的成本是毫秒級？", "formatter 建立幾次？每次捲到就一次。"]
+feedback:
+  "2": 設顏色是純賦值，成本可忽略。

@@ -1,0 +1,240 @@
+---
+title: 沙盒與檔案路徑
+module: 9
+chapter: "9.1"
+order: 1
+minutes: 30
+prereq: ["1.2", "7.7"]
+objectives:
+  - 說出 Documents / Library/Caches / tmp 三個目錄各放什麼，哪個會備份、哪個會被系統清掉
+  - 用 NSFileManager 與 NSSearchPathForDirectoriesInDomains 在執行期取得路徑，不寫死任何一段
+  - 分辨 NSURL 與 NSString 路徑 API，並能建立目錄、檢查存在、列出與刪除檔案
+summary: "iOS App 只能碰自己的沙盒；Documents 會備份、Caches 可清、tmp 隨時消失；路徑每次啟動可能不同，一律執行期查；NSURL 路徑 API 是現代寫法。"
+terms:
+  - { en: sandbox, tw: 沙盒, cn: 沙盒, jp: サンドボックス }
+  - { en: file system, tw: 檔案系統, cn: 文件系统, jp: ファイルシステム }
+  - { en: persistence, tw: 持久化, cn: 持久化, jp: 永続化 }
+  - { en: path, tw: 路徑, cn: 路径, jp: パス }
+  - { en: backup, tw: 備份, cn: 备份, jp: バックアップ }
+appProgress: LBPersistence 知道要把帳本檔放在 Documents 底下的哪裡；測試改用 NSTemporaryDirectory() 不污染真檔。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+let docs = FileManager.default.urls(for: .documentDirectory,
+                                    in: .userDomainMask)[0]
+let file = docs.appendingPathComponent("ledger.json")
+try data.write(to: file, options: .atomic)
+let exists = FileManager.default.fileExists(atPath: file.path)
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// Android：filesDir（私有、會備份）/ cacheDir（可清）
+val file = File(context.filesDir, "ledger.json")
+file.writeBytes(bytes)
+val exists = file.exists()
+```
+</Fragment>
+<Fragment slot="java">
+```java
+Path docs = Paths.get(System.getProperty("user.home"), "Documents");
+Path file = docs.resolve("ledger.json");
+Files.write(file, bytes);
+boolean exists = Files.exists(file);
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// 瀏覽器沒有檔案系統；Node 才有
+import { writeFile, access } from "node:fs/promises";
+import { join } from "node:path";
+const file = join(process.env.HOME!, "Documents", "ledger.json");
+await writeFile(file, bytes);
+```
+</Fragment>
+Swift 的 `FileManager.default.urls(for:in:)` 跟本章的 `NSFileManager` 是同一個物件，只是 ObjC 把它叫 `defaultManager`、回傳 `NSArray<NSURL *>`。Android 的 `filesDir` / `cacheDir` 分法和 iOS 的 Documents / Caches 幾乎一對一。Java 與 Node 可以隨便拼使用者家目錄，iOS 不行：App 只看得到自己的<Term en="sandbox" tw="沙盒" cn="沙盒" jp="サンドボックス" />，而且沙盒的絕對路徑**每次安裝、甚至每次啟動都可能不同**。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 沙盒長什麼樣
+
+每個 iOS App 安裝後拿到一個獨立的容器目錄，裡面固定有三個子目錄，用途、備份、清除規則都不同：
+
+| 目錄 | 放什麼 | iCloud / iTunes 備份 | 系統會清？ |
+|---|---|---|---|
+| `Documents/` | 使用者產生、弄丟會哭的資料：帳本檔、匯出的 CSV | 會 | 不會 |
+| `Library/Caches/` | 可以重新算、重新下載的東西：圖片快取、匯率快取 | 不會 | 空間不足時**會** |
+| `Library/Application Support/` | App 自己需要但使用者看不到的資料：資料庫、設定檔 | 會 | 不會 |
+| `tmp/` | 用完就丟：下載中的暫存檔、原子寫入的中繼檔 | 不會 | 隨時會（App 沒在跑時） |
+
+判斷標準只有一條：**這份資料弄丟了能不能重新生出來？** 不能就放 `Documents`（或 `Application Support`），能就放 `Caches`，只活幾秒的放 `tmp`。放錯會有真實代價：把 200 MB 圖片快取塞進 `Documents`，使用者的 iCloud 備份變肥，審核也可能被退；把帳本放 `Caches`，某天使用者空間不足，帳本就不見了。
+
+### 執行期查路徑：`NSSearchPathForDirectoriesInDomains` 與 `NSFileManager`
+
+```objc
+#import <Foundation/Foundation.h>
+
+int main(void) {
+    @autoreleasepool {
+        // 舊式：回傳 NSArray<NSString *>，取 firstObject
+        NSString *docs = NSSearchPathForDirectoriesInDomains(
+            NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+        NSLog(@"Documents: %@", docs);
+
+        // 現代寫法：NSFileManager 回傳 NSURL
+        NSFileManager *fm = [NSFileManager defaultManager];
+        NSURL *caches = [fm URLsForDirectory:NSCachesDirectory
+                                   inDomains:NSUserDomainMask].firstObject;
+        NSLog(@"Caches: %@", caches.path);
+
+        // tmp 是函式，不走 search path
+        NSLog(@"tmp: %@", NSTemporaryDirectory());
+    }
+    return 0;
+}
+// 預期輸出（macOS Scratch 會是你的家目錄；iOS 會是一長串 UUID）：
+// Documents: /Users/you/Documents
+// Caches: /Users/you/Library/Caches
+// tmp: /var/folders/xx/.../T/
+```
+
+三個常數對應三個目錄：`NSDocumentDirectory`、`NSCachesDirectory`、`NSApplicationSupportDirectory`；`NSUserDomainMask` 表示「這個使用者（也就是這個 App 的沙盒）」。最後那個 `YES` 是 `expandTilde`，一律給 `YES`。`tmp` 另外用 `NSTemporaryDirectory()`。這些呼叫很便宜，不用快取成全域變數；真要存起來，存**相對於沙盒的相對路徑**或檔名，啟動時再接回去。
+
+### `NSURL` 與 `NSString` 兩套路徑 API
+
+Foundation 有兩套平行的檔案 API：舊的吃 `NSString *path`，新的吃 `NSURL *url`。Apple 從 iOS 4 起推薦 `NSURL`，原因是 `NSURL` 能帶額外屬性（檔案大小、修改日期、是否排除備份）、能表示 iCloud 與安全範圍的書籤，而 `NSString` 只是一串字。你會在舊專案看到大量 `stringByAppendingPathComponent:`，看得懂就好，自己寫用 `NSURL`：
+
+```objc
+NSURL *dir = [NSURL fileURLWithPath:NSTemporaryDirectory()];
+NSURL *file = [dir URLByAppendingPathComponent:@"ledger.json"];
+NSLog(@"%@", file.lastPathComponent);        // ledger.json
+NSLog(@"%@", file.pathExtension);            // json
+NSLog(@"%@", file.URLByDeletingLastPathComponent.path);   // tmp 目錄
+NSLog(@"%d", file.isFileURL);                // 1
+```
+
+兩個常見轉換：`[NSURL fileURLWithPath:string]` 把字串變成檔案 URL，`url.path` 變回字串。**別用 `[NSURL URLWithString:path]` 包檔案路徑**：那是給 `https://...` 用的，遇到中文檔名或空白會回 nil。
+
+### 建目錄、檢查、列出、刪除：完整範例（可貼進 Scratch）
+
+```objc
+#import <Foundation/Foundation.h>
+
+int main(void) {
+    @autoreleasepool {
+        NSFileManager *fm = [NSFileManager defaultManager];
+        NSURL *tmp = [NSURL fileURLWithPath:NSTemporaryDirectory()];
+        NSURL *dir = [tmp URLByAppendingPathComponent:@"LittleBook"
+                                          isDirectory:YES];
+
+        // 1. 建目錄：withIntermediateDirectories:YES 等於 mkdir -p，已存在也回 YES
+        NSError *error = nil;
+        BOOL ok = [fm createDirectoryAtURL:dir
+               withIntermediateDirectories:YES
+                                attributes:nil
+                                     error:&error];
+        NSLog(@"mkdir %@", ok ? @"ok" : error.localizedDescription);
+
+        // 2. 寫一個檔
+        NSURL *file = [dir URLByAppendingPathComponent:@"ledger.json"];
+        NSData *data = [@"{\"transactions\":[]}" dataUsingEncoding:NSUTF8StringEncoding];
+        ok = [data writeToURL:file options:NSDataWritingAtomic error:&error];
+        NSLog(@"write %@", ok ? @"ok" : error.localizedDescription);
+
+        // 3. 檢查存在（注意：只有 path 版，沒有 URL 版）
+        NSLog(@"exists: %d", [fm fileExistsAtPath:file.path]);
+
+        // 4. 檔案屬性：大小與修改日期
+        NSDictionary *attrs = [fm attributesOfItemAtPath:file.path error:nil];
+        NSLog(@"size: %@ bytes", attrs[NSFileSize]);
+
+        // 5. 列出目錄
+        NSArray<NSURL *> *items = [fm contentsOfDirectoryAtURL:dir
+                                    includingPropertiesForKeys:nil
+                                                       options:0
+                                                         error:&error];
+        for (NSURL *u in items) NSLog(@"- %@", u.lastPathComponent);
+
+        // 6. 刪除（刪目錄會連內容一起刪）
+        ok = [fm removeItemAtURL:dir error:&error];
+        NSLog(@"remove %@, exists: %d", ok ? @"ok" : @"fail",
+              [fm fileExistsAtPath:dir.path]);
+    }
+    return 0;
+}
+// 預期輸出：
+// mkdir ok
+// write ok
+// exists: 1
+// size: 19 bytes
+// - ledger.json
+// remove ok, exists: 0
+```
+
+幾個細節值得注意。`fileExistsAtPath:` 只有字串版，所以要 `file.path` 轉一下；它還有一個 `isDirectory:` 版本可以同時判斷是不是目錄。`createDirectoryAtURL:` 給 `withIntermediateDirectories:YES` 的話，目錄已存在也回 `YES`，省掉先檢查再建立的競態。所有可能失敗的方法都走 1.2 教過的 `NSError **` 模式：**先看回傳值再讀 error**。
+
+<Tip title="測試一律用 NSTemporaryDirectory()">
+本模組的 `LBPersistence` 建構子收一個 `directoryURL`，App 傳 Documents，測試傳 `NSTemporaryDirectory()` 底下的子目錄。這樣每次測試都在乾淨的地方跑，不會把你模擬器裡的真帳本蓋掉，也不用擔心上一次測試留下的檔案影響結果。`setUp` 建目錄、`tearDown` 刪掉，是標準寫法。
+</Tip>
+
+### 排除備份
+
+放在 `Documents` 但不想進 iCloud 備份的檔（例如使用者匯入的大型原始資料，重新匯入就有），用 `NSURL` 的資源屬性標記：
+
+```objc
+NSError *error = nil;
+[fileURL setResourceValue:@YES
+                   forKey:NSURLIsExcludedFromBackupKey
+                    error:&error];
+```
+
+這也是為什麼要用 `NSURL`：這個 API 沒有 `NSString` 版。
+
+<Pitfall title="寫死沙盒路徑">
+<Fragment slot="bad">
+```objc
+// 第一次跑印出來後貼進程式碼 → 下次啟動就錯
+NSString *path = @"/var/mobile/Containers/Data/Application/"
+                 @"3F2A…-B1C4/Documents/ledger.json";
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+NSURL *docs = [[NSFileManager defaultManager]
+    URLsForDirectory:NSDocumentDirectory
+           inDomains:NSUserDomainMask].firstObject;
+NSURL *path = [docs URLByAppendingPathComponent:@"ledger.json"];
+```
+</Fragment>
+沙盒容器的 UUID 在重新安裝、升級、甚至某些 iOS 版本每次啟動時都會換。把完整路徑存進 `NSUserDefaults` 也是同一個錯：下次啟動讀出來的路徑指向不存在的目錄。要存就存檔名或相對路徑。
+</Pitfall>
+
+<Pitfall title="把弄丟會哭的資料放進 Caches 或 tmp">
+`Library/Caches` 在裝置空間不足時會被系統清空，`tmp` 在 App 沒執行時隨時可能被清。使用者的帳本、草稿、已下載並付費的內容都不能放這裡。反過來，把可重新下載的圖片放進 `Documents` 會讓備份變肥，App 審核指南 2.23 明文禁止。先問「弄丟了能不能重新生出來」。
+</Pitfall>
+
+<Pitfall title="用 URLWithString: 包檔案路徑">
+`[NSURL URLWithString:@"/Users/me/我的帳本.json"]` 回 nil（中文與空白沒有百分比編碼），接下來 `writeToURL:` 直接失敗。檔案路徑一律用 `fileURLWithPath:`。反過來，從 `NSURL` 取字串用 `.path`，不要用 `.absoluteString`，後者會帶 `file://` 前綴，餵給 `fileExistsAtPath:` 永遠是 NO。
+</Pitfall>
+
+<Crash message={`Error Domain=NSCocoaErrorDomain Code=4 "The file “ledger.json” doesn’t exist."
+UserInfo={NSFilePath=/var/mobile/Containers/Data/Application/9A1C…/Documents/ledger.json,
+NSUnderlyingError=0x6000021d8a20 {Error Domain=NSPOSIXErrorDomain Code=2 "No such file or directory"}}`}>
+這不是 crash，是 `NSError`，但它是本模組最常見的錯誤，值得學會讀。`NSCocoaErrorDomain Code=4` 是 `NSFileNoSuchFileError`，`UserInfo` 裡的 `NSFilePath` 告訴你它找的是哪個路徑，底層的 `NSPOSIXErrorDomain Code=2` 就是 C 的 `ENOENT`。拿到它有三種常見原因：路徑寫死所以指到舊容器；第一次啟動檔案本來就還沒建立（這是正常狀況，9.4 的 `loadLedgerWithError:` 要把它當成「空帳本」而不是錯誤）；目錄還沒建就直接寫檔（`writeToURL:` 不會替你 `mkdir`）。用 `error.code == NSFileNoSuchFileError` 判斷，別比對字串。
+</Crash>
+
+## 小結
+
+- iOS App 只能碰自己的沙盒：`Documents` 會備份不會清、`Library/Caches` 不備份會清、`tmp` 隨時清。判斷標準是「弄丟了能不能重新生出來」。
+- 路徑一律執行期查：`NSSearchPathForDirectoriesInDomains` 回字串陣列、`-[NSFileManager URLsForDirectory:inDomains:]` 回 `NSURL` 陣列、`NSTemporaryDirectory()` 給 tmp。**不寫死、不把完整路徑存起來。**
+- 檔案路徑用 `NSURL`：`fileURLWithPath:` 包、`.path` 解；`URLWithString:` 是給網址的。
+- `createDirectoryAtURL:withIntermediateDirectories:YES` 等於 `mkdir -p`；`fileExistsAtPath:` 只有字串版；所有失敗走 `NSError **`，先看回傳值。
+- 測試用 `NSTemporaryDirectory()` 底下的子目錄，`setUp` 建、`tearDown` 刪。

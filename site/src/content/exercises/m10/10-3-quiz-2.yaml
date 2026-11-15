@@ -1,0 +1,18 @@
+id: m10-10-3-quiz-2
+chapter: "10.3"
+section: quiz
+type: quiz
+title: 迴圈內的 @autoreleasepool
+minutes: 2
+prompt: 背景佇列的 block 裡跑 100,000 行解析，迴圈內**沒有** `@autoreleasepool`。`stringWithUTF8String:` 產生的暫時字串什麼時候釋放？
+options:
+  - 等整個 block 跑完、外層 pool 排水時一起釋放，所以 100,000 個暫時字串會同時存在
+  - 每行結束就釋放，ARC 會自動處理
+  - 迴圈每 500 圈自動排水一次
+  - 永遠不釋放，造成洩漏
+answer: 0
+explain: 便利建構式回傳 autorelease 物件，由最近的 pool 負責釋放。GCD 替每個 block 開了一個 pool，但那是在 block 結束時才排水。迴圈內自己包一層才會每行釋放。
+hints: ["autorelease 物件由誰釋放？什麼時候？", "最近的 pool 在哪裡？"]
+feedback:
+  "1": ARC 自動插入的是 retain / release；autorelease 物件仍要等 pool 排水。
+  "3": 不會洩漏，只是延後，但延後到峰值超過上限就被 jetsam 殺了。

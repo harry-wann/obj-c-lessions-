@@ -1,0 +1,35 @@
+id: m10-10-5-crash-1
+chapter: "10.5"
+type: crash
+title: 讀 TSan 報告：找出競爭的兩行
+minutes: 3
+prompt: 從這份 Thread Sanitizer 報告選出互相競爭的兩行與修法。
+log: |
+  WARNING: ThreadSanitizer: data race (pid=5120)
+    Write of size 8 at 0x7b0800004f10 by thread T4:
+      #0 -[LBImportService importCSVAtURL:batchSize:progress:completion:]_block_invoke LBImportService.m:92
+      #1 -[NSBlockOperation main]
+    Previous write of size 8 at 0x7b0800004f10 by main thread:
+      #0 -[LBImportService cancel] LBImportService.m:131
+      #1 -[LBSettingsViewController cancelTapped:] LBSettingsViewController.m:77
+    Location is heap block of size 64 at 0x7b0800004ee0 allocated by main thread:
+      #0 +[LBImportService alloc]
+  SUMMARY: ThreadSanitizer: data race LBImportService.m:92 in importCSVAtURL:...
+options:
+  - "LBImportService.m:92（背景 operation 寫 _done）與 LBImportService.m:131（主執行緒 cancel 寫同一個 ivar）同時寫同一塊記憶體；用 atomic 存取或讓 cancel 走 NSOperation.cancel 而不是自己改 ivar"
+  - "LBSettingsViewController.m:77 與 NSBlockOperation main 競爭；修法是把 cancelTapped: 放到背景"
+  - 這是記憶體洩漏，Location 說明 alloc 沒有 release
+  - 兩行在同一條執行緒，是誤報
+answer: 0
+fix: |
+  // 不要自己用 BOOL ivar 當取消旗標：
+  // - (void)cancel { _cancelled = YES; }           // ✗ :131
+  // 改用 NSOperation 內建的、執行緒安全的 isCancelled：
+  - (void)cancel { [_operation cancel]; }
+  // 迴圈裡：if (op.isCancelled) break;
+  // 若一定要自己的旗標：用 atomic_bool（stdatomic.h）或在同一條串列佇列讀寫。
+solution_note: 兩段堆疊各取第一個自己的 frame：T4 的 :92 與 main thread 的 :131。Location 說是 LBImportService 這個物件的 heap 區塊，位移 0x30 就是某個 ivar。NSOperation 的 isCancelled 內部已經用鎖保護，自己寫 BOOL 旗標就是在重新發明一個沒有同步的版本。
+hints: ["每段堆疊找第一個 .m:行號。", "Location 告訴你是哪個物件。", "兩條執行緒都在「寫」同一個位址。"]
+feedback:
+  "1": 第 1 個 frame 是呼叫者，不是存取發生的地方；而且把 UI 事件放到背景只會製造新問題。
+  "3": TSan 報的是 data race，Location 只是告訴你那塊記憶體是誰配置的。

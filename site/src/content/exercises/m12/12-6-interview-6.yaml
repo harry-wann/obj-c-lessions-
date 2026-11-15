@@ -1,0 +1,14 @@
+id: m12-12-6-interview-6
+chapter: "12.6"
+type: flash
+tier: interview
+title: 面試速記：訊息派送
+minutes: 2
+front: |
+  `[ledger addTransaction:tx]` 這一行，從編譯到執行發生了什麼？
+back: |
+  編譯成 objc_msgSend(ledger, @selector(addTransaction:), tx)，selector 是一個唯一化的 C 字串位址。
+  執行時順著 ledger 的 isa 找到類別，先查該類別的方法快取（雜湊表），命中就跳去 IMP。
+  沒命中就線性查方法列表，找不到往父類別找，一路到 NSObject；找到後填進快取。
+  都找不到進入訊息轉送三階段，最後 doesNotRecognizeSelector: 丟 NSInvalidArgumentException。
+  加分延伸：這就是為什麼 ObjC 能在執行期加方法、swizzling、對 nil 送訊息安全（objc_msgSend 第一行檢查 receiver 為 nil 直接回傳 0）。

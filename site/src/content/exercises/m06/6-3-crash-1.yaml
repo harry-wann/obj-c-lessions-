@@ -1,0 +1,32 @@
+id: m06-6-3-crash-1
+chapter: "6.3"
+type: crash
+title: NSNull 混進了 UILabel
+minutes: 2
+log: |
+  *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+  reason: '-[NSNull length]: unrecognized selector sent to instance 0x1f4a2b3c0'
+  *** First throw call stack:
+  (
+    2   CoreFoundation   -[NSObject(NSObject) doesNotRecognizeSelector:] + 132
+    3   CoreFoundation   ___forwarding___ + 1324
+    5   UIKitCore        -[UILabel _setText:] + 96
+    6   LittleBook       -[LBTransactionCell configureWithTransaction:] + 212
+    7   LittleBook       -[LBTransactionListViewController tableView:cellForRowAtIndexPath:] + 388
+  )
+  // configureWithTransaction: 裡：self.noteLabel.text = tx.note;
+  // tx.note 來自 JSON：_note = json[@"note"];
+options:
+  - "UILabel 的 text 不能在 cellForRowAtIndexPath: 裡設定"
+  - "JSON 的 null 變成 NSNull 物件存進了 tx.note，UILabel 對它呼叫 length；修法在模型層用 isKindOfClass:[NSString class] 守住"
+  - tx 是 nil 所以 tx.note 回傳 NSNull
+  - NSNull 應該改用 nil 比較
+answer: 1
+fix: |
+  id raw = json[@"note"];
+  _note = [raw isKindOfClass:[NSString class]] ? [raw copy] : @"";
+solution_note: "位址 0x1f4a2b3c0 每次都一樣，因為 NSNull 是單例。crash 點在 UIKit 裡、呼叫點在 cell，但真正的錯在更上游：模型層讓 NSNull 通過。防禦放在資料進入模型那一層一次做完。"
+hints: ["NSNull 從哪裡來？", "修在 cell 還是修在模型？"]
+feedback:
+  "2": 對 nil 送 note 會回 nil，不會回 NSNull；而且 UILabel.text 設 nil 是合法的。
+  "3": NSNull 與 nil 的比較不是問題，問題是 NSNull 根本不該進模型。

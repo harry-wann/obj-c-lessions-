@@ -1,0 +1,18 @@
+id: m12-12-4-quiz-2
+chapter: "12.4"
+section: quiz
+type: quiz
+title: 誰在呼叫這個 API
+minutes: 1
+prompt: 專案裡有二十幾處 `objectAtIndex:`，crash log 說越界但你不知道是哪一處。最快的工具是？
+options:
+  - 每一處都加 NSLog
+  - "符號斷點 -[NSArray objectAtIndex:]，加 Condition 限制在自己的模組，重現操作"
+  - "Product → Analyze"
+  - 開 Zombie Objects
+answer: 1
+explain: 符號斷點對一個 selector 的所有呼叫停下，不用改程式碼；搭配 Exception Breakpoint 其實也行（越界會丟 NSRangeException），兩者擇一。Analyze 抓不到執行期的索引值；Zombie 是給 over-release 的。
+hints: ["不改程式碼就能停在某個方法的工具。", "越界是例外還是壞指標？"]
+feedback:
+  "2": 靜態分析不知道執行期陣列有幾個元素。
+  "3": Zombie 抓的是對已釋放物件送訊息，越界是另一類問題。

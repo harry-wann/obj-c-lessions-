@@ -1,0 +1,24 @@
+id: m11-11-1-xcode-1
+chapter: "11.1"
+type: xcode
+title: LittleBook-Legacy：修 MRC 埋雷 1、2 並轉一個檔案到 ARC
+mobile: false
+minutes: 40
+prompt: 開 LittleBook-Legacy，讀 LBLegacyTransaction.m 把每個 retain / release 配對標出來，修掉 over-release（埋雷 1）與 setter 洩漏（埋雷 2），再用 Convert to ARC 轉這一個檔案並比較 diff。
+starter: xcode/M11-starter
+steps:
+  - "開 `LittleBook-Legacy/LittleBook-Legacy.xcworkspace`（不是 .xcodeproj）。Build Phases → Compile Sources 確認 `LBLegacyTransaction.m` 有 `-fno-objc-arc`。"
+  - "讀 `LBLegacyTransaction.m`，在每個 `alloc` / `retain` / `copy` 旁加註解 `// +1`，每個 `release` / `autorelease` 旁加 `// −1`，配不起來的就是雷。"
+  - "埋雷 1：`dealloc` 對 `assign` 屬性 release 了。刪掉那行。Edit Scheme → Diagnostics 勾 Zombie Objects，⌘R 進列表頁再返回，不再 crash。"
+  - "埋雷 2：`setCategory:`（retain 屬性）漏了 `[_category release]`。補上，順序是先 retain 新的再 release 舊的。Product → Profile → Leaks 或 Memory Graph 確認 LBLegacyCategory 不再累積。"
+  - "git commit「Fix MRC over-release and setter leak in LBLegacyTransaction」。"
+  - "拿掉 `LBLegacyTransaction.m` 的 `-fno-objc-arc`；Edit → Convert → To Objective-C ARC...，只勾這一個檔案，按 Check，讀 Preview 的每一行 diff：被刪的 release 是不是都對應你標的 −1？`assign` 的 `owner` 工具問你時選 `weak`。"
+  - "Save，⌘U 全綠，commit「ARC: LBLegacyTransaction」。在 `LegacyAudit.plist` 把 `overReleaseFixed` 與 `setterLeakFixed` 勾成 YES。"
+tests:
+  - LBLegacyAuditTests/testLegacyChecklistComplete
+acceptance:
+  - "Zombie Objects 開啟下進出列表頁 10 次不 crash"
+  - "Memory Graph 中 LBLegacyCategory 的實體數不隨設值次數增加"
+  - "LBLegacyTransaction.m 不含 retain / release / [super dealloc]，且已無 -fno-objc-arc"
+  - "git log 有兩個獨立 commit：修 bug 一個、ARC 轉換一個"
+solution_note: "埋雷 1 的 crash 位置在 dealloc 之後很遠的地方，要靠 Zombie 才看得到類別名。埋雷 2 在 MRC 下是靜默洩漏，轉成 ARC 後工具會「順手修好」——這正是為什麼要**先修再轉**：否則你不知道這個 bug 曾經存在，其他還沒轉的檔案可能有一樣的錯。testLegacyChecklistComplete 要等 11.6 六個勾全打才會過，這裡先確認前兩個。"

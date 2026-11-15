@@ -1,0 +1,19 @@
+id: m07-7-2-parsons-1
+chapter: "7.2"
+type: parsons
+title: 排出最外層的例外記錄器
+minutes: 2
+prompt: 排出在 App 啟動時安裝 NSSetUncaughtExceptionHandler、把例外資訊寫進 log 的程式。有兩行是干擾行。
+lines:
+  - "static void LBHandleUncaughtException(NSException *exception) {"
+  - "    NSLog(@\"uncaught %@: %@\\n%@\", exception.name, exception.reason, exception.callStackSymbols);"
+  - "}"
+  - "- (BOOL)application:(UIApplication *)app didFinishLaunchingWithOptions:(NSDictionary *)options {"
+  - "    NSSetUncaughtExceptionHandler(&LBHandleUncaughtException);"
+  - "    return YES;"
+  - "}"
+distractors:
+  - "    @try { [self start]; } @catch (NSException *e) { NSLog(@\"%@\", e); }"
+  - "    return exception;"
+solution_note: handler 是 C 函式，接 NSException *，回 void；用 & 取函式位址傳進去。它只能「記錄」不能「恢復」，handler 回來後程式仍會終止。
+hints: ["handler 是一個 C 函式，先寫它。", "在 didFinishLaunching 裡註冊它。", "handler 不能 return 任何東西。"]

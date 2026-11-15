@@ -1,0 +1,68 @@
+id: m09-9-2-code-1
+chapter: "9.2"
+type: code
+title: 加一個 appearance 設定
+mobile: false
+minutes: 8
+prompt: "替 LBSettings 加上 `appearance` 屬性（`NSInteger`，0 跟隨系統 / 1 淺 / 2 深）：在 `initWithUserDefaults:` 的 `registerDefaults:` 字典裡加預設值 `@0`，手寫 getter 用 `integerForKey:`、setter 用 `setInteger:forKey:`。key 用常數 `LBSettingsKeyAppearance`。不要呼叫 `synchronize`。"
+starter: |
+  static NSString * const LBSettingsKeyCurrencyCode = @"LBCurrencyCode";
+  static NSString * const LBSettingsKeyAppearance = @"LBAppearance";
+
+  @implementation LBSettings {
+      NSUserDefaults *_defaults;
+  }
+  - (instancetype)initWithUserDefaults:(NSUserDefaults *)defaults {
+      if (self = [super init]) {
+          _defaults = defaults;
+          [_defaults registerDefaults:@{ LBSettingsKeyCurrencyCode: @"TWD" }];
+      }
+      return self;
+  }
+  - (NSString *)currencyCode { return [_defaults stringForKey:LBSettingsKeyCurrencyCode]; }
+  - (void)setCurrencyCode:(NSString *)code {
+      [_defaults setObject:code forKey:LBSettingsKeyCurrencyCode];
+  }
+
+  @end
+checks:
+  - must_match: 'registerDefaults\s*:\s*@\{[^}]*LBSettingsKeyAppearance\s*:\s*@0'
+    message: "registerDefaults: 的字典要含 LBSettingsKeyAppearance: @0"
+  - must_match: '-\s*\(\s*NSInteger\s*\)\s*appearance\s*\{[^}]*integerForKey\s*:\s*LBSettingsKeyAppearance'
+    message: getter 要用 integerForKey:LBSettingsKeyAppearance
+  - selector_present: "setAppearance:"
+  - must_match: 'setInteger\s*:\s*\w+\s+forKey\s*:\s*LBSettingsKeyAppearance'
+    message: setter 要用 setInteger:forKey:LBSettingsKeyAppearance
+  - not_contains: "synchronize"
+    message: 不要呼叫 synchronize
+  - must_not_match: '@"LBAppearance"[^;]*(forKey|ForKey)'
+    message: 讀寫時用常數，不要重打字串 key
+  - "brackets_balanced: true"
+solution: |
+  static NSString * const LBSettingsKeyCurrencyCode = @"LBCurrencyCode";
+  static NSString * const LBSettingsKeyAppearance = @"LBAppearance";
+
+  @implementation LBSettings {
+      NSUserDefaults *_defaults;
+  }
+  - (instancetype)initWithUserDefaults:(NSUserDefaults *)defaults {
+      if (self = [super init]) {
+          _defaults = defaults;
+          [_defaults registerDefaults:@{ LBSettingsKeyCurrencyCode: @"TWD",
+                                         LBSettingsKeyAppearance: @0 }];
+      }
+      return self;
+  }
+  - (NSString *)currencyCode { return [_defaults stringForKey:LBSettingsKeyCurrencyCode]; }
+  - (void)setCurrencyCode:(NSString *)code {
+      [_defaults setObject:code forKey:LBSettingsKeyCurrencyCode];
+  }
+  - (NSInteger)appearance {
+      return [_defaults integerForKey:LBSettingsKeyAppearance];
+  }
+  - (void)setAppearance:(NSInteger)appearance {
+      [_defaults setInteger:appearance forKey:LBSettingsKeyAppearance];
+  }
+  @end
+solution_note: 屬性在 .h 宣告 `@property (nonatomic, assign) NSInteger appearance;`，.m 裡 getter 與 setter 都手寫，編譯器就不會合成 ivar。整數在 NSUserDefaults 裡是 NSNumber，`integerForKey:` 幫你拆箱。
+hints: ["先在 registerDefaults: 的字典多加一對。", "getter 一行：integerForKey:。", "setter 一行：setInteger:forKey:。"]

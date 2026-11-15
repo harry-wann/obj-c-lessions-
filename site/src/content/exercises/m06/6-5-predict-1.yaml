@@ -1,0 +1,34 @@
+id: m06-6-5-predict-1
+chapter: "6.5"
+type: predict
+title: 預測輸出：+load / +initialize 順序
+minutes: 2
+code: |
+  @interface LBLedger : NSObject @end
+  @implementation LBLedger
+  + (void)load       { NSLog(@"load LBLedger"); }
+  + (void)initialize { NSLog(@"init %@", self); }
+  @end
+  @interface LBSharedLedger : LBLedger @end
+  @implementation LBSharedLedger @end
+  @implementation LBLedger (Extra)
+  + (void)load { NSLog(@"load Extra"); }
+  @end
+
+  int main(void) {
+      NSLog(@"main");
+      [LBSharedLedger new];
+      [LBSharedLedger new];
+      return 0;
+  }
+options:
+  - "load LBLedger\nload Extra\nmain\ninit LBLedger\ninit LBSharedLedger"
+  - "load Extra\nmain\ninit LBLedger\ninit LBSharedLedger"
+  - "main\nload LBLedger\nload Extra\ninit LBSharedLedger"
+  - "load LBLedger\nload Extra\nmain\ninit LBLedger\ninit LBSharedLedger\ninit LBSharedLedger"
+accept: ["load LBLedger load Extra main init LBLedger init LBSharedLedger"]
+feedback:
+  "load Extra main init LBLedger init LBSharedLedger": 分類的 +load 不會蓋掉類別的，兩個都執行。
+  "load LBLedger load Extra main init LBLedger init LBSharedLedger init LBSharedLedger": +initialize 每個類別只跑一次，第二個 new 不會再觸發。
+solution_note: 兩個 `+load` 都在 main 之前、類別先分類後。`+initialize` 在第一則訊息前觸發，父類別先；子類別沒實作所以父類別的又跑一次，self 是 LBSharedLedger；第二次 new 不再觸發。
+hints: ["+load 在 main 之前還是之後？", "+initialize 被子類別觸發時 self 是誰？"]

@@ -1,0 +1,27 @@
+id: m10-10-5-interview-1
+chapter: "10.5"
+type: flash
+tier: interview
+title: 面試題：前 K 大（Top K）
+minutes: 5
+front: |
+  10 萬筆交易找金額最大的 10 筆。排序 O(n log n) 之外有沒有更好的做法？複雜度？
+back: |
+  用大小為 K 的**最小堆積**：走訪每筆，堆積未滿就 insert；滿了就跟堆頂（目前 K 個裡最小的）比，比它大就 extractMin 再 insert。結束時堆積裡就是前 K 大。O(n log K)，K = 10 時幾乎是線性；空間 O(K)。
+
+  - (NSArray *)topK:(NSUInteger)k of:(NSArray<LBTransaction *> *)txs {
+      LBPriorityQueue *minHeap = [[LBPriorityQueue alloc] initWithComparator:
+          ^NSComparisonResult(LBTransaction *a, LBTransaction *b) {
+              return [b.amount compare:a.amount];   // 反向 → 最小堆積
+          }];
+      for (LBTransaction *tx in txs) {
+          if (minHeap.count < k) { [minHeap insert:tx]; continue; }
+          if ([tx.amount compare:[minHeap peek].amount] == NSOrderedDescending) {
+              [minHeap extractMax];                 // 其實是 extractMin
+              [minHeap insert:tx];
+          }
+      }
+      return [minHeap allObjects];
+  }
+
+  追問「為什麼是最小堆積不是最大」：堆頂要是「目前入選者中最弱的」，才能 O(1) 決定新來的能不能擠掉它。追問「K 接近 n 怎麼辦」：直接排序，或 quickselect 平均 O(n)。Swift：`Heap` 在 swift-collections；Kotlin / Java：`PriorityQueue<T>(comparator)`。

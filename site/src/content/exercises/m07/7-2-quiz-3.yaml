@@ -1,0 +1,20 @@
+id: m07-7-2-quiz-3
+chapter: "7.2"
+section: quiz
+type: quiz
+title: 為什麼 ObjC 不用例外做流程控制
+minutes: 2
+prompt: 以下哪些是「ObjC 不用例外做流程控制」的真正理由？（可複選）
+multi: true
+options:
+  - Foundation 丟出的例外全部代表程式錯誤，接住繼續跑等於把壞狀態藏起來
+  - ARC 預設不處理例外穿過時的釋放，區域強參考會洩漏
+  - Cocoa 的 API 不是例外安全的，被例外打斷後內部狀態可能不一致
+  - ObjC 根本沒有 @try / @catch 語法
+  - 例外會讓 App 被 App Store 退件
+answer: [0, 1, 2]
+explain: 三個理由：例外 = bug 訊號、ARC 預設 -fno-objc-arc-exceptions 會洩漏、Cocoa 不是例外安全。語法是有的，只是約定不用。
+hints: ["ARC 預設的例外處理旗標是什麼？", "UITableView reloadData 執行到一半被打斷會怎樣？"]
+feedback:
+  "3": 語法完整存在，@try / @catch / @finally / @throw 都有，問題是約定不用它做流程控制。
+  "4": App Store 審核不看這個。

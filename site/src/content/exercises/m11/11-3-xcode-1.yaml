@@ -1,0 +1,25 @@
+id: m11-11-3-xcode-1
+chapter: "11.3"
+type: xcode
+title: 設定頁改 Storyboard：static cells + segue，弄斷 outlet 再接回
+mobile: false
+minutes: 45
+prompt: 建 Settings.storyboard，用 static cells 做設定頁、segue 到效能面板；故意弄斷一條 IBOutlet 看 crash，再接回。兩個 LBSettingsStoryboardTests 轉綠。
+starter: xcode/M11-starter
+steps:
+  - "File → New → Storyboard，命名 `Settings.storyboard`，確認 Target Membership 勾 LittleBook。"
+  - "拖 Table View Controller，Class 設 `LBSettingsViewController`，Storyboard ID 設 `Settings`。Table View 的 Content 改 Static Cells、Style Grouped、2 個 section。"
+  - "Section 0 三個 cell：幣別（Right Detail）、顯示小數（Custom + Switch）、外觀（Right Detail）。Section 1 一個 cell「效能面板」，Accessory 選 Disclosure Indicator。"
+  - "Assistant editor 拉 outlet：`currencyLabel`、`centsSwitch`、`appearanceLabel`（都是 weak IBOutlet）；Switch 再拉一條 Action `centsSwitchChanged:`。"
+  - "從「效能面板」cell Control-拖出 Show segue 到新的 VC，Class 設 `LBPerformanceViewController`，segue Identifier 填 `showPerformance`。設定頁 Editor → Embed In → Navigation Controller。"
+  - "程式碼：刪掉原本用程式碼建 UI 的部分，`viewDidLoad` 從 LBSettings 讀值填 outlet，`prepareForSegue:` 傳 `[LBFPSMonitor shared]` 給效能頁。AppDelegate / tab 建立設定頁改成 `instantiateViewControllerWithIdentifier:@\"Settings\"`。⌘U 跑兩個測試。"
+  - "**故意弄斷**：在 `.m` 把屬性 `currencyLabel` 手動改名成 `currencyText`（不用 Refactor）。⌘R 進設定頁，記下 crash 訊息（應是 `NSUnknownKeyException ... key currencyLabel`）。"
+  - "接回：開 storyboard，Connections inspector 刪掉有黃色三角形的那條，從 label 重新拖到 `currencyText`；或把屬性名改回來。⌘U 兩個測試再綠。"
+tests:
+  - LBSettingsStoryboardTests/testStoryboardInstantiatesSettingsViewController
+  - LBSettingsStoryboardTests/testOutletsConnectedAfterLoadView
+acceptance:
+  - "設定頁三個值顯示正確，切 Switch 後 LBSettings.showsCents 跟著變"
+  - "點「效能面板」push 到 LBPerformanceViewController 且 monitor 已注入"
+  - "記錄下弄斷 outlet 時完整的 crash 訊息（放進 PR 描述）"
+solution_note: "弄斷再接回不是在玩：你要親眼看到 `this class is not key value coding-compliant for the key` 這則訊息跟 outlet 名字的對應關係，之後在舊專案遇到就能三秒定位。testOutletsConnectedAfterLoadView 會先 `loadViewIfNeeded` 再檢查三個 outlet 非 nil。"

@@ -1,0 +1,38 @@
+id: m09-9-3-fill-1
+chapter: "9.3"
+section: quiz
+type: fill
+title: NSSecureCoding 樣板
+minutes: 3
+prompt: 補完一個採用 NSSecureCoding 的 LBCategory 精簡版（只有 name 與 symbolName）。
+code: |
+  @interface LBCategory : NSObject <___1___>
+  @end
+
+  @implementation LBCategory
+  + (BOOL)___2___ { return YES; }
+
+  - (void)encodeWithCoder:(NSCoder *)coder {
+      [coder ___3___:_name forKey:@"name"];
+      [coder encodeObject:_symbolName forKey:@"symbolName"];
+  }
+
+  - (instancetype)initWithCoder:(NSCoder *)coder {
+      NSString *name = [coder ___4___:[NSString class] forKey:@"name"];
+      NSString *symbol = [coder decodeObjectOfClass:[NSString class]
+                                             forKey:@"symbolName"];
+      if (!name) return nil;
+      return [self initWithName:name symbolName:symbol ?: @"tag"];
+  }
+  @end
+blanks:
+  "1": { accept: ["NSSecureCoding"], chips: ["NSSecureCoding", "NSCoding", "NSCopying", "NSSecureCoder"] }
+  "2": { accept: ["supportsSecureCoding"], chips: ["supportsSecureCoding", "secureCoding", "isSecure", "requiresSecureCoding"] }
+  "3": { accept: ["encodeObject"], chips: ["encodeObject", "encode", "setObject", "encodeString"] }
+  "4": { accept: ["decodeObjectOfClass"], chips: ["decodeObjectOfClass", "decodeObjectForKey", "decodeObject", "objectOfClass"] }
+hints: ["協定名字裡有 Secure。", "類別方法回 YES 的那一個。", "secure 模式解碼一定要指定類別。"]
+feedback:
+  "1=NSCoding": 只宣告 NSCoding 的話 requiringSecureCoding:YES 會失敗；要宣告 NSSecureCoding。
+  "2=requiresSecureCoding": 那是 NSKeyedUnarchiver 的屬性，不是你的類別方法。
+  "4=decodeObjectForKey": secure 模式下不指定類別直接丟 NSInvalidUnarchiveOperationException。
+solution_note: 三件組：協定 `NSSecureCoding`、`+supportsSecureCoding` 回 YES、`decodeObjectOfClass:forKey:`。必要欄位缺了回 nil，可選欄位給預設值。

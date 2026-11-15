@@ -1,0 +1,19 @@
+id: m12-12-3-quiz-1
+chapter: "12.3"
+section: quiz
+type: quiz
+title: XCTAssertEqual 還是 XCTAssertEqualObjects
+minutes: 1
+prompt: 要斷言 `ledger.total` 等於 `[NSDecimalNumber decimalNumberWithString:@"100"]`，ObjC 測試該用哪個？
+options:
+  - "XCTAssertEqual：兩邊都是 NSDecimalNumber"
+  - "XCTAssertEqualObjects：物件要用 isEqual: 比"
+  - "XCTAssertTrue(ledger.total == 100)"
+  - "XCTAssertEqualWithAccuracy(ledger.total, 100, 0.01)"
+answer: 1
+explain: "`XCTAssertEqual` 展開是 C 的 `==`，對物件指標就是比位址，兩個值相同的 NSDecimalNumber 多半是不同物件。`XCTAssertEqualObjects` 呼叫 `isEqual:`。Swift 端沒這個分別，`XCTAssertEqual` 走 Equatable。"
+hints: ["ObjC 的 == 對指標做什麼？", "Java 的 assertEquals 跟 assertSame 的差別。"]
+feedback:
+  "0": 比位址，偶爾會過（快取的小整數），大多會失敗。
+  "2": 物件指標跟整數比，編譯警告而且永遠 false。
+  "3": WithAccuracy 是給 double / float 的，物件不能傳。

@@ -1,0 +1,87 @@
+id: m09-9-4-code-1
+chapter: "9.4"
+type: code
+title: 寫出 dictionaryRepresentation 與反向防禦
+mobile: false
+minutes: 12
+prompt: "為精簡版 `LBTransaction`（`identifier`、`amount`、`date`、`note`）實作 `- (NSDictionary<NSString *, id> *)dictionaryRepresentation`（id 用 `UUIDString`、amount 用 `stringValue`、date 用 `NSISO8601DateFormatter`、note 原樣）與 `- (nullable instancetype)initWithDictionary:(NSDictionary *)dict error:(NSError **)error`：每個欄位先 `isKindOfClass:[NSString class]` 檢查，amount 用 `decimalNumberWithString:` 並擋掉 `notANumber`，任何必要欄位不合就填 error 回 nil，note 缺了給 `@\"\"`。"
+starter: |
+  @implementation LBTransaction
+
+  + (NSISO8601DateFormatter *)iso {
+      static NSISO8601DateFormatter *f;
+      static dispatch_once_t once;
+      dispatch_once(&once, ^{ f = [NSISO8601DateFormatter new]; });
+      return f;
+  }
+
+  - (NSDictionary<NSString *, id> *)dictionaryRepresentation {
+
+  }
+
+  - (nullable instancetype)initWithDictionary:(NSDictionary *)dict
+                                        error:(NSError **)error {
+
+  }
+
+  @end
+checks:
+  - selector_equals: "dictionaryRepresentation"
+  - selector_equals: "initWithDictionary:error:"
+  - must_match: 'UUIDString'
+    message: identifier 用 UUIDString
+  - must_match: '_?(self\.)?amount\s*\.\s*stringValue|\[\s*_?(self\.)?amount\s+stringValue\s*\]'
+    message: amount 用 stringValue，不要 doubleValue
+  - must_not_match: 'doubleValue|floatValue'
+    message: 金額不要走 double / float
+  - must_match: 'stringFromDate\s*:'
+    message: "date 用 NSISO8601DateFormatter 的 stringFromDate:"
+  - must_match: '(isKindOfClass\s*:\s*\[\s*NSString\s+class\s*\][\s\S]*){3,}'
+    message: 至少三個欄位要 isKindOfClass:[NSString class] 檢查（id、amount、date）
+  - must_match: 'decimalNumberWithString\s*:'
+    message: "amount 用 decimalNumberWithString: 讀回"
+  - must_match: 'notANumber'
+    message: 要擋掉 notANumber
+  - must_match: 'dateFromString\s*:'
+    message: "date 用 dateFromString: 讀回"
+  - must_match: 'initWithUUIDString\s*:'
+    message: "identifier 用 initWithUUIDString: 讀回"
+  - must_match: 'if\s*\(\s*error\s*\)\s*\*\s*error\s*='
+    message: 填 error 前要先判 error 指標不為 NULL
+  - must_match: 'return\s+nil'
+    message: 不合法要回 nil
+  - "brackets_balanced: true"
+solution: |
+  - (NSDictionary<NSString *, id> *)dictionaryRepresentation {
+      NSMutableDictionary *d = [NSMutableDictionary dictionary];
+      d[@"id"] = _identifier.UUIDString;
+      d[@"amount"] = _amount.stringValue;
+      d[@"date"] = [LBTransaction.iso stringFromDate:_date];
+      d[@"note"] = _note;
+      return [d copy];
+  }
+
+  - (nullable instancetype)initWithDictionary:(NSDictionary *)dict
+                                        error:(NSError **)error {
+      id rawId = dict[@"id"], rawAmount = dict[@"amount"], rawDate = dict[@"date"];
+      NSUUID *identifier = [rawId isKindOfClass:[NSString class]]
+                         ? [[NSUUID alloc] initWithUUIDString:rawId] : nil;
+      NSDecimalNumber *amount = [rawAmount isKindOfClass:[NSString class]]
+                         ? [NSDecimalNumber decimalNumberWithString:rawAmount] : nil;
+      NSDate *date = [rawDate isKindOfClass:[NSString class]]
+                         ? [LBTransaction.iso dateFromString:rawDate] : nil;
+      if (!identifier || !amount || !date ||
+          [amount isEqual:[NSDecimalNumber notANumber]]) {
+          if (error) *error = [NSError errorWithDomain:LBErrorDomain
+                                                  code:LBErrorCodeUnexpectedType
+                                              userInfo:nil];
+          return nil;
+      }
+      NSString *note = [dict[@"note"] isKindOfClass:[NSString class]] ? dict[@"note"] : @"";
+      if (self = [self initWithAmount:amount date:date note:note]) {
+          _identifier = identifier;
+      }
+      return self;
+  }
+solution_note: "三個必要欄位都先確認是 NSString 再轉型，NSNull 自然被 isKindOfClass: 擋掉；decimalNumberWithString: 吃到垃圾回 notANumber 不是 nil，要另外判。寫入端用 NSMutableDictionary 下標，nil 不會 crash。"
+hints: ["寫入端四行，一欄一行；用 NSMutableDictionary 下標。", "讀取端每個欄位都是「isKindOfClass 才轉，否則 nil」的三元運算。", "notANumber 要用 isEqual: 比，不能用 ==。"]

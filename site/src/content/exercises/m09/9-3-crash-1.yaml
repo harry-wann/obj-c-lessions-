@@ -1,0 +1,35 @@
+id: m09-9-3-crash-1
+chapter: "9.3"
+type: crash
+title: does not adopt NSSecureCoding
+minutes: 3
+prompt: 把 LBTransaction 封存進剪貼簿、再貼回來時 crash。原因是？
+log: |
+  *** Terminating app due to uncaught exception 'NSInvalidUnarchiveOperationException',
+  reason: 'This decoder will only decode classes that adopt NSSecureCoding.
+  Class 'LBCategory' does not adopt it.'
+  *** First throw call stack:
+  (
+    2  Foundation  -[NSCoder __failWithException:] + 0
+    3  Foundation  -[NSKeyedUnarchiver _validateAllowedClass:forKey:allowingInvocations:] + 1152
+    4  Foundation  -[NSKeyedUnarchiver decodeObjectOfClasses:forKey:] + 180
+    5  LittleBook  -[LBTransaction initWithCoder:] + 260
+  )
+options:
+  - "LBTransaction 封存時把 category 物件一起存了，而 LBCategory 沒有實作 NSSecureCoding（+supportsSecureCoding / encodeWithCoder: / initWithCoder:）"
+  - LBTransaction 自己忘了 +supportsSecureCoding
+  - 剪貼簿只能放字串
+  - NSKeyedUnarchiver 不支援巢狀物件
+answer: 0
+fix: |
+  // 方案 A：LBCategory 也採用 NSSecureCoding（三件組）
+  @interface LBCategory : NSObject <NSSecureCoding>
+  + (BOOL)supportsSecureCoding { return YES; }
+  // 方案 B（本課採用）：交易只存分類的 identifier，讀回後從 +[LBCategory defaultTree] 查
+  [coder encodeObject:_category.identifier forKey:@"categoryID"];
+solution_note: reason 的後半段點名是哪個類別：`LBCategory`。call stack 第 5 行說是在 `-[LBTransaction initWithCoder:]` 裡解 category 時炸的。物件圖裡每一個會被封存到的類別都要採用 NSSecureCoding，或者別把它放進物件圖。
+hints: ["reason 裡「Class '…' does not adopt it」寫的是哪個類別？", "LBTransaction 持有哪個自訂類別的物件？"]
+feedback:
+  "1": 如果是 LBTransaction 自己沒採用，訊息會寫 Class 'LBTransaction'，而且在封存階段就會透過 error 回報。
+  "2": UIPasteboard 可以放任意 NSData；問題在解封。
+  "3": 支援巢狀，條件是每一層的類別都採用 NSSecureCoding。

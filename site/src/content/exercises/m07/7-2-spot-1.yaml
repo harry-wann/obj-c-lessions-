@@ -1,0 +1,31 @@
+id: m07-7-2-spot-1
+chapter: "7.2"
+type: spot
+title: Debug 正常、Release 資料刪不掉
+minutes: 3
+prompt: 這段程式在 Debug 一切正常，上架後使用者回報「刪除交易沒反應」。點選有問題的行並選出原因。
+code: |
+  - (void)deleteTransaction:(LBTransaction *)tx {
+      NSParameterAssert(tx != nil);
+      NSAssert([self.ledger removeTransactionWithIdentifier:tx.identifier],
+               @"移除失敗：%@", tx.identifier);
+      [self.tableView reloadData];
+  }
+bug_lines: [3]
+reasons:
+  - 斷言的條件有副作用（真的執行了移除）；Release 下整個 NSAssert 消失，移除也跟著消失
+  - NSParameterAssert 與 NSAssert 不能同時用
+  - reloadData 應該放在 NSAssert 之前
+  - "removeTransactionWithIdentifier: 應該用 @try 包起來"
+answer_reason: 0
+fix: |
+  - (void)deleteTransaction:(LBTransaction *)tx {
+      NSParameterAssert(tx != nil);
+      BOOL removed = [self.ledger removeTransactionWithIdentifier:tx.identifier];
+      NSAssert(removed, @"移除失敗：%@", tx.identifier);
+      [self.tableView reloadData];
+  }
+solution_note: Release 預設 NS_BLOCK_ASSERTIONS，`NSAssert(...)` 展開成空白，裡面的方法呼叫也不會執行。規則：斷言條件只能是純讀取；要執行的動作寫在外面，把結果存進變數再斷言。
+hints: ["Release 組態下 NSAssert(...) 整行會變成什麼？", "那一行裡面除了判斷還做了什麼事？"]
+feedback:
+  "3": 移除失敗是回傳值 NO，不是例外，@try 接不到任何東西。

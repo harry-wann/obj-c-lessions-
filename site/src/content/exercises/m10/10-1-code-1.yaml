@@ -1,0 +1,51 @@
+id: m10-10-1-code-1
+chapter: "10.1"
+type: code
+title: 寫出環狀緩衝區的 append 與 values
+mobile: false
+minutes: 10
+prompt: "實作 `append:` 與 `values`。`_slots` 是長度 `_capacity` 的 double 陣列，`_head` 是下一個要寫的位置，`_count` 是目前筆數。`values` 要由舊到新回傳 NSNumber 陣列。"
+starter: |
+  @implementation LBRingBuffer {
+      double *_slots;
+      NSUInteger _capacity, _head, _count;
+  }
+  - (void)append:(double)value {
+
+  }
+  - (NSArray<NSNumber *> *)values {
+
+  }
+  @end
+checks:
+  - selector_equals: "append:"
+  - selector_equals: "values"
+  - must_match: '_slots\s*\[\s*_head\s*\]\s*=\s*value'
+    message: "append 要把 value 寫進 _slots[_head]"
+  - must_match: '_head\s*\+\s*1\s*\)\s*%\s*_capacity|_head\s*=\s*0|_head\s*>=\s*_capacity'
+    message: _head 前進後要繞回開頭（% _capacity 或歸零）
+  - must_match: '_count\s*<\s*_capacity|_count\s*\+\+|_count\s*=\s*MIN|_count\s*\+=\s*1'
+    message: _count 最多增加到 _capacity
+  - must_match: '%\s*_capacity'
+    message: values 讀取時索引也要用 % _capacity 繞圈
+  - must_match: '_head\s*:\s*0|\?\s*0\s*:\s*_head|start\s*=\s*_head|start\s*=\s*0'
+    message: values 的起點：寫滿前是 0，寫滿後是 _head
+  - must_match: '@\(\s*_slots'
+    message: 每個 double 要包成 NSNumber（@(...)）
+  - "brackets_balanced: true"
+solution: |
+  - (void)append:(double)value {
+      _slots[_head] = value;
+      _head = (_head + 1) % _capacity;
+      if (_count < _capacity) _count++;
+  }
+  - (NSArray<NSNumber *> *)values {
+      NSMutableArray *out = [NSMutableArray arrayWithCapacity:_count];
+      NSUInteger start = (_count < _capacity) ? 0 : _head;
+      for (NSUInteger i = 0; i < _count; i++) {
+          [out addObject:@(_slots[(start + i) % _capacity])];
+      }
+      return out;
+  }
+solution_note: 寫入永遠 O(1)，沒有搬移。讀取的起點是唯一需要思考的地方：寫滿後 `_head` 指的那格剛好是最舊的。
+hints: ["append 三行：寫、前進、計數。", "前進用 % 繞圈。", "寫滿後最舊的一筆在哪？"]

@@ -1,0 +1,247 @@
+---
+title: XCTest 單元測試
+module: 12
+chapter: "12.3"
+order: 3
+minutes: 40
+prereq: ["12.2", "7.3"]
+objectives:
+  - 寫出一個完整的 XCTestCase：setUp / tearDown、正確選用 XCTAssertEqualObjects 與其他斷言
+  - 用 XCTestExpectation 與 waitForExpectations 測 completion block 與 GCD 回主執行緒
+  - 用測試替身（stub）隔離網路與時間，並在 ObjC 測試裡存取類別延伸中的私有成員
+summary: "測試 target 結構；setUp / tearDown；XCTAssertEqualObjects（不是 XCTAssertEqual）、XCTAssertNil / True / Throws；XCTestExpectation + waitForExpectations、fulfill 一次、inverted；stub 與相依注入；ObjC 沒有 @testable → 直接 import 標頭 + 測試用分類。"
+terms:
+  - { en: unit test, tw: 單元測試, cn: 单元测试, jp: 単体テスト }
+  - { en: assertion, tw: 斷言, cn: 断言, jp: アサーション }
+  - { en: expectation, tw: 期望（expectation）, cn: 期望, jp: エクスペクテーション }
+  - { en: stub / mock, tw: 測試替身, cn: 测试替身, jp: スタブ / モック }
+  - { en: dependency injection, tw: 相依注入, cn: 依赖注入, jp: 依存性注入 }
+appProgress: 小帳本全套測試（ObjC 與 Swift 兩個測試 bundle）全綠；LBRateService 的非同步測試用 expectation 等回呼。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// StatsViewModelTests.swift
+import XCTest
+@testable import LittleBook
+
+final class StatsViewModelTests: XCTestCase {
+    var ledger: LBLedger!
+    override func setUp() { super.setUp(); ledger = LBLedger() }
+    func testTotalsFromLedger() {
+        ledger.add(LBTransaction(amount: NSDecimalNumber(string: "100"), note: "午餐"))
+        let vm = StatsViewModel(ledger: ledger)
+        XCTAssertEqual(vm.expenseTotal, NSDecimalNumber(string: "100"))   // Equatable，比值
+    }
+}
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+class StatsTest {
+    private lateinit var ledger: Ledger
+    @Before fun setUp() { ledger = Ledger() }
+    @Test fun totals() {
+        ledger.add(Tx(BigDecimal("100")))
+        assertEquals(BigDecimal("100"), ledger.total)   // equals()，比值
+    }
+}
+```
+</Fragment>
+<Fragment slot="java">
+```java
+@Test void totals() {
+    assertEquals(new BigDecimal("100"), ledger.getTotal());   // equals()
+    assertSame(a, b);                                         // 比位址的另有一個
+}
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+test("totals", async () => {
+  expect(ledger.total).toEqual(100);          // 深比較
+  expect(ledger).toBe(sameLedger);            // === 比參考
+  await expect(service.fetch()).resolves.toBeDefined();   // 非同步直接 await
+});
+```
+</Fragment>
+每個測試框架都在同一個地方分成兩條路：**比值**還是**比參考**。JUnit 是 `assertEquals` / `assertSame`，Jest 是 `toEqual` / `toBe`。XCTest 在 Swift 端靠 `Equatable` 自動選對，ObjC 端沒有運算子多載，所以分成 `XCTAssertEqual`（C 的 `==`，物件就是比位址）和 `XCTAssertEqualObjects`（`isEqual:`）。另一個差別是非同步：Jest 用 `await`、Kotlin 用 `runTest`，ObjC 的 XCTest 要自己建 expectation 然後等。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 測試 target 與一個測試類別的骨架
+
+小帳本有兩個測試 bundle：`LittleBookTests`（ObjC）和同一個 target 裡的 Swift 測試檔。測試 bundle 連結到 App target（Build Setting「Test Host」），所以可以 import App 裡任何標頭。ObjC 沒有 `@testable`，想測什麼就 `#import` 它的 `.h`；要碰 `.m` 類別延伸裡的私有成員，看後面的「測試用分類」。
+
+```objc
+// LBLedgerTests.m
+#import <XCTest/XCTest.h>
+#import "LBLedger.h"
+#import "LBTransaction.h"
+
+@interface LBLedgerTests : XCTestCase
+@property (nonatomic, strong) LBLedger *ledger;
+@end
+
+@implementation LBLedgerTests
+
+- (void)setUp {
+    [super setUp];
+    self.ledger = [LBLedger new];              // 每個 test 方法前都重建，測試之間互不影響
+}
+
+- (void)tearDown {
+    self.ledger = nil;                          // 清掉檔案、通知、單例狀態都在這裡
+    [super tearDown];
+}
+
+- (void)testAddingExpenseLowersTotal {
+    LBTransaction *tx = [LBTransaction transactionWithAmount:[NSDecimalNumber decimalNumberWithString:@"120"]
+                                                         note:@"午餐"];
+    tx.kind = LBTransactionKindExpense;
+    [self.ledger addTransaction:tx];
+    XCTAssertEqualObjects(self.ledger.total,
+                          [NSDecimalNumber decimalNumberWithString:@"-120"]);
+    XCTAssertEqual(self.ledger.transactions.count, 1u);
+}
+
+@end
+```
+
+規則：方法名以 `test` 開頭、回傳 `void`、沒有參數，XCTest 用 runtime 掃出來逐一執行（這就是模組 6 講的 `class_copyMethodList` 的實際應用）。每個 test 方法跑之前會建立一個新的 `XCTestCase` 實體並呼叫 `setUp`，之後 `tearDown`；所以實體變數不會在測試之間殘留，但單例、`NSUserDefaults`、磁碟上的檔案會，要在 `tearDown` 清。
+
+### 斷言：挑對那一個
+
+| 斷言 | 用在 | 備註 |
+|---|---|---|
+| `XCTAssertEqualObjects(a, b)` | 任何 ObjC 物件 | 呼叫 `isEqual:`，兩邊都 nil 也算相等 |
+| `XCTAssertEqual(a, b)` | C 標量：`NSInteger`、`BOOL`、`NSUInteger`、enum、指標 | 用在物件上是比位址 |
+| `XCTAssertEqualWithAccuracy(a, b, 0.001)` | `double` / `float` | 浮點數不要用 `XCTAssertEqual` |
+| `XCTAssertTrue` / `XCTAssertFalse` | 任何可轉 `BOOL` 的表達式 | 失敗訊息只會說「false」，加第二個參數寫說明 |
+| `XCTAssertNil` / `XCTAssertNotNil` | 指標 | — |
+| `XCTAssertThrows(expr)` / `XCTAssertThrowsSpecificNamed(expr, NSException, NSRangeException)` | 應該丟 ObjC 例外的程式 | 測 `NSArray` 越界之類的防禦 |
+| `XCTAssertNoThrow` | 確認不丟例外 | — |
+| `XCTAssertGreaterThan` 等 | 數值比較 | 比 `XCTAssertTrue(a > b)` 的失敗訊息清楚 |
+| `XCTFail(@"...")` | 走到不該走到的分支 | 常放在 completion 的錯誤分支 |
+| `XCTSkip` | 環境不符時跳過 | 比如沒網路 |
+
+所有斷言都接受可變參數格式字串當說明：`XCTAssertEqualObjects(a, b, @"交易 %@ 的金額不對", tx.identifier)`。預設一個斷言失敗後測試方法會**繼續**往下跑（`continueAfterFailure = YES`），要停就在 `setUp` 設 `self.continueAfterFailure = NO`。
+
+### 非同步：expectation 與 waitForExpectations
+
+`LBRateService` 的回呼切回主佇列（模組 7），測試方法本身跑在主執行緒，直接等會死結或根本等不到。XCTest 的做法是宣告一個<Term en="expectation" tw="期望" cn="期望" jp="エクスペクテーション" />，在回呼裡 `fulfill`，然後讓測試框架轉 run loop 等它：
+
+```objc
+// LBRateServiceTests.m
+- (void)testCompletionCalledOnMainQueue {
+    XCTestExpectation *done = [self expectationWithDescription:@"rates fetched"];
+
+    [self.service fetchRatesForBase:@"TWD"
+                         completion:^(NSDictionary *rates, NSError *error) {
+        XCTAssertTrue([NSThread isMainThread]);
+        XCTAssertNil(error);
+        XCTAssertEqualObjects(rates[@"USD"],
+                              [NSDecimalNumber decimalNumberWithString:@"0.031"]);
+        [done fulfill];                                   // 只能呼叫一次
+    }];
+
+    [self waitForExpectations:@[done] timeout:1.0];      // 超時就算失敗
+}
+```
+
+幾個細節：`waitForExpectations:timeout:` 會跑 run loop，所以 `dispatch_async(dispatch_get_main_queue(), ...)` 的回呼進得來；`fulfill` 一次多的會丟 API violation（見崩潰現場）；回呼可能被呼叫多次（進度回報）時設 `done.expectedFulfillmentCount = 3`；要證明「某件事**不會**發生」用 `done.inverted = YES`，等到超時反而是成功。超時設短一點（1 秒內），因為搭配 stub 時根本沒有真的網路；超時長只會讓失敗的測試跑很久。
+
+### 測試替身：不要連真的網路
+
+<Term en="stub / mock" tw="測試替身" cn="测试替身" jp="スタブ / モック" />的目的是把慢、不穩定、有副作用的東西換成假的。ObjC 常見三種做法，由簡到繁：
+
+1. **相依注入**：`LBRateService` 的 `initWithSession:baseURL:` 已經收一個 `NSURLSession`，測試傳一個配置了 `protocolClasses` 的 session。
+2. **`NSURLProtocol` 子類別**：`LBStubURLProtocol` 攔截所有請求，依 URL 回固定 JSON（模組 7 已寫）。
+3. **純解析函式**：把「解析」和「下載」拆開，`+ratesFromJSONData:error:` 完全不碰網路，一個 `NSData` 進一個字典出，這種測試最多、最快。
+
+```objc
+- (void)setUp {
+    [super setUp];
+    NSURLSessionConfiguration *config = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+    config.protocolClasses = @[[LBStubURLProtocol class]];
+    [LBStubURLProtocol stubURL:[NSURL URLWithString:@"https://api.test/latest?base=TWD"]
+                      withJSON:@{ @"rates": @{ @"USD": @0.031 } }];
+    self.service = [[LBRateService alloc] initWithSession:[NSURLSession sessionWithConfiguration:config]
+                                                  baseURL:[NSURL URLWithString:@"https://api.test"]];
+}
+```
+
+OCMock 之類的 mock 框架在舊專案很常見，它靠 runtime 動態產生假物件並記錄被呼叫的 selector；能用相依注入解決的先不要上 OCMock，mock 寫多了測試會變成「驗證實作細節」而不是「驗證行為」。
+
+### `@testable` 在 ObjC 的對應：測試用分類
+
+Swift 測試用 `@testable import LittleBook` 就能碰 `internal` 成員。ObjC 的私有成員在 `.m` 的類別延伸裡，標頭沒有宣告，測試檔要存取有兩條路：
+
+```objc
+// LBLedgerTests.m：在測試檔重新宣告一個分類，把私有方法「公告」出來
+@interface LBLedger (Testing)
+- (void)lb_recalculateTotal;        // 存在於 LBLedger.m 的類別延伸
+@property (nonatomic, readonly) dispatch_queue_t lb_accessQueue;
+@end
+```
+
+編譯器只需要知道 selector 存在就願意編，runtime 找得到實作就能跑。這是 ObjC 動態派送的直接好處，也是風險：拼錯名字編譯照過、執行才 `unrecognized selector`。另一條路是把私有宣告搬到 `LBLedger+Private.h`，App 與測試都 import，比較正式，模組 11 讀舊專案時會看到大量這種 `+Private.h`。
+
+兩個測試 bundle 的 Swift 測試檔用 `@testable import LittleBook` 之後，ObjC 類別全部可用（透過橋接標頭），Swift 類別的 `internal` 成員也可用；所以 `StatsViewModelTests` 可以直接呼叫回傳 tuple 的 `categoryBreakdown()`，不必走 `@objc` 包裝層。
+
+<Steps title="在 Xcode 跑測試">
+<ol>
+<li>⌘U 跑整個 scheme 的所有測試；左側 Test Navigator（⌘6）看紅綠。</li>
+<li>點某個 test 方法左邊的菱形只跑那一個；失敗的斷言會在那一行顯示紅色訊息。</li>
+<li>Edit Scheme → Test → Options 勾「Randomize execution order」，抓出互相依賴的測試。</li>
+<li>Product → Perform Action → Test Without Building 在只改測試檔時省時間。</li>
+</ol>
+</Steps>
+
+<Pitfall title="XCTAssertEqual 比兩個 NSString">
+<Fragment slot="bad">
+```objc
+XCTAssertEqual(tx.note, @"午餐");      // 比指標：常數字串剛好同一個就過，否則失敗
+XCTAssertEqual(ledger.total, [NSDecimalNumber decimalNumberWithString:@"100"]);
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+XCTAssertEqualObjects(tx.note, @"午餐");
+XCTAssertEqualObjects(ledger.total, [NSDecimalNumber decimalNumberWithString:@"100"]);
+```
+</Fragment>
+`XCTAssertEqual` 展開是 `==`，物件指標的 `==` 是比位址。字串字面值在編譯期合併、小整數 `NSNumber` 有快取，所以這種錯誤**有時候會過**，等到字串是從 JSON 解出來的才失敗，讓人以為是資料問題。看到兩邊是物件就反射性寫 `XCTAssertEqualObjects`；Swift 端沒有這個問題，`XCTAssertEqual` 走 `Equatable`。
+</Pitfall>
+
+<Pitfall title="setUp 裡建立的狀態漏到別的測試">
+`setUp` 重建實體變數沒問題，但 `[LBSettings shared]` 單例、`NSUserDefaults.standardUserDefaults`、`NSTemporaryDirectory()` 裡的檔案、`NSNotificationCenter` 的觀察者都是全程式共用的。某個測試改了 `currencyCode` 沒還原，另一個測試在隨機順序下就會失敗。對策：單例類別提供 `initWithUserDefaults:` 這種可注入的初始化器（`LBSettings` 已經有），測試用 `[[NSUserDefaults alloc] initWithSuiteName:@"test"]` 並在 `tearDown` 呼叫 `removePersistentDomainForName:`；檔案寫到測試自己建的子目錄並在 `tearDown` 刪掉。
+</Pitfall>
+
+<Pitfall title="在 completion 裡斷言，但 completion 從沒被呼叫">
+測試過了，因為沒有任何斷言被執行。沒有 expectation 的非同步測試永遠是綠的。任何回呼裡的斷言都要搭配 `fulfill`，而且 `waitForExpectations` 要寫在測試方法末尾；忘了寫 wait，XCTest 會在測試結束時警告 `Failed due to unwaited expectations`，這是友善提醒，但只有在你有建 expectation 時才會出現。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInternalInconsistencyException',
+reason: 'API violation - multiple calls made to -[XCTestExpectation fulfill] for rates fetched.'
+#0  -[XCTestExpectation fulfill]
+#1  __52-[LBRateServiceTests testCompletionCalledOnMainQueue]_block_invoke
+#2  __48-[LBRateService fetchRatesForBase:completion:]_block_invoke`}>
+`fulfill` 被呼叫了第二次。對照 `#2`，是 `LBRateService` 的 completion 被呼叫兩次：常見原因是實作裡錯誤分支 `completion(nil, error)` 之後忘了 `return`，接著又跑到成功分支 `completion(rates, nil)`。這個 crash 其實幫你抓到了一個產品 bug，不只是測試問題。如果回呼本來就該被呼叫多次（進度），把 `expectedFulfillmentCount` 設成預期次數；如果不確定次數，宣告 `assertForOverFulfill = NO` 可以關掉這個檢查，但先想清楚為什麼不確定。
+</Crash>
+
+## 小結
+
+- `test` 開頭、無參數、回傳 `void` 的方法會被 runtime 掃出來執行；每個方法有自己的實體，`setUp` / `tearDown` 包前後，共用狀態要自己清。
+- 物件用 `XCTAssertEqualObjects`（`isEqual:`），標量用 `XCTAssertEqual`，浮點數用 `WithAccuracy`。
+- 非同步：`expectationWithDescription:` → 回呼裡 `fulfill` 一次 → `waitForExpectations:timeout:`；多次用 `expectedFulfillmentCount`，「不該發生」用 `inverted`。
+- 測試替身優先順序：拆出純函式 → 相依注入 → `NSURLProtocol` stub → 最後才 OCMock。
+- ObjC 沒有 `@testable`：直接 import 標頭；私有成員靠測試檔裡的分類宣告或 `+Private.h`。

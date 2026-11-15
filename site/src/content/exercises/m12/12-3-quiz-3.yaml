@@ -1,0 +1,19 @@
+id: m12-12-3-quiz-3
+chapter: "12.3"
+section: quiz
+type: quiz
+title: 證明「不會被呼叫」
+minutes: 1
+prompt: 要測「LBSearchController 收到過時的查詢結果時**不會**呼叫 results block」，expectation 怎麼設？
+options:
+  - 不建 expectation，block 裡寫 XCTFail 就好
+  - "建 expectation、設 inverted = YES，block 裡 fulfill；waitForExpectations 超時代表成功"
+  - "建 expectation、設 expectedFulfillmentCount = 0"
+  - "用 dispatch_after 等 1 秒再檢查旗標"
+answer: 1
+explain: "`inverted` 翻轉語意：被 fulfill 就失敗，等到超時反而通過。選項 A 的問題是測試會「立刻結束」，block 根本沒機會在測試期間被呼叫，永遠綠燈。"
+hints: ["沒有 wait 的非同步測試會等 block 嗎？", "expectedFulfillmentCount 最小值是 1。"]
+feedback:
+  "0": 測試方法會在 block 有機會執行前就結束，什麼都沒驗證。
+  "2": expectedFulfillmentCount 必須大於 0，設 0 會丟例外。
+  "3": 能動但用 sleep 等待讓測試慢且不穩，XCTest 已經有 inverted 這個工具。

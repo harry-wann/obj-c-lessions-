@@ -1,0 +1,45 @@
+id: m11-11-5-code-1
+chapter: "11.5"
+type: code
+title: 用 Masonry 重寫一組約束
+mobile: false
+minutes: 6
+prompt: "把原生 Auto Layout 改成 Masonry：`amountField` 左右貼 `self.view` 的 safe area 各 16、top 距 safe area top 12、高度 44。用 `mas_makeConstraints:`，數值用 `mas_equalTo` 或 `@數字`。"
+starter: |
+  // 原生版本：
+  // [NSLayoutConstraint activateConstraints:@[
+  //   [self.amountField.leadingAnchor constraintEqualToAnchor:guide.leadingAnchor constant:16],
+  //   [self.amountField.trailingAnchor constraintEqualToAnchor:guide.trailingAnchor constant:-16],
+  //   [self.amountField.topAnchor constraintEqualToAnchor:guide.topAnchor constant:12],
+  //   [self.amountField.heightAnchor constraintEqualToConstant:44],
+  // ]];
+  - (void)layoutAmountField {
+
+  }
+checks:
+  - must_match: 'mas_makeConstraints\s*:\s*\^\s*\(\s*MASConstraintMaker\s*\*\s*make\s*\)'
+    message: "用 mas_makeConstraints: 搭 MASConstraintMaker block"
+  - must_match: 'make\.(left|leading)'
+    message: 要設左邊
+  - must_match: 'make\.[a-z.]*(right|trailing)'
+    message: 要設右邊
+  - must_match: 'make\.top'
+    message: 要設 top
+  - must_match: 'make\.height\.(mas_equalTo\s*\(\s*44\s*\)|equalTo\s*\(\s*@44\s*\))'
+    message: "height 用 mas_equalTo(44) 或 equalTo(@44)"
+  - must_not_match: 'equalTo\s*\(\s*44\s*\)'
+    message: "equalTo(44) 傳 C 數值會 crash"
+  - must_not_match: 'activateConstraints'
+    message: 不要再用原生 activateConstraints
+  - "brackets_balanced: true"
+solution: |
+  - (void)layoutAmountField {
+      [self.amountField mas_makeConstraints:^(MASConstraintMaker *make) {
+          make.left.right.equalTo(self.view.mas_safeAreaLayoutGuide)
+              .insets(UIEdgeInsetsMake(0, 16, 0, 16));
+          make.top.equalTo(self.view.mas_safeAreaLayoutGuideTop).offset(12);
+          make.height.mas_equalTo(44);
+      }];
+  }
+solution_note: "讀法：`make.屬性鏈.關係(目標).修飾`。`left.right` 可以串在一起共用一個 equalTo；`insets` 對 left / right 分別取 left / right 值。SnapKit 寫法完全對應。"
+hints: ["左右可以串成 make.left.right 一次設。", "C 數值要包成物件。", "offset 是常數位移，insets 是四邊內縮。"]

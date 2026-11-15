@@ -1,0 +1,19 @@
+id: m09-9-2-quiz-1
+chapter: "9.2"
+section: quiz
+type: quiz
+title: 這個資料該存哪
+minutes: 2
+prompt: 小帳本有四種資料：（A）預設貨幣代碼、（B）全部交易、（C）匯率 API 的 token、（D）最近一次抓到的匯率表。哪一組對應是對的？
+options:
+  - "A NSUserDefaults／B Documents 裡的 JSON 檔／C Keychain／D Library/Caches"
+  - "A NSUserDefaults／B NSUserDefaults／C NSUserDefaults／D NSUserDefaults"
+  - "A Documents／B Library/Caches／C NSUserDefaults／D Documents"
+  - "A Keychain／B Documents 裡的 JSON 檔／C NSUserDefaults／D tmp"
+answer: 0
+explain: 設定放 NSUserDefaults；會長大的使用者資料放檔案；秘密放 Keychain；能重新抓的放 Caches。四種資料四個家。
+hints: ["先把「設定」「資料」「秘密」「可重生」四個標籤貼上去。", "NSUserDefaults 是明文 plist，而且整份讀寫。"]
+feedback:
+  "1": 全部塞 NSUserDefaults 是新手最常見的錯：交易會讓 plist 無限長大；token 是明文。
+  "2": 帳本放 Caches 會被清掉；token 放 NSUserDefaults 是明文。
+  "3": 貨幣代碼不是秘密，放 Keychain 殺雞用牛刀；token 才是秘密。

@@ -1,0 +1,53 @@
+id: m11-11-6-code-1
+chapter: "11.6"
+type: code
+title: 把 Singleton 改成注入
+mobile: false
+minutes: 6
+prompt: "`LBLegacyListViewController` 到處用 `[LBLegacyLedgerManager sharedManager].ledger`。改成由外部注入：加 `initWithLedger:`（指定初始化器，存進 `_ledger`），`viewDidLoad` 改用 `self.ledger`。不要再出現 `sharedManager`。"
+starter: |
+  @interface LBLegacyListViewController ()
+  @property (nonatomic, strong) LBLedger *ledger;
+  @end
+
+  @implementation LBLegacyListViewController
+
+  - (void)viewDidLoad {
+      [super viewDidLoad];
+      self.title = [LBLegacyLedgerManager sharedManager].ledger.name;
+      [self reloadWithLedger:[LBLegacyLedgerManager sharedManager].ledger];
+  }
+  @end
+checks:
+  - selector_equals: "initWithLedger:"
+  - must_match: '_ledger\s*=\s*ledger|self\.ledger\s*=\s*ledger'
+    message: "initWithLedger: 要把參數存起來"
+  - must_match: 'self\.ledger\.name|_ledger\.name'
+    message: "viewDidLoad 改讀 self.ledger"
+  - must_match: 'reloadWithLedger\s*:\s*(self\.ledger|_ledger)'
+    message: "reloadWithLedger: 也改用 self.ledger"
+  - must_not_match: 'sharedManager'
+    message: 不要再呼叫 sharedManager
+  - "brackets_balanced: true"
+solution: |
+  @interface LBLegacyListViewController ()
+  @property (nonatomic, strong) LBLedger *ledger;
+  @end
+
+  @implementation LBLegacyListViewController
+
+  - (instancetype)initWithLedger:(LBLedger *)ledger {
+      if (self = [super initWithStyle:UITableViewStylePlain]) {
+          _ledger = ledger;
+      }
+      return self;
+  }
+
+  - (void)viewDidLoad {
+      [super viewDidLoad];
+      self.title = self.ledger.name;
+      [self reloadWithLedger:self.ledger];
+  }
+  @end
+solution_note: "資料流從「任何人都能摸全域」變成「誰建 VC 誰給 ledger」。這一步同時是 11.7 改寫成 Swift 的第二步：Swift 端的測試才有辦法換掉相依。AppDelegate 建一份 ledger 傳進去即可。"
+hints: ["8.x 的 initWithLedger: 就是這個模式。", "init 裡用 ivar 直接賦值。", "搜尋全檔的 sharedManager 一個一個換。"]

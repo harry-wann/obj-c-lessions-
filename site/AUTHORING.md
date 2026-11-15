@@ -1,5 +1,7 @@
 # 內容撰寫指南（給課文與題目作者）
 
+> 寫完後先跑 `python3 -I scripts/fix-yaml.py <檔案…>` 自動替含「: 」的字串加引號，再跑 `node scripts/validate.mjs`、`node scripts/check-fm.mjs`、`node scripts/check-ex.mjs`。
+
 ## 檔案位置與命名
 
 - 課文：`src/content/lessons/m0X/X-Y-slug.mdx`，例：`m02/2-4-properties.mdx`。slug 用英文小寫與連字號。

@@ -1,0 +1,17 @@
+id: m10-10-4-predict-1
+chapter: "10.4"
+type: predict
+title: 預測順序：串列佇列 async 後 sync
+minutes: 2
+code: |
+  dispatch_queue_t q = dispatch_queue_create("lb.serial", NULL);
+  dispatch_async(q, ^{ NSLog(@"1"); });
+  dispatch_sync(q, ^{ NSLog(@"2"); });
+  NSLog(@"3");
+options: ["1\n2\n3", "2\n1\n3", "3\n1\n2", "順序不確定"]
+accept: ["1 2 3"]
+feedback:
+  "順序不確定": 串列佇列保證 FIFO，sync 要等自己的 block 跑完才回來，而它排在 1 後面。
+  "3 1 2": dispatch_sync 會阻塞到 2 印完，3 不可能先。
+solution_note: 串列佇列 FIFO：1 先進先跑；sync 的 2 排在後面且會阻塞呼叫端直到跑完；3 最後。
+hints: ["串列佇列的順序是？", "dispatch_sync 什麼時候回來？"]

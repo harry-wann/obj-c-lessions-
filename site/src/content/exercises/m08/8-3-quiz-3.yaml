@@ -1,0 +1,19 @@
+id: m08-8-3-quiz-3
+chapter: "8.3"
+section: quiz
+type: quiz
+title: Safe Area 還是 view 的邊
+minutes: 1
+prompt: 整頁的 UIScrollView 頂端該對誰，才不會被導覽列遮住？
+options:
+  - "view.topAnchor"
+  - "view.safeAreaLayoutGuide.topAnchor"
+  - "view.layoutMarginsGuide.topAnchor"
+  - "navigationController.navigationBar.bottomAnchor"
+answer: 1
+explain: safeAreaLayoutGuide 已經扣掉狀態列、導覽列、Home 指示器；左右邊距才用 layoutMarginsGuide（16 pt）。直接對導覽列的 anchor 是不同視圖階層，會 crash。
+hints: ["導覽列不在你的 view 階層裡。", "哪個 guide 的名字就叫「安全」？"]
+feedback:
+  "0": 內容會從狀態列底下開始，被導覽列蓋住。
+  "2": layoutMarginsGuide 管的是左右 16 pt 邊距，頂端通常不扣導覽列。
+  "3": 不同視圖階層，activate 會 crash（no common ancestor）。

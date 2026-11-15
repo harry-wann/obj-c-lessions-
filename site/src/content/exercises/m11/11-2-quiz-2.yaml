@@ -1,0 +1,18 @@
+id: m11-11-2-quiz-2
+chapter: "11.2"
+section: quiz
+type: quiz
+title: UIWebView 的替代品與急迫度
+minutes: 1
+prompt: "專案裡有 `UIWebView`。替代品是什麼？急迫度？"
+options:
+  - "WKWebView；高：App Store 已拒收含 UIWebView 的 App"
+  - "SFSafariViewController；低：只是風格"
+  - "WKWebView；低：還能跑就不用換"
+  - "UIWebView 沒有替代品，只能等 Apple 移除"
+answer: 0
+explain: "`WKWebView`（iOS 8）。Apple 自 2020 年起拒收使用 `UIWebView` 的新 App 與更新，這是「必換」等級。`SFSafariViewController` 只適合開外部網頁、不能注入 JS 或自訂 UI。"
+hints: ["對照表的第一個問題：會不會上架被拒？", "WebKit framework 裡的那個類別。"]
+feedback:
+  "1": "SFSafariViewController 是給「跳去看一個網頁」用的，不能嵌在自己的畫面裡控制。"
+  "2": "還能跑，但上架會被拒，所以是高急迫度。"

@@ -1,0 +1,25 @@
+id: m12-12-3-xcode-1
+chapter: "12.3"
+type: xcode
+title: 全套測試全綠
+mobile: false
+minutes: 45
+prompt: 把 M05 到 M12 所有測試跑到全綠，補齊核心邏輯沒覆蓋的地方，並讓測試在隨機順序下穩定。
+starter: xcode/M12-starter
+steps:
+  - "⌘U 跑全部。把紅燈列成清單，先修「斷言用錯」的（`XCTAssertEqual` 比物件、沒 wait 的非同步）。"
+  - "Edit Scheme → Test → Options 勾 Randomize execution order 與 Gather coverage，再跑一次；偶發失敗的測試多半是共用狀態沒清，在 `tearDown` 清掉 `LBSettings` 的 suite、暫存目錄、通知觀察者。"
+  - "Report Navigator（⌘9）→ Coverage，找 `LBLedger`、`LBPersistence`、`LBRateService` 低於 80% 的方法，各補一個測試；網路相關一律用 `LBStubURLProtocol`。"
+  - "ObjC 測試需要碰私有成員的，在測試檔用 `@interface X (Testing)` 宣告；Swift 測試用 `@testable import LittleBook`。"
+  - "連跑三次 ⌘U 全綠才算完成。"
+tests:
+  - LBLedgerTests/testAddingExpenseLowersTotal
+  - LBRateServiceTests/testCompletionCalledOnMainQueue
+  - LBPersistenceTests/testRoundTripJSON
+  - StatsViewModelTests/testTotalsFromLedger
+  - LBBridgingTests/testObjCCanInstantiateSwiftStatsViewController
+acceptance:
+  - "⌘U 全綠，Randomize execution order 開著連跑三次都綠"
+  - "LBLedger、LBPersistence、LBRateService、StatsViewModel 覆蓋率 ≥ 80%"
+  - "沒有任何測試用 sleep() 或 dispatch_semaphore 等待"
+solution_note: 「全綠」的真正門檻是隨機順序下的穩定；一個偶發失敗的測試會讓整個團隊開始忽略紅燈。覆蓋率數字只是找漏洞的工具，不是目標。

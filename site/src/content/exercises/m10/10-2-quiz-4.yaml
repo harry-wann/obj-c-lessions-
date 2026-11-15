@@ -1,0 +1,17 @@
+id: m10-10-2-quiz-4
+chapter: "10.2"
+section: quiz
+type: quiz
+title: view model 快取的 key
+minutes: 1
+prompt: LBTransactionViewModel 的 LRU 快取 key 用 `identifier + modifiedAt`。為什麼要加 modifiedAt？
+options:
+  - 交易被編輯後 key 跟著變，舊 view model 自然失效，不用手動清快取
+  - LRU 需要時間戳記才能決定淘汰誰
+  - identifier 可能重複
+  - 讓 key 的雜湊分布更平均
+answer: 0
+explain: 這是「以內容版本當 key」的快取失效策略：不需要知道誰改了什麼，改了 key 就不同。
+hints: ["編輯一筆交易後，快取裡的舊字串怎麼辦？", "LRU 的淘汰順序靠什麼？（不是 key）"]
+feedback:
+  "1": LRU 用存取順序淘汰，跟 key 的內容無關。

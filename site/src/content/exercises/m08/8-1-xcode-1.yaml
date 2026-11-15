@@ -1,0 +1,20 @@
+id: m08-8-1-xcode-1
+chapter: "8.1"
+type: xcode
+title: 程式碼啟動 UITabBarController
+mobile: false
+minutes: 20
+prompt: 把 M08-starter 的 SceneDelegate 從「一個 label」改成三個分頁的 UITabBarController，確認 plist 沒有 Storyboard 設定。
+starter: xcode/M08-starter
+steps:
+  - "打開 `project.yml` 的 `info.properties`，確認沒有 `UIMainStoryboardFile`，`UISceneConfigurations` 裡也沒有 `UISceneStoryboardFile`。"
+  - "在 `SceneDelegate.m` 的 `scene:willConnectToSession:options:` 建立 `LBLedger` 與 `LBUndoStack`，用 `initWithLedger:undoStack:` 建立 `LBTransactionListViewController`，包進 `UINavigationController`。"
+  - "再建兩個暫時的 `UIViewController`（title 統計 / 設定）各包 nav；三個 nav 設 `tabBarItem`（`list.bullet` / `chart.bar` / `gear`）。"
+  - "建立 `UITabBarController`，`viewControllers` 放三個 nav；`initWithWindowScene:` 建 window、設 `rootViewController`、`self.window = window`、`makeKeyAndVisible`。"
+  - "在 `SceneDelegate` 四個狀態回呼各加一行 `NSLog(@\"%s\", __PRETTY_FUNCTION__)`，⌘R 後按 Home、再回來，看主控台順序。"
+tests: []
+acceptance:
+  - App 啟動後看到底部三個分頁「帳本 / 統計 / 設定」，每個分頁頂部有 Large Title 導覽列
+  - "切到背景再回前景，主控台依序印出 sceneWillResignActive: → sceneDidEnterBackground: → sceneWillEnterForeground: → sceneDidBecomeActive:"
+  - "Info.plist（建置後的 `LittleBook.app/Info.plist`）裡搜不到 `Main`"
+solution_note: 這是畫面 01 的外框。黑畫面 = window 沒存成屬性；crash 找 Main = plist 還有 Storyboard 鍵。統計分頁 12.1 換成 Swift 版、設定分頁 9.2 / 11.3 換成設定頁。

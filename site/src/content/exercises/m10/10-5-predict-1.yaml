@@ -1,0 +1,32 @@
+id: m10-10-5-predict-1
+chapter: "10.5"
+type: predict
+title: 預測順序：semaphore 限流 2
+minutes: 2
+prompt: 4 個任務各睡 100 ms，semaphore 初始值 2。印出「開始」的時間點（粗略，以 100 ms 為單位）。
+code: |
+  dispatch_semaphore_t gate = dispatch_semaphore_create(2);
+  dispatch_group_t g = dispatch_group_create();
+  CFTimeInterval t0 = CACurrentMediaTime();
+  for (int i = 0; i < 4; i++) {
+      dispatch_group_async(g, dispatch_get_global_queue(0, 0), ^{
+          dispatch_semaphore_wait(gate, DISPATCH_TIME_FOREVER);
+          NSLog(@"start %d at ~%.0f ms", i,
+                round((CACurrentMediaTime() - t0) * 10) * 100);
+          usleep(100000);
+          dispatch_semaphore_signal(gate);
+      });
+  }
+  dispatch_group_wait(g, DISPATCH_TIME_FOREVER);
+  NSLog(@"total ~%.0f ms", round((CACurrentMediaTime() - t0) * 10) * 100);
+options:
+  - "兩個在 ~0 ms、兩個在 ~100 ms 開始；total ~200 ms"
+  - "四個都在 ~0 ms 開始；total ~100 ms"
+  - "一個接一個每 100 ms 一個；total ~400 ms"
+  - "死結"
+accept: ["兩個在 ~0 ms、兩個在 ~100 ms 開始；total ~200 ms", "0 0 100 100 200"]
+feedback:
+  "四個都在 ~0 ms 開始；total ~100 ms": 那是沒有 semaphore 的情況；初始值 2 表示同時最多兩個。
+  "一個接一個每 100 ms 一個；total ~400 ms": 那是初始值 1（互斥）。
+solution_note: 限流 2：前兩個立刻拿到通行證，後兩個等前兩個各還一張（約 100 ms 後）。總時間約 2 批 × 100 ms。哪兩個先開始不確定，但時間分佈確定。
+hints: ["初始值 2 代表幾張通行證？", "通行證什麼時候還回來？"]

@@ -1,0 +1,273 @@
+---
+title: MRC 讀與寫
+module: 11
+chapter: "11.1"
+order: 1
+minutes: 40
+prereq: ["4.1", "4.2"]
+objectives:
+  - 讀一個 MRC 檔案時，能把每個 retain / release / autorelease 配成對，標出少的與多的
+  - 手寫 retain / assign / copy 三種 setter，說出集合為什麼會 retain 元素
+  - 用 Xcode 的 Convert to ARC 轉一個檔案，並決定哪些檔案先留在 -fno-objc-arc
+summary: "手寫 retain / release / autorelease 與 [super dealloc]、擁有權四規則落到 setter 與集合上、over-release / 跨池 autorelease / assign 懸空三種經典錯誤、Convert to ARC 與逐檔 -fno-objc-arc 混用。"
+terms:
+  - { en: MRC (manual reference counting), tw: 手動參考計數, cn: 手动引用计数, jp: 手動参照カウント }
+  - { en: over-release, tw: 多釋放一次, cn: 过度释放, jp: 過剰リリース }
+  - { en: dangling pointer, tw: 懸空指標, cn: 野指针, jp: ダングリングポインタ }
+  - { en: setter, tw: 設定器（setter）, cn: 设值方法, jp: セッター }
+  - { en: Convert to ARC, tw: 轉換為 ARC, cn: 转换为 ARC, jp: ARC への変換 }
+  - { en: zombie object, tw: 殭屍物件, cn: 僵尸对象, jp: ゾンビオブジェクト }
+appProgress: 打開 LittleBook-Legacy，修掉 LBLegacyTransaction 的 over-release 與 setter 洩漏（埋雷 1、2），再把一個檔案轉成 ARC。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// Swift 專案裡混了一個舊 ObjC pod，它的 .m 檔用 -fno-objc-arc 編譯。
+// Swift 端完全感覺不到：拿到的物件照 ARC 規則走。
+let tx = LBLegacyTransaction(note: "午餐")   // 內部 alloc/init + autorelease
+ledger.add(tx)                                 // 內部 [tx retain]
+// 離開範圍時 Swift 自動 release
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// Android 舊專案遷移時，你會先讀 Java 再決定怎麼改成 Kotlin。
+// MRC 之於 ARC，就像手動 close() 之於 use {}：
+FileInputStream(file).use { stream ->   // use 自動 close
+    stream.read()
+}
+// 舊 Java 碼要自己在 finally 裡 close，忘了就洩漏
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// Java 7 以前：資源要自己配對 open / close
+FileInputStream in = null;
+try {
+    in = new FileInputStream(file);     // 取得 → 你負責關
+    in.read();
+} finally {
+    if (in != null) in.close();         // 忘了 = 洩漏；關兩次 = 例外
+}
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// TS 專案裡的 legacy JS：手動 addEventListener / removeEventListener
+const handler = () => render();
+el.addEventListener("click", handler);   // 登記 → 你負責取消
+// ...
+el.removeEventListener("click", handler); // 忘了 = 洩漏；
+                                          // 取消別人的 = 功能壞掉
+```
+</Fragment>
+每種語言都有「拿到就要還」的資源：Java 的 stream、JS 的事件監聽、ObjC MRC 的物件計數。4.1 讀過規則，這一章把規則落到**真實舊檔案**的每一行上：你要能指著一個 `release` 說「它配的是第 12 行的 `alloc`」。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 先把四規則背熟，再開檔案
+
+<Term en="MRC (manual reference counting)" tw="手動參考計數" cn="手动引用计数" jp="手動参照カウント" />的全部規則只有四句：
+
+1. `alloc` / `new` / `copy` / `mutableCopy` 開頭的方法回傳的物件，**你擁有**。
+2. 送 `retain`，**你擁有**。
+3. 擁有的物件用完要 `release` 或 `autorelease`。
+4. 不是你擁有的，**不准 release**。
+
+讀 MRC 檔案的方法是：每看到一個 +1（規則 1、2），就往下找對應的 −1（規則 3）；每看到一個 −1，就往上找它配的 +1。配不起來的就是 bug：多出來的 +1 是洩漏，多出來的 −1 是 <Term en="over-release" tw="多釋放一次" cn="过度释放" jp="過剰リリース" />，會 crash。
+
+### 三種 setter 的長相
+
+MRC 時代 `@property` 的修飾詞是 `retain` / `assign` / `copy`（沒有 `strong` / `weak`）。`@synthesize` 幫你產生的 setter 長這樣，你一定要能手寫，因為舊專案裡**到處都有人自己寫**：
+
+```objc
+// 此檔需 -fno-objc-arc（Build Phases → Compile Sources → Compiler Flags）
+#import <Foundation/Foundation.h>
+
+@interface LBLegacyTransaction : NSObject {
+    NSString *_note;
+    NSDecimalNumber *_amount;
+    id _owner;                     // assign：不持有
+}
+@property (nonatomic, copy) NSString *note;
+@property (nonatomic, retain) NSDecimalNumber *amount;
+@property (nonatomic, assign) id owner;
+@end
+
+@implementation LBLegacyTransaction
+
+// retain setter：先 retain 新的、再 release 舊的、最後賦值
+- (void)setAmount:(NSDecimalNumber *)amount {
+    if (_amount == amount) return;        // 同一物件：什麼都不做
+    [amount retain];                      // +1 新的
+    [_amount release];                    // −1 舊的
+    _amount = amount;
+}
+- (NSDecimalNumber *)amount { return _amount; }
+
+// copy setter：copy 回傳的就是 +1，不再 retain
+- (void)setNote:(NSString *)note {
+    if (_note == note) return;
+    NSString *old = _note;
+    _note = [note copy];
+    [old release];
+}
+- (NSString *)note { return _note; }
+
+// assign setter：只賦值，計數不動（像 __unsafe_unretained）
+- (void)setOwner:(id)owner { _owner = owner; }
+- (id)owner { return _owner; }
+
+- (void)dealloc {
+    [_note release];
+    [_amount release];
+    // _owner 是 assign，不 release
+    [super dealloc];                      // MRC 必寫，且在最後一行
+}
+@end
+
+int main(void) {
+    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+    LBLegacyTransaction *tx = [[LBLegacyTransaction alloc] init];   // +1
+    tx.amount = [NSDecimalNumber decimalNumberWithString:@"120"];  // +0 → setter retain
+    tx.note = @"午餐";
+    NSLog(@"%@ %@", tx.note, tx.amount);
+    [tx release];                          // −1 → dealloc
+    [pool drain];
+    return 0;
+}
+// 預期輸出：
+// 午餐 120
+```
+
+「先 retain 新的、再 release 舊的」順序不能反：如果新舊是同一個物件而你先 release，它可能當場歸零，接著 retain 的就是死物件。`if (_amount == amount) return;` 是另一道保險。
+
+### 集合會 retain 元素
+
+`NSArray` / `NSDictionary` / `NSSet` 放進去的物件會 +1，拿出來會 −1。這就是為什麼下面這段 MRC 碼是正確的：
+
+```objc
+// 此檔需 -fno-objc-arc
+LBLegacyTransaction *tx = [[LBLegacyTransaction alloc] init];   // +1，我擁有
+[self.transactions addObject:tx];                               // 陣列 retain → 2
+[tx release];                                                   // 我放手 → 1
+// tx 活著，由陣列持有；removeObject: 時陣列會 release
+```
+
+反過來，從陣列拿出來後打算長期留著，要自己 `retain`，否則陣列一移除，你手上就是懸空指標。
+
+### 三種經典錯誤
+
+**(1) over-release**：最常見在 `dealloc` 裡對 `assign` 屬性 release，或先 `autorelease` 又 `release`。症狀是 `EXC_BAD_ACCESS`，位置常常離真正的錯誤很遠。開 Zombie Objects 會直接點名（見本章 Crash）。
+
+**(2) autorelease 物件跨池使用**：`[NSString stringWithFormat:]` 回傳 +0 的 autorelease 物件，只保證活到「目前池排空」。在背景執行緒自己開了 `NSAutoreleasePool`，池 `drain` 後還把物件傳出去，就是在用死物件。想留要先 `retain`。
+
+**(3) `assign` 指向已釋放物件**：MRC 沒有 `weak`，delegate 一律 `assign`。被指的物件釋放後指標不會歸零，成了<Term en="dangling pointer" tw="懸空指標" cn="野指针" jp="ダングリングポインタ" />。舊專案的標準防禦是在 `dealloc` 裡把別人指向自己的 delegate 設回 nil：`_webView.delegate = nil;`、`[_connection cancel];`。
+
+### Convert to ARC 與逐檔混用
+
+Xcode 的 **Edit → Convert → To Objective-C ARC...** 會幫你刪掉 `retain` / `release` / `[super dealloc]`、把 `retain` 改成 `strong`、`assign` 的物件屬性問你要 `weak` 還是 `unsafe_unretained`。它一次可以轉整個 target，但實務上**一次轉一個檔案**：
+
+<Steps title="把一個 MRC 檔案轉成 ARC">
+<ol>
+<li>先在 git 開一個乾淨的 commit，確認 ⌘U 全綠。</li>
+<li>Build Settings 搜 <code>Objective-C Automatic Reference Counting</code>，target 層級設為 YES（整個 target 進 ARC）。</li>
+<li>Build Phases → Compile Sources，把<strong>還沒準備好</strong>的 <code>.m</code> 全部雙擊 Compiler Flags 欄加 <code>-fno-objc-arc</code>。這一步之後專案要能編譯、測試照過。</li>
+<li>挑一個最小、依賴最少的檔案，拿掉它的 <code>-fno-objc-arc</code>，Edit → Convert → To Objective-C ARC...，只勾這一個檔案，按 Check 看它列出的問題。</li>
+<li>讀 Preview 的 diff：每一行刪除的 <code>release</code> 都要能說出為什麼合理。有 <code>assign</code> 物件屬性要親自決定 <code>weak</code>。</li>
+<li>Save，⌘U，commit「Convert LBLegacyTransaction to ARC」。下一個檔案重複 4–6。</li>
+</ol>
+</Steps>
+
+<Tip title="為什麼不要一次全轉">
+Convert to ARC 刪 `release` 不會錯，但它**不會幫你修原本就錯的擁有權**：一個 over-release 的物件在 MRC 下 crash，轉成 ARC 後可能變成洩漏（因為工具把多的 release 跟少的 retain 都「抹平」了），只是從看得見的 bug 變成看不見的。一檔一 commit 才能在出問題時知道是哪一步。11.7 會回到這個策略。
+</Tip>
+
+<Pitfall title="在 -fno-objc-arc 的檔案裡寫 ARC 語法">
+<Fragment slot="bad">
+```objc
+// 此檔有 -fno-objc-arc
+__weak typeof(self) weakSelf = self;   // error: __weak is unavailable
+                                       //        when not using ARC
+@property (nonatomic, strong) LBLedger *ledger;  // 能編譯，但 strong 在 MRC
+                                                 // 只是 retain 的別名
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+// MRC 檔案裡的弱參考就是 assign（沒有自動歸零）
+@property (nonatomic, assign) id<LBLedgerDelegate> delegate;
+// 要用 block 又怕循環：用 __block 加手動 nil，或改成 delegate
+```
+</Fragment>
+`__weak` 在 MRC 檔案直接編譯錯誤；`strong` 會被接受但只是 `retain`，看到的人會誤以為檔案已經在 ARC 下。改一個檔案之前，先去 Compile Sources 看它的旗標。
+</Pitfall>
+
+<Pitfall title="self.prop = [[Foo alloc] init] 永遠洩漏">
+<Fragment slot="bad">
+```objc
+// 此檔需 -fno-objc-arc
+self.ledger = [[LBLegacyLedger alloc] init];   // alloc +1，setter 又 retain → 2
+// dealloc 只 release 一次 → 永遠剩 1
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+self.ledger = [[[LBLegacyLedger alloc] init] autorelease];
+// 或
+LBLegacyLedger *l = [[LBLegacyLedger alloc] init];
+self.ledger = l;
+[l release];
+// 或直接寫 ivar：_ledger = [[LBLegacyLedger alloc] init];（dealloc 配一個 release）
+```
+</Fragment>
+這是 MRC 專案裡**數量最多**的洩漏。規則很機械：經過 `retain` setter 的物件，傳進去的那一端必須是 +0。`alloc` 回來的是 +1，所以要補一個 `autorelease` 或 `release`。
+</Pitfall>
+
+<Pitfall title="dealloc 裡 release 了 assign 屬性">
+<Fragment slot="bad">
+```objc
+@property (nonatomic, assign) id<LBLegacyListDelegate> delegate;
+- (void)dealloc {
+    [_delegate release];     // 從未 retain 過它 → over-release
+    [super dealloc];
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (void)dealloc {
+    // assign 屬性不 release；若別人有指標指著自己，反過來設 nil
+    _tableView.delegate = nil;
+    _tableView.dataSource = nil;
+    [super dealloc];
+}
+```
+</Fragment>
+`dealloc` 裡該 release 的清單 = 標頭檔裡 `retain` / `copy` 屬性 + 自己 `alloc` 的 ivar，一個不多一個不少。有人圖方便把所有 ivar 都 release 一遍，`assign` 的那一條就是定時炸彈。
+</Pitfall>
+
+<Crash message={`Thread 1: EXC_BAD_ACCESS (code=1, address=0x8)
+
+// Edit Scheme → Diagnostics → 勾 Zombie Objects 後再跑：
+*** -[LBLegacyTransaction release]: message sent to deallocated instance 0x7fb2c3d08f40`}>
+注意這次殭屍訊息裡的 selector 是 `release` 本身：有人對一個計數**已經歸零**的物件再送一次 `release`，也就是標準的 over-release。前一次歸零才是「多的那一次」發生的地方，殭屍訊息只告訴你第二次在哪。
+
+修法：在 Exception Breakpoint 停下來後，看 Debug navigator 的堆疊找到送 `release` 的那行，通常是 `dealloc`。接著回頭數這個物件的 +1 與 −1：是 `assign` 屬性被 release 了？還是 `autorelease` 過的物件又被手動 release？刪掉多的那一個 −1 即可，**不要**用補一個 `retain` 來「平衡」——那只是把 crash 換成洩漏。
+</Crash>
+
+## 小結
+
+- 讀 MRC 檔案就是配對：每個 +1（`alloc` / `new` / `copy` / `retain`）找它的 −1，配不起來的就是洩漏或 over-release。
+- `retain` setter 的順序是「先 retain 新的、再 release 舊的、最後賦值」；`copy` setter 不再 retain；`assign` 不動計數。
+- 集合會 retain 元素，所以 `addObject:` 之後可以 `release` 自己那一份。
+- 三種經典錯誤：over-release（crash）、autorelease 物件跨池使用、`assign` 懸空指標；`dealloc` 裡只 release 自己 `retain` / `copy` 過的。
+- Convert to ARC 一檔一 commit，其他檔先加 `-fno-objc-arc`；工具不會修原本就錯的擁有權。

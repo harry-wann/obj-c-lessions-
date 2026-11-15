@@ -1,0 +1,13 @@
+id: m12-12-6-interview-20
+chapter: "12.6"
+type: flash
+tier: interview
+title: 面試速記：鎖的選擇、MRC 擁有權、讀 crash log
+minutes: 3
+front: |
+  三連問：(1) ObjC 裡有哪些鎖，怎麼選？(2) MRC 的擁有權規則是什麼？(3) 拿到一份 crash log 你怎麼讀？
+back: |
+  (1) 鎖：@synchronized 最方便最慢（可重入、靠例外安全）；NSLock 一般；NSRecursiveLock 可重入；os_unfair_lock 最快但不可重入、不能跨 process；大多數情境最清楚的是 GCD 串列佇列，讀多寫少用並行佇列 + dispatch_barrier_async。OSSpinLock 已棄用（優先權反轉）。
+  (2) MRC：alloc / new / copy / mutableCopy 開頭的方法回傳的物件你擁有，用完要 release；其他方法回傳的你不擁有，要留著就 retain；dealloc 裡 release 所有 ivar 後呼叫 [super dealloc]；回傳自己建的物件用 autorelease。ARC 就是把這套規則交給編譯器。
+  (3) crash log：看 Exception Type 分類（SIGABRT 例外 / SIGSEGV 壞指標 / 0x8badf00d 看門狗 / Jetsam 記憶體）→ 看 Last Exception Backtrace 或 Triggered by Thread → 找第一個自己 binary 的 frame → 沒符號就比對 UUID 用 dSYM 與 atos 還原 → 開那一行重現 → 修完補測試。
+  加分延伸：三題都可以用小帳本舉例：LBLedger 用 barrier、LittleBook-Legacy 的 over-release、LBTransactionListViewController 刪最後一列越界的 crash log。

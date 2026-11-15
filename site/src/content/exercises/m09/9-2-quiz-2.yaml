@@ -1,0 +1,23 @@
+id: m09-9-2-quiz-2
+chapter: "9.2"
+section: quiz
+type: quiz
+title: 哪些可以直接塞進 NSUserDefaults
+minutes: 2
+prompt: 以下哪些值可以直接 `setObject:forKey:` 進 `NSUserDefaults` 不會出事？（可複選）
+multi: true
+options:
+  - "`@\"TWD\"`"
+  - "`@YES`"
+  - "`[NSDate date]`"
+  - "`[NSUUID UUID]`"
+  - "`@[@\"飲食\", @\"交通\"]`"
+  - "`@{ @\"tx\": [LBTransaction expenseWithAmount:... note:...] }`"
+  - "`[NSURL fileURLWithPath:...]`"
+answer: [0, 1, 2, 4]
+explain: plist 型別只有 NSString、NSNumber、NSDate、NSData、NSArray、NSDictionary，容器裡也只能裝這六種。NSUUID、NSURL、自訂物件都不行（NSURL 要用 setURL:forKey:，它內部會轉）。
+hints: ["六種 plist 型別背起來。", "字典裡藏一個不合法的東西，整個字典就不合法。"]
+feedback:
+  "3": NSUUID 不是 plist 型別；存 UUIDString。
+  "5": 字典本身合法，但值是 LBTransaction，寫入時整棵樹檢查會丟 NSInvalidArgumentException。
+  "6": "NSURL 不是 plist 型別；用 setURL:forKey: / URLForKey: 這對專用方法，或存 absoluteString。"

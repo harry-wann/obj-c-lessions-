@@ -1,0 +1,33 @@
+id: m08-8-3-crash-1
+chapter: "8.3"
+type: crash
+title: 讀約束衝突訊息找罪魁禍首
+minutes: 3
+log: |
+  Unable to simultaneously satisfy constraints.
+      Probably at least one of the constraints in the following list is one you don't want.
+  (
+      "<NSLayoutConstraint:0x600002a10 UILabel:0x7fa3a0.leading == UILayoutGuide:0x6000b0.'UIViewLayoutMarginsGuide'.leading>",
+      "<NSLayoutConstraint:0x600002a20 UILabel:0x7fa3a0.centerY == UITableViewCellContentView:0x7fa3b0.centerY>",
+      "<NSAutoresizingMaskLayoutConstraint:0x600002a30 h=--& v=--& UILabel:0x7fa3a0.minX == 0>",
+      "<NSAutoresizingMaskLayoutConstraint:0x600002a40 h=--& v=--& UILabel:0x7fa3a0.minY == 0>",
+      "<NSLayoutConstraint:0x600002a50 'UIView-Encapsulated-Layout-Height' UITableViewCellContentView:0x7fa3b0.height == 64>"
+  )
+  Will attempt to recover by breaking constraint
+  <NSLayoutConstraint:0x600002a10 UILabel:0x7fa3a0.leading == UILayoutGuide:0x6000b0.'UIViewLayoutMarginsGuide'.leading>
+options:
+  - "UILabel 的 translatesAutoresizingMaskIntoConstraints 沒關，多出兩條 NSAutoresizingMaskLayoutConstraint 跟 leading / centerY 打架"
+  - "leading 約束寫錯，應該對 contentView.leadingAnchor 而不是 layoutMarginsGuide（訊息最後說要 break 它）"
+  - "UIView-Encapsulated-Layout-Height 是表格給的高度 64，跟 cell 內容衝突，要把 rowHeight 改成 UITableViewAutomaticDimension"
+  - 約束太多了，刪掉 centerY 那條
+answer: 0
+fix: |
+  _label.translatesAutoresizingMaskIntoConstraints = NO;   // 加這一行
+  [self.contentView addSubview:_label];
+  [NSLayoutConstraint activateConstraints:@[ ... ]];
+solution_note: 清單裡一出現 NSAutoresizingMaskLayoutConstraint（h=--& v=--&）就是忘了關。「Will attempt to recover by breaking」那條是求解器選擇犧牲的，不是元兇。Encapsulated-Layout-Height 在這裡只是表格給 cell 的固定高度，跟 label 沒衝突。
+feedback:
+  "1": 被 break 的那條是受害者，不是元兇；修它會讓畫面更錯。
+  "2": 這條常見於 cell 高度跟內容差 0.5 pt 的狀況，但這份清單裡元兇是 autoresizing 兩條。
+  "3": 刪一條約束讓訊息消失，但版面會變成 autoresizing 決定的（minX == 0），不是你要的。
+hints: ["清單裡哪一種類別的名字特別長、你沒寫過？", "h=--& v=--& 是什麼意思？", "最後一行說要 break 的那條是元兇嗎？"]

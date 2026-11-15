@@ -1,0 +1,19 @@
+id: m09-9-1-quiz-3
+chapter: "9.1"
+section: quiz
+type: quiz
+title: 字串變檔案 URL
+minutes: 1
+prompt: "`NSString *path` 是一個檔案路徑，哪一個寫法能正確變成 `NSURL`？"
+options:
+  - "`[NSURL URLWithString:path]`"
+  - "`[NSURL fileURLWithPath:path]`"
+  - "`[[NSURL alloc] initWithString:path]`"
+  - "`[NSURL URLWithString:[@\"file://\" stringByAppendingString:path]]`"
+answer: 1
+explain: 檔案路徑一律 `fileURLWithPath:`。`URLWithString:` 是給 `https://…` 這類網址用的，遇到中文或空白沒有百分比編碼會回 nil。
+hints: ["兩個方法名字裡，哪一個有 file？", "中文檔名在網址裡需要什麼處理？"]
+feedback:
+  "0": 遇到中文、空白會回 nil；也不會幫你加 file:// scheme。
+  "2": "跟 URLWithString: 一樣，是網址用的。"
+  "3": 自己拼 file:// 仍然沒處理百分比編碼，中文路徑一樣回 nil；就算成功也多繞一圈。

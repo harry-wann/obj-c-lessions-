@@ -1,0 +1,35 @@
+id: m06-6-3-spot-1
+chapter: "6.3"
+type: spot
+title: 路由少了一道關
+minutes: 3
+prompt: 這個路由在傳入 `@"NSString"` 時不會回 nil，而是在之後 push 時 crash。點出有問題的行並選原因。
+code: |
+  + (nullable UIViewController *)viewControllerForName:(NSString *)name {
+      Class cls = NSClassFromString(name);
+      if (cls == Nil) return nil;
+      if (![cls respondsToSelector:@selector(initWithLedger:)]) {
+          return [[cls alloc] init];
+      }
+      return [[cls alloc] initWithLedger:LBAppLedger()];
+  }
+bug_lines: [3, 4]
+reasons:
+  - "少了 isSubclassOfClass:[UIViewController class] 的檢查，任何類別都能建出來；而且第 4 行對 Class 問 respondsToSelector: 問的是類別方法，應該用 instancesRespondToSelector:"
+  - NSClassFromString 不能傳入使用者字串
+  - "cls == Nil 應該寫成 cls == nil"
+  - "[[cls alloc] init] 不能對 Class 變數使用"
+answer_reason: 0
+fix: |
+  Class cls = NSClassFromString(name);
+  if (cls == Nil) return nil;
+  if (![cls isSubclassOfClass:[UIViewController class]]) return nil;
+  if ([cls instancesRespondToSelector:@selector(initWithLedger:)]) {
+      return [[cls alloc] initWithLedger:LBAppLedger()];
+  }
+  return [[cls alloc] init];
+solution_note: 字串路由三道關：查得到、是畫面、選初始化器。手上只有 Class 時，型別判斷用 `isSubclassOfClass:`、實體方法判斷用 `instancesRespondToSelector:`。
+hints: ["傳入 NSString 會建出什麼？拿去 push 會怎樣？", "對 Class 問 respondsToSelector: 問的是哪種方法？"]
+feedback:
+  "2": Nil 與 nil 都是 0，兩種寫法都能編譯，Nil 只是給 Class 用的慣例。
+  "3": Class 變數就是類別物件，對它 alloc 完全正常。

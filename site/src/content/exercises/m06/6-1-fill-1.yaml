@@ -1,0 +1,22 @@
+id: m06-6-1-fill-1
+chapter: "6.1"
+section: quiz
+type: fill
+title: 三件組的方向
+minutes: 2
+prompt: 補上字串與類別 / selector 互轉的函式名稱。
+code: |
+  Class cls = ___1___(@"LBLedger");
+  NSString *name = ___2___(cls);                       // @"LBLedger"
+  SEL sel = ___3___(@"addTransaction:");
+  NSString *selName = ___4___(@selector(reset));      // @"reset"
+blanks:
+  "1": { accept: ["NSClassFromString"], chips: ["NSClassFromString", "NSStringFromClass", "objc_getClass", "classNamed"] }
+  "2": { accept: ["NSStringFromClass"], chips: ["NSStringFromClass", "NSClassFromString", "description", "className"] }
+  "3": { accept: ["NSSelectorFromString"], chips: ["NSSelectorFromString", "NSStringFromSelector", "sel_registerName", "@selector"] }
+  "4": { accept: ["NSStringFromSelector"], chips: ["NSStringFromSelector", "NSSelectorFromString", "sel_getName", "description"] }
+hints: ["From 後面接的是你手上有的東西。", "它們是 C 函式，不是方法。"]
+feedback:
+  "1=NSStringFromClass": 方向反了：你手上有字串，要得到 Class。
+  "3=@selector": "@selector() 只接受寫死的名稱，不能放字串變數。"
+solution_note: "記法：`NSXFromY`，Y 是輸入。`objc_getClass` 與 `sel_registerName` 是更底層的 C API，功能相近但平常用 Foundation 版。"

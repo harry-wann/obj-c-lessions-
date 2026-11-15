@@ -1,0 +1,26 @@
+id: m11-11-2-fill-1
+chapter: "11.2"
+type: fill
+title: UIAlertView 改 UIAlertController
+minutes: 2
+prompt: 把舊的刪除確認對話框改成 UIAlertController，補完空格。
+code: |
+  UIAlertController *ac = [UIAlertController
+      alertControllerWithTitle:@"刪除？" message:nil
+                preferredStyle:___1___];
+  [ac addAction:[UIAlertAction actionWithTitle:@"取消"
+      style:UIAlertActionStyleCancel handler:nil]];
+  [ac addAction:[UIAlertAction actionWithTitle:@"刪除"
+      style:___2___
+      handler:^(UIAlertAction *a) { [self deleteTransaction]; }]];
+  [self ___3___:ac animated:YES completion:nil];
+blanks:
+  "1": { accept: ["UIAlertControllerStyleAlert"], chips: ["UIAlertControllerStyleAlert", "UIAlertControllerStyleActionSheet", "UIAlertViewStyleDefault", "UIAlertStyleAlert"] }
+  "2": { accept: ["UIAlertActionStyleDestructive"], chips: ["UIAlertActionStyleDestructive", "UIAlertActionStyleDefault", "UIAlertActionStyleCancel", "UIAlertActionStyleDelete"] }
+  "3": { accept: ["presentViewController"], chips: ["presentViewController", "show", "showViewController", "pushViewController"] }
+hints: ["UIAlertView 對應的是 Alert 樣式；UIActionSheet 對應 ActionSheet。", "刪除是破壞性動作，有專屬樣式會顯示紅字。", "UIAlertController 是一個 view controller，用 VC 的方式顯示。"]
+feedback:
+  "1=UIAlertControllerStyleActionSheet": "ActionSheet 對應的是舊的 UIActionSheet，而且 iPad 上還要設 popover 來源。"
+  "2=UIAlertActionStyleDefault": "能跑，但「刪除」用 Destructive 會顯示紅字，是 HIG 的要求。"
+  "3=show": "show 是 UIAlertView 的方法；UIAlertController 要 present。"
+solution_note: "UIAlertView 的 `clickedButtonAtIndex:` 索引判斷變成每個 action 自己的 handler block；`[alert show]` 變成 `presentViewController:`。"

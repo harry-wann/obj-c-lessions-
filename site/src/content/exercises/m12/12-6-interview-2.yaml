@@ -1,0 +1,14 @@
+id: m12-12-6-interview-2
+chapter: "12.6"
+type: flash
+tier: interview
+title: 面試速記：循環參考
+minutes: 2
+front: |
+  循環參考是怎麼產生的？舉三個實務上最常見的例子，以及各自怎麼修。
+back: |
+  條件：A 強持有 B、B 又直接或間接強持有 A。
+  例一 delegate：VC 持有 tableView，tableView.delegate 若是 strong 就循環 → delegate 一律 weak。
+  例二 block：self 持有 block（存成屬性），block 捕獲 self → __weak typeof(self) weakSelf，block 內升 strongSelf。
+  例三 NSTimer：runloop 持有 timer，timer 強持有 target self，self 又持有 timer → 用 block 版 API 配 weakSelf，或在 viewWillDisappear invalidate。
+  加分延伸：parent / child 關係（LBCategory.parent）用 weak；Instruments 的 Leaks 與 Memory Graph Debugger 可以直接看到環。

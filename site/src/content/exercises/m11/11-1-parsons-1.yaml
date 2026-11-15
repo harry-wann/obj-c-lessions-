@@ -1,0 +1,18 @@
+id: m11-11-1-parsons-1
+chapter: "11.1"
+type: parsons
+title: 排出正確的 MRC retain setter
+minutes: 2
+prompt: 把下列各行排成 MRC 下正確的 `setAmount:`（retain 屬性），有干擾行。
+lines:
+  - "- (void)setAmount:(NSDecimalNumber *)amount {"
+  - "    if (_amount == amount) return;"
+  - "    [amount retain];"
+  - "    [_amount release];"
+  - "    _amount = amount;"
+  - "}"
+distractors:
+  - "    [amount autorelease];"
+  - "    [_amount retain];"
+solution_note: "先擋同一物件、再 retain 新的、再 release 舊的、最後賦值。`[amount autorelease]` 會讓新值在池排空時少一個計數；`[_amount retain]` 是對舊值多加計數，方向反了。"
+hints: ["新值要先被持有，舊值才能放。", "賦值一定在最後，否則舊值的指標就丟了。"]

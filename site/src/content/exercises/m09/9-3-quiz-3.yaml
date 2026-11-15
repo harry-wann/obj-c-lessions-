@@ -1,0 +1,19 @@
+id: m09-9-3-quiz-3
+chapter: "9.3"
+section: quiz
+type: quiz
+title: "initWithCoder: 裡該呼叫誰"
+minutes: 1
+prompt: "`LBTransaction : NSObject` 的 `initWithCoder:` 開頭應該呼叫？"
+options:
+  - "`[super initWithCoder:coder]`，所有 NSObject 都有"
+  - "先把欄位從 coder 讀出來，再呼叫自己的指定初始化器 `initWithAmount:kind:date:note:category:`"
+  - 什麼都不呼叫，直接賦值 ivar
+  - "`[self init]`"
+answer: 1
+explain: "NSObject 不符合 NSCoding，沒有 initWithCoder:。initWithCoder: 是另一個初始化器，3.3 的規則：最後要走到指定初始化器；父類別本身支援 coding（如 UIView）時才呼叫 [super initWithCoder:]。"
+hints: ["NSObject 有 initWithCoder: 嗎？", "3.3 說所有初始化器最後都要走到哪裡？"]
+feedback:
+  "0": NSObject 沒有 initWithCoder:，會 unrecognized selector。父類別是 UIView 之類才有。
+  "2": 不呼叫任何初始化器會跳過父類別的初始化，而且 LBTransaction 的 init 被標 NS_UNAVAILABLE 正是為了逼你走指定初始化器。
+  "3": LBTransaction 的 init 是 NS_UNAVAILABLE；就算能呼叫，也沒把必要欄位帶進去。

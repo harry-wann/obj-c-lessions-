@@ -1,0 +1,19 @@
+id: m12-12-5-quiz-1
+chapter: "12.5"
+section: quiz
+type: quiz
+title: 讀 warning 選修法：incompatible pointer types
+minutes: 1
+prompt: "warning: `incompatible pointer types initializing 'NSString *' with an expression of type 'NSNumber *'`，出現在 `NSString *amountText = json[@\"amount\"];`。正確的修法是？"
+options:
+  - "加 #pragma clang diagnostic ignored 把它關掉，反正能跑"
+  - "轉型成 (NSString *) 讓編譯器閉嘴"
+  - "確認 json 裡 amount 的真實型別；是數字就用 NSNumberFormatter 或 stringValue 轉成字串，並用 isKindOfClass: 防禦"
+  - 把變數改成 id 就不會警告
+answer: 2
+explain: 這條 warning 在 Swift / Java 是編譯錯誤。ObjC 不會替你轉型，執行期會對 NSNumber 送 `length` 之類的訊息 crash。轉型與 pragma 都只是把訊息藏起來。
+hints: ["warning 消失跟 bug 消失是兩件事。", "執行期對 NSNumber 送 NSString 的方法會怎樣？"]
+feedback:
+  "0": 執行期照樣 unrecognized selector。
+  "1": 轉型不會改變物件的真實類別。
+  "3": 問題只是延後到第一次把它當字串用的地方。

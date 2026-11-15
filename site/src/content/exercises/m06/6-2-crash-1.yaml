@@ -1,0 +1,32 @@
+id: m06-6-2-crash-1
+chapter: "6.2"
+type: crash
+title: 讀懂 unrecognized selector
+minutes: 2
+log: |
+  *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+  reason: '-[LBLedger totl]: unrecognized selector sent to instance 0x600003a1c2d0'
+  *** First throw call stack:
+  (
+    2   CoreFoundation   -[NSObject(NSObject) doesNotRecognizeSelector:] + 132
+    3   CoreFoundation   ___forwarding___ + 1324
+    4   CoreFoundation   _CF_forwarding_prep_0 + 120
+    5   LittleBook       -[LBStatsViewController refresh] + 164
+    6   LittleBook       -[LBStatsViewController viewWillAppear:] + 72
+  )
+  // refresh 裡：NSString *key = [@"tot" stringByAppendingString:@"l"];
+  //            self.totalLabel.text = [[ledger performSelector:NSSelectorFromString(key)] stringValue];
+options:
+  - LBLedger 的 total 屬性是 readonly，所以沒有 getter
+  - "用字串拼出的 selector 打錯字（totl），執行期才發現沒人實作；三段救援都沒接手，最後 doesNotRecognizeSelector 丟例外"
+  - ledger 是 nil，對 nil 送訊息 crash
+  - "viewWillAppear: 不能呼叫 performSelector:"
+answer: 1
+fix: |
+  self.totalLabel.text = ledger.total.stringValue;   // 直接呼叫，編譯器檢查名稱
+  // 真的要動態：先 [ledger respondsToSelector:sel] 再送
+solution_note: "讀法：類別 LBLedger、selector `totl`、堆疊中第一個自己模組的 frame 是 `-[LBStatsViewController refresh]`。`___forwarding___` 與 `_CF_forwarding_prep_0` 是三段救援在跑。字串拼 selector 是 unrecognized selector 的三大來源之一。"
+hints: ["selector 的名字拼對了嗎？", "堆疊裡 ___forwarding___ 代表什麼在跑？"]
+feedback:
+  "0": readonly 只少 setter，getter `total` 還在；而且 log 裡的 selector 是 totl 不是 total。
+  "2": 對 nil 送訊息不會 crash，而且 log 明確印出了 instance 位址。

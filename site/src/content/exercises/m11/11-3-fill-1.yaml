@@ -1,0 +1,23 @@
+id: m11-11-3-fill-1
+chapter: "11.3"
+type: fill
+title: "prepareForSegue: 樣板"
+minutes: 2
+prompt: 補完設定頁跳到效能面板的 prepareForSegue 樣板。
+code: |
+  - (void)___1___:(UIStoryboardSegue *)segue sender:(id)sender {
+      if ([segue.___2___ isEqualToString:@"showPerformance"]) {
+          LBPerformanceViewController *perf = segue.___3___;
+          perf.monitor = [LBFPSMonitor shared];
+      }
+  }
+blanks:
+  "1": { accept: ["prepareForSegue"], chips: ["prepareForSegue", "performSegueWithIdentifier", "shouldPerformSegueWithIdentifier", "prepareSegue"] }
+  "2": { accept: ["identifier"], chips: ["identifier", "name", "storyboardID", "restorationIdentifier"] }
+  "3": { accept: ["destinationViewController"], chips: ["destinationViewController", "sourceViewController", "destination", "topViewController"] }
+hints: ["方法名是 prepare 開頭，不是 perform。", "segue 身上的字串欄位叫什麼？", "要拿的是「要去的那一頁」。"]
+feedback:
+  "1=performSegueWithIdentifier": "那是「觸發」segue 的方法，不是準備資料的回呼。"
+  "3=sourceViewController": "source 是出發的這一頁（self），unwind 時才會用到它。"
+  "3=destination": "Swift 才叫 destination；ObjC 是 destinationViewController。"
+solution_note: "先比 identifier（一個 VC 可能有多條 segue），再轉型 destinationViewController。如果目的地包在 UINavigationController 裡，要再取 topViewController。"

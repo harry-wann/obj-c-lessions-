@@ -1,0 +1,244 @@
+---
+title: NSUserDefaults
+module: 9
+chapter: "9.2"
+order: 2
+minutes: 30
+prereq: ["9.1", "2.4"]
+objectives:
+  - 判斷一份資料該放 NSUserDefaults 還是檔案，說出只能存 plist 型別的限制
+  - "用 registerDefaults: 設定預設值，並用 suiteName 讓測試不污染真設定"
+  - 把 LBSettings 包成型別安全的屬性，不在 App 裡到處散落字串 key
+summary: "NSUserDefaults 是放小設定的鍵值儲存，只收 plist 型別（NSString / NSNumber / NSDate / NSData / NSArray / NSDictionary）；registerDefaults: 給預設值；不用再手動 synchronize；資料不要放這裡。"
+terms:
+  - { en: user defaults, tw: 使用者預設值（NSUserDefaults）, cn: 用户默认设置, jp: ユーザーデフォルト }
+  - { en: property list, tw: 屬性列表（plist）, cn: 属性列表, jp: プロパティリスト }
+  - { en: key-value store, tw: 鍵值儲存, cn: 键值存储, jp: キーバリューストア }
+  - { en: default value, tw: 預設值, cn: 默认值, jp: デフォルト値 }
+  - { en: suite, tw: 套組（suite）, cn: 套件, jp: スイート }
+appProgress: LBSettings 用 NSUserDefaults 記住預設貨幣、是否顯示分、外觀；設定頁 LBSettingsViewController（程式碼版）可以改它們；兩個測試轉綠。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+let defaults = UserDefaults.standard
+defaults.register(defaults: ["currencyCode": "TWD", "showsCents": true])
+defaults.set("JPY", forKey: "currencyCode")
+let code = defaults.string(forKey: "currencyCode")   // "JPY"
+let cents = defaults.bool(forKey: "showsCents")      // true
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// Android SharedPreferences：同樣是小設定的鍵值儲存
+val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+prefs.edit { putString("currencyCode", "JPY") }
+val code = prefs.getString("currencyCode", "TWD")   // 預設值寫在讀取處
+```
+</Fragment>
+<Fragment slot="java">
+```java
+Preferences prefs = Preferences.userNodeForPackage(Settings.class);
+prefs.put("currencyCode", "JPY");
+String code = prefs.get("currencyCode", "TWD");
+boolean cents = prefs.getBoolean("showsCents", true);
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// localStorage：只能存字串，物件得自己 JSON.stringify
+localStorage.setItem("currencyCode", "JPY");
+localStorage.setItem("showsCents", JSON.stringify(true));
+const code = localStorage.getItem("currencyCode") ?? "TWD";
+```
+</Fragment>
+四個平台都有「放小設定的鍵值儲存」：Swift 的 `UserDefaults` 就是本章的 `NSUserDefaults`；Android 的 `SharedPreferences` 連「用一個 `Editor` 批次寫、預設值在讀取時給」的風格都像；`localStorage` 則連限制都像：**只能存簡單型別**，塞自訂物件得先序列化。差別在預設值：Android / Java / TS 在每個讀取點給預設值，`NSUserDefaults` 用 `registerDefaults:` 一次登記，讀取處不用重複寫。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 它是什麼、不是什麼
+
+<Term en="user defaults" tw="使用者預設值" cn="用户默认设置" jp="ユーザーデフォルト" />是一個系統幫你管理的<Term en="key-value store" tw="鍵值儲存" cn="键值存储" jp="キーバリューストア" />，背後是沙盒 `Library/Preferences/` 底下的一個 plist 檔，系統會自動快取在記憶體、在適當時機寫回磁碟。它適合：
+
+- 使用者偏好：預設貨幣、要不要顯示小數、深淺外觀
+- App 狀態旗標：第一次啟動教學看過沒、上次選的分頁
+- 幾個數字或字串就講完的東西
+
+它**不適合**：帳本的交易列表、圖片、任何會長大的資料。原因有三：整個 plist 每次都是整份讀寫，資料一大每次改一個布林值都要重寫幾 MB；沒有查詢能力；只能存 plist 型別。資料放檔案（9.3 / 9.4）或資料庫（9.5），`NSUserDefaults` 只放「設定」。
+
+### 只能存 plist 型別
+
+<Term en="property list" tw="屬性列表" cn="属性列表" jp="プロパティリスト" />型別只有六種：`NSString`、`NSNumber`（含 BOOL）、`NSDate`、`NSData`、`NSArray`、`NSDictionary`，而且陣列與字典**裡面**也只能裝這六種，字典的 key 必須是 `NSString`。`LBTransaction`、`NSUUID`、`NSURL`、`NSDecimalNumber`（它是 `NSNumber` 子類別所以可以，但讀回來會變 `NSNumber`，精度要小心）都不行。要存自訂物件，先轉成字典或 `NSData`（9.3 的 `NSKeyedArchiver` 正好產生 `NSData`）。
+
+```objc
+#import <Foundation/Foundation.h>
+
+int main(void) {
+    @autoreleasepool {
+        // 用 suiteName 開一個獨立的套組，不碰真設定；結束前清掉
+        NSUserDefaults *d = [[NSUserDefaults alloc] initWithSuiteName:@"lb.demo"];
+        [d removePersistentDomainForName:@"lb.demo"];
+
+        [d setObject:@"JPY" forKey:@"currencyCode"];
+        [d setBool:NO forKey:@"showsCents"];
+        [d setInteger:2 forKey:@"appearance"];
+        [d setObject:[NSDate dateWithTimeIntervalSince1970:0] forKey:@"installDate"];
+        [d setObject:@[@"飲食", @"交通"] forKey:@"recentCategories"];
+
+        NSLog(@"%@", [d stringForKey:@"currencyCode"]);
+        NSLog(@"%d", [d boolForKey:@"showsCents"]);
+        NSLog(@"%ld", (long)[d integerForKey:@"appearance"]);
+        NSLog(@"%@", [d arrayForKey:@"recentCategories"]);
+
+        // 沒設過的 key：物件回 nil，數字回 0，BOOL 回 NO
+        NSLog(@"%@ / %ld / %d", [d stringForKey:@"nope"],
+              (long)[d integerForKey:@"nope"], [d boolForKey:@"nope"]);
+
+        [d removeObjectForKey:@"currencyCode"];
+        NSLog(@"%@", [d stringForKey:@"currencyCode"]);
+    }
+    return 0;
+}
+// 預期輸出：
+// JPY
+// 0
+// 2
+// (
+//     "飲食",
+//     "交通"
+// )
+// (null) / 0 / 0
+// (null)
+```
+
+讀取用型別化的 getter：`stringForKey:`、`boolForKey:`、`integerForKey:`、`doubleForKey:`、`arrayForKey:`、`dictionaryForKey:`、`dataForKey:`、`URLForKey:`。它們比 `objectForKey:` 好的地方是會做型別檢查：存的是字串、用 `arrayForKey:` 讀會回 nil 而不是回一個字串讓你後面 crash。寫入用 `setObject:forKey:` 與 `setBool:`、`setInteger:`、`setDouble:`、`setURL:` 這幾個便利方法。
+
+### `registerDefaults:`：預設值登記一次
+
+「沒設過就回 0 / nil」常常不是你要的：帳本的預設貨幣應該是 TWD、預設顯示分。你可以在每個讀取處寫 `?: @"TWD"`，但更好的做法是啟動時用 `registerDefaults:` 登記一份預設值字典：
+
+```objc
+NSUserDefaults *d = [[NSUserDefaults alloc] initWithSuiteName:@"lb.demo2"];
+[d removePersistentDomainForName:@"lb.demo2"];
+[d registerDefaults:@{ @"currencyCode": @"TWD", @"showsCents": @YES }];
+
+NSLog(@"%@ %d", [d stringForKey:@"currencyCode"], [d boolForKey:@"showsCents"]);
+[d setObject:@"USD" forKey:@"currencyCode"];
+NSLog(@"%@", [d stringForKey:@"currencyCode"]);
+[d removeObjectForKey:@"currencyCode"];
+NSLog(@"%@", [d stringForKey:@"currencyCode"]);
+// 預期輸出：
+// TWD 1
+// USD
+// TWD
+```
+
+`registerDefaults:` 登記的值**只住在記憶體**，不會寫進 plist；查詢時先找使用者設過的值，找不到才回預設值。所以要在每次啟動時都呼叫一次（放在 `LBSettings` 的初始化裡），而且 `removeObjectForKey:` 之後會「回到預設值」而不是變 nil，剛好可以拿來做「重設設定」。
+
+### 不用再呼叫 `synchronize`
+
+舊程式碼每次 `setObject:` 後都跟一行 `[defaults synchronize];`。從 iOS 12 起 Apple 文件明寫這個方法「不必要也不應該使用」：系統會自己在背景定期寫回，App 進入背景或被終止前也會寫。看到舊專案有它不用急著刪，但自己別再寫；在 `applicationWillTerminate:` 這種地方更不用，系統已經處理。
+
+### 包成型別安全的 `LBSettings`
+
+字串 key 散落在十個檔案裡是維護噩夢：打錯一個字母就靜靜地讀到 nil。慣例是包一層，把 key 收在 `.m` 的常數裡，對外只露屬性：
+
+```objc
+// LBSettings.h
+@interface LBSettings : NSObject
++ (instancetype)shared;
+- (instancetype)initWithUserDefaults:(NSUserDefaults *)defaults;   // 測試用
+@property (nonatomic, copy) NSString *currencyCode;      // 預設 TWD
+@property (nonatomic, assign) BOOL showsCents;           // 預設 YES
+@property (nonatomic, assign) NSInteger appearance;      // 0 系統 / 1 淺 / 2 深
+@end
+
+// LBSettings.m
+static NSString * const LBSettingsKeyCurrencyCode = @"LBCurrencyCode";
+static NSString * const LBSettingsKeyShowsCents   = @"LBShowsCents";
+static NSString * const LBSettingsKeyAppearance   = @"LBAppearance";
+
+@implementation LBSettings {
+    NSUserDefaults *_defaults;
+}
++ (instancetype)shared {
+    static LBSettings *shared;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        shared = [[self alloc] initWithUserDefaults:[NSUserDefaults standardUserDefaults]];
+    });
+    return shared;
+}
+- (instancetype)initWithUserDefaults:(NSUserDefaults *)defaults {
+    if (self = [super init]) {
+        _defaults = defaults;
+        [_defaults registerDefaults:@{ LBSettingsKeyCurrencyCode: @"TWD",
+                                       LBSettingsKeyShowsCents: @YES,
+                                       LBSettingsKeyAppearance: @0 }];
+    }
+    return self;
+}
+- (NSString *)currencyCode { return [_defaults stringForKey:LBSettingsKeyCurrencyCode]; }
+- (void)setCurrencyCode:(NSString *)code {
+    [_defaults setObject:code forKey:LBSettingsKeyCurrencyCode];
+}
+- (BOOL)showsCents { return [_defaults boolForKey:LBSettingsKeyShowsCents]; }
+- (void)setShowsCents:(BOOL)v { [_defaults setBool:v forKey:LBSettingsKeyShowsCents]; }
+- (NSInteger)appearance { return [_defaults integerForKey:LBSettingsKeyAppearance]; }
+- (void)setAppearance:(NSInteger)v { [_defaults setInteger:v forKey:LBSettingsKeyAppearance]; }
+@end
+```
+
+這些屬性沒有實體變數，getter / setter 都自己寫（2.4 教過：兩個都手寫，編譯器就不合成 ivar）。`initWithUserDefaults:` 是為了測試：`LBSettingsTests` 用 `[[NSUserDefaults alloc] initWithSuiteName:@"LBSettingsTests"]` 建一個獨立<Term en="suite" tw="套組" cn="套件" jp="スイート" />，`tearDown` 用 `removePersistentDomainForName:` 清掉，不會動到模擬器上 App 的真設定，測試之間也不會互相干擾。
+
+<Tip title="跟著設定變的畫面怎麼更新">
+改了 `showsCents` 之後帳本列表要重畫。兩種做法：監聽 `NSUserDefaultsDidChangeNotification`（任何 key 變了都會發，粗但簡單）；或者讀取 `NSUserDefaults` 的 KVO（`[defaults addObserver:self forKeyPath:@"LBShowsCents" ...]`，6.1 教過，支援單一 key）。設定頁改完、返回帳本頁在 `viewWillAppear:` 重讀一次也常見，最省事。
+</Tip>
+
+<Pitfall title="把資料當設定存">
+<Fragment slot="bad">
+```objc
+// 每新增一筆就重寫整個 plist；幾千筆後每次都是幾 MB
+NSMutableArray *all = [[defaults arrayForKey:@"transactions"] mutableCopy];
+[all addObject:tx.dictionaryRepresentation];
+[defaults setObject:all forKey:@"transactions"];
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+// 設定留在 NSUserDefaults，資料走 LBPersistence 寫檔（9.4）
+[settings setCurrencyCode:@"TWD"];
+[persistence saveLedger:ledger completion:^(NSError *error) { ... }];
+```
+</Fragment>
+`NSUserDefaults` 整份載入、整份寫回，沒有部分更新。幾十個 key 很好，幾千筆交易就是啟動變慢、每次改設定都卡一下。經驗法則：一個值超過幾 KB、或會隨使用時間成長，就不屬於這裡。
+</Pitfall>
+
+<Pitfall title="字串 key 到處散落、拼錯沒人知道">
+`[defaults boolForKey:@"showCents"]` 跟寫入時的 `@"showsCents"` 差一個 s，編譯器不會抱怨，執行期靜靜回 NO。把 key 收成 `static NSString * const` 常數放在一個 `.m`，或直接包成 `LBSettings` 屬性，讓編譯器幫你抓。順帶一提，key 加上 `LB` 前綴可以避免跟第三方套件撞名，大家都在同一個 plist 裡。
+</Pitfall>
+
+<Pitfall title="以為 registerDefaults: 會寫進磁碟">
+`registerDefaults:` 只登記在記憶體，App 重啟就沒了，所以要每次啟動都呼叫，放在 `LBSettings` 初始化最保險。另一個常見誤會：登記之後用 `objectForKey:` 讀到預設值，就以為「使用者已經設過」。要分辨使用者有沒有設過，用 `[[defaults persistentDomainForName:...] objectForKey:]` 或乾脆另存一個「已設定」旗標。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: 'Attempt to set a non-property-list object <LBTransaction: 0x600003a4c1e0>
+as an NSUserDefaults/CFPreferences value for key lastTransaction'`}>
+訊息很直白：你把一個不是 plist 型別的物件（這裡是 `LBTransaction`）塞進 `setObject:forKey:`。`NSUserDefaults` 寫入時會檢查整棵物件樹，任何一層出現非 plist 型別就丟 `NSInvalidArgumentException`，連 `NSArray` 裡藏一個 `NSUUID` 或 `NSNull` 也會。修法看資料是什麼：真的是設定，就只存它的 plist 片段（例如 `tx.identifier.UUIDString`）；是資料，就不該放這裡，走 9.3 的 `NSKeyedArchiver` 轉成 `NSData` 或 9.4 的 JSON 檔。在舊版 iOS 這個操作只是警告加忽略，iOS 11 起才改成 crash，所以舊專案升級後才炸出來的案例不少。
+</Crash>
+
+## 小結
+
+- `NSUserDefaults` 是放**設定**的鍵值儲存，背後是整份讀寫的 plist；資料（交易、圖片）不放這裡。
+- 只收六種 plist 型別：`NSString`、`NSNumber`、`NSDate`、`NSData`、`NSArray`、`NSDictionary`，容器裡也只能裝這六種；自訂物件先轉字典或 `NSData`。
+- 讀取用型別化 getter（`stringForKey:`、`boolForKey:`…）；沒設過回 nil / 0 / NO。
+- `registerDefaults:` 登記預設值，只在記憶體，每次啟動都要呼叫；`removeObjectForKey:` 後回到預設值。
+- 不用再呼叫 `synchronize`。key 收成常數或包成 `LBSettings` 屬性；測試用 `initWithSuiteName:` 開獨立套組。

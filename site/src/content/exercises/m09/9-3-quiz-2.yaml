@@ -1,0 +1,19 @@
+id: m09-9-3-quiz-2
+chapter: "9.3"
+section: quiz
+type: quiz
+title: 解封一個裝 LBTransaction 的陣列
+minutes: 2
+prompt: "封存了 `@[tx1, tx2]`，要讀回來。哪個寫法正確？"
+options:
+  - "`[NSKeyedUnarchiver unarchivedObjectOfClass:[NSArray class] fromData:data error:&e]`"
+  - "`[NSKeyedUnarchiver unarchivedObjectOfClass:[LBTransaction class] fromData:data error:&e]`"
+  - "`[NSKeyedUnarchiver unarchivedObjectOfClasses:[NSSet setWithObjects:[NSArray class], [LBTransaction class], nil] fromData:data error:&e]`"
+  - "`[NSKeyedUnarchiver unarchiveObjectWithData:data]`"
+answer: 2
+explain: 允許清單要同時含容器類別與元素類別，少一個就在解到那一層時丟 NSInvalidUnarchiveOperationException。iOS 14 起也可以用 unarchivedArrayOfObjectsOfClass:fromData:error:。
+hints: ["根物件是什麼類別？裡面的元素是什麼類別？", "unarchiveObjectWithData: 從 iOS 12 起是什麼狀態？"]
+feedback:
+  "0": 解到陣列元素時發現 LBTransaction 不在允許清單，丟例外。
+  "1": 根物件是 NSArray 不是 LBTransaction，第一層就不符。
+  "3": 已棄用，而且不做任何類別檢查，正是 NSSecureCoding 要防的寫法。

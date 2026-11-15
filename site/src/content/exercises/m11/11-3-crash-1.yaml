@@ -1,0 +1,24 @@
+id: m11-11-3-crash-1
+chapter: "11.3"
+type: crash
+title: 讀 crash：has no segue with identifier
+minutes: 2
+log: |
+  *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+  reason: 'Receiver (<LBSettingsViewController: 0x7fa3b9c0e5a0>) has no segue with identifier 'showPerformance''
+options:
+  - "程式碼呼叫 performSegueWithIdentifier:@\"showPerformance\"，但 storyboard 裡那條 segue 的 Identifier 欄沒填或打錯字"
+  - "LBPerformanceViewController 沒有加進 target"
+  - "segue 的目的地 Class 設錯"
+  - "prepareForSegue: 沒有實作"
+answer: 0
+fix: |
+  // 1. 開 Settings.storyboard，點選設定頁 → 效能頁之間的箭頭
+  // 2. Attributes inspector → Identifier 填 showPerformance（大小寫一字不差）
+  // 3. 程式碼端把字串抽成常數，只打一次：
+  static NSString * const LBSegueShowPerformance = @"showPerformance";
+solution_note: "訊息很直白：這個 VC（Receiver）身上沒有叫這個名字的 segue。segue 是「連線」，identifier 在連線本身的 Attributes 裡設，不在任一端的 VC 上。打錯一個字母只在執行期爆，所以字串要集中管理。"
+hints: ["Receiver 是誰？它「沒有」什麼？", "Identifier 在哪裡填？"]
+feedback:
+  "1": "沒加進 target 會是連結錯誤或 Class 找不到，不是 segue 找不到。"
+  "3": "prepareForSegue: 是選擇性的，沒實作不會 crash。"

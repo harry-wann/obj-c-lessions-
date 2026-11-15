@@ -1,0 +1,18 @@
+id: m12-12-4-parsons-1
+chapter: "12.4"
+type: parsons
+title: 從 crash log 到定位的步驟
+minutes: 2
+prompt: 把「拿到一份使用者的 crash log」到「修好並關單」的步驟排成正確順序。有兩行是干擾行。
+lines:
+  - "看 Exception Type 與 Termination Reason，分類：例外 / 壞指標 / 看門狗 / 記憶體不足"
+  - "看 Last Exception Backtrace，沒有就看 Triggered by Thread 那條執行緒"
+  - "找第一個屬於自己 binary 的 frame；上面的系統 frame 說明是哪個 API 丟的"
+  - "比對 Binary Images 的 UUID 找到對應 dSYM，用 atos 還原位址成檔名與行號"
+  - "開那一行，對照使用者操作重現；重現不了就加 Exception Breakpoint 或對那個 API 下符號斷點"
+  - "修好後補一個會重現這個 crash 的測試，再關單"
+distractors:
+  - "先重新建置一次拿最新的 dSYM 來符號化"
+  - "直接看第 0 行 __exceptionPreprocess 的原始碼"
+solution_note: 順序的邏輯是「先分類、再找自己的 frame、再還原符號、再重現、再補測試」。干擾行一：重新建置的 dSYM UUID 不同，符號化出來是錯的；干擾行二：第 0 行永遠是例外機制本身。
+hints: ["先看全局（Exception Type），再縮小到執行緒，再縮小到 frame。", "沒有符號的時候才需要 atos。", "最後一步是防止它再發生。"]

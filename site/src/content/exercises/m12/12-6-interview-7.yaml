@@ -1,0 +1,14 @@
+id: m12-12-6-interview-7
+chapter: "12.6"
+type: flash
+tier: interview
+title: 面試速記：atomic 是執行緒安全嗎
+minutes: 2
+front: |
+  `@property (atomic) NSMutableArray *items;` 執行緒安全嗎？為什麼大家都寫 nonatomic？
+back: |
+  不安全。atomic 只保證合成的 getter / setter 各自是原子的：不會讀到一半新一半舊的指標，而且 getter 會 retain + autorelease 保證回傳的物件不會在使用中被釋放。
+  但 items.count++、[items addObject:] 這些「取出來再操作」完全不在保護範圍，兩個執行緒同時 addObject 照樣 crash。
+  真正的執行緒安全是對「一組操作」加鎖：串列佇列、並行佇列 + barrier、NSLock、os_unfair_lock。
+  nonatomic 省掉每次存取的鎖開銷，而且既然 atomic 沒給真的安全，就沒理由付這個成本。
+  加分延伸：atomic 是 ObjC 的預設值，Swift 沒有這個概念；面試官追問時可以提 nonatomic 的屬性在多執行緒下讀到釋放中的物件會 EXC_BAD_ACCESS。

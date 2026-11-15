@@ -1,0 +1,16 @@
+id: m06-6-2-interview-2
+chapter: "6.2"
+type: flash
+tier: interview
+title: 面試題：方法快取就是雜湊表
+minutes: 3
+front: |
+  「ObjC 每次呼叫方法都要查表，為什麼效能還能接受？第一次呼叫跟第二次有什麼差別？swizzling 之後快取怎麼辦？」
+back: |
+  每個類別有一張方法快取：開放定址的雜湊表，鍵是 SEL（去重過的指標，直接拿位址做雜湊、比對用 ==），值是 IMP。objc_msgSend 用組合語言寫，命中快取時只有十幾個指令，跟直接呼叫 C 函式差距很小。
+
+  第一次呼叫某個 selector：快取沒有 → 走方法列表與繼承鏈（O(繼承深度 × 方法數)）→ 把結果寫進收件人類別的快取。第二次起 O(1)。所以 for 迴圈裡呼叫一萬次 [tx amount] 不會慢。
+
+  快取失效：class_addMethod、method_exchangeImplementations、method_setImplementation、載入新分類時，runtime 清掉受影響類別（及子類別）的快取，下次呼叫重新查找。這也是 swizzling 一定要在 +load 做一次、不要在熱路徑反覆做的原因之一。
+
+  對照 3.4：hash / isEqual: 合約在這裡退化成「指標相等」，是雜湊表最理想的鍵。LRU（4.4）不適用：快取滿了 runtime 直接擴容或整張清掉，因為重建成本低。

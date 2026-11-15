@@ -1,0 +1,17 @@
+id: m09-9-1-interview-1
+chapter: "9.1"
+type: flash
+tier: interview
+title: 面試題：Documents、Caches、tmp 的差別
+minutes: 3
+front: |
+  iOS 沙盒裡 Documents、Library/Caches、tmp 三個目錄有什麼差別？各舉一個該放的東西。為什麼不能把沙盒路徑存起來？
+back: |
+  - Documents：使用者資料，會進 iCloud / 電腦備份，系統不會清。放帳本檔、匯出的 CSV。
+  - Library/Caches：可重新產生的資料，不備份，空間不足時系統會清。放圖片快取、API 回應快取。
+  - tmp：用完就丟，不備份，App 沒執行時隨時可能被清。放下載中的暫存檔。
+  - 另有 Library/Application Support：App 內部資料（資料庫、設定檔），會備份、不清。
+
+  判斷標準：弄丟了能不能重新生出來。把可重生的資料放 Documents 會讓備份變肥、審核可能被退。
+
+  沙盒容器路徑含 UUID，重新安裝、升級、甚至每次啟動都可能變，所以永遠用 `NSFileManager` / `NSSearchPathForDirectoriesInDomains` 執行期查，只存檔名或相對路徑。追問常見：想讓 Documents 裡某個檔不備份 → `NSURLIsExcludedFromBackupKey`。

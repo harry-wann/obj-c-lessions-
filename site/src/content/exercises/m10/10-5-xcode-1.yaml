@@ -1,0 +1,22 @@
+id: m10-10-5-xcode-1
+chapter: "10.5"
+type: xcode
+title: 匯率並行抓取：限流、聚合、TSan 零警告
+mobile: false
+minutes: 45
+prompt: 實作 fetchRatesForBases:maxConcurrent:completion:，匯率頁（畫面 07）5 幣別同時更新；效能面板「並行請求」壓力測試 50 個請求限流 4；Thread Sanitizer 零警告。
+starter: xcode/M10-starter
+steps:
+  - "`LBRateService`：`fetchRatesForBases:maxConcurrent:completion:` 用 `dispatch_semaphore_create(max)` 限流、`dispatch_group` 聚合、一條串列佇列保護 `results` / `errors`；completion 在主佇列。"
+  - "`LBRatesViewController`（畫面 07）：`viewWillAppear:` 呼叫上面的方法抓 TWD / USD / JPY / EUR / KRW，`maxConcurrent:2`，每筆回來更新對應列，全部完成後停止轉圈。"
+  - "效能面板「並行請求」按鈕：用 stub URL protocol 模擬 50 個各延遲 200 ms 的請求，`maxConcurrent:4`，顯示耗時與 `[NSThread ...]` 無法直接取得的執行緒數改由 Debug Navigator 觀察。"
+  - "Edit Scheme → Test → Diagnostics 勾 Thread Sanitizer，跑 `LBRateServiceTests` 與 `LBLedgerConcurrencyTests`。"
+  - "把 semaphore 拿掉再按一次壓力測試，觀察 Debug Navigator 執行緒數的差別。"
+tests:
+  - LBRateServiceTests/testConcurrentFetchLimitedBySemaphore
+acceptance:
+  - 50 個請求、限流 4，Debug Navigator 顯示的執行緒總數 < 10；拿掉 semaphore 後 > 30
+  - 匯率頁 5 幣別全部更新，任一失敗不影響其他幣別顯示，errors 陣列有對應錯誤
+  - Thread Sanitizer 下 LBRateServiceTests 與 LBLedgerConcurrencyTests 零警告
+  - 壓力測試期間主執行緒不阻塞（效能面板 FPS 正常）
+solution_note: testConcurrentFetchLimitedBySemaphore 用 stub 讓每個請求睡 100 ms 並用 atomic 計數「目前在飛」的最大值，斷言 ≤ max 且全部回呼。常見 TSan 警告來源：results 字典沒走串列佇列、stub 裡的計數器沒用 atomic。

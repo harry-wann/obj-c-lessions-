@@ -1,0 +1,19 @@
+id: m10-10-4-predict-2
+chapter: "10.4"
+type: predict
+title: 預測順序：barrier
+minutes: 2
+code: |
+  dispatch_queue_t q = dispatch_queue_create("lb.conc", DISPATCH_QUEUE_CONCURRENT);
+  dispatch_async(q, ^{ usleep(50000);  NSLog(@"A"); });   // 50 ms
+  dispatch_async(q, ^{ usleep(100000); NSLog(@"B"); });   // 100 ms
+  dispatch_barrier_async(q, ^{ NSLog(@"W"); });
+  dispatch_async(q, ^{ NSLog(@"C"); });
+  sleep(1);
+options: ["A\nB\nW\nC", "A\nC\nB\nW", "W\nA\nB\nC", "C\nA\nB\nW"]
+accept: ["A B W C"]
+feedback:
+  "A C B W": barrier 後面的 C 要等 W 跑完；W 要等 A、B 跑完。
+  "C A B W": C 排在 barrier 後面，不能超車。
+solution_note: 並行佇列裡 A、B 同時跑（A 先完成）；barrier W 等前面全部結束才單獨跑；C 在 barrier 後，等 W 結束。
+hints: ["barrier 前面的全部跑完它才跑。", "barrier 後面的要等 barrier 結束。", "A 與 B 誰先 sleep 完？"]

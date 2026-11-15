@@ -1,0 +1,13 @@
+id: m12-12-6-interview-16
+chapter: "12.6"
+type: flash
+tier: interview
+title: 面試速記：NSError ** 慣例
+minutes: 2
+front: |
+  `- (BOOL)saveWithError:(NSError **)error` 這種方法的呼叫端與實作端各有什麼慣例？
+back: |
+  成敗只看回傳值（BOOL 的 NO 或物件的 nil），不要用 error 是否為 nil 判斷：Apple 文件明說成功時 error 內容未定義，有些 API 成功也會寫東西進去。
+  實作端：error 參數可能是 NULL（呼叫端不關心），寫入前要 if (error) *error = ...；錯誤用 domain + code + userInfo 建，code 用 NS_ERROR_ENUM 定義。
+  呼叫端：NSError *err = nil; if (![x saveWithError:&err]) { 處理 err }；err 是 autoreleased 的，ARC 下 NSError ** 隱含 __autoreleasing。
+  加分延伸：Swift 把這種方法匯入成 throws，條件是最後一個參數 NSError ** 且回傳 BOOL 或 nullable 物件；回傳 nonnull 物件的不會轉。

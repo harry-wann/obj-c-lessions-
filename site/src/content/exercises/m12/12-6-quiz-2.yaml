@@ -1,0 +1,19 @@
+id: m12-12-6-quiz-2
+chapter: "12.6"
+section: quiz
+type: quiz
+title: 入口在哪
+minutes: 1
+prompt: 要畫出一個陌生 ObjC App 的畫面流程圖，第一個畫面從哪裡找？
+options:
+  - "main.m"
+  - "AppDelegate 的 application:didFinishLaunchingWithOptions: 裡 window.rootViewController 的賦值，或 Info.plist 指定的 Main storyboard 的箭頭起點"
+  - "搜尋 viewDidLoad，第一個就是"
+  - "Podfile"
+answer: 1
+explain: "`main.m` 永遠只有一行 `UIApplicationMain`。真正的入口是 AppDelegate（有 SceneDelegate 就看 `scene:willConnectToSession:options:`）裡 `rootViewController` 的賦值，Storyboard 專案則是 Interface Builder 裡帶箭頭的那個 VC。往下順著 TabBar / Navigation 的 viewControllers 展開。"
+hints: ["main.m 裡有幾行？", "rootViewController 是誰設的？"]
+feedback:
+  "0": main.m 只負責呼叫 UIApplicationMain。
+  "2": viewDidLoad 的順序跟畫面階層無關。
+  "3": Podfile 告訴你用了哪些套件，不告訴你畫面。

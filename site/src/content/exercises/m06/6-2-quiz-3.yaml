@@ -1,0 +1,18 @@
+id: m06-6-2-quiz-3
+chapter: "6.2"
+section: quiz
+type: quiz
+title: 對 nil 送訊息
+minutes: 1
+prompt: "`LBLedger *l = nil; NSDecimalNumber *t = [l total]; NSInteger n = [l count]; CGRect r = [l frame];` 三個變數各是什麼？"
+options:
+  - 三行都丟 NSInvalidArgumentException
+  - "t 是 nil、n 是 0、r 是全零的 CGRect；三行都安靜地執行"
+  - t 是 nil，但 n 與 r 是未定義的垃圾值
+  - 編譯錯誤，不能對 nil 變數送訊息
+answer: 1
+explain: "`objc_msgSend` 開頭就檢查收件人是否為 nil，是就回傳 0。指標回 nil、整數回 0、struct 回全零（現代 runtime 對常見大小的 struct 都保證）。這讓少判斷一層的程式默默跑出錯的結果，看到「全是 0」先懷疑收件人是 nil。"
+hints: ["objc_msgSend 第一步做什麼？", "回傳值的「0」對每種型別長什麼樣？"]
+feedback:
+  "0": 這是 Java / Kotlin 的 NullPointerException 直覺，ObjC 不會。
+  "2": 現代 runtime 對 struct 回傳也歸零，不是垃圾。

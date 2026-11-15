@@ -1,0 +1,29 @@
+id: m11-11-6-spot-1
+chapter: "11.6"
+type: spot
+title: 找錯：category 沒前綴
+minutes: 2
+prompt: 專案同時引入兩個 pod 後，某些字串的 trim 結果變了。點出有問題的行並選原因。
+code: |
+  // NSString+LBUtils.h（自己專案的 category）
+  @interface NSString (LBUtils)
+  - (NSString *)trim;
+  - (BOOL)isBlank;
+  @end
+bug_lines: [3, 4]
+reasons:
+  - "category 方法沒有前綴，第三方庫也對 NSString 加了同名的 trim / isBlank，哪一個生效看連結順序且無警告；要改成 lb_trim / lb_isBlank"
+  - "category 不能加到 NSString 這種類別叢集"
+  - "方法應該宣告成類別方法"
+  - "缺少 -ObjC 旗標"
+answer_reason: 0
+fix: |
+  @interface NSString (LBUtils)
+  - (NSString *)lb_trimmed;
+  - (BOOL)lb_isBlank;
+  @end
+solution_note: "兩個 category 對同一類別定義同名方法是未定義行為，執行期只會留一個。這是本課程所有 category 方法都帶 `lb_` 前綴的原因，Apple 的 Coding Guidelines 也這樣要求。"
+hints: ["兩個 category 同名方法會怎樣？", "怎麼讓名字不撞？"]
+feedback:
+  "1": "NSString 完全可以加 category（SDWebImage、MJRefresh 都在做）。"
+  "3": "-ObjC 解決的是找不到，不是撞名。"

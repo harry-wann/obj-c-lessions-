@@ -1,0 +1,19 @@
+id: m11-11-5-parsons-1
+chapter: "11.5"
+type: parsons
+title: 排出 pod install 到跑起來的步驟
+minutes: 2
+prompt: 把加入 CocoaPods 相依到 App 跑起來的步驟排序（有干擾步驟）。
+lines:
+  - "cd 到 .xcodeproj 所在目錄，pod init 產生 Podfile"
+  - "編輯 Podfile 加入 pod 'Masonry', '~> 1.1'"
+  - "pod install（產生 Pods/、Podfile.lock、.xcworkspace）"
+  - "關掉 .xcodeproj，改開 .xcworkspace"
+  - "⌘B 第一次建置（會先編所有 pod）"
+  - "在 .m 加 #import <Masonry/Masonry.h>，⌘R"
+  - "git add Podfile Podfile.lock 一起 commit"
+distractors:
+  - "pod update 確保拿到最新版"
+  - "把 Podfile.lock 加進 .gitignore"
+solution_note: "`pod update` 不是安裝步驟，是刻意升級時才跑；`Podfile.lock` 一定進版控。順序裡最常漏的是「關掉 .xcodeproj 改開 .xcworkspace」。"
+hints: ["pod install 結尾印的提醒是什麼？", "哪兩個檔案要一起 commit？"]

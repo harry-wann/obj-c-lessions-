@@ -1,0 +1,19 @@
+id: m09-9-3-quiz-1
+chapter: "9.3"
+section: quiz
+type: quiz
+title: NSSecureCoding 多防了什麼
+minutes: 1
+prompt: "`NSSecureCoding` 比 `NSCoding` 多了什麼？"
+options:
+  - 自動加密封存出來的 NSData
+  - 解碼時必須指定期待的類別（decodeObjectOfClass:forKey:），資料裡寫別的類別名就丟例外，防止實體化任意類別
+  - 讓封存檔跨平台可讀
+  - 自動處理版本遷移
+answer: 1
+explain: "「secure」防的是反序列化漏洞：舊的 decodeObjectForKey: 照資料裡的類別名建物件，被竄改的資料可以讓 App 實體化任何類別。它跟加密、跨平台、遷移都無關。"
+hints: ["想想 Java Serializable 的著名漏洞。", "decodeObjectOfClass: 多了哪個參數？"]
+feedback:
+  "0": 封存出來的 NSData 是明文二進位 plist，要加密得自己來。
+  "2": NSKeyedArchiver 的格式只有 Apple 平台讀得懂，要跨平台用 9.4 的 JSON。
+  "3": 遷移還是要自己處理：containsValueForKey:、setClass:forClassName:。

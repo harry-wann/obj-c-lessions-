@@ -1,0 +1,19 @@
+id: m06-6-3-quiz-1
+chapter: "6.3"
+section: quiz
+type: quiz
+title: isKindOfClass 還是 isMemberOfClass
+minutes: 1
+prompt: "`NSString *s = @\"午餐\";` 下面哪些判斷回傳 YES？（可複選）"
+multi: true
+options:
+  - "[s isKindOfClass:[NSString class]]"
+  - "[s isMemberOfClass:[NSString class]]"
+  - "[s class] == [NSString class]"
+  - "[s isKindOfClass:[NSObject class]]"
+answer: [0, 3]
+explain: NSString 是類別叢集，實體的真正類別是私有子類別（如 __NSCFConstantString），所以只有沿繼承鏈往上問的 `isKindOfClass:` 會對。所有物件都是 NSObject 子類別。
+hints: ["[s class] 印出來是什麼？", "哪一個方法會沿著父類別往上問？"]
+feedback:
+  "1": "isMemberOfClass: 要「恰好」是那個類別，類別叢集下永遠不是。"
+  "2": 類別物件是同一份沒錯，但 [s class] 回的是私有子類別。

@@ -1,0 +1,344 @@
+---
+title: "NSError 慣例"
+module: 7
+chapter: "7.1"
+order: 1
+minutes: 30
+prereq: ["5.4", "3.1"]
+objectives:
+  - "寫出 `- (BOOL)xxxWithError:(NSError **)error` 形狀的方法，並在呼叫端先判回傳值再看 error"
+  - "拆解 domain / code / userInfo，並用 NS_ERROR_ENUM 定義小帳本自己的錯誤碼"
+  - "把底層錯誤包進 NSUnderlyingErrorKey 往上傳，而不是吞掉或印完就丟"
+summary: "NSError ** 雙指標回傳錯誤、先判回傳值再看 error、domain / code / userInfo、NS_ERROR_ENUM(LBErrorDomain, LBErrorCode)、錯誤包裝與傳遞；對照 Swift throws / Kotlin Result / Java checked exception / TS throw。"
+terms:
+  - { en: error domain, tw: 錯誤領域, cn: 错误域, jp: エラードメイン }
+  - { en: error code, tw: 錯誤碼, cn: 错误码, jp: エラーコード }
+  - { en: out parameter, tw: 輸出參數, cn: 输出参数, jp: 出力引数 }
+  - { en: underlying error, tw: 底層錯誤, cn: 底层错误, jp: 根本エラー }
+  - { en: error wrapping, tw: 錯誤包裝, cn: 错误包装, jp: エラーのラップ }
+appProgress: "LBErrorDomain 與 LBErrorCode 定義好，之後匯率服務、JSON 解析、持久化全部走同一套錯誤。"
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+enum LedgerError: Error { case malformedJSON, unexpectedType(key: String) }
+
+func parseRates(_ data: Data) throws -> [String: Decimal] { ... }
+
+do {
+    let rates = try parseRates(data)
+} catch let error as LedgerError {
+    print(error)
+} catch {
+    print(error.localizedDescription)
+}
+// 或 Result<[String: Decimal], Error>，.success / .failure 二選一
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+sealed class LedgerError : Exception() {
+    object MalformedJson : LedgerError()
+    data class UnexpectedType(val key: String) : LedgerError()
+}
+
+fun parseRates(data: ByteArray): Result<Map<String, BigDecimal>> =
+    runCatching { ... }
+
+parseRates(data)
+    .onSuccess { rates -> println(rates) }
+    .onFailure { e -> println(e.message) }
+```
+</Fragment>
+<Fragment slot="java">
+```java
+public final class LedgerException extends Exception {
+    public final int code;
+    public LedgerException(int code, String message, Throwable cause) {
+        super(message, cause);
+        this.code = code;
+    }
+}
+
+Map<String, BigDecimal> parseRates(byte[] data) throws LedgerException { ... }
+
+try {
+    var rates = parseRates(data);
+} catch (LedgerException e) {        // checked：呼叫端不處理就不能編譯
+    System.out.println(e.getMessage() + " cause=" + e.getCause());
+}
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+class LedgerError extends Error {
+  constructor(public code: number, message: string, public cause?: unknown) {
+    super(message);
+  }
+}
+
+function parseRates(data: string): Record<string, number> {
+  throw new LedgerError(100, "malformed JSON");
+}
+
+try {
+  const rates = parseRates(text);
+} catch (e) {                        // e 是 unknown，型別系統不知道會丟什麼
+  if (e instanceof LedgerError) console.log(e.code);
+}
+```
+</Fragment>
+四種語言都在回答同一個問題：「這個函式可能失敗，失敗的資訊怎麼交給呼叫端？」Swift 用 `throws` 把失敗寫進簽名；Java 的 checked exception 更強硬，呼叫端不處理就不能編譯；Kotlin 與 TS 的例外是流程的一部分，`try / catch` 隨處可見。Objective-C 走的是最像 C 的那一條路：**失敗用回傳值說，細節用一個額外的輸出參數帶出來**。這個參數就是 `NSError **`。它的哲學跟 Java checked exception 相同（呼叫端必須面對失敗），但實作方式不靠例外，因為 ObjC 的例外另有用途（下一章）。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 方法簽名：回傳值說成敗，`NSError **` 帶細節
+
+```objc
+- (BOOL)saveWithError:(NSError **)error;
+- (nullable NSArray<LBTransaction *> *)loadTransactionsWithError:(NSError **)error;
+```
+
+兩種形狀，整個 Cocoa 一致：**回傳 `BOOL` 的方法，`NO` 代表失敗**；**回傳物件的方法，`nil` 代表失敗**。失敗時方法會把一個 `NSError` 物件寫進 `*error`。`NSError **` 是「指向 `NSError *` 的指標」，也就是<Term en="out parameter" tw="輸出參數" cn="输出参数" jp="出力引数" />：呼叫端準備一個 `NSError *` 變數，把它的位址 `&error` 傳進去，方法透過這個位址把錯誤物件放到呼叫端的變數裡。你在 3.x 用 `NSScanner`、`NSRegularExpression` 時應該已經看過這個模式。
+
+### 呼叫端：先判回傳值，再看 error
+
+```objc
+NSError *error = nil;
+NSArray *txs = [store loadTransactionsWithError:&error];
+if (txs == nil) {                       // 1. 先看回傳值
+    NSLog(@"載入失敗：%@", error.localizedDescription);   // 2. 再讀 error
+    return;
+}
+// 成功，繼續用 txs
+```
+
+Apple 文件白紙黑字：**成功時 `error` 參數的內容是未定義的**。方法成功時沒有義務把 `*error` 設成 `nil`，有些 Foundation 方法會在中途試過失敗、最後成功的情況下留下一個非 nil 的 error。所以 `if (error) { ... }` 不是判斷失敗的方法，`if (!txs)` 才是。這個規則在小帳本後面每一個模組都會用到，請現在就把它變成反射動作。
+
+### 寫方法端：填 error 前先檢查指標
+
+```objc
+- (BOOL)addTransaction:(LBTransaction *)tx error:(NSError **)error {
+    if ([self transactionWithIdentifier:tx.identifier] != nil) {
+        if (error) {                                   // 呼叫端可能傳 NULL
+            *error = [NSError errorWithDomain:LBErrorDomain
+                                         code:LBErrorCodeDuplicate
+                                     userInfo:@{
+                NSLocalizedDescriptionKey: @"這筆交易已經存在",
+                @"identifier": tx.identifier.UUIDString
+            }];
+        }
+        return NO;
+    }
+    [self addTransaction:tx];
+    return YES;
+}
+```
+
+呼叫端不在意原因時可以傳 `NULL`（`[ledger addTransaction:tx error:NULL]`），這在 Cocoa 裡完全合法。所以方法端寫 `*error = ...` 之前一定要 `if (error)`，否則就是對 0 位址寫入，本章 crash 現場就是它。注意這裡是 `NULL` 不是 `nil`：`error` 是 C 指標，不是物件指標，雖然兩者在數值上都是 0。
+
+### 拆開一個 NSError：domain / code / userInfo
+
+| 欄位 | 型別 | 用途 |
+|---|---|---|
+| `domain` | `NSString` | <Term en="error domain" tw="錯誤領域" cn="错误域" jp="エラードメイン" />，錯誤「屬於誰」。`NSCocoaErrorDomain`、`NSURLErrorDomain`、`NSPOSIXErrorDomain`，或你自己的 `@"com.littlebook.error"` |
+| `code` | `NSInteger` | <Term en="error code" tw="錯誤碼" cn="错误码" jp="エラーコード" />，同一個 domain 內才有意義。`NSURLErrorDomain` 的 `-1009` 是沒網路，`NSCocoaErrorDomain` 的 `260` 是檔案不存在 |
+| `userInfo` | `NSDictionary` | 其他一切：人看的訊息、底層錯誤、失敗的 URL、檔案路徑 |
+
+`code` 一定要配 `domain` 一起看，單獨一個數字沒有意義。`userInfo` 有幾個 Foundation 定義好的 key，照用就能跟系統 UI 與 log 工具配合：
+
+- `NSLocalizedDescriptionKey`：給使用者看的一句話，`error.localizedDescription` 讀的就是它。沒給的話 Foundation 會自己拼一句 `The operation couldn't be completed. (com.littlebook.error error 100.)`，很醜，所以自訂錯誤請一定填。
+- `NSLocalizedFailureReasonErrorKey` / `NSLocalizedRecoverySuggestionErrorKey`：原因與建議，`UIAlertController` 顯示錯誤時可以分開放標題與內文。
+- `NSUnderlyingErrorKey`：<Term en="underlying error" tw="底層錯誤" cn="底层错误" jp="根本エラー" />，造成這個錯誤的「下一層」錯誤。
+- `NSURLErrorKey`、`NSFilePathErrorKey`：出事的 URL 或路徑。
+
+### 定義自己的錯誤碼：`NS_ERROR_ENUM`
+
+```objc
+// LBError.h
+FOUNDATION_EXPORT NSErrorDomain const LBErrorDomain;
+
+typedef NS_ERROR_ENUM(LBErrorDomain, LBErrorCode) {
+    LBErrorCodeMalformedJSON  = 100,
+    LBErrorCodeUnexpectedType = 101,
+    LBErrorCodeHTTPStatus     = 102,
+    LBErrorCodeCancelled      = 103,
+};
+
+// LBError.m
+NSErrorDomain const LBErrorDomain = @"com.littlebook.error";
+```
+
+`NS_ERROR_ENUM(domain, name)` 展開後就是一個 `NS_ENUM`，多做一件事：把這組錯誤碼跟 `LBErrorDomain` 綁在一起。純 ObjC 看不出差別，但這個標頭匯入 Swift 後會自動變成 `LBErrorCode.malformedJSON`，可以直接 `catch LBErrorCode.malformedJSON`，12.1 會用到。錯誤碼從 100 起跳是避開 0（0 常被當「沒有錯誤」）；每個 domain 自己管自己的號碼。
+
+### 錯誤包裝：往上傳時別把原因丟掉
+
+```objc
++ (nullable NSDictionary *)ratesFromJSONData:(NSData *)data error:(NSError **)error {
+    NSError *jsonError = nil;
+    id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonError];
+    if (obj == nil) {
+        if (error) {
+            *error = [NSError errorWithDomain:LBErrorDomain
+                                         code:LBErrorCodeMalformedJSON
+                                     userInfo:@{
+                NSLocalizedDescriptionKey: @"匯率資料不是有效的 JSON",
+                NSUnderlyingErrorKey: jsonError          // 保留 Foundation 的原始錯誤
+            }];
+        }
+        return nil;
+    }
+    ...
+}
+```
+
+這就是<Term en="error wrapping" tw="錯誤包裝" cn="错误包装" jp="エラーのラップ" />：對外用自己的 domain / code，讓呼叫端只要認 `LBErrorCode` 就好；原始錯誤放進 `NSUnderlyingErrorKey`，偵錯時 `po error` 一層層往下翻還找得到 `NSCocoaErrorDomain Code=3840 "Unexpected character"`。Java 的 `new LedgerException(msg, cause)`、TS 的 `new Error(msg, { cause })` 是一樣的想法。相反的壞習慣是 `NSLog(@"%@", error)` 印完就 `return nil`，上層只知道失敗、不知道為什麼。
+
+### 完整範例（可貼進 Scratch）
+
+```objc
+#import <Foundation/Foundation.h>
+
+NSErrorDomain const LBErrorDomain = @"com.littlebook.error";
+typedef NS_ERROR_ENUM(LBErrorDomain, LBErrorCode) {
+    LBErrorCodeMalformedJSON  = 100,
+    LBErrorCodeUnexpectedType = 101,
+};
+
+@interface LBRateParser : NSObject
++ (nullable NSDecimalNumber *)rateFromJSONData:(NSData *)data error:(NSError **)error;
+@end
+
+@implementation LBRateParser
++ (nullable NSDecimalNumber *)rateFromJSONData:(NSData *)data error:(NSError **)error {
+    NSError *jsonError = nil;
+    id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonError];
+    if (![obj isKindOfClass:[NSDictionary class]]) {
+        if (error) {
+            *error = [NSError errorWithDomain:LBErrorDomain
+                                         code:LBErrorCodeMalformedJSON
+                                     userInfo:@{ NSLocalizedDescriptionKey: @"不是 JSON 物件",
+                                                 NSUnderlyingErrorKey: jsonError ?: [NSNull null] }];
+        }
+        return nil;
+    }
+    id rate = obj[@"rate"];
+    if (![rate isKindOfClass:[NSNumber class]]) {
+        if (error) {
+            *error = [NSError errorWithDomain:LBErrorDomain
+                                         code:LBErrorCodeUnexpectedType
+                                     userInfo:@{ NSLocalizedDescriptionKey: @"rate 不是數字" }];
+        }
+        return nil;
+    }
+    return [NSDecimalNumber decimalNumberWithDecimal:[rate decimalValue]];
+}
+@end
+
+static void try(NSString *json) {
+    NSData *data = [json dataUsingEncoding:NSUTF8StringEncoding];
+    NSError *error = nil;
+    NSDecimalNumber *rate = [LBRateParser rateFromJSONData:data error:&error];
+    if (rate == nil) {                                    // 先判回傳值
+        NSLog(@"失敗 code=%ld：%@（底層：%@）",
+              (long)error.code, error.localizedDescription,
+              [error.userInfo[NSUnderlyingErrorKey] localizedDescription] ?: @"無");
+        return;
+    }
+    NSLog(@"成功：%@", rate);
+}
+
+int main(void) {
+    @autoreleasepool {
+        try(@"{\"rate\": 31.25}");
+        try(@"{\"rate\": \"31.25\"}");
+        try(@"{rate: 31.25");
+        // 呼叫端不關心原因：傳 NULL 也不會 crash
+        NSLog(@"%@", [LBRateParser rateFromJSONData:[NSData data] error:NULL] ?: @"nil");
+    }
+    return 0;
+}
+// 預期輸出：
+// 成功：31.25
+// 失敗 code=101：rate 不是數字（底層：無）
+// 失敗 code=100：不是 JSON 物件（底層：The data couldn’t be read because it isn’t in the correct format.）
+// nil
+```
+
+第三個案例看得到包裝的價值：對外是 `LBErrorCode` 100，往下翻還有 Foundation 原本的訊息。`jsonError ?: [NSNull null]` 是因為字典字面值不接受 nil 值；實務上通常寫成先建 `NSMutableDictionary`，有才放。
+
+<Tip title="Swift 看到的樣子">
+`- (nullable NSArray *)loadTransactionsWithError:(NSError **)error` 匯入 Swift 會變成 `func loadTransactions() throws -> [LBTransaction]`：回傳值的 `nullable` 消失、`error` 參數消失、多了 `throws`。這就是為什麼 Cocoa 堅持「回傳 nil / NO 代表失敗」：Swift 的橋接完全靠這個慣例判斷要不要 `throw`。你今天寫得越標準，12.1 混編時越省事。
+</Tip>
+
+<Pitfall title="用 if (error) 判斷失敗">
+<Fragment slot="bad">
+```objc
+NSError *error = nil;
+NSArray *txs = [store loadTransactionsWithError:&error];
+if (error) {                        // 成功時 error 的內容未定義
+    [self showError:error];
+    return;
+}
+[self render:txs];                  // txs 可能是 nil
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+NSError *error = nil;
+NSArray *txs = [store loadTransactionsWithError:&error];
+if (txs == nil) {                   // 回傳值才是成敗的唯一依據
+    [self showError:error];
+    return;
+}
+[self render:txs];
+```
+</Fragment>
+Apple 的 Error Handling Programming Guide 明說：成功時不應依賴 `error` 的值。`NSFileManager`、`NSString` 的檔案方法都有「內部重試過、最後成功，但 `*error` 留著前一次的值」的紀錄。被咬到的症狀是「明明資料載入了卻跳錯誤框」，而且只在特定裝置出現。
+</Pitfall>
+
+<Pitfall title="一個 error 變數重複用在多次呼叫">
+<Fragment slot="bad">
+```objc
+NSError *error = nil;
+[fm createDirectoryAtURL:dir withIntermediateDirectories:YES attributes:nil error:&error];
+[data writeToURL:file options:NSDataWritingAtomic error:&error];
+if (error) NSLog(@"%@", error);     // 第二次成功不會把第一次的 error 清掉
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+NSError *error = nil;
+if (![fm createDirectoryAtURL:dir withIntermediateDirectories:YES
+                   attributes:nil error:&error]) { return NO; }
+if (![data writeToURL:file options:NSDataWritingAtomic error:&error]) { return NO; }
+return YES;
+```
+</Fragment>
+每次呼叫都判回傳值、失敗就 early return，一個變數就夠用；想一路做完再統一處理的話，每次呼叫用自己的變數。
+</Pitfall>
+
+<Pitfall title="吞掉錯誤：印一行就回 nil">
+`NSLog(@"%@", jsonError); return nil;` 之後上層只拿到 nil，使用者看到「發生錯誤」，工程師在 log 裡找到一行沒有上下文的字串。正確做法是包裝：自己的 domain / code 給呼叫端分流，原始錯誤放 `NSUnderlyingErrorKey`。`po error` 時 lldb 會把 `userInfo` 連同底層錯誤整個印出來，比 log 好查。
+</Pitfall>
+
+<Crash message={`Thread 1: EXC_BAD_ACCESS (code=1, address=0x0)
+#0  +[LBRateParser rateFromJSONData:error:] at LBRateParser.m:18
+#1  -[LBRateService fetchRatesForBase:completion:]_block_invoke`}>
+`address=0x0` 是對空指標寫入的招牌。第 18 行是 `*error = [NSError ...]`，呼叫端 `fetchRatesForBase:` 傳的是 `NULL`（它只在意回傳值），方法端沒檢查就解參考。注意這跟對 `nil` 送訊息不同：對 nil 送訊息會被 runtime 擋下來什麼都不做，但 `*error` 是 C 層級的指標寫入，沒有人幫你擋。修法只有一行：`if (error) *error = ...;`。要養成習慣，可以在專案裡定義一個 `LBSetError(error, code, desc)` 的小函式，裡面做這個檢查。
+</Crash>
+
+## 小結
+
+- ObjC 的錯誤慣例是 **回傳值說成敗、`NSError **` 帶細節**：`BOOL` 方法回 `NO`、物件方法回 `nil` 代表失敗。
+- 呼叫端**先判回傳值再讀 error**；成功時 `error` 的內容未定義，`if (error)` 不是判斷失敗的方法。
+- 方法端寫 `*error` 之前一定 `if (error)`，因為呼叫端可以傳 `NULL`。
+- 一個 `NSError` 看三件事：`domain`、`code`（要配 domain 一起看）、`userInfo`（`NSLocalizedDescriptionKey` 一定填）。
+- 用 `NS_ERROR_ENUM(LBErrorDomain, LBErrorCode)` 定義自己的錯誤碼；往上傳時用自己的 code 包裝，原始錯誤放 `NSUnderlyingErrorKey`。

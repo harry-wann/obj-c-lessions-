@@ -1,0 +1,24 @@
+id: m11-11-5-xcode-1
+chapter: "11.5"
+type: xcode
+title: 建 Podfile 加 Masonry，編輯頁 Auto Layout 用 Masonry 重寫
+mobile: false
+minutes: 40
+prompt: 為 LittleBook 建 Podfile 加入 Masonry，開 .xcworkspace，把 LBTransactionEditorViewController 的 Auto Layout 用 Masonry 鏈式 DSL 重寫一次，行為不變。
+starter: xcode/M11-starter
+steps:
+  - "終端機 `cd` 到 `LittleBook.xcodeproj` 所在目錄，`pod init`。"
+  - "Podfile：`platform :ios, '13.0'`、主 target `pod 'Masonry', '~> 1.1'`、測試 target `inherit! :search_paths`。**不加** `use_frameworks!`。"
+  - "`pod install`，關掉 .xcodeproj，`open LittleBook.xcworkspace`。⌘B 一次。"
+  - "`LBTransactionEditorViewController.m` 加 `#import <Masonry/Masonry.h>`，把 `activateConstraints:` 那一大段逐條改成 `mas_makeConstraints:`。每改一個 view 就 ⌘R 比對一次版面。"
+  - "⌘U：M08 的兩個 LBTransactionEditorViewControllerTests 要照過。"
+  - "`git add Podfile Podfile.lock`，`Pods/` 依 `.gitignore` 現狀；commit「Add CocoaPods + Masonry; rewrite editor layout」。"
+tests:
+  - LBTransactionEditorViewControllerTests/testSaveCallsDelegateWithTransaction
+  - LBTransactionEditorViewControllerTests/testInvalidAmountDoesNotSave
+acceptance:
+  - "編輯頁在 iPhone SE 與 iPhone 15 Pro Max 上版面與改寫前一致（截圖比對）"
+  - "旋轉與 Dynamic Type 最大字級不破版"
+  - "Podfile.lock 在 git 裡；只開 .xcodeproj 時會出現 file not found（確認你知道為什麼）"
+  - "能口頭說出 mas_makeConstraints / mas_updateConstraints / mas_remakeConstraints 的差別"
+solution_note: "重寫的目的不是 Masonry 比較好，而是舊專案幾乎一定有它，你得讀得順。鏈式 DSL 的每個「屬性」都是回傳 block 的方法，`equalTo()` 的參數是 `id`，C 數值要 `mas_equalTo`。"

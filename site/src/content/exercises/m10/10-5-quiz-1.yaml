@@ -1,0 +1,17 @@
+id: m10-10-5-quiz-1
+chapter: "10.5"
+section: quiz
+type: quiz
+title: 執行緒爆炸怎麼發生
+minutes: 1
+prompt: 對全域並行佇列 dispatch_async 50 個「同步讀網路」的 block，為什麼會長出幾十條執行緒？
+options:
+  - 每條執行緒被 I/O 阻塞時，GCD 判定還有工作沒人跑，就再開一條；50 個阻塞 block 就是 50 條
+  - GCD 每個 block 固定開一條新執行緒
+  - 全域佇列預設就有 64 條執行緒常駐
+  - 因為沒有用 QoS
+answer: 0
+explain: GCD 的執行緒池會依「有沒有執行緒在忙但沒進展」補執行緒，阻塞 I/O 看起來就是這樣。非阻塞的 CPU 工作不會爆炸（只會用到核心數條）。
+hints: ["阻塞中的執行緒對 GCD 來說是什麼狀態？", "純 CPU 工作會不會爆炸？"]
+feedback:
+  "1": 純 CPU 的 block GCD 只會用核心數條執行緒輪流跑。

@@ -1,0 +1,48 @@
+id: m10-10-2-code-1
+chapter: "10.2"
+type: code
+title: 帶快取的 view model 工廠
+mobile: false
+minutes: 10
+prompt: "實作 `viewModelWithTransaction:`：key 由 `tx.identifier` 與 `tx.modifiedAt.timeIntervalSince1970` 組成；先查 `[self cache]`（LBLRUCache，`objectForKey:` / `setObject:forKey:`），命中直接回傳；未命中才用 `[self dateFormatter]` 建立 subtitle，存進快取再回傳。"
+starter: |
+  + (instancetype)viewModelWithTransaction:(LBTransaction *)tx {
+      // 1. 組 key
+      // 2. 查快取
+      // 3. 建立 vm：title = tx.note、subtitle = 日期 · 分類名、amountText = [tx.amount lb_currencyString]
+      // 4. 存快取、回傳
+  }
+checks:
+  - must_match: 'identifier'
+    message: key 要含 tx.identifier
+  - must_match: 'modifiedAt'
+    message: key 要含 modifiedAt，交易修改後自動失效
+  - must_match: '\[\s*\[\s*self\s+cache\s*\]\s+objectForKey\s*:'
+    message: "先查快取：[[self cache] objectForKey:key]"
+  - must_match: 'if\s*\(\s*\w+\s*\)\s*return\s+\w+'
+    message: 命中就直接回傳
+  - must_match: '\[\s*\[\s*self\s+dateFormatter\s*\]\s+stringFromDate\s*:'
+    message: 用共用的 [self dateFormatter] 格式化，不要 new
+  - must_not_match: 'NSDateFormatter\s+(alloc|new)|\[\s*NSDateFormatter\s+new'
+    message: 不准在這裡建立 NSDateFormatter
+  - must_match: '\[\s*\[\s*self\s+cache\s*\]\s+setObject\s*:\s*\w+\s+forKey\s*:'
+    message: 建好要存進快取
+  - "brackets_balanced: true"
+solution: |
+  + (instancetype)viewModelWithTransaction:(LBTransaction *)tx {
+      NSString *key = [NSString stringWithFormat:@"%@-%.0f", tx.identifier,
+                       tx.modifiedAt.timeIntervalSince1970];
+      LBTransactionViewModel *cached = [[self cache] objectForKey:key];
+      if (cached) return cached;
+      LBTransactionViewModel *vm = [LBTransactionViewModel new];
+      vm->_title = [tx.note copy];
+      vm->_subtitle = [NSString stringWithFormat:@"%@ · %@",
+                       [[self dateFormatter] stringFromDate:tx.date],
+                       tx.category.name];
+      vm->_amountText = [tx.amount lb_currencyString];
+      vm->_isExpense = tx.isExpense;
+      [[self cache] setObject:vm forKey:key];
+      return vm;
+  }
+solution_note: 這就是 testFormatsOnceAndCaches 要的行為：同一筆交易第二次呼叫不會再碰 formatter。key 帶版本（modifiedAt）是最省事的快取失效法。
+hints: ["key 是兩個欄位拼起來的字串。", "查到就 return，查不到才往下。", "formatter 一定透過 [self dateFormatter] 拿。"]

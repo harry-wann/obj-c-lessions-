@@ -1,0 +1,31 @@
+id: m06-6-1-spot-1
+chapter: "6.1"
+type: spot
+title: 從字典取值直接用
+minutes: 3
+prompt: 這段程式在某些伺服器回應下會 crash。點出有問題的行並選原因。
+code: |
+  - (void)applyJSON:(NSDictionary *)json {
+      NSString *note = json[@"note"];
+      NSInteger len = note.length;
+      id rawAmount = json[@"amount"];
+      NSDecimalNumber *amount =
+          [NSDecimalNumber decimalNumberWithString:[rawAmount description]];
+      NSLog(@"%ld %@", (long)len, amount);
+  }
+bug_lines: [2]
+reasons:
+  - "json[@\"note\"] 回傳 id，賦值給 NSString * 不會檢查；伺服器回數字或 null 時，note.length 送到 NSNumber / NSNull 上就是 unrecognized selector"
+  - 字典取值要用 objectForKey:，不能用下標
+  - NSString 的 length 回傳 NSUInteger，不能存進 NSInteger
+  - description 不能對 id 呼叫
+answer_reason: 0
+fix: |
+  id rawNote = json[@"note"];
+  NSString *note = [rawNote isKindOfClass:[NSString class]] ? rawNote : @"";
+  NSInteger len = note.length;
+solution_note: "從容器取出的東西都是 `id`，型別是你對編譯器的承諾。第 4 行反而安全：對 id 呼叫 `description` 任何 NSObject 都回應。防禦放在資料進模型的那一層，用 6.3 的 `isKindOfClass:`。"
+hints: ["json[@\"note\"] 的回傳型別是什麼？", "伺服器把 note 改成數字會怎樣？"]
+feedback:
+  "1": 下標語法完全合法，等於 objectForKey:。
+  "3": description 是 NSObject 的方法，任何物件都回應，這一行是安全的。

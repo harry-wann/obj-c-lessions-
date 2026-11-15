@@ -1,0 +1,18 @@
+id: m11-11-1-quiz-2
+chapter: "11.1"
+section: quiz
+type: quiz
+title: 集合與計數
+minutes: 1
+prompt: "MRC 下：`LBLegacyTransaction *tx = [[LBLegacyTransaction alloc] init]; [array addObject:tx]; [tx release];` 這段程式之後 tx 指向的物件狀態是？"
+options:
+  - "已釋放，array 裡是懸空指標"
+  - "活著，計數 1，由 array 持有"
+  - "活著，計數 2"
+  - "洩漏，沒人會再 release 它"
+answer: 1
+explain: "`alloc` +1、`addObject:` 讓 array retain +1 → 2、`[tx release]` −1 → 1。之後 array 移除它或自己 dealloc 時會 release，計數歸零。這是 MRC 下「放進集合後放手」的標準寫法。"
+hints: ["集合會對放進去的元素做什麼？", "數一數 +1 與 −1。"]
+feedback:
+  "0": "addObject: 會 retain，所以 release 之後計數是 1 不是 0。"
+  "3": "array 持有它，array 之後會負責 release。這段正好是正確寫法。"

@@ -1,0 +1,19 @@
+id: m11-11-1-interview-1
+chapter: "11.1"
+type: flash
+tier: interview
+title: 面試題：擁有權四規則與 ARC 的關係
+minutes: 3
+front: "面試官：請說出 Cocoa 記憶體管理的擁有權規則。ARC 之後這些規則還有意義嗎？"
+back: |
+  四規則：
+  1. alloc / new / copy / mutableCopy 開頭的方法回傳的物件，你擁有。
+  2. 送 retain，你擁有。
+  3. 擁有的物件用完要 release 或 autorelease。
+  4. 不是你擁有的，不准 release。
+
+  ARC 沒有改規則，只是讓編譯器代寫 retain / release。規則仍然在三個地方直接影響你：
+  - 命名：方法名以 new / copy 開頭會被 ARC 視為回傳 +1，屬性 getter 這樣取名會編譯錯誤。
+  - 橋接：__bridge_retained / __bridge_transfer（CFRelease 誰負責）就是規則 1、3 的 Core Foundation 版。
+  - 混用：-fno-objc-arc 的檔案、第三方 MRC pod、Convert to ARC 的 diff，都要用這四條推敲每一行刪的 release 對不對。
+  追問常見：「retain setter 為什麼先 retain 再 release？」答：新舊可能是同一物件。「集合會 retain 嗎？」答：會，所以 addObject: 之後可以 release 自己那份。

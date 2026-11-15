@@ -1,0 +1,42 @@
+id: m10-10-3-code-1
+chapter: "10.3"
+type: code
+title: 寫出節流的進度回報
+mobile: false
+minutes: 8
+prompt: "實作 `reportProgress:total:force:`：用 `CACurrentMediaTime()` 與實體變數 `_lastReport`（CFTimeInterval）判斷距離上次回報是否 ≥ 0.1 秒；`force` 為 YES 時一定送；送出時更新 `_lastReport` 並在主佇列呼叫 `self.progressHandler(done, total)`。"
+starter: |
+  - (void)reportProgress:(NSUInteger)done
+                   total:(NSUInteger)total
+                   force:(BOOL)force {
+
+  }
+checks:
+  - must_match: 'CACurrentMediaTime\s*\(\s*\)'
+    message: 用 CACurrentMediaTime() 取時間
+  - must_match: '_lastReport'
+    message: 要讀寫 _lastReport
+  - must_match: '0\.1|100'
+    message: 門檻 0.1 秒（100 ms）
+  - must_match: '!\s*force|force\s*==\s*NO|force\s*\|\||\|\|\s*force'
+    message: force 為 YES 時要略過節流判斷
+  - must_match: 'dispatch_async\s*\(\s*dispatch_get_main_queue\s*\(\s*\)'
+    message: 回呼在主佇列
+  - must_match: 'progressHandler\s*\(\s*done\s*,\s*total\s*\)'
+    message: 呼叫 self.progressHandler(done, total)
+  - must_match: '_lastReport\s*=\s*\w+'
+    message: 送出時要更新 _lastReport
+  - "brackets_balanced: true"
+solution: |
+  - (void)reportProgress:(NSUInteger)done
+                   total:(NSUInteger)total
+                   force:(BOOL)force {
+      CFTimeInterval now = CACurrentMediaTime();
+      if (!force && now - _lastReport < 0.1) return;
+      _lastReport = now;
+      dispatch_async(dispatch_get_main_queue(), ^{
+          if (self.progressHandler) self.progressHandler(done, total);
+      });
+  }
+solution_note: 四行就是節流器：取時間、沒到門檻就 return、記下時間、送出。force 讓最後一次一定送到，否則進度條會停在 99%。
+hints: ["先取 now。", "沒 force 且距離不足就 return。", "更新 _lastReport 再 dispatch 到主佇列。"]

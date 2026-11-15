@@ -1,0 +1,60 @@
+id: m09-9-4-spot-1
+chapter: "9.4"
+type: spot
+title: 讀檔沒防禦、寫檔卡主執行緒
+minutes: 4
+prompt: 這段 LBPersistence 的程式有兩個問題：一個會讓壞檔被靜靜地蓋掉，一個會卡 UI。點選有問題的行並選出原因。
+code: |
+  - (LBLedger *)loadLedger {
+      NSData *data = [NSData dataWithContentsOfURL:self.fileURL];
+      NSDictionary *root = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+      LBLedger *ledger = [LBLedger new];
+      for (NSDictionary *item in root[@"transactions"]) {
+          [ledger addTransaction:[[LBTransaction alloc] initWithDictionary:item error:nil]];
+      }
+      return ledger;
+  }
+  - (void)editor:(id)editor didSaveTransaction:(LBTransaction *)tx {
+      [self.ledger addTransaction:tx];
+      [self.persistence saveLedger:self.ledger error:nil];
+      [self.tableView reloadData];
+  }
+bug_lines: [3, 5, 6, 12]
+reasons:
+  - "第 3 行解析失敗（data 為 nil 或 JSON 壞了）時 root 是 nil，第 5 行 for-in nil 不跑，靜靜回空帳本，下次存檔就蓋掉壞檔；第 6 行沒檢查 item 型別與 initWithDictionary: 回 nil（addTransaction: nil 會 crash）；第 12 行在主執行緒同步寫檔卡 UI"
+  - "dataWithContentsOfURL: 應該改成 dataWithContentsOfFile:"
+  - for-in 不能走訪 NSArray 裡的字典
+  - reloadData 應該在 saveLedger 之前呼叫
+answer_reason: 0
+fix: |
+  - (nullable LBLedger *)loadLedgerWithError:(NSError **)error {
+      NSData *data = [NSData dataWithContentsOfURL:self.fileURL options:0 error:error];
+      if (!data) {
+          if (error && (*error).code == NSFileReadNoSuchFileError) { *error = nil; return [LBLedger new]; }
+          return nil;
+      }
+      id root = [NSJSONSerialization JSONObjectWithData:data options:0 error:error];
+      if (![root isKindOfClass:[NSDictionary class]]) return nil;
+      NSArray *items = root[@"transactions"];
+      if (![items isKindOfClass:[NSArray class]]) return nil;
+      LBLedger *ledger = [LBLedger new];
+      for (id item in items) {
+          if (![item isKindOfClass:[NSDictionary class]]) continue;
+          LBTransaction *tx = [[LBTransaction alloc] initWithDictionary:item error:nil];
+          if (tx) [ledger addTransaction:tx];
+      }
+      return ledger;
+  }
+  - (void)editor:(id)editor didSaveTransaction:(LBTransaction *)tx {
+      [self.ledger addTransaction:tx];
+      [self.tableView reloadData];
+      [self.persistence saveLedger:self.ledger completion:^(NSError *error) {
+          if (error) [self showSaveError:error];
+      }];
+  }
+solution_note: 對 nil 送訊息不 crash 在這裡變成壞事：壞檔解析失敗後一路 nil 下去，得到空帳本，下一次存檔把使用者的資料蓋掉。「不存在」回空帳本、「壞掉」回 error，分開處理。寫檔走背景版本。
+hints: ["JSONObjectWithData: 失敗回什麼？後面的程式會怎樣？", "addTransaction: 傳 nil 會怎樣？", "saveLedger:error: 在哪個執行緒跑？"]
+feedback:
+  "1": 兩個方法都可以讀，差別只在 URL 與字串；問題不在這裡。
+  "2": for-in 可以走訪任何集合；問題是沒檢查元素型別。
+  "3": 順序不是問題，問題是同步寫檔在主執行緒。

@@ -1,0 +1,17 @@
+id: m07-7-2-quiz-2
+chapter: "7.2"
+section: quiz
+type: quiz
+title: NSAssert 在 Release 會怎樣
+minutes: 1
+prompt: "`NSAssert(tx.amount != nil, @\"amount 不能為 nil\");` 在 Release 組態（預設設定）下會？"
+options:
+  - 條件不成立時 raise NSInternalInconsistencyException，跟 Debug 一樣
+  - 條件不成立時印一行警告但不中斷
+  - 整個巨集展開成空白，條件表達式連執行都不會
+  - 條件不成立時直接 abort()
+answer: 2
+explain: Release 預設定義 NS_BLOCK_ASSERTIONS，NSAssert 整行消失。所以斷言只是開發期的安全網，條件裡不能放有副作用的程式。
+hints: ["Release 組態預設定義了哪個巨集？", "巨集展開成空白代表什麼？"]
+feedback:
+  "0": 那是 Swift precondition 的行為，ObjC 的 NSAssert 更像 Swift 的 assert。

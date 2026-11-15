@@ -1,0 +1,292 @@
+---
+title: 輸入與表單
+module: 8
+chapter: "8.6"
+order: 6
+minutes: 45
+prereq: ["8.5", "5.7"]
+objectives:
+  - 用 UITextField 與 UITextFieldDelegate 做金額輸入（數字鍵盤、過濾非法字元、即時格式化），並正確收合鍵盤
+  - 監聽 keyboardWillShow / Hide 通知調整 contentInset，讓鍵盤不遮擋欄位；成對註冊與移除
+  - 用 UIControl 的 target-action 接按鈕、分段控制、開關、UIDatePicker 事件，用 UIAlertController 做刪除確認
+summary: "UITextField 與 UITextFieldDelegate、keyboardType、UIDatePicker、UIPickerView、resignFirstResponder / endEditing: 與點空白收鍵盤、keyboardWillShow 通知處理遮擋、UIAlertController alert / actionSheet、UIControl target-action addTarget:action:forControlEvents:；對照 SwiftUI Binding、Android EditText / TextWatcher、React 受控元件。"
+terms:
+  - { en: first responder, tw: 第一回應者（first responder）, cn: 第一响应者, jp: ファーストレスポンダ }
+  - { en: target-action, tw: 目標 — 動作（target-action）, cn: 目标 — 动作, jp: ターゲット・アクション }
+  - { en: text field, tw: 文字欄位（UITextField）, cn: 文本框, jp: テキストフィールド }
+  - { en: alert controller, tw: 警示控制器（UIAlertController）, cn: 警告控制器, jp: アラートコントローラ }
+  - { en: content inset, tw: 內容內縮（contentInset）, cn: 内容边距, jp: コンテンツインセット }
+appProgress: 畫面 04 與 09：LBTransactionEditorViewController 的金額 / 種類 / 日期 / 分類 / 備註 / 開關全部能輸入，鍵盤不遮擋，取消不儲存；刪除前 UIAlertController 確認；導覽列「復原」接 LBUndoStack；兩個測試轉綠。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// SwiftUI：雙向綁定，鍵盤、驗證都靠 state
+TextField("金額", text: $amountText).keyboardType(.decimalPad)
+DatePicker("日期", selection: $date, displayedComponents: .date)
+Button("儲存") { save() }.disabled(Decimal(string: amountText) == nil)
+.alert("刪除這筆交易？", isPresented: $confirm) { Button("刪除", role: .destructive) { delete() } }
+// UIKit Swift：#selector 取代 @selector
+saveButton.addTarget(self, action: #selector(saveTapped), for: .touchUpInside)
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+amountField.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+amountField.doAfterTextChanged { text -> saveButton.isEnabled = text.toString().toBigDecimalOrNull() != null }
+saveButton.setOnClickListener { save() }                      // ↔ addTarget:action:
+// 鍵盤遮擋：windowSoftInputMode="adjustResize" 或 WindowInsets 監聽 ↔ keyboardWillShow
+AlertDialog.Builder(this).setMessage("刪除這筆交易？")
+    .setPositiveButton("刪除") { _, _ -> delete() }.setNegativeButton("取消", null).show()
+```
+</Fragment>
+<Fragment slot="java">
+```java
+amountField.addTextChangedListener(new TextWatcher() {            // ↔ UITextFieldDelegate
+    @Override public void afterTextChanged(Editable s) { validate(s.toString()); }
+    /* beforeTextChanged / onTextChanged 省略 */
+});
+saveButton.setOnClickListener(v -> save());
+InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+imm.hideSoftInputFromWindow(amountField.getWindowToken(), 0);     // ↔ resignFirstResponder
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// React 受控元件：value + onChange，驗證就是衍生狀態
+const [amount, setAmount] = useState('');
+const valid = /^\d+(\.\d{0,2})?$/.test(amount);
+<input inputMode="decimal" value={amount}
+       onChange={e => setAmount(e.target.value.replace(/[^\d.]/g, ''))} />
+<button disabled={!valid} onClick={save}>儲存</button>
+{confirm && <Dialog onConfirm={remove} onCancel={() => setConfirm(false)} />}
+// 瀏覽器自己處理鍵盤遮擋，iOS 要手動調 contentInset
+```
+</Fragment>
+表單是命令式 UI 最囉嗦的地方。SwiftUI 與 React 用綁定把「值 ↔ 畫面」接起來，驗證是衍生狀態；UIKit 得自己在 delegate 回呼裡讀 `textField.text`、自己算、自己設按鈕狀態。Android 工程師會發現 `TextWatcher` ↔ `UITextFieldDelegate`、`setOnClickListener` ↔ `addTarget:action:`、`AlertDialog.Builder` ↔ `UIAlertController` 幾乎一對一；唯一要重新學的是鍵盤遮擋在 iOS 完全是你的責任。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### UITextField 與 UITextFieldDelegate
+
+```objc
+// LBTransactionEditorViewController.m（節錄）
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.title = self.editingTransaction ? @"編輯交易" : @"新增交易";
+
+    self.amountField = [UITextField new];
+    self.amountField.placeholder = @"0.00";
+    self.amountField.keyboardType = UIKeyboardTypeDecimalPad;   // 只有數字與小數點
+    self.amountField.font = [UIFont monospacedDigitSystemFontOfSize:34
+                                                             weight:UIFontWeightSemibold];
+    self.amountField.textAlignment = NSTextAlignmentRight;
+    self.amountField.delegate = self;
+    [self.amountField addTarget:self
+                         action:@selector(amountChanged:)
+               forControlEvents:UIControlEventEditingChanged];
+
+    self.navigationItem.leftBarButtonItem =
+        [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
+                                                      target:self
+                                                      action:@selector(cancelTapped)];
+    self.navigationItem.rightBarButtonItem =
+        [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemSave
+                                                      target:self
+                                                      action:@selector(saveTapped)];
+    self.navigationItem.rightBarButtonItem.enabled = NO;
+    // ... 其他欄位、UIStackView 版面、放進 UIScrollView
+}
+
+#pragma mark - UITextFieldDelegate
+
+- (BOOL)textField:(UITextField *)textField
+    shouldChangeCharactersInRange:(NSRange)range
+                replacementString:(NSString *)string {
+    if (string.length == 0) return YES;                 // 刪除永遠允許
+    NSCharacterSet *allowed = [NSCharacterSet characterSetWithCharactersInString:@"0123456789."];
+    if ([string rangeOfCharacterFromSet:allowed.invertedSet].location != NSNotFound) {
+        return NO;                                      // 貼上的字母擋掉
+    }
+    NSString *next = [textField.text stringByReplacingCharactersInRange:range
+                                                             withString:string];
+    return [[next componentsSeparatedByString:@"."] count] <= 2;   // 只准一個小數點
+}
+
+- (BOOL)textFieldShouldReturn:(UITextField *)textField {
+    [textField resignFirstResponder];                   // Return 鍵收鍵盤
+    return YES;
+}
+
+- (void)amountChanged:(UITextField *)sender {
+    self.navigationItem.rightBarButtonItem.enabled = [self amountFromText] != nil;
+}
+
+- (nullable NSDecimalNumber *)amountFromText {
+    NSString *text = [self.amountField.text stringByReplacingOccurrencesOfString:@","
+                                                                      withString:@""];
+    if (text.length == 0) return nil;
+    NSDecimalNumber *n = [NSDecimalNumber decimalNumberWithString:text];
+    if ([n isEqual:NSDecimalNumber.notANumber]) return nil;   // "1.2.3" 會變 NaN
+    if ([n compare:NSDecimalNumber.zero] != NSOrderedDescending) return nil;
+    return n;
+}
+
+- (BOOL)saveWithError:(NSError **)error {
+    NSDecimalNumber *amount = [self amountFromText];
+    if (!amount) {
+        if (error) *error = [NSError errorWithDomain:LBErrorDomain
+                                                code:LBErrorCodeUnexpectedType
+                                            userInfo:@{ NSLocalizedDescriptionKey: @"金額無效" }];
+        return NO;
+    }
+    LBTransaction *tx = [[LBTransaction alloc] initWithAmount:amount
+                                                         kind:self.kindControl.selectedSegmentIndex
+                                                         date:self.datePicker.date
+                                                         note:self.noteField.text ?: @""
+                                                     category:self.category];
+    [self.delegate editor:self didSaveTransaction:tx];
+    return YES;
+}
+```
+
+`shouldChangeCharactersInRange:replacementString:` 在每個字輸入**之前**被問，回 `NO` 就不會進去，是過濾的地方；`UIControlEventEditingChanged` 在改完**之後**觸發，是驗證與更新按鈕狀態的地方。`decimalNumberWithString:` 收到垃圾不會回 nil，回 `NSDecimalNumber.notANumber`，一定要比對。`saveWithError:` 拆成獨立方法是為了測試：`testInvalidAmountDoesNotSave` 直接設 `amountField.text = @"abc"` 呼叫它，不用模擬點擊。
+
+### 鍵盤：收合與遮擋
+
+<Term en="first responder" tw="第一回應者" cn="第一响应者" jp="ファーストレスポンダ" />是目前接收鍵盤輸入的那個 view。`[field becomeFirstResponder]` 叫出鍵盤、`[field resignFirstResponder]` 收掉；不知道誰是 first responder 就對整個 view 呼叫 `[self.view endEditing:YES]`。點空白收鍵盤：
+
+```objc
+UITapGestureRecognizer *tap =
+    [[UITapGestureRecognizer alloc] initWithTarget:self.view
+                                            action:@selector(endEditing:)];
+tap.cancelsTouchesInView = NO;      // 不然表格的列點不到
+[self.view addGestureRecognizer:tap];
+```
+
+遮擋處理：表單放在 `UIScrollView` 裡，鍵盤出現時把底部 `contentInset` 加大鍵盤高度，消失時還原。通知在 `viewWillAppear:` / `viewWillDisappear:` 成對（8.2）：
+
+```objc
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
+    [nc addObserver:self selector:@selector(keyboardWillChange:)
+               name:UIKeyboardWillShowNotification object:nil];
+    [nc addObserver:self selector:@selector(keyboardWillChange:)
+               name:UIKeyboardWillHideNotification object:nil];
+}
+
+- (void)viewWillDisappear:(BOOL)animated {
+    [super viewWillDisappear:animated];
+    NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
+    [nc removeObserver:self name:UIKeyboardWillShowNotification object:nil];
+    [nc removeObserver:self name:UIKeyboardWillHideNotification object:nil];
+}
+
+- (void)keyboardWillChange:(NSNotification *)note {
+    CGRect end = [note.userInfo[UIKeyboardFrameEndUserInfoKey] CGRectValue];
+    CGRect endInView = [self.view convertRect:end fromView:nil];     // 視窗座標 → 自己的座標
+    CGFloat overlap = MAX(0, CGRectGetMaxY(self.view.bounds) - CGRectGetMinY(endInView));
+    CGFloat bottom = MAX(0, overlap - self.view.safeAreaInsets.bottom);
+    NSTimeInterval duration =
+        [note.userInfo[UIKeyboardAnimationDurationUserInfoKey] doubleValue];
+    [UIView animateWithDuration:duration animations:^{
+        self.scrollView.contentInset = UIEdgeInsetsMake(0, 0, bottom, 0);
+        self.scrollView.verticalScrollIndicatorInsets = self.scrollView.contentInset;
+    }];
+}
+```
+
+用同一個方法處理 show 跟 hide：hide 時鍵盤的終點 frame 在螢幕外，`overlap` 算出來是 0，自然還原。iOS 15 以後也可以用 `view.keyboardLayoutGuide.topAnchor` 把底部約束直接綁在鍵盤上，不用通知；舊專案裡仍是通知寫法。
+
+### UIDatePicker、UIPickerView、UISegmentedControl、UISwitch
+
+全是 `UIControl` 子類別，走<Term en="target-action" tw="目標 — 動作" cn="目标 — 动作" jp="ターゲット・アクション" />：`addTarget:action:forControlEvents:` 登記「哪個物件的哪個 selector 在哪個事件時被呼叫」。這是 UIKit 比 delegate 更輕的回呼機制（5.2 比較過），一個 control 可以掛多組。
+
+```objc
+self.datePicker = [UIDatePicker new];
+self.datePicker.datePickerMode = UIDatePickerModeDate;
+self.datePicker.preferredDatePickerStyle = UIDatePickerStyleCompact;   // 一顆膠囊，點開才展開
+[self.datePicker addTarget:self action:@selector(dateChanged:)
+          forControlEvents:UIControlEventValueChanged];
+
+self.kindControl = [[UISegmentedControl alloc] initWithItems:@[ @"支出", @"收入" ]];
+self.kindControl.selectedSegmentIndex = LBTransactionKindExpense;
+[self.kindControl addTarget:self action:@selector(kindChanged:)
+           forControlEvents:UIControlEventValueChanged];
+
+self.reconciledSwitch = [UISwitch new];                 // 對應 LBTransactionFlagsReconciled
+[self.reconciledSwitch addTarget:self action:@selector(flagsChanged:)
+                forControlEvents:UIControlEventValueChanged];
+```
+
+selector 簽名有三種合法形式：`- (void)action`、`- (void)action:(id)sender`、`- (void)action:(id)sender forEvent:(UIEvent *)event`；名字對不上就是本章的崩潰現場。`UIPickerView` 不是 `UIControl`，走 `UIPickerViewDataSource` / `Delegate`，跟表格一模一樣（`numberOfComponents`、`numberOfRowsInComponent:`、`titleForRow:`），幣別選擇用它。
+
+### UIAlertController
+
+```objc
+- (void)confirmDeleteAtIndexPath:(NSIndexPath *)indexPath {
+    UIAlertController *sheet =
+        [UIAlertController alertControllerWithTitle:@"刪除這筆交易？"
+                                            message:@"可以從導覽列「復原」救回來。"
+                                     preferredStyle:UIAlertControllerStyleActionSheet];
+    __weak typeof(self) weakSelf = self;
+    [sheet addAction:[UIAlertAction actionWithTitle:@"刪除"
+                                              style:UIAlertActionStyleDestructive
+                                            handler:^(UIAlertAction *action) {
+        [weakSelf deleteRowAtIndexPath:indexPath];
+    }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:@"取消"
+                                              style:UIAlertActionStyleCancel
+                                            handler:nil]];
+    sheet.popoverPresentationController.sourceView =
+        [self.tableView cellForRowAtIndexPath:indexPath];      // iPad 需要錨點
+    [self presentViewController:sheet animated:YES completion:nil];
+}
+```
+
+`Alert` 樣式置中、可加文字欄位（`addTextFieldWithConfigurationHandler:`）；`ActionSheet` 從底部升起，iPad 上變 popover 必須給 `sourceView` 或 `barButtonItem`，不給會 crash。`Destructive` 樣式自動紅字，`Cancel` 樣式自動排最下面。`UIAlertView` / `UIActionSheet` 是模組 11 Legacy 專案裡會看到的前身。
+
+### 設計稿對照
+
+對應設計稿 **04 新增 / 編輯交易** 與 **09 滑動刪除與確認**（https://www.figma.com/design/4d6HGy38x11n2uOfkzOBzj ）。04 是 present 的 sheet，內容由上而下放在一個 `UIScrollView` → 垂直 `UIStackView`（間距 16、左右邊距 16）裡：金額輸入區（高 88，34 pt 等寬數字靠右，左邊幣別「TWD」secondaryLabel）；「支出 / 收入」`UISegmentedControl` 高 32；接著是分組列表樣式的表單列（每列高 44、圓角 12 的群組）：日期（右側 compact `UIDatePicker`）、分類（右側圖示 + 名稱 + chevron，點了 push 分類選擇）、幣別（點了 present 幣別面板，7.6）、備註（`UITextField` 單行）；最後一組兩列開關：已對帳、定期（`UISwitch`，對應 `NS_OPTIONS` 旗標）；編輯模式底部多一顆紅色「刪除交易」按鈕（高 50、圓角 12）。09 的 action sheet：標題 + 說明、紅色「刪除」、「取消」。
+
+<Pitfall title="點空白收鍵盤的手勢吃掉了表格點擊">
+`UITapGestureRecognizer` 預設 `cancelsTouchesInView = YES`，加在整個 view 上之後，表格的列、按鈕全部點不到（手勢先搶走了）。設成 `NO`，或在 `UITableView` 上改用 `keyboardDismissMode = UIScrollViewKeyboardDismissModeInteractive`（跟著捲動收鍵盤，Messages 那種效果）。
+</Pitfall>
+
+<Pitfall title="鍵盤通知只註冊不移除，或用 dealloc 移除">
+8.2 的規則在這裡最常被踩：`viewWillAppear:` 註冊、`dealloc` 移除 → 分類選擇頁 push 回來一次就多一個觀察者，`contentInset` 被加兩倍。成對放 `viewWillAppear:` / `viewWillDisappear:`。另一個版本：用 `addObserverForName:` 的 block 版卻沒存 token，永遠移除不了，block 還捕獲 `self` 循環（5.5）。
+</Pitfall>
+
+<Pitfall title="把 textField.text 直接丟給 decimalNumberWithString:">
+`[NSDecimalNumber decimalNumberWithString:@"1,280"]` 回 `1`（遇到逗號停止），`@"abc"` 回 `NaN` 而不是 nil，`@""` 也是 `NaN`。先把千分位逗號拿掉、再比對 `NSDecimalNumber.notANumber`、再檢查大於零。顯示用的格式化字串與解析用的原始字串分開存，不要從已經格式化的畫面文字反推金額。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: '-[LBTransactionEditorViewController saveTapped:]: unrecognized selector
+sent to instance 0x7fa3c2d1a600'
+*** First throw call stack:
+(
+  2  CoreFoundation  -[NSObject(NSObject) doesNotRecognizeSelector:]
+  3  CoreFoundation  ___forwarding___
+  4  UIKitCore       -[UIApplication sendAction:to:from:forEvent:]
+  5  UIKitCore       -[UIBarButtonItem(UIInternal) _sendAction:withEvent:]
+)`}>
+6.x 看過的 `unrecognized selector`，這次來源是 `sendAction:to:from:forEvent:`：target-action 在執行期才找方法，編譯期不檢查。訊息裡的 selector 是 `saveTapped:`（有冒號），但類別裡實作的是 `- (void)saveTapped`（沒冒號），兩者是不同的 selector。對照 `addTarget:action:` 那一行跟方法宣告，冒號數量、大小寫要一致。預防：開 Build Settings 的 `-Wundeclared-selector`（專案已開 `GCC_WARN_UNDECLARED_SELECTOR`），`@selector(...)` 指到不存在的方法會有警告。另一個常見變體是 target 寫錯物件：`addTarget:self.view` 卻把方法寫在 VC 裡。
+</Crash>
+
+## 小結
+
+- `shouldChangeCharactersInRange:` 在輸入前過濾，`UIControlEventEditingChanged` 在輸入後驗證；`decimalNumberWithString:` 回 `NaN` 不回 nil。
+- 收鍵盤：`resignFirstResponder` / `endEditing:`；點空白手勢設 `cancelsTouchesInView = NO`。
+- 遮擋：`UIKeyboardWillShow` / `Hide` 通知成對註冊移除，用 `UIKeyboardFrameEndUserInfoKey` 算重疊量改 `contentInset`；新專案可用 `keyboardLayoutGuide`。
+- `UIControl` 走 target-action，selector 的冒號數要跟實作一致；`UIPickerView` 走 dataSource / delegate。
+- `UIAlertController` 的 alert / actionSheet，destructive 紅字、cancel 排底，iPad 的 actionSheet 要給 `sourceView`。

@@ -1,0 +1,48 @@
+id: m11-11-2-code-1
+chapter: "11.2"
+type: code
+title: "用 NSURLSession 重寫 fetchRatesForBase:"
+mobile: false
+minutes: 10
+prompt: "實作 `fetchRatesForBase:completion:`：用 `self.session` 建 data task、用 `+ratesFromJSONData:error:` 解析、**在主佇列**呼叫 completion（成功傳 rates 與 nil，失敗傳 nil 與 error），最後 resume。不要用 NSURLConnection。"
+starter: |
+  - (void)fetchRatesForBase:(NSString *)base
+                completion:(LBRatesCompletion)completion {
+      NSURL *url = [self urlForBase:base];
+
+  }
+checks:
+  - selector_equals: "fetchRatesForBase:completion:"
+  - must_match: 'dataTaskWith(URL|Request)\s*:'
+    message: "用 session 的 dataTaskWithURL: 或 dataTaskWithRequest:"
+  - must_match: 'completionHandler\s*:'
+    message: data task 要帶 completionHandler
+  - must_match: 'ratesFromJSONData\s*:'
+    message: "解析用 +ratesFromJSONData:error:"
+  - must_match: 'dispatch_async\s*\(\s*dispatch_get_main_queue\s*\(\s*\)'
+    message: completion 要切回主佇列
+  - must_match: 'resume\s*\]'
+    message: 忘了 resume 請求不會送出
+  - must_not_match: 'NSURLConnection'
+    message: 不要再用 NSURLConnection
+  - "brackets_balanced: true"
+solution: |
+  - (void)fetchRatesForBase:(NSString *)base
+                completion:(LBRatesCompletion)completion {
+      NSURL *url = [self urlForBase:base];
+      NSURLSessionDataTask *task = [self.session dataTaskWithURL:url
+          completionHandler:^(NSData *data, NSURLResponse *response,
+                              NSError *error) {
+          NSError *parseError = nil;
+          NSDictionary *rates = nil;
+          if (!error) {
+              rates = [LBRateService ratesFromJSONData:data error:&parseError];
+          }
+          dispatch_async(dispatch_get_main_queue(), ^{
+              completion(rates, error ?: parseError);
+          });
+      }];
+      [task resume];
+  }
+solution_note: "行為對照：舊版 `connectionDidFinishLoading:` → completion(rates, nil)；`didFailWithError:` → completion(nil, error)。M07 的四個 LBRateServiceTests 不用改就該過。"
+hints: ["data task 建好之後要 resume。", "網路錯誤與解析錯誤都要透過 completion 的第二個參數回報。", "UI 端會直接在 completion 裡改畫面，所以回呼要在主佇列。"]

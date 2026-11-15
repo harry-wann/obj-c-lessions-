@@ -12,7 +12,7 @@ log: |
                                 ^
   1 error generated.
 options:
-  - 兩個 .h 互相 #import 形成循環：處理 LBTransaction.h 時 LBCategory.h 還在處理中被跳過，LBCategory 的宣告尚未出現
+  - "兩個 .h 互相 #import 形成循環：處理 LBTransaction.h 時 LBCategory.h 還在處理中被跳過，LBCategory 的宣告尚未出現"
   - LBCategory 這個名字拼錯了
   - "LBTransaction.h 缺少 `@import Foundation;`"
   - LBCategory.m 沒有加進 target

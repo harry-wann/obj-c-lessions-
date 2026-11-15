@@ -1,0 +1,18 @@
+id: m11-11-5-quiz-1
+chapter: "11.5"
+section: quiz
+type: quiz
+title: pod install 與 pod update
+minutes: 1
+prompt: clone 一個有 Podfile.lock 的專案後，第一次該跑哪個指令？為什麼？
+options:
+  - "pod update：拿最新版本"
+  - "pod install：照 Podfile.lock 裝，跟全隊版本一致"
+  - "pod init：產生 Podfile"
+  - "都不用，Pods/ 一定在 repo 裡"
+answer: 1
+explain: "`pod install` 讀 lock 檔，裝到的版本跟 commit 的人一樣；`pod update` 會忽略 lock 去抓 Podfile 允許的最新版，只在刻意升級時手動跑。`Pods/` 進不進版控看團隊，lock 檔一定要進。"
+hints: ["哪個指令會讀 Podfile.lock？", "CI 應該跑哪個？"]
+feedback:
+  "0": "update 會改 lock 檔，今天綠明天紅。"
+  "2": "已經有 Podfile 了，init 會拒絕執行。"

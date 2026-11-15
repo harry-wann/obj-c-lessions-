@@ -1,0 +1,20 @@
+id: m10-10-2-quiz-1
+chapter: "10.2"
+section: quiz
+type: quiz
+title: "cellForRowAtIndexPath: 的禁令"
+minutes: 2
+prompt: 以下哪些**不該**出現在 `cellForRowAtIndexPath:` 或 cell 的配置方法裡？（可複選）
+multi: true
+options:
+  - "`[NSDateFormatter new]`"
+  - "`cell.titleLabel.text = vm.title;`"
+  - "`[NSString stringWithFormat:@\"%@ · %@\", date, name]`"
+  - "`[UIImage imageWithContentsOfFile:path]`"
+  - "`[tableView dequeueReusableCellWithIdentifier:forIndexPath:]`"
+answer: [0, 2, 3]
+explain: 建 formatter、拼字串、讀檔都是「算」，該在 view model 建立時做一次。dequeue 與賦值是這個方法本來的工作。
+hints: ["「貼」可以，「算」不行。", "讀檔是 I/O。"]
+feedback:
+  "1": 賦值就是「貼」，這正是 cell 該做的事。
+  "4": dequeue 是重用機制本身，一定在這裡。

@@ -1,0 +1,279 @@
+---
+title: Swift 呼叫 Objective-C
+module: 12
+chapter: "12.1"
+order: 1
+minutes: 40
+prereq: ["11.7", "2.4", "7.2"]
+objectives:
+  - 設定橋接標頭檔，讓 Swift 檔案看得到 LBLedger 等 ObjC 類別
+  - 說出 nullability、輕量泛型、NS_ENUM / NS_OPTIONS / NS_ERROR_ENUM、NSError ** 在 Swift 端各變成什麼，以及沒標會變成什麼
+  - 用 NS_SWIFT_NAME、NS_REFINED_FOR_SWIFT、NS_SWIFT_UNAVAILABLE 控制 ObjC API 在 Swift 端的長相
+summary: "橋接標頭檔；nullability → Optional（沒標變成隱式解包 !）；輕量泛型 → [LBTransaction]；NS_ENUM → enum、NS_OPTIONS → OptionSet、NS_ERROR_ENUM → Error；NSError ** → throws；NS_SWIFT_NAME / NS_REFINED_FOR_SWIFT / NS_SWIFT_UNAVAILABLE；completion handler 自動產生 async 版。"
+terms:
+  - { en: bridging header, tw: 橋接標頭檔, cn: 桥接头文件, jp: ブリッジングヘッダ }
+  - { en: nullability, tw: 可為空性, cn: 可空性, jp: Null 許容性 }
+  - { en: implicitly unwrapped optional, tw: 隱式解包 Optional, cn: 隐式解包可选值, jp: 暗黙的アンラップ Optional }
+  - { en: lightweight generics, tw: 輕量泛型, cn: 轻量泛型, jp: 軽量ジェネリクス }
+  - { en: interoperability, tw: 互通, cn: 互操作, jp: 相互運用 }
+appProgress: 專案加入第一個 Swift 檔案 StatsViewModel.swift，用 Swift 讀 LBLedger 算出收入、支出與分類統計；兩個 Swift 測試轉綠。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// StatsViewModel.swift：直接用 ObjC 的 LBLedger，像用 Swift 類別一樣
+let ledger = LBLedger()
+let tx = LBTransaction(amount: NSDecimalNumber(string: "120"),
+                       note: "午餐")
+ledger.add(tx)                           // -addTransaction: 自動縮短
+let first: LBTransaction? = ledger.transactions.first
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// Kotlin 呼叫 Java：沒有 @Nullable / @NotNull 的回傳值是「平台型別」String!
+val name: String = javaLedger.name   // 編譯過；Java 回 null 就 NPE
+val safe: String? = javaLedger.name  // 自己補上問號才安全
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// Java 呼叫 Kotlin：Kotlin 的 String? 到 Java 端只剩 @Nullable 註解
+@Nullable String name = ledger.getName();   // 編譯器不強迫你檢查
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// TS 匯入沒有 .d.ts 的 JS 模組：所有東西都是 any
+import ledger from "./legacy-ledger.js";
+const total = ledger.total();   // any：型別資訊在邊界上全部消失
+```
+</Fragment>
+Swift 呼叫 Objective-C 跟 Kotlin 呼叫 Java 幾乎是同一件事：編譯器會盡力把舊語言的宣告翻譯成新語言的型別，但**標頭檔沒寫清楚的資訊，翻譯後就是「不知道」**。Kotlin 把不知道的東西叫平台型別（`String!`），Swift 叫隱式解包 Optional（`String!`），連寫法都一樣；TS 遇到沒有型別宣告的 JS 乾脆全給 `any`。這一章的主題只有一個：ObjC 標頭要寫得夠清楚，Swift 端才會安全。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 橋接標頭檔：Swift 看得到哪些 ObjC
+
+App target 裡混編的入口是<Term en="bridging header" tw="橋接標頭檔" cn="桥接头文件" jp="ブリッジングヘッダ" />。第一次把 `.swift` 檔拖進 ObjC 專案時 Xcode 會問要不要建立，答 Create 它就生出 `LittleBook-Bridging-Header.h` 並填好 Build Setting `SWIFT_OBJC_BRIDGING_HEADER`。裡面只做一件事：列出要給 Swift 看的 ObjC 標頭。
+
+```objc
+// LittleBook-Bridging-Header.h
+#import "LBTransaction.h"
+#import "LBLedger.h"
+#import "LBCategory.h"
+#import "LBUndoStack.h"
+```
+
+沒列進來的標頭，Swift 端就看不到那個類別，錯誤訊息是 `Cannot find 'LBLedger' in scope`。框架（framework）target 沒有橋接標頭，走 umbrella header 加 module map，但小帳本是 App target，用橋接標頭就好。一個 target 只有一份橋接標頭，`.m` 檔裡的類別延伸（私有方法）不在標頭裡，Swift 自然也看不到，這和 ObjC 自己的規則一致。
+
+### nullability：翻譯成 Optional 的規則
+
+這是整章最重要的一條。ObjC 指標有三種標法，Swift 端對應三種型別：
+
+| ObjC 宣告 | Swift 端 | 意思 |
+|---|---|---|
+| `nonnull LBLedger *` 或在 `NS_ASSUME_NONNULL` 區塊內 | `LBLedger` | 保證不是 nil |
+| `nullable LBLedger *` | `LBLedger?` | 可能是 nil，Swift 強迫你處理 |
+| **什麼都沒標** | `LBLedger!` | 編譯器不知道，隱式解包 |
+
+第三行是災難來源。`!` 型別可以不解包直接用，使用起來跟非 Optional 一樣順手，但執行期一碰到 nil 就是 `Fatal error: Unexpectedly found nil while implicitly unwrapping an Optional value`。ObjC 對 nil 送訊息什麼都不會發生，所以舊程式碼裡「有時候回 nil」的方法到處都是，一到 Swift 端全變成地雷。修法是把每個標頭用 `NS_ASSUME_NONNULL_BEGIN` / `NS_ASSUME_NONNULL_END` 包起來，再把真的會回 nil 的地方一個一個標 `nullable`：
+
+```objc
+// LBLedger.h
+NS_ASSUME_NONNULL_BEGIN
+
+@interface LBLedger : NSObject
+@property (nonatomic, copy, readonly) NSArray<LBTransaction *> *transactions;
+@property (nonatomic, strong, readonly) NSDecimalNumber *total;
+- (void)addTransaction:(LBTransaction *)transaction;
+- (nullable LBTransaction *)transactionWithIdentifier:(NSString *)identifier;
+- (BOOL)removeTransactionWithIdentifier:(NSString *)identifier;
+@end
+
+NS_ASSUME_NONNULL_END
+```
+
+Swift 端看到的就是：
+
+```swift
+// Xcode「Generated Interface」（Related Items → Generated Interface）
+open class LBLedger : NSObject {
+    open var transactions: [LBTransaction] { get }
+    open var total: NSDecimalNumber { get }
+    open func add(_ transaction: LBTransaction)
+    open func transaction(withIdentifier identifier: String) -> LBTransaction?
+    open func removeTransaction(withIdentifier identifier: String) -> Bool
+}
+```
+
+注意 `NS_ASSUME_NONNULL` 只管「指標」：`NSArray<LBTransaction *> *` 整個是 nonnull，但陣列裡的元素型別也要靠泛型角括號內的標注。另外 `NSError **` 之類的雙重指標不受 ASSUME 影響，自己有一套規則（下面講）。
+
+### 輕量泛型、列舉、錯誤
+
+| ObjC | Swift | 沒寫會變成 |
+|---|---|---|
+| `NSArray<LBTransaction *> *` | `[LBTransaction]` | `[Any]`，每個元素都要 `as?` |
+| `NSDictionary<NSString *, NSDecimalNumber *> *` | `[String: NSDecimalNumber]` | `[AnyHashable: Any]` |
+| `typedef NS_ENUM(NSInteger, LBTransactionKind)` | `enum LBTransactionKind: Int` | 一般 `typedef enum` 變成一堆全域常數 |
+| `typedef NS_OPTIONS(NSUInteger, LBTransactionFlags)` | `struct LBTransactionFlags: OptionSet` | 同上，而且不能用 `[.a, .b]` 語法 |
+| `typedef NS_ERROR_ENUM(LBErrorDomain, LBErrorCode)` | `LBError.Code` + `LBError` 符合 `Error` | 只有整數，`catch` 時要自己比 `domain` 與 `code` |
+| `- (BOOL)saveWithError:(NSError **)error` | `func save() throws` | — |
+| `- (nullable LBLedger *)loadWithError:(NSError **)error` | `func load() throws -> LBLedger` | — |
+| `instancetype` | `Self` | `id` 變成 `Any`，要轉型 |
+
+`NS_ENUM` 的列舉成員名字會自動去掉前綴：`LBTransactionKindExpense` 變成 `.expense`。`NS_ERROR_ENUM` 需要先在某個標頭宣告 `extern NSErrorDomain const LBErrorDomain;`（模組 7 已經做了）。
+
+`NSError **` 的轉換規則：**最後一個參數是 `NSError **`，而且回傳 `BOOL` 或 nullable 物件**，Swift 端就變成 `throws`；回傳 `BOOL` 的 `NO` 對應丟出錯誤，回傳物件的 `nil` 對應丟出錯誤。回傳 `void` 的方法也會轉，但 Swift 只能靠「error 參數有沒有被填」判斷，最好避免這種設計。
+
+```swift
+// StatsViewController.swift
+do {
+    try persistence.save(ledger)          // - (BOOL)saveLedger:error:
+} catch let error as LBError where error.code == .malformedJSON {
+    showAlert("檔案格式有問題")
+} catch {
+    showAlert(error.localizedDescription)
+}
+```
+
+### completion handler 自動變成 async
+
+Swift 5.5 起，最後一個參數是 completion block、block 回傳 `void` 的 ObjC 方法，會**同時**匯入成回呼版與 `async` 版：
+
+```objc
+// LBRateService.h
+- (void)fetchRatesForBase:(NSString *)base
+               completion:(void (^)(NSDictionary<NSString *, NSDecimalNumber *> * _Nullable rates,
+                                    NSError * _Nullable error))completion;
+```
+
+```swift
+// 兩種都能呼叫
+service.fetchRates(forBase: "TWD") { rates, error in ... }
+let rates = try await service.fetchRates(forBase: "TWD")   // 回傳 [String: NSDecimalNumber]
+```
+
+block 裡的 `NSError * _Nullable` 參數變成 `throws`；`rates` 從 nullable 變成非 Optional，因為 Swift 假設「沒有錯誤就一定有結果」。要是你的 API 在成功時也可能回 nil，`async` 版會讓呼叫端拿到一個隱含假設，用 `NS_SWIFT_DISABLE_ASYNC` 關掉自動轉換，或用 `NS_SWIFT_ASYNC_NAME(fetchRates(base:))` 給它一個更 Swift 的名字。block 參數名字要以 `completion`、`completionHandler`、`withCompletion` 之類結尾才會觸發轉換，叫 `callback` 不會。
+
+### 控制 Swift 端長相的三個巨集
+
+```objc
+// LBTransaction.h
+typedef NS_ENUM(NSInteger, LBTransactionKind) {
+    LBTransactionKindExpense,
+    LBTransactionKindIncome,
+} NS_SWIFT_NAME(LBTransaction.Kind);          // Swift：LBTransaction.Kind.expense
+
++ (instancetype)transactionWithAmount:(NSDecimalNumber *)amount
+                                 note:(NSString *)note
+    NS_SWIFT_NAME(init(amount:note:));          // 工廠方法變成初始化器
+
+- (NSArray<NSNumber *> *)amountsAsNumbers NS_REFINED_FOR_SWIFT;
+// Swift 端變成 __amountsAsNumbers，你在 extension 裡提供真正的 Swift 版
+
+- (void)lb_debugDump NS_SWIFT_UNAVAILABLE("Use description instead");
+```
+
+- `NS_SWIFT_NAME`：改名。常見用途是把 ObjC 工廠方法轉成 Swift 初始化器、把 `NS_ENUM` 掛進某個類別底下成為巢狀型別、修正自動縮名不好看的結果。
+- `NS_REFINED_FOR_SWIFT`：Swift 端名字前面加兩條底線藏起來，提醒你「這個 API 應該有一個更 Swift 的包裝」，然後你在 `.swift` 的 `extension LBTransaction` 裡寫 `var amounts: [Decimal] { __amountsAsNumbers.map { $0.decimalValue } }`。
+- `NS_SWIFT_UNAVAILABLE("訊息")`：Swift 端完全不給用，呼叫會得到編譯錯誤附你寫的訊息。給那些 Swift 有更好替代品的 API，例如和 `NSFastEnumeration` 重複的方法。
+
+### 完整範例：Swift 讀帳本
+
+```swift
+// StatsViewModel.swift
+import Foundation
+
+final class StatsViewModel: NSObject {
+    private let ledger: LBLedger
+
+    init(ledger: LBLedger) {
+        self.ledger = ledger
+        super.init()
+    }
+
+    var expenseTotal: NSDecimalNumber {
+        ledger.transactions
+            .filter { $0.kind == .expense }          // NS_ENUM → .expense
+            .reduce(NSDecimalNumber.zero) { $0.adding($1.amount) }
+    }
+
+    var incomeTotal: NSDecimalNumber {
+        ledger.transactions
+            .filter { $0.kind == .income }
+            .reduce(NSDecimalNumber.zero) { $0.adding($1.amount) }
+    }
+
+    var balance: NSDecimalNumber { incomeTotal.subtracting(expenseTotal) }
+
+    func categoryBreakdown() -> [(name: String, total: NSDecimalNumber)] {
+        var buckets: [String: NSDecimalNumber] = [:]
+        for tx in ledger.transactions where tx.kind == .expense {
+            let name = tx.category?.name ?? "未分類"   // category 標了 nullable → Optional
+            buckets[name] = (buckets[name] ?? .zero).adding(tx.amount)
+        }
+        return buckets.map { (name: $0.key, total: $0.value) }
+                      .sorted { $0.total.compare($1.total) == .orderedDescending }
+    }
+}
+```
+
+`tx.category?.name ?? "未分類"` 這一行能寫出來，前提是 `LBTransaction.h` 把 `category` 標成 `nullable`。沒標的話它是 `LBCategory!`，`tx.category.name` 照樣編譯過，碰到沒分類的交易就 crash。
+
+<Tip title="看 Generated Interface，不要猜">
+在 Xcode 開任何 ObjC 標頭，點編輯器左上「Related Items」（四個方塊的圖示）→ Generated Interface → 選 Swift 版本，就能看到 Swift 端實際看到的宣告。改完 nullability 或 `NS_SWIFT_NAME` 後回來對一次，比在 `.swift` 檔裡試錯快得多。
+</Tip>
+
+<Pitfall title="只在部分標頭加 NS_ASSUME_NONNULL">
+<Fragment slot="bad">
+```objc
+// LBCategory.h 忘了包
+@interface LBCategory : NSObject
+@property (nonatomic, copy) NSString *name;
+@property (nonatomic, weak) LBCategory *parent;   // Swift：LBCategory!
+@end
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+NS_ASSUME_NONNULL_BEGIN
+@interface LBCategory : NSObject
+@property (nonatomic, copy) NSString *name;
+@property (nonatomic, weak, nullable) LBCategory *parent;   // 根分類沒有 parent
+@end
+NS_ASSUME_NONNULL_END
+```
+</Fragment>
+`parent` 在根分類上一定是 nil，`weak` 屬性更是本來就可能隨時變 nil。沒標時 Swift 端是 `LBCategory!`，`category.parent.name` 編譯過、執行 crash。做法是：每個進橋接標頭的 `.h` 都包 ASSUME 區塊，然後逐一檢查「哪些真的會 nil」標 `nullable`。寧可多標 `nullable` 讓 Swift 端多寫一個 `?`，也不要漏標。
+</Pitfall>
+
+<Pitfall title="nonnull 只是承諾，ObjC 端照樣可以回 nil">
+標了 `nonnull` 的方法在 ObjC 端 `return nil;` 只會得到一個警告（`null returned from method that requires a non-null return value`），不會攔下來。Swift 端拿到的是一個「型別說不是 nil、其實是 nil」的值，不會立刻 crash，而是在幾層之後用到它時以莫名其妙的方式死掉，堆疊完全看不出根因。所以 nullability 標注要對照實作寫，不是對照「我希望它怎樣」寫；開 `-Wnullable-to-nonnull-conversion` 讓編譯器幫忙。
+</Pitfall>
+
+<Pitfall title="NSArray 沒加輕量泛型，Swift 端全是 Any">
+`@property NSArray *transactions;` 在 Swift 端是 `[Any]`，每次用都要 `as? LBTransaction`；加上 `NSArray<LBTransaction *> *` 就變 `[LBTransaction]`。模組 3 說輕量泛型「對 ObjC 只是提示」，到了 Swift 邊界它變成實際型別，這是補泛型最值得的理由。同樣道理，`id` 回傳值會變成 `Any`，能寫具體型別就寫。
+</Pitfall>
+
+<Crash message={`Fatal error: Unexpectedly found nil while implicitly unwrapping an Optional value
+StatsViewModel.swift, line 27
+#0  StatsViewModel.categoryBreakdown() -> [(name: String, total: NSDecimalNumber)]
+#1  StatsViewController.viewDidLoad()`}>
+訊息是 Swift 的，根因在 ObjC。「implicitly unwrapping」指的是 `!` 型別被自動解包時遇到 nil，代表那個屬性或回傳值在 ObjC 標頭**沒有標 nullability**。往上找 line 27 用到的 ObjC 成員（這裡是 `tx.category.name`），開它的標頭確認：沒有 `NS_ASSUME_NONNULL`，也沒有 `nullable`。修法在 ObjC 端：補上 ASSUME 區塊、把 `category` 標 `nullable`，Swift 端編譯器就會逼你改成 `tx.category?.name`。把 Swift 端改成 `if let` 也能止血，但治標不治本，下一個用這個標頭的人還是會踩到。
+</Crash>
+
+## 小結
+
+- 橋接標頭檔列出 Swift 要看的 ObjC 標頭；沒列的類別 Swift 看不到。
+- nullability 三態：`nonnull` → 一般型別、`nullable` → `?`、沒標 → `!`。每個標頭包 `NS_ASSUME_NONNULL`，再逐一標真的會 nil 的地方。
+- 輕量泛型 → `[T]`、`NS_ENUM` → `enum`、`NS_OPTIONS` → `OptionSet`、`NS_ERROR_ENUM` → `Error`、`NSError **` + `BOOL` / nullable 回傳 → `throws`。
+- completion block 結尾的方法自動多一個 `async` 版；成功時可能回 nil 的 API 要 `NS_SWIFT_DISABLE_ASYNC`。
+- `NS_SWIFT_NAME` 改名、`NS_REFINED_FOR_SWIFT` 藏起來給 extension 包、`NS_SWIFT_UNAVAILABLE` 禁用；改完看 Generated Interface 驗證。

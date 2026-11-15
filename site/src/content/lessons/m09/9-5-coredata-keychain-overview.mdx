@@ -1,0 +1,329 @@
+---
+title: Core Data 與 Keychain 概觀
+module: 9
+chapter: "9.5"
+order: 5
+minutes: 35
+prereq: ["9.4"]
+objectives:
+  - 看懂舊專案裡的 Core Data 四件組：.xcdatamodeld、NSManagedObject 子類別、NSManagedObjectContext、NSFetchRequest
+  - "說出 context 的執行緒規則（誰建的佇列誰用、performBlock: 進去），並認出違反時的 crash"
+  - 知道敏感資料放 Keychain 不放 NSUserDefaults，看懂 SecItemAdd / SecItemCopyMatching 的字典式 API
+summary: "選讀。Core Data 是物件圖持久化框架：model 檔定義 entity、NSManagedObject 子類別是列、context 是工作區、fetch request 是查詢；context 綁佇列、用 performBlock: 進去。Keychain 用 Security framework 的字典 API 存 token 與密碼。"
+optional: true
+terms:
+  - { en: managed object context, tw: 受管理物件情境（context）, cn: 托管对象上下文, jp: 管理オブジェクトコンテキスト }
+  - { en: entity, tw: 實體（entity）, cn: 实体, jp: エンティティ }
+  - { en: fetch request, tw: 擷取請求, cn: 获取请求, jp: フェッチリクエスト }
+  - { en: persistent container, tw: 持久化容器, cn: 持久化容器, jp: 永続コンテナ }
+  - { en: keychain, tw: 鑰匙圈（Keychain）, cn: 钥匙串, jp: キーチェーン }
+  - { en: Object-Relational Mapping (ORM), tw: 物件關聯對應（ORM）, cn: 对象关系映射, jp: オブジェクト関係マッピング }
+appProgress: 小帳本不改用 Core Data；本章讓你能讀懂舊專案的資料層，並知道匯率 API token 該放 Keychain。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// Swift 用同一套 Core Data，只是語法短；SwiftData 是它的新皮
+let request = NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
+request.predicate = NSPredicate(format: "amount > %@", NSDecimalNumber(string: "100"))
+request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
+let results = try container.viewContext.fetch(request)
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// Android Room：annotation 定義資料表，DAO 寫 SQL
+@Entity data class Transaction(@PrimaryKey val id: String, val amount: String, val date: Long)
+@Dao interface TransactionDao {
+    @Query("SELECT * FROM Transaction WHERE amount > :min ORDER BY date DESC")
+    suspend fun expensive(min: String): List<Transaction>
+}
+// 敏感資料：EncryptedSharedPreferences / Android Keystore
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// JPA / Hibernate：Entity 類別、EntityManager 是工作區、JPQL 查詢
+List<Transaction> list = em.createQuery(
+    "SELECT t FROM Transaction t WHERE t.amount > :min ORDER BY t.date DESC",
+    Transaction.class).setParameter("min", new BigDecimal("100")).getResultList();
+em.getTransaction().commit();
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// IndexedDB：瀏覽器內建的物件資料庫，非同步、有索引、有交易
+const db = await openDB("ledger", 1, { upgrade(db) {
+  db.createObjectStore("transactions", { keyPath: "id" }).createIndex("date", "date");
+}});
+const all = await db.getAllFromIndex("transactions", "date");
+// 敏感資料：瀏覽器沒有 Keychain 對應物，token 放 httpOnly cookie
+```
+</Fragment>
+Core Data 跟 Android 的 Room、Java 的 JPA 是同一類東西：<Term en="Object-Relational Mapping (ORM)" tw="物件關聯對應" cn="对象关系映射" jp="オブジェクト関係マッピング" />，把資料表的列變成物件、把查詞變成物件方法。對應關係：Room 的 `@Entity` / JPA 的 Entity 類別 ↔ `NSManagedObject` 子類別；Room 的 `Database` / JPA 的 `EntityManager` ↔ `NSManagedObjectContext`；Room 的 `@Query` ↔ `NSFetchRequest` 加 `NSPredicate`。瀏覽器的 `IndexedDB` 是比較遠的親戚：有索引與交易，但沒有 ORM 層。Keychain 則對應 Android Keystore：由作業系統加密保管、App 刪除後可以留著。
+</Compare>
+
+## Objective-C 怎麼寫
+
+這章是選讀，目標不是讓你今天就用 Core Data 寫帳本（小帳本用 9.4 的 JSON 檔就夠），而是**接手舊專案時看得懂資料層**。2010 到 2018 年間幾乎每個中大型 iOS App 都有 Core Data，它的名詞很多，先把四件組對上。
+
+### 四件組
+
+| 東西 | 類比 | 你會在哪看到 |
+|---|---|---|
+| `.xcdatamodeld` | 資料庫 schema | Xcode 裡的圖形化編輯器；entity、attribute、relationship |
+| `NSManagedObject` 子類別 | 一列資料 / ORM 的 entity 類別 | `CDTransaction.h/.m`，屬性宣告 `@dynamic` |
+| `NSManagedObjectContext` | 工作區 / 交易（transaction）| `viewContext`、`newBackgroundContext`、`performBlock:` |
+| `NSFetchRequest` | 一條 SELECT | `entityName`、`predicate`、`sortDescriptors`、`fetchLimit` |
+
+把它們串起來的是 `NSPersistentContainer`（iOS 10 起；更舊的專案會手動建 `NSPersistentStoreCoordinator`，一樣的東西只是三十行變三行）。
+
+### `NSManagedObject` 子類別長這樣
+
+```objc
+// CDTransaction.h（通常由 Xcode 從 model 檔產生）
+@interface CDTransaction : NSManagedObject
+@property (nonatomic, copy) NSUUID *identifier;
+@property (nonatomic, strong) NSDecimalNumber *amount;
+@property (nonatomic, assign) int16_t kind;
+@property (nonatomic, copy) NSDate *date;
+@property (nonatomic, copy) NSString *note;
+@property (nonatomic, strong, nullable) CDCategory *category;   // relationship
+@end
+
+// CDTransaction.m
+@implementation CDTransaction
+@dynamic identifier, amount, kind, date, note, category;   // 不合成，執行期由 Core Data 提供
+@end
+```
+
+`@dynamic` 是 2.4 提過的「我保證執行期有人會提供 getter / setter」：Core Data 在執行期替每個 entity 動態產生子類別並實作存取方法（這就是 6.x KVO 用的同一套技術）。所以你**不能** `[[CDTransaction alloc] init]`，要用 `[[CDTransaction alloc] initWithContext:ctx]` 或 `[NSEntityDescription insertNewObjectForEntityForName:@"CDTransaction" inManagedObjectContext:ctx]`，物件一出生就屬於某個 context。
+
+### 建立、查詢、存檔
+
+```objc
+NSPersistentContainer *container = [NSPersistentContainer persistentContainerWithName:@"LittleBook"];
+[container loadPersistentStoresWithCompletionHandler:^(NSPersistentStoreDescription *d, NSError *error) {
+    if (error) NSLog(@"load failed: %@", error);
+}];
+NSManagedObjectContext *ctx = container.viewContext;      // 主佇列用
+
+// 新增
+CDTransaction *tx = [[CDTransaction alloc] initWithContext:ctx];
+tx.identifier = [NSUUID UUID];
+tx.amount = [NSDecimalNumber decimalNumberWithString:@"128.50"];
+tx.date = [NSDate date];
+tx.note = @"午餐";
+
+// 查詢：金額大於 100、依日期倒序
+NSFetchRequest<CDTransaction *> *request = [CDTransaction fetchRequest];
+request.predicate = [NSPredicate predicateWithFormat:@"amount > %@",
+                     [NSDecimalNumber decimalNumberWithString:@"100"]];
+request.sortDescriptors = @[[NSSortDescriptor sortDescriptorWithKey:@"date" ascending:NO]];
+NSError *error = nil;
+NSArray<CDTransaction *> *results = [ctx executeFetchRequest:request error:&error];
+
+// 存檔：改動只在 context 的記憶體裡，save: 才寫進 SQLite
+if (ctx.hasChanges && ![ctx save:&error]) {
+    NSLog(@"save failed: %@", error);
+}
+```
+
+`NSPredicate` 的格式字串用 `%@` 帶物件、`%K` 帶 key path、`%d` 帶整數，不要用 `stringWithFormat:` 自己拼，會有注入問題也會錯過型別檢查。`executeFetchRequest:error:` 回 nil 表示失敗，回空陣列表示沒資料，一樣是 1.2 的規則。`save:` 之前所有改動都只在記憶體，這是 Core Data 跟直接寫 SQL 最大的不同：你可以改一百個物件、最後 `save:` 一次，或 `rollback` 全部丟掉。
+
+### context 的執行緒規則
+
+這是 Core Data 最常出事的地方，也是面試必問。規則：
+
+1. **每個 context 綁一個佇列**：`viewContext` 綁主佇列，`newBackgroundContext` 綁自己的私有佇列。
+2. **只能在那個佇列上碰它**，包含碰它管的任何 `NSManagedObject`。
+3. 進入 context 的佇列用 `performBlock:`（非同步）或 `performBlockAndWait:`（同步），不要自己 `dispatch_async`。
+4. `NSManagedObject` 不能跨 context 傳，要傳就傳 `objectID`，另一邊用 `objectWithID:` 拿自己的副本。
+
+```objc
+NSManagedObjectContext *bg = [container newBackgroundContext];
+[bg performBlock:^{
+    // 這裡在 bg 的私有佇列上，可以碰 bg 跟它的物件
+    for (NSDictionary *row in importedRows) {
+        CDTransaction *tx = [[CDTransaction alloc] initWithContext:bg];
+        tx.amount = [NSDecimalNumber decimalNumberWithString:row[@"amount"]];
+    }
+    NSError *error = nil;
+    [bg save:&error];
+    NSManagedObjectID *lastID = tx.objectID;          // 要帶去主佇列的只有 ID
+    dispatch_async(dispatch_get_main_queue(), ^{
+        CDTransaction *mainCopy = [ctx objectWithID:lastID];   // 主 context 自己的物件
+    });
+}];
+```
+
+Scheme 的 Arguments 加 `-com.apple.CoreData.ConcurrencyDebug 1`，違反規則時立刻 crash 在那一行而不是三天後隨機壞資料。接手舊專案第一件事就是把這個開起來跑一輪。
+
+### 可貼進 Scratch 的小範例
+
+真專案的 model 在 `.xcdatamodeld` 檔裡，Scratch 沒有；但 model 也可以用程式碼建，配上記憶體內儲存體就能跑，順便看清楚 Core Data 到底存了什麼：
+
+```objc
+#import <Foundation/Foundation.h>
+#import <CoreData/CoreData.h>
+
+int main(void) {
+    @autoreleasepool {
+        // 1. 用程式碼建 model：一個 entity、兩個 attribute
+        NSEntityDescription *entity = [NSEntityDescription new];
+        entity.name = @"CDTransaction";
+        entity.managedObjectClassName = @"NSManagedObject";   // 不另寫子類別，用 KVC
+        NSAttributeDescription *note = [NSAttributeDescription new];
+        note.name = @"note"; note.attributeType = NSStringAttributeType;
+        NSAttributeDescription *amount = [NSAttributeDescription new];
+        amount.name = @"amount"; amount.attributeType = NSDecimalAttributeType;
+        entity.properties = @[note, amount];
+        NSManagedObjectModel *model = [NSManagedObjectModel new];
+        model.entities = @[entity];
+
+        // 2. 記憶體內儲存體
+        NSPersistentContainer *c = [[NSPersistentContainer alloc] initWithName:@"Demo"
+                                                             managedObjectModel:model];
+        c.persistentStoreDescriptions.firstObject.type = NSInMemoryStoreType;
+        [c loadPersistentStoresWithCompletionHandler:^(NSPersistentStoreDescription *d,
+                                                       NSError *e) {
+            NSLog(@"loaded: %@", e ?: @"ok");
+        }];
+        NSManagedObjectContext *ctx = c.viewContext;
+
+        // 3. 插入三筆
+        for (NSString *n in @[@"午餐", @"咖啡", @"車票"]) {
+            NSManagedObject *tx = [NSEntityDescription
+                insertNewObjectForEntityForName:@"CDTransaction"
+                         inManagedObjectContext:ctx];
+            [tx setValue:n forKey:@"note"];
+            [tx setValue:[NSDecimalNumber decimalNumberWithString:
+                          @(n.length * 50).stringValue] forKey:@"amount"];
+        }
+        NSError *error = nil;
+        NSLog(@"saved: %d", [ctx save:&error]);
+
+        // 4. 查詢
+        NSFetchRequest *req = [NSFetchRequest fetchRequestWithEntityName:@"CDTransaction"];
+        req.predicate = [NSPredicate predicateWithFormat:@"amount >= 100"];
+        req.sortDescriptors = @[[NSSortDescriptor sortDescriptorWithKey:@"note" ascending:YES]];
+        NSArray *rows = [ctx executeFetchRequest:req error:&error];
+        for (NSManagedObject *tx in rows) {
+            NSLog(@"%@ %@", [tx valueForKey:@"note"], [tx valueForKey:@"amount"]);
+        }
+    }
+    return 0;
+}
+// 預期輸出：
+// loaded: ok
+// saved: 1
+// 午餐 100
+// 咖啡 100
+// 車票 100
+```
+
+三筆 note 都是兩個字，所以金額都是 100；把其中一個改成四個字再跑一次，就看得到 predicate 在過濾。
+
+### Keychain：敏感資料的家
+
+密碼、API token、使用者的身分證字號，**不放 `NSUserDefaults`**：它是明文 plist，越獄裝置或電腦備份一打開就看得到。Keychain 由系統加密保管，App 刪除再安裝預設還留著（這一點有時候反而是 bug：登出邏輯要記得刪）。API 在 Security framework，純 C 加 `CFDictionary`，風格跟 Foundation 很不一樣：
+
+```objc
+#import <Security/Security.h>
+
+// 寫入：一個字典描述「什麼東西、叫什麼名字、值是什麼」
+NSDictionary *item = @{
+    (__bridge id)kSecClass: (__bridge id)kSecClassGenericPassword,
+    (__bridge id)kSecAttrService: @"com.littlebook.rates",      // 哪個服務
+    (__bridge id)kSecAttrAccount: @"apiToken",                   // 哪個帳號 / key
+    (__bridge id)kSecValueData: [token dataUsingEncoding:NSUTF8StringEncoding],
+    (__bridge id)kSecAttrAccessible: (__bridge id)kSecAttrAccessibleAfterFirstUnlock,
+};
+SecItemDelete((__bridge CFDictionaryRef)item);                   // 先刪舊的，避免 errSecDuplicateItem
+OSStatus status = SecItemAdd((__bridge CFDictionaryRef)item, NULL);
+if (status != errSecSuccess) NSLog(@"keychain add failed: %d", (int)status);
+
+// 讀取：同樣的 service / account，多說「把資料給我」
+NSDictionary *query = @{
+    (__bridge id)kSecClass: (__bridge id)kSecClassGenericPassword,
+    (__bridge id)kSecAttrService: @"com.littlebook.rates",
+    (__bridge id)kSecAttrAccount: @"apiToken",
+    (__bridge id)kSecReturnData: @YES,
+    (__bridge id)kSecMatchLimit: (__bridge id)kSecMatchLimitOne,
+};
+CFTypeRef result = NULL;
+status = SecItemCopyMatching((__bridge CFDictionaryRef)query, &result);
+NSData *data = (__bridge_transfer NSData *)result;     // Copy 開頭的函式，所有權轉給 ARC
+NSString *loaded = status == errSecSuccess
+    ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
+```
+
+`__bridge` 系列是 4.x 的 toll-free bridging：`kSec…` 常數是 `CFStringRef`，要 `(__bridge id)` 才能當字典 key；`SecItemCopyMatching` 名字裡有 Copy，回傳的東西你擁有，用 `__bridge_transfer` 交給 ARC。回傳值是 `OSStatus`：`errSecSuccess`（0）成功、`errSecItemNotFound`（-25300）沒這筆、`errSecDuplicateItem`（-25299）已存在。四種 `kSecClass` 裡你只會用到 `kSecClassGenericPassword`（任意小資料）跟 `kSecClassInternetPassword`（帶伺服器位址）。實務上大家包一層或直接用封裝庫（`KeychainAccess`、`SAMKeychain`），但看懂這兩個字典你就能讀任何一個封裝的原始碼。
+
+<Tip title="該存哪裡：一張表收尾">
+| 資料 | 放哪 | 章 |
+|---|---|---|
+| 預設貨幣、是否顯示分、看過教學沒 | `NSUserDefaults` | 9.2 |
+| 整本帳（幾千筆以內） | JSON 檔，`Documents/` | 9.4 |
+| 剪貼簿、state restoration 的物件 | `NSKeyedArchiver` 的 `NSData` | 9.3 |
+| 幾十萬筆、要複雜查詢、多對多關係 | Core Data / SQLite | 9.5 |
+| 匯率快取、縮圖 | `Library/Caches/` | 9.1 |
+| API token、密碼 | Keychain | 9.5 |
+</Tip>
+
+<Pitfall title="在錯的佇列碰 context 或 managed object">
+<Fragment slot="bad">
+```objc
+NSManagedObjectContext *bg = [container newBackgroundContext];
+dispatch_async(dispatch_get_global_queue(0, 0), ^{      // 不是 bg 的佇列
+    NSArray *rows = [bg executeFetchRequest:req error:nil];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self.items = rows;                                // bg 的物件跑到主佇列
+    });
+});
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+[bg performBlock:^{
+    NSArray *rows = [bg executeFetchRequest:req error:nil];
+    NSArray *ids = [rows valueForKey:@"objectID"];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSMutableArray *items = [NSMutableArray array];
+        for (NSManagedObjectID *oid in ids) [items addObject:[ctx objectWithID:oid]];
+        self.items = items;
+    });
+}];
+```
+</Fragment>
+Core Data 的 context 跟它的物件都不是執行緒安全的，而且錯了通常不會立刻 crash，而是幾天後出現「某個欄位變成 nil」「fault 展不開」這類沒辦法重現的 bug。開 `-com.apple.CoreData.ConcurrencyDebug 1` 讓它立刻炸。
+</Pitfall>
+
+<Pitfall title="改了 model 沒做遷移，啟動直接失敗">
+在 `.xcdatamodeld` 加一個 attribute 然後直接跑，裝了上一版的裝置會在 `loadPersistentStores` 收到 `NSPersistentStoreIncompatibleVersionHashError`（code 134100），常見的「舊版升級後打不開」就是它。簡單改動（加欄位、加可選屬性）用 Xcode 的 Editor → Add Model Version 建新版本並開 `NSMigratePersistentStoresAutomaticallyOption` / `NSInferMappingModelAutomaticallyOption` 做輕量遷移；重命名要在 model 檔設 Renaming ID。跟 9.3 的教訓一樣：schema 一出門就不能隨便改。
+</Pitfall>
+
+<Pitfall title="把 token 放 NSUserDefaults、把大檔塞 Keychain">
+`[defaults setObject:token forKey:@"apiToken"]` 寫進明文 plist；電腦備份、越獄裝置、甚至某些 MDM 工具都讀得到。反方向，Keychain 的單筆資料也不是給你放大東西的：它適合幾百位元組的 token 與密碼，照片、帳本檔放進去會慢、也會讓 `SecItemCopyMatching` 整體變慢。還有一個經典 bug：使用者登出後 token 沒刪，重裝 App 竟然還是登入狀態。登出時要 `SecItemDelete`。
+</Pitfall>
+
+<Crash message={`Thread 7: EXC_BAD_INSTRUCTION (code=EXC_I386_INVOP, subcode=0x0)
+#0  +[NSManagedObjectContext __Multithreading_Violation_AllThatIsLeftToUsIsHonor__]
+#1  -[NSManagedObjectContext executeFetchRequest:error:]
+#2  __LBReportBuilder_build_block_invoke`}>
+開了 `-com.apple.CoreData.ConcurrencyDebug 1` 之後違反執行緒規則就會停在這個名字很戲劇化的符號上：「我們剩下的只有榮譽」。讀法：`#1` 說你在 `executeFetchRequest:` 時出事，`#2` 的 `_block_invoke` 告訴你是 `LBReportBuilder` 的 `build` 方法裡某個 block，`Thread 7` 不是主執行緒。原因幾乎都是用 `dispatch_async` 進了某個全域佇列然後直接碰 `viewContext`（它只能在主佇列），或是碰了別的 context 的物件。修法：用 `performBlock:` 進該 context 自己的佇列；需要在背景做就 `newBackgroundContext`；跨佇列只傳 `objectID`。沒開 ConcurrencyDebug 時同樣的程式碼不會停在這裡，而是隨機壞資料，所以這個 crash 其實是好消息。
+</Crash>
+
+## 小結
+
+- Core Data 四件組：`.xcdatamodeld`（schema）、`NSManagedObject` 子類別（列，屬性 `@dynamic`）、`NSManagedObjectContext`（工作區，`save:` 才落地）、`NSFetchRequest` 加 `NSPredicate`（查詢）；`NSPersistentContainer` 把它們串起來。
+- context 綁佇列：`viewContext` 主佇列、`newBackgroundContext` 私有佇列；進去用 `performBlock:`；跨 context 只傳 `objectID`。偵錯開 `-com.apple.CoreData.ConcurrencyDebug 1`。
+- 改 model 要做遷移，否則舊裝置啟動失敗；跟 9.3 一樣，schema 出門就不能隨便改。
+- 敏感資料放 Keychain（`SecItemAdd` / `SecItemCopyMatching` 字典 API，`__bridge` 轉型），不放 `NSUserDefaults`；登出要 `SecItemDelete`。
+- 選儲存方式看資料性質：設定 → `NSUserDefaults`；可重生 → `Caches`；使用者資料 → JSON 檔；大量關聯查詢 → Core Data；秘密 → Keychain。

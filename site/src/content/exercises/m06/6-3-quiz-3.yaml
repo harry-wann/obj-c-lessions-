@@ -1,0 +1,18 @@
+id: m06-6-3-quiz-3
+chapter: "6.3"
+section: quiz
+type: quiz
+title: JSON 的 null
+minutes: 1
+prompt: "伺服器回傳 `{\"note\": null}`，經 NSJSONSerialization 解析後 `json[@\"note\"]` 是什麼？"
+options:
+  - nil
+  - "[NSNull null] 單例物件"
+  - "@\"null\" 字串"
+  - 字典裡根本沒有 note 這個鍵
+answer: 1
+explain: "NSDictionary 不能存 nil，所以 JSON 的 null 變成 `[NSNull null]`。它是真的物件，`if (x)` 擋不住，對它送 NSString 的方法就是 `-[NSNull length]: unrecognized selector`。用 `isKindOfClass:[NSString class]` 一次擋掉型別錯誤與 NSNull。"
+hints: ["NSDictionary 能放 nil 嗎？", "NSNull 是物件還是空值？"]
+feedback:
+  "0": 容器不能放 nil，Foundation 用 NSNull 代替。
+  "3": 鍵還在，值是 NSNull；這跟「沒有這個鍵」行為不同。

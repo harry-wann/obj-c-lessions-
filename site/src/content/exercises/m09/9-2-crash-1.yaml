@@ -1,0 +1,33 @@
+id: m09-9-2-crash-1
+chapter: "9.2"
+type: crash
+title: non-property-list object
+minutes: 3
+prompt: 新增交易後 App 立刻 crash，主控台如下。原因是？
+log: |
+  *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+  reason: 'Attempt to set a non-property-list object <LBTransaction: 0x600003a4c1e0>
+  as an NSUserDefaults/CFPreferences value for key lastTransaction'
+  *** First throw call stack:
+  (
+    0  CoreFoundation   __exceptionPreprocess + 242
+    1  libobjc.A.dylib  objc_exception_throw + 48
+    2  CoreFoundation   -[NSUserDefaults(NSUserDefaults) setObject:forKey:] + 0
+    3  LittleBook       -[LBLedgerViewController editor:didSaveTransaction:] + 212
+  )
+options:
+  - "把 LBTransaction 物件直接 setObject:forKey: 進 NSUserDefaults，它不是 plist 型別"
+  - lastTransaction 這個 key 名稱是保留字
+  - NSUserDefaults 不能在 delegate 方法裡呼叫
+  - LBTransaction 沒有實作 NSCopying
+answer: 0
+fix: |
+  // 只是要記「上次那一筆是誰」→ 存 plist 片段
+  [defaults setObject:tx.identifier.UUIDString forKey:@"LBLastTransactionID"];
+  // 真的要存整個物件 → 先轉 NSData（9.3）或走檔案（9.4），不要放 NSUserDefaults
+solution_note: "訊息直接點名 `<LBTransaction: 0x…>` 不是 property-list object。call stack 第 3 行告訴你是 `editor:didSaveTransaction:` 裡呼叫的。iOS 11 之前這只是警告並忽略，升級後才變 crash，舊專案常這樣炸出來。"
+hints: ["reason 裡「non-property-list object」後面接的是什麼？", "plist 六種型別裡有 LBTransaction 嗎？"]
+feedback:
+  "1": NSUserDefaults 的 key 沒有保留字，任何字串都行。
+  "2": 任何執行緒、任何方法裡都可以呼叫 NSUserDefaults。
+  "3": NSCopying 跟 plist 無關；就算實作了也不是 plist 型別。

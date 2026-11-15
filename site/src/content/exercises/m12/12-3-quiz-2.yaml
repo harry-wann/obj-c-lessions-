@@ -1,0 +1,18 @@
+id: m12-12-3-quiz-2
+chapter: "12.3"
+section: quiz
+type: quiz
+title: setUp 跑幾次
+minutes: 1
+prompt: 一個 XCTestCase 子類別有 4 個 `test` 方法與一個 `setUp`。跑整個類別時 `setUp` 執行幾次、`self` 是幾個實體？
+options:
+  - "setUp 1 次、1 個實體；所有測試共用狀態"
+  - "setUp 4 次、1 個實體；每次重設屬性"
+  - "setUp 4 次、4 個實體；每個 test 方法有自己的實體"
+  - "取決於 Randomize execution order 有沒有開"
+answer: 2
+explain: XCTest 對每個 test 方法建立一個新的 XCTestCase 實體，各自跑 `setUp` → test → `tearDown`。所以實體變數不會漏到別的測試，但單例、NSUserDefaults、磁碟檔案會，要在 tearDown 清。類別層級一次的是 `+setUp` / `+tearDown`。
+hints: ["實體變數為什麼不會在測試之間殘留？", "+setUp 跟 -setUp 的差別。"]
+feedback:
+  "0": 那是 +setUp（類別方法）的行為。
+  "1": 每個 test 方法各一個實體，不是重用。

@@ -1,0 +1,17 @@
+id: m10-10-1-quiz-3
+chapter: "10.1"
+section: quiz
+type: quiz
+title: Animation Hitches 的兩種 hitch
+minutes: 2
+prompt: Animation Hitches 把 hitch 分成 Commit 與 Render 兩類。哪一個描述正確？
+options:
+  - Commit hitch 是主執行緒（你的程式、layout）太慢；Render hitch 是 Render Server 畫得太慢，常見原因是離屏渲染
+  - Commit hitch 是 GPU 太慢；Render hitch 是 CPU 太慢
+  - 兩者都只能靠降低畫面複雜度修
+  - Render hitch 只會在 120 Hz 螢幕出現
+answer: 0
+explain: Commit 階段發生在你的 process 裡（事件處理、layout、把圖層交出去），Render 階段在另一個 process 畫圖。前者看 Time Profiler 找重的方法，後者看 Color Offscreen-Rendered 與 Blended Layers。
+hints: ["commit 是「把圖層交出去」，誰在交？", "render 是「畫」，誰在畫？"]
+feedback:
+  "1": 剛好反了。commit 是 CPU / 主執行緒，render 是 Render Server。

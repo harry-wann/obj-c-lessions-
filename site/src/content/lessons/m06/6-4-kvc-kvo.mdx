@@ -1,0 +1,317 @@
+---
+title: KVC 與 KVO
+module: 6
+chapter: "6.4"
+order: 4
+minutes: 50
+prereq: ["6.3", "2.4", "5.7"]
+objectives:
+  - "用 `valueForKey:` / `setValue:forKey:` / `valueForKeyPath:` 以字串存取屬性，並說出 KVC 找方法的順序"
+  - "寫出一組正確的 KVO：註冊、回呼、`context` 用靜態變數位址、在 `dealloc` 成對移除"
+  - "說出哪些修改會觸發 KVO、哪些不會，並用手動通知與相依鍵補上"
+summary: "KVC 以字串讀寫屬性、key path 與集合運算子、不符合 KVC 的 NSUnknownKeyException；KVO 註冊 / 回呼 / context / 移除成對、isa 偷換、自動與手動通知、keyPathsForValuesAffecting 相依鍵；兩則最常見的 KVO crash。"
+terms:
+  - { en: key-value coding (KVC), tw: 鍵值編碼, cn: 键值编码, jp: キー値コーディング }
+  - { en: key-value observing (KVO), tw: 鍵值觀察, cn: 键值观察, jp: キー値監視 }
+  - { en: key path, tw: 鍵路徑, cn: 键路径, jp: キーパス }
+  - { en: observer, tw: 觀察者, cn: 观察者, jp: オブザーバ }
+  - { en: dependent key, tw: 相依鍵, cn: 依赖键, jp: 依存キー }
+appProgress: LBLedger.total 可被 KVO 觀察，統計分頁的總額即時更新；LBStatsObserver 在 dealloc 移除觀察，兩個 LBLedgerKVOTests 轉綠。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+let total = ledger[keyPath: \.total]           // 型別安全的 KeyPath
+ledger.setValue(0, forKey: "total")            // NSObject 子類別才有 KVC
+let token = ledger.observe(\.total, options: [.new]) { obj, change in
+    print(change.newValue)                     // 需要 @objc dynamic var total
+}                                              // token 釋放時自動取消觀察
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+var total: BigDecimal by Delegates.observable(BigDecimal.ZERO) { _, old, new ->
+    println("$old → $new")                     // 委派屬性：只能觀察自己類別的屬性
+}
+val value = Ledger::total.get(ledger)          // 屬性參考，近似 valueForKey
+```
+</Fragment>
+<Fragment slot="java">
+```java
+PropertyChangeSupport pcs = new PropertyChangeSupport(this);
+pcs.addPropertyChangeListener("total", evt -> System.out.println(evt.getNewValue()));
+// setter 裡要自己 firePropertyChange("total", old, new)
+Field f = ledger.getClass().getDeclaredField("total");   // 反射才能用字串讀欄位
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+const total = ledger["total"];                 // obj[key]：KVC 的全部
+const key = "total"; ledger[key] = 0;
+const watched = new Proxy(ledger, {
+  set(target, key, value) {                    // Proxy set 陷阱 ≈ KVO
+    console.log(`${String(key)} → ${value}`); target[key] = value; return true;
+  }
+});
+```
+</Fragment>
+TypeScript 的 `obj[key]` 就是 KVC：用字串當鍵讀寫屬性。`Proxy` 的 `set` 陷阱就是 KVO：有人改了屬性，你收到通知。差別是 JS 的 Proxy 是另一個物件，Objective-C 的 KVO 直接動手改原物件的類別（下面會講）。Swift 的 `observe(_:options:changeHandler:)` 是 KVO 的包裝，所以仍要求 `@objc dynamic`；Java 要自己在 setter 裡發事件。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### KVC：用字串讀寫屬性
+
+```objc
+LBTransaction *tx = ...;
+NSString *note = [tx valueForKey:@"note"];          // 等於 tx.note
+[tx setValue:@"晚餐" forKey:@"note"];                 // 等於 tx.note = @"晚餐"
+NSNumber *cents = [tx valueForKey:@"cents"];        // 基本型別自動包成 NSNumber
+NSString *cat = [tx valueForKeyPath:@"category.name"];   // 鍵路徑：一路點下去
+```
+
+<Term en="key-value coding (KVC)" tw="鍵值編碼" cn="键值编码" jp="キー値コーディング" />由 `NSObject` 的 `NSKeyValueCoding` 分類提供，所有 `NSObject` 子類別都有。`valueForKey:@"note"` 的查找順序：先找 getter `-note`（也接受 `-isNote`、`-getNote`），找不到再找實體變數 `_note` 或 `note`（前提是類別沒把 `+accessInstanceVariablesDirectly` 改成 `NO`），都沒有就呼叫 `-valueForUndefinedKey:`，預設丟 `NSUnknownKeyException`。`setValue:forKey:` 同理找 `-setNote:`，找不到找 ivar，最後 `-setValue:forUndefinedKey:` 丟例外。這就是 Storyboard 載入的機制：`IBOutlet` 連線其實是存了一個鍵名，載入時對 ViewController 呼叫 `setValue:forKey:`，所以你刪掉屬性沒刪連線就會看到本章的第二個 crash。
+
+<Term en="key path" tw="鍵路徑" cn="键路径" jp="キーパス" />用點串起多層：`@"category.name"`。對集合還有運算子：
+
+```objc
+NSArray<LBTransaction *> *txs = ledger.transactions;
+[txs valueForKeyPath:@"@count"];                  // @3
+[txs valueForKeyPath:@"@sum.cents"];              // 所有 cents 加總
+[txs valueForKeyPath:@"@max.date"];               // 最晚的日期
+[txs valueForKeyPath:@"@distinctUnionOfObjects.category.name"];  // 不重複分類名
+[txs valueForKey:@"note"];                        // 對陣列用 KVC：每個元素取 note，回傳陣列
+```
+
+`@sum` / `@avg` 內部用 `doubleValue` 計算，金額這種要精確的數字請自己用 `NSDecimalNumber` 迴圈相加，KVC 運算子適合統計與偵錯。KVC 的真正價值在「鍵名是執行期才知道」的場合：排序描述器 `[NSSortDescriptor sortDescriptorWithKey:@"date" ascending:NO]`、Core Data、表單欄位對映、以及 KVO。
+
+### KVO：有人改了屬性，通知我
+
+<Term en="key-value observing (KVO)" tw="鍵值觀察" cn="键值观察" jp="キー値監視" />讓一個物件（<Term en="observer" tw="觀察者" cn="观察者" jp="オブザーバ" />）在另一個物件的某個鍵改變時收到通知。整套 API 只有三個方法，但每一個都有規矩：
+
+```objc
+// LBStatsObserver.m
+static void *LBTotalContext = &LBTotalContext;     // 1. context：用靜態變數的位址
+
+@implementation LBStatsObserver {
+    LBLedger *_ledger;
+}
+- (instancetype)initWithLedger:(LBLedger *)ledger {
+    if (self = [super init]) {
+        _ledger = ledger;
+        [_ledger addObserver:self                       // 2. 註冊
+                  forKeyPath:@"total"
+                     options:NSKeyValueObservingOptionNew | NSKeyValueObservingOptionInitial
+                     context:LBTotalContext];
+    }
+    return self;
+}
+- (void)observeValueForKeyPath:(NSString *)keyPath      // 3. 回呼：所有觀察都進同一個方法
+                      ofObject:(id)object
+                        change:(NSDictionary<NSKeyValueChangeKey, id> *)change
+                       context:(void *)context {
+    if (context == LBTotalContext) {
+        NSDecimalNumber *total = change[NSKeyValueChangeNewKey];
+        NSLog(@"總額 → %@", total);
+    } else {
+        [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
+    }
+}
+- (void)dealloc {
+    [_ledger removeObserver:self forKeyPath:@"total" context:LBTotalContext];   // 4. 移除
+}
+@end
+```
+
+四個規矩：
+
+1. **`context` 用靜態變數的位址**。回呼是全類別共用的一個方法，父類別可能也在觀察同一個鍵（UIKit 的類別就會），用 `context` 比對才知道這次通知是不是你註冊的；不是你的就交給 `super`。位址在整個程式裡唯一，比字串比對快也不會撞名。
+2. **`options`**：`New` 讓 `change` 字典帶新值、`Old` 帶舊值、`Initial` 在註冊當下就先送一次（省掉手動初始化 UI 的程式碼）、`Prior` 改變前多送一次。沒帶 `New` 的話 `change[NSKeyValueChangeNewKey]` 是 `nil`，得自己 `[object valueForKeyPath:keyPath]`。
+3. **回呼在改值的那條執行緒上同步發生**。背景執行緒改了 `total`，你的回呼就在背景執行緒跑，要更新 UI 得自己切回主佇列。
+4. **註冊與移除成對，而且次數要一致**。多移除一次是 crash，少移除一次也是 crash（本章的第一個崩潰現場）。觀察者是誰註冊的，就由誰在 `dealloc` 移除。
+
+### KVO 怎麼知道你改了值
+
+`addObserver:` 被呼叫時，runtime 動態建立一個子類別 `NSKVONotifying_LBLedger`，覆寫 `setTotal:` 讓它在呼叫原 setter 前後各夾一句 `willChangeValueForKey:` / `didChangeValueForKey:`，然後把這個物件的 `isa` 改指到新類別。這叫 isa 偷換（isa-swizzling）。`[ledger class]` 被刻意覆寫成回傳 `LBLedger`，所以你看不出來；`object_getClass(ledger)` 才會露出 `NSKVONotifying_LBLedger`。
+
+後果很直接：**只有走 setter（點語法、`setTotal:`、`setValue:forKey:`）的修改會觸發通知，直接寫 `_total = x` 不會**。所以要讓 `LBLedger.total` 可觀察，有兩條路：
+
+```objc
+// 路一：內部用 setter，自動通知
+- (void)addTransaction:(LBTransaction *)tx {
+    [_items addObject:tx];
+    self.total = [self recomputeTotal];     // 走 setter → 自動 will/did
+}
+
+// 路二：readonly 計算屬性 + 手動通知
+- (void)addTransaction:(LBTransaction *)tx {
+    [self willChangeValueForKey:@"total"];
+    [_items addObject:tx];
+    [self didChangeValueForKey:@"total"];
+}
+- (NSDecimalNumber *)total { /* 每次算 */ }
+```
+
+路二記得同時覆寫 `+automaticallyNotifiesObserversForKey:` 對 `total` 回 `NO`，不然手動加自動會通知兩次。本章的 Xcode 題用路一，`total` 對外 `readonly`、類別延伸裡 `readwrite`（2.5 的技巧），在 `addTransaction:` / `removeTransactionWithIdentifier:` / `reset` 之後重算並透過 setter 寫回。
+
+### 相依鍵：`total` 依賴別的屬性
+
+```objc
+@property (nonatomic, readonly) NSString *totalText;   // 由 total 格式化而來
+
++ (NSSet<NSString *> *)keyPathsForValuesAffectingTotalText {
+    return [NSSet setWithObject:@"total"];
+}
+```
+
+<Term en="dependent key" tw="相依鍵" cn="依赖键" jp="依存キー" />告訴 KVO：`total` 變的時候，順便通知觀察 `totalText` 的人。方法名是 `keyPathsForValuesAffecting` 接首字大寫的鍵名，或覆寫通用版 `+keyPathsForValuesAffectingValueForKey:`。這是觀察計算屬性最乾淨的作法，不必在每個 setter 裡手動 `willChange` 一堆鍵。
+
+### 完整範例（可貼進 Scratch）
+
+```objc
+#import <Foundation/Foundation.h>
+#import <objc/runtime.h>
+
+@interface LBLedger : NSObject
+@property (nonatomic, strong, readonly) NSDecimalNumber *total;
+@property (nonatomic, copy, readonly) NSString *totalText;
+- (void)add:(NSString *)amount;
+@end
+@interface LBLedger ()
+@property (nonatomic, strong, readwrite) NSDecimalNumber *total;
+@end
+@implementation LBLedger
+- (instancetype)init { if (self = [super init]) _total = NSDecimalNumber.zero; return self; }
+- (void)add:(NSString *)amount {
+    self.total = [_total decimalNumberByAdding:
+                  [NSDecimalNumber decimalNumberWithString:amount]];
+}
+- (NSString *)totalText { return [NSString stringWithFormat:@"NT$ %@", _total]; }
++ (NSSet<NSString *> *)keyPathsForValuesAffectingTotalText { return [NSSet setWithObject:@"total"]; }
+@end
+
+static void *LBCtx = &LBCtx;
+@interface LBStatsObserver : NSObject
+- (instancetype)initWithLedger:(LBLedger *)ledger;
+@end
+@implementation LBStatsObserver { LBLedger *_ledger; }
+- (instancetype)initWithLedger:(LBLedger *)ledger {
+    if (self = [super init]) {
+        _ledger = ledger;
+        [_ledger addObserver:self forKeyPath:@"totalText"
+                     options:NSKeyValueObservingOptionNew | NSKeyValueObservingOptionInitial
+                     context:LBCtx];
+    }
+    return self;
+}
+- (void)observeValueForKeyPath:(NSString *)k ofObject:(id)o
+                        change:(NSDictionary *)c context:(void *)ctx {
+    if (ctx != LBCtx) { [super observeValueForKeyPath:k ofObject:o change:c context:ctx]; return; }
+    NSLog(@"%@ = %@", k, c[NSKeyValueChangeNewKey]);
+}
+- (void)dealloc {
+    [_ledger removeObserver:self forKeyPath:@"totalText" context:LBCtx];
+    NSLog(@"observer dealloc，已移除");
+}
+@end
+
+int main(void) {
+    @autoreleasepool {
+        LBLedger *ledger = [LBLedger new];
+        NSLog(@"KVC: %@", [ledger valueForKey:@"total"]);
+        @autoreleasepool {
+            LBStatsObserver *obs = [[LBStatsObserver alloc] initWithLedger:ledger];
+            NSLog(@"真正的類別：%@ / 自稱：%@", object_getClass(ledger), [ledger class]);
+            [ledger add:@"120"];
+            [ledger add:@"80.5"];
+            (void)obs;
+        }
+        [ledger add:@"1"];      // 觀察者已釋放並移除，安靜無事
+        NSLog(@"結束 %@", ledger.totalText);
+    }
+    return 0;
+}
+// 預期輸出：
+// KVC: 0
+// totalText = NT$ 0
+// 真正的類別：NSKVONotifying_LBLedger / 自稱：LBLedger
+// totalText = NT$ 120
+// totalText = NT$ 200.5
+// observer dealloc，已移除
+// 結束 NT$ 201.5
+```
+
+試著把 `add:` 裡的 `self.total =` 改成 `_total =`：通知全部消失，這就是「KVO 只對 setter 有效」。再試著把 `dealloc` 裡的 `removeObserver:` 註解掉，最後一行 `[ledger add:@"1"]` 會對已釋放的觀察者送訊息而 crash。
+
+<Tip title="iOS 11 之後哪一條變鬆了">
+以前**被觀察的物件**先釋放、觀察者沒移除，Foundation 會丟「was deallocated while key value observers were still registered」。Foundation 在 iOS 11 / macOS 10.13 放寬了這條：被觀察物件釋放時若還有觀察者，不再丟例外（前提是沒有自己動手腳覆寫 KVO 相關方法）。但**觀察者先釋放、沒移除**從來沒有被放寬過：被觀察物件改值時會對一個懸空指標送訊息，`EXC_BAD_ACCESS`，而且 crash 點在別人改值的地方，離你的錯誤很遠。所以 `dealloc` 移除這條規矩沒有變。
+</Tip>
+
+<Pitfall title="直接改 _ivar，KVO 收不到">
+<Fragment slot="bad">
+```objc
+- (void)reset {
+    [_items removeAllObjects];
+    _total = NSDecimalNumber.zero;      // 畫面上的總額停在舊值
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (void)reset {
+    [_items removeAllObjects];
+    self.total = NSDecimalNumber.zero;  // 走 setter，觸發通知
+}
+```
+</Fragment>
+2.4 說「`init` / `dealloc` 用 `_ivar`，其他地方用 `self.prop`」，KVO 是這條規則最實際的理由。KVO 是靠覆寫 setter 實作的，繞過 setter 就繞過通知。`NSMutableArray` 的 `addObject:` 也不會觸發對那個陣列屬性的觀察，要用 `mutableArrayValueForKey:` 拿到會發通知的代理陣列，或是像帳本一樣觀察衍生出的 `total`。
+</Pitfall>
+
+<Pitfall title="不判 context 就處理，父類別的觀察被你吃掉">
+<Fragment slot="bad">
+```objc
+- (void)observeValueForKeyPath:(NSString *)k ofObject:(id)o
+                        change:(NSDictionary *)c context:(void *)ctx {
+    [self refreshTotal];     // 任何通知都當成自己的
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (void)observeValueForKeyPath:(NSString *)k ofObject:(id)o
+                        change:(NSDictionary *)c context:(void *)ctx {
+    if (ctx == LBTotalContext) { [self refreshTotal]; return; }
+    [super observeValueForKeyPath:k ofObject:o change:c context:ctx];
+}
+```
+</Fragment>
+`observeValueForKeyPath:` 是一個方法服務所有觀察。你繼承的 UIKit 類別或第三方基底類別可能也在觀察（`UITableViewController` 就有），不比對 `context` 又不呼叫 `super`，別人的通知就斷在你手上，症狀是「某些 UIKit 行為莫名失效」。
+</Pitfall>
+
+<Pitfall title="移除兩次，或移除沒註冊過的">
+`Cannot remove an observer <LBStatsObserver 0x…> for the key path "total" from <LBLedger 0x…> because it is not registered as an observer.` 來源通常是：`viewWillDisappear:` 移除一次、`dealloc` 又移除一次；或是 `init` 的某條路徑沒註冊但 `dealloc` 一律移除。對策：成對放在對稱的生命週期（`init` / `dealloc`，或 `viewWillAppear:` / `viewWillDisappear:`），不要混；真的不確定時用一個 `BOOL _observing` 旗標守著。不要用 `@try` 包 `removeObserver:` 來掩蓋，那是把生命週期沒想清楚的問題藏起來。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInternalInconsistencyException',
+reason: 'An instance 0x600002b1c3a0 of class LBLedger was deallocated while key value
+observers were still registered with it. Current observation info:
+<NSKeyValueObservationInfo 0x600001d08f20> (
+<NSKeyValueObservance 0x600001d0a1c0: Observer: 0x7fb3c2d0a800, Key path: total,
+ Options: <New: YES, Old: NO, Prior: NO> Context: 0x10a3f4e58, Property: 0x600001d09b40>
+)'`}>
+這則訊息把每件事都告訴你了：被釋放的是 `LBLedger`（0x600002b1c3a0），還掛著一個觀察者（Observer: 0x7fb3c2d0a800）在看 `total`，`Context` 的值就是你那個靜態變數的位址，拿去跟原始碼對一下就知道是哪個類別註冊的。原因：觀察者沒有在自己 `dealloc` 時 `removeObserver:`，或是觀察者活得比被觀察者久（例如單例觀察一個會被換掉的帳本，換帳本時沒移除舊的）。修法：在觀察者的 `dealloc` 移除；若被觀察物件會換，在 setter 裡「移除舊的、註冊新的」。新版系統這條變成不丟例外了，但你會改成在觀察者釋放後拿到 `EXC_BAD_ACCESS`，所以 Xcode 題用 Zombie Objects 來驗證：開了 Zombies，對已釋放觀察者送訊息會變成清楚的 `message sent to deallocated instance`，而不是隨機崩潰。
+</Crash>
+
+## 小結
+
+- KVC：`valueForKey:` / `setValue:forKey:` 以字串找 getter / setter / ivar，找不到丟 `NSUnknownKeyException`；`valueForKeyPath:` 走多層與 `@sum` / `@count` 等運算子；Storyboard 的 IBOutlet 就是靠它。
+- KVO 四規矩：`context` 用靜態變數位址並在回呼比對、不是自己的交給 `super`、回呼在改值的執行緒、註冊與移除成對（觀察者 `dealloc` 移除）。
+- KVO 靠 isa 偷換覆寫 setter 實作，所以只有走 setter 的修改會通知；直接改 `_ivar` 不會。手動通知用 `willChangeValueForKey:` / `didChangeValueForKey:`。
+- 計算屬性用 `+keyPathsForValuesAffecting<Key>` 宣告相依鍵，不必手動多發通知。
+- 兩則 crash：被觀察者先死是 `deallocated while key value observers were still registered`，觀察者先死是 `EXC_BAD_ACCESS`；IBOutlet 斷線是 `not key value coding-compliant for the key`。

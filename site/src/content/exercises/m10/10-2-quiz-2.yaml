@@ -1,0 +1,20 @@
+id: m10-10-2-quiz-2
+chapter: "10.2"
+section: quiz
+type: quiz
+title: 哪些設定會造成離屏渲染
+minutes: 2
+prompt: 以下哪些會讓圖層離屏渲染（Color Off-screen Rendered 變黃）？（可複選）
+multi: true
+options:
+  - "有圖片的 imageView 設 `cornerRadius` + `masksToBounds = YES`"
+  - "`layer.shadowOpacity = 0.3`，沒設 `shadowPath`"
+  - "純色背景的 view 只設 `cornerRadius`"
+  - "`layer.mask = shapeLayer`"
+  - "label 背景透明疊在 cell 上"
+answer: [0, 1, 3]
+explain: 裁切有內容的圖層、沒有 path 的陰影、任何 mask 都要先畫到額外緩衝區。純色 + cornerRadius 走快速路徑；透明 label 是「混合」不是離屏（Color Blended Layers 才會變紅）。
+hints: ["哪些效果沒辦法一次畫完？", "混合跟離屏是兩個不同的 Debug 選項。"]
+feedback:
+  "2": 純色、沒子圖層的 view 設 cornerRadius 不離屏，這是 iOS 的快速路徑。
+  "4": 這是圖層混合，Color Blended Layers 會變紅，但不是離屏。

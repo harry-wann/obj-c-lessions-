@@ -1,0 +1,19 @@
+id: m12-12-6-parsons-1
+chapter: "12.6"
+type: parsons
+title: 第一週讀專案的 SOP
+minutes: 2
+prompt: 把第一週讀陌生 ObjC 專案的步驤排成課文建議的順序。有兩行是干擾行。
+lines:
+  - "看 README 與版本檔，bundle exec pod install，開 .xcworkspace"
+  - "⌘B、⌘U，記下紅燈與 warning 數量當基準線；開 Exception Breakpoint 與 Zombie"
+  - "讀 Podfile.lock，每個 pod 查一句話用途"
+  - "讀 AppDelegate 的 didFinishLaunching，找 rootViewController"
+  - "全文搜 pushViewController: / performSegueWithIdentifier: 畫畫面流程圖"
+  - "找 Model / Service / 單例，畫類別關係圖與資料流"
+  - "挑最小的 bug 單，先寫失敗測試再改，發第一個 PR"
+distractors:
+  - "把所有 warning 修到零再開始讀"
+  - "先把 Podfile 裡的 pod 升到最新版"
+solution_note: 順序是「建得起來 → 基準線 → 相依 → 入口 → 畫面 → 類別 → 動手」。兩行干擾都是第一週不該做的高風險改動。
+hints: ["先能跑，再讀，再改。", "相依清單在入口之前，因為它告訉你專案的方言。", "動手永遠是最後一步。"]

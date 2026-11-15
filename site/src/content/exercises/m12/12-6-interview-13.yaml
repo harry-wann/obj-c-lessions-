@@ -1,0 +1,14 @@
+id: m12-12-6-interview-13
+chapter: "12.6"
+type: flash
+tier: interview
+title: 面試速記：isEqual 與 hash
+minutes: 2
+front: |
+  覆寫 `isEqual:` 時為什麼一定要覆寫 `hash`？合約是什麼？用什麼欄位算 hash？
+back: |
+  合約：isEqual: 回 YES 的兩個物件，hash 必須相等；hash 相等的物件不必 isEqual:（碰撞允許）。
+  NSSet / NSDictionary 先用 hash 找桶子再用 isEqual: 比對，只覆寫 isEqual: 的話兩個「相等」的物件落在不同桶子，containsObject: 回 NO、同一個 key 存兩份。
+  hash 只能用參與 isEqual: 比較的欄位，而且最好是不可變欄位；物件進集合後若欄位變了 hash 也變，它就在集合裡「迷路」了。
+  實作慣例：先比指標、再 isKindOfClass:、再逐欄位比；hash 用各欄位 hash 做 XOR 或乘質數組合。
+  加分延伸：isEqualToString: 這類具型別的版本比 isEqual: 快（跳過類別檢查），但對 nil 送會回 NO 也剛好正確。

@@ -1,0 +1,18 @@
+id: m11-11-3-quiz-2
+chapter: "11.3"
+section: quiz
+type: quiz
+title: Storyboard ID 與 Class
+minutes: 1
+prompt: "`[sb instantiateViewControllerWithIdentifier:@\"Settings\"]` 裡的 `@\"Settings\"` 對應 Interface Builder 的哪個欄位？"
+options:
+  - "Identity inspector → Class"
+  - "Identity inspector → Storyboard ID"
+  - "Attributes inspector → Title"
+  - "Attributes inspector → Restoration ID"
+answer: 1
+explain: "Storyboard ID 是給 `instantiateViewControllerWithIdentifier:` 用的字串，跟 Class 可以不同。沒填或打錯 → `doesn't contain a view controller with identifier`。Restoration ID 是狀態還原用的，勾 Use Storyboard ID 可以讓兩者相同。"
+hints: ["Class 決定建出哪個類別；identifier 是另一個欄位。", "Restoration ID 是做什麼的？"]
+feedback:
+  "0": "Class 決定建出來的物件型別，不是查找用的 identifier。"
+  "3": "Restoration ID 是 state restoration 用的，勾 Use Storyboard ID 才會跟它一樣。"

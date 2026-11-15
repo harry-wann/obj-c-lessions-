@@ -1,0 +1,241 @@
+---
+title: id、Class、SEL
+module: 6
+chapter: "6.1"
+order: 1
+minutes: 30
+prereq: ["2.3", "5.2"]
+objectives:
+  - "說出 `id` 跟靜態型別指標的差別，以及編譯器對 `id` 到底還檢查什麼"
+  - "把 `Class` 當成一般物件來用：存進陣列、拿來 `alloc`、用字串查到它"
+  - "用 `@selector()` 與 `NSSelectorFromString` 建立 selector，並知道何時該用哪一個"
+summary: "動態型別 id 與編譯期檢查的界線、Class 也是物件、SEL 是方法名稱的執行期代號、NSStringFromSelector / NSSelectorFromString / NSClassFromString 三件組。"
+terms:
+  - { en: dynamic typing, tw: 動態型別, cn: 动态类型, jp: 動的型付け }
+  - { en: static typing, tw: 靜態型別, cn: 静态类型, jp: 静的型付け }
+  - { en: class object, tw: 類別物件, cn: 类对象, jp: クラスオブジェクト }
+  - { en: selector, tw: 選擇器（selector）, cn: 选择器, jp: セレクタ }
+  - { en: runtime, tw: 執行期, cn: 运行时, jp: ランタイム }
+appProgress: 帳本的 debug 選單能用字串列出每個類別與方法名稱，為 6.3 的字串路由鋪路。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+let anything: AnyObject = Transaction()        // 任何類別實體
+let type = type(of: anything)                  // Transaction.Type
+let sel = #selector(Transaction.describe)      // 要 @objc 才能用
+let cls: AnyClass? = NSClassFromString("LittleBook.Transaction")
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+val anything: Any = Transaction()
+val kClass = anything::class                   // KClass<out Any>
+val fn = Transaction::describe                 // KFunction，反射才能用字串找
+val cls = Class.forName("app.Transaction").kotlin
+```
+</Fragment>
+<Fragment slot="java">
+```java
+Object anything = new Transaction();
+Class<?> cls = anything.getClass();
+Method m = cls.getMethod("describe");          // 反射，慢、拋 checked exception
+Class<?> byName = Class.forName("app.Transaction");
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+const anything: any = new Transaction();       // 想送什麼就送什麼
+const ctor = anything.constructor;             // 建構函式就是「類別物件」
+const key = "describe";
+anything[key]();                               // 字串當方法名，執行期才知道有沒有
+```
+</Fragment>
+Java / Kotlin 要碰到型別本身或方法名稱得走反射（reflection），平常寫業務邏輯幾乎不用。TypeScript 的 `any` 加 `obj[key]()` 反而最接近 Objective-C：方法名稱只是一個字串，收件人收到才決定做什麼。Objective-C 把這三樣東西各給一個型別：`id` 是「任何物件」、`Class` 是「類別本身」、`SEL` 是「方法名稱的代號」，而且三者都是一等公民，可以當參數、存進陣列、在執行期用字串查出來。Swift 只有標了 `@objc` 的成員能這樣玩。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### `id`：編譯器放手的那條線
+
+```objc
+LBTransaction *tx = [LBTransaction expenseWithAmount:[NSDecimalNumber decimalNumberWithString:@"120"]
+                                                 note:@"午餐"];
+id anything = tx;                      // 不用轉型，任何物件都能塞進 id
+NSString *note = [anything note];      // 編譯通過：某個已知類別有 -note
+[anything fly];                        // 警告：instance method '-fly' not found
+```
+
+`id` 是「指向任何 Objective-C 物件的指標」，而且已經含了星號，所以寫 `id anything` 不寫 `id *`。<Term en="dynamic typing" tw="動態型別" cn="动态类型" jp="動的型付け" />的意思是：收到訊息的物件是什麼類別，要等執行到那一行才知道。但編譯器並沒有完全放手，它還做兩件事：
+
+1. **selector 存在性**：對 `id` 送的訊息，只要你 `#import` 進來的任何一個類別或協定宣告過這個方法，就過；完全沒人宣告過才給警告（預設是警告不是錯誤，記得把 `-Wundeclared-selector` 與這類警告當錯誤看）。
+2. **回傳型別推測**：`[anything note]` 回傳什麼型別，編譯器找到第一個同名方法就採用。兩個類別有同名但回傳型別不同的方法時，會得到 `multiple methods named 'xxx' found` 的警告，這時你得先轉型成明確型別。
+
+<Term en="static typing" tw="靜態型別" cn="静态类型" jp="静的型付け" />指標 `LBTransaction *tx` 多給你的，是屬性點語法、方法參數型別檢查、自動完成。所以日常規則很簡單：**知道型別就寫型別，只在真的不知道（容器取出、delegate 回傳、JSON 解析）時用 `id`，而且拿到手盡快轉回明確型別。** `id` 不能用點語法：`anything.note` 是編譯錯誤 `property 'note' not found on object of type 'id'`。
+
+`instancetype` 是 `id` 的親戚：只用在回傳值，告訴編譯器「我回傳的是呼叫者那個類別」。這就是為什麼 `[[LBLedger alloc] init]` 得到的是 `LBLedger *` 而不是 `id`。
+
+### `Class`：類別也是物件
+
+```objc
+Class cls = [LBTransaction class];              // 類別物件
+NSLog(@"%@", cls);                              // LBTransaction
+NSLog(@"%@", [tx class]);                       // LBTransaction（實體回答自己的類別）
+NSLog(@"%@", [cls superclass]);                 // NSObject
+NSLog(@"%@", NSStringFromClass(cls));           // LBTransaction（真正的字串）
+Class found = NSClassFromString(@"LBLedger");   // 用字串找類別；找不到回 Nil
+NSArray<Class> *models = @[ [LBTransaction class], [LBLedger class] ];
+```
+
+在 Objective-C 裡，<Term en="class object" tw="類別物件" cn="类对象" jp="クラスオブジェクト" />是真的存在記憶體裡的一個物件，`alloc`、`new`、`description` 這些類別方法就是送給它的訊息。它的型別叫 `Class`，跟 `id` 一樣已經含星號。這帶來三個常見用法：
+
+- **存起來晚點建立**：`Class cellClass = [LBTransactionCell class]; ... [cellClass new]`，工廠方法與 `registerClass:forCellReuseIdentifier:` 都是這個模式。
+- **用字串查**：`NSClassFromString(@"LBLedger")` 讀設定檔、URL scheme、Storyboard 的 `customClass` 都靠它。找不到回傳 `Nil`（大寫 N，專給 `Class` 用的空值；跟 `nil` 其實是同一個 0，只是語意上區分）。
+- **當字典的鍵**：`Class` 遵守 `NSCopying`，可以當 `NSDictionary` 的鍵，做「型別 → 處理器」的表。
+
+類別物件自己也有類別，叫 meta-class，`[[tx class] class]` 回傳的還是 `LBTransaction` 是 runtime 刻意的設計，你不需要碰 meta-class，但 6.2 講 `isa` 時知道它存在就好。
+
+### `SEL`：方法名稱的執行期代號
+
+```objc
+SEL sel = @selector(initWithAmount:kind:date:note:category:);
+NSLog(@"%@", NSStringFromSelector(sel));
+// initWithAmount:kind:date:note:category:
+SEL fromString = NSSelectorFromString(@"note");
+NSLog(@"%d", sel == @selector(initWithAmount:kind:date:note:category:));  // 1
+NSLog(@"%d", [tx respondsToSelector:fromString]);                          // 1
+```
+
+<Term en="selector" tw="選擇器（selector）" cn="选择器" jp="セレクタ" />就是方法名稱，包含所有冒號、不含參數型別。`SEL` 在 runtime 裡是一個被「去重」過的 C 字串指標：同名的 selector 全程式只有一份，所以可以直接用 `==` 比較，速度跟比整數一樣。這也是為什麼 Objective-C 沒有多載（overload）：`-addAmount:` 收 `NSDecimalNumber` 還是 `NSInteger`，selector 都是 `addAmount:`，runtime 分不出來。
+
+兩種拿到 `SEL` 的方式差別很大：
+
+| 寫法 | 何時解析 | 打錯字會怎樣 |
+|---|---|---|
+| `@selector(note)` | 編譯期 | 警告 `undeclared selector`（開 `-Werror` 就是錯誤） |
+| `NSSelectorFromString(@"note")` | 執行期 | 安靜地得到一個沒人實作的 selector，送出去就是 6.2 的 `unrecognized selector` |
+
+**優先用 `@selector()`**；只有名稱真的來自執行期（設定檔、伺服器、使用者輸入）才用字串版，而且送出前一律先 `respondsToSelector:`（6.3）。
+
+### 完整範例（可貼進 Scratch）
+
+```objc
+#import <Foundation/Foundation.h>
+
+@interface LBTransaction : NSObject
+@property (nonatomic, strong) NSDecimalNumber *amount;
+@property (nonatomic, copy) NSString *note;
+- (NSString *)summary;
+@end
+@implementation LBTransaction
+- (NSString *)summary { return [NSString stringWithFormat:@"%@ %@", _note, _amount]; }
+@end
+
+@interface LBLedger : NSObject
+@end
+@implementation LBLedger
+@end
+
+int main(void) {
+    @autoreleasepool {
+        // 1. id：型別等到執行期
+        NSArray *bag = @[ [LBTransaction new], @"字串", @42 ];
+        for (id thing in bag) {
+            NSLog(@"%@", [thing class]);
+        }
+
+        // 2. Class 是物件：用字串找、拿來 new
+        Class cls = NSClassFromString(@"LBTransaction");
+        LBTransaction *tx = [cls new];
+        tx.amount = [NSDecimalNumber decimalNumberWithString:@"120"];
+        tx.note = @"午餐";
+        NSLog(@"%@ / %@", NSStringFromClass(cls), NSClassFromString(@"LBNothing"));
+
+        // 3. SEL：編譯期 vs 執行期
+        SEL compiled = @selector(summary);
+        SEL typed = NSSelectorFromString(@"summary");
+        SEL typo = NSSelectorFromString(@"sumary");
+        NSLog(@"%d %d %d", compiled == typed,
+              [tx respondsToSelector:typed], [tx respondsToSelector:typo]);
+        NSLog(@"%@", NSStringFromSelector(@selector(setAmount:)));
+    }
+    return 0;
+}
+// 預期輸出：
+// LBTransaction
+// __NSCFConstantString
+// __NSCFNumber
+// LBTransaction / (null)
+// 1 1 0
+// setAmount:
+```
+
+注意第二段：`@"字串"` 的類別印出來是 `__NSCFConstantString`，不是 `NSString`。Foundation 很多類別是「類別叢集」（class cluster），公開的 `NSString` 只是門面，真正的實體是私有子類別。這會在 6.3 影響你怎麼判斷型別。
+
+<Tip title="三件組記法">
+`NSStringFromClass` / `NSClassFromString`、`NSStringFromSelector` / `NSSelectorFromString`、再加一個 `NSStringFromProtocol` / `NSProtocolFromString`。方向看名字：`From` 後面是你手上有的東西。它們是 C 函式不是方法，所以是 `NSClassFromString(@"...")` 而不是 `[... classFromString:]`。
+</Tip>
+
+<Pitfall title="用字串拼 selector，打錯字沒人攔">
+<Fragment slot="bad">
+```objc
+NSString *name = [@"refresh" stringByAppendingString:@"Totals"];
+[self performSelector:NSSelectorFromString(name)];   // 方法其實叫 refreshTotal
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+[self performSelector:@selector(refreshTotal)];      // 編譯器會檢查這個名字存在
+```
+</Fragment>
+字串拼出來的 selector 要等到使用者點到那個按鈕才會 crash，而且是在你沒有在測的機型上。規則：名稱寫在程式碼裡就用 `@selector()`；真的要用字串，`respondsToSelector:` 先問。
+</Pitfall>
+
+<Pitfall title="id 容器取出來就直接用，型別其實是別的">
+<Fragment slot="bad">
+```objc
+NSDictionary *json = ...;
+NSString *note = json[@"note"];        // 伺服器這次回的是數字 123
+NSLog(@"%ld", (long)note.length);      // -[__NSCFNumber length]: unrecognized selector
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+id raw = json[@"note"];
+NSString *note = [raw isKindOfClass:[NSString class]] ? raw : @"";
+```
+</Fragment>
+`json[@"note"]` 回傳的是 `id`，賦值給 `NSString *` 不需要轉型、編譯器也不會抱怨，但那只是你對編譯器的承諾，不是檢查。所有從 `NSArray` / `NSDictionary` / `userInfo` 取出來的東西都是 `id`，碰到外部資料就要用 6.3 的內省守住。
+</Pitfall>
+
+<Pitfall title="NSClassFromString 找 Swift 類別要加模組名">
+`NSClassFromString(@"StatsViewController")` 回 `Nil`，因為 Swift 類別在 runtime 的名字是 `LittleBook.StatsViewController`（模組名 + 點 + 類別名）。要讓 ObjC 端用純名字找到它，Swift 那邊得寫 `@objc(StatsViewController) class StatsViewController`。模組 12 做橋接時會再遇到。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: '-[__NSCFNumber length]: unrecognized selector sent to instance 0x8e2b3c4d5e6f7a81'
+*** First throw call stack:
+(
+	0   CoreFoundation   __exceptionPreprocess + 242
+	1   libobjc.A.dylib  objc_exception_throw + 48
+	2   CoreFoundation   -[NSObject(NSObject) doesNotRecognizeSelector:] + 132
+	3   CoreFoundation   ___forwarding___ + 1324
+	4   CoreFoundation   _CF_forwarding_prep_0 + 120
+	5   LittleBook       -[LBTransactionCell configureWithNote:] + 88
+)`}>
+讀法分三步。第一，類別：`__NSCFNumber` 是 `NSNumber` 的私有實體類別，所以收件人是一個數字。第二，selector：`length` 是 `NSString` 的方法，表示某處把數字當字串用。第三，堆疊：跳過 CoreFoundation 與 libobjc 那幾行（那是 6.2 會講的轉送機制在丟例外），第一個自己模組的 frame 是 `-[LBTransactionCell configureWithNote:]`，就是把 `id` 當 `NSString *` 用的地方。注意 instance 位址後面幾個數字看起來不像一般堆積位址，那是 tagged pointer：小整數直接藏在指標裡，連物件都沒配置。修法不是在 cell 裡加判斷，而是在 JSON 進入模型的那一層就用 `isKindOfClass:` 擋掉。
+</Crash>
+
+## 小結
+
+- `id` 是「任何物件」，編譯器只檢查 selector 是否有人宣告過，不檢查收件人是誰；知道型別就寫型別，`id` 不能用點語法。
+- `Class` 是真實存在的類別物件，可以 `alloc`、存進陣列、當字典鍵；`NSClassFromString` 找不到回 `Nil`。
+- `SEL` 是去重過的方法名稱代號，可直接 `==` 比較；Objective-C 沒有多載就是因為 selector 不含型別。
+- `@selector()` 編譯期檢查、`NSSelectorFromString` 執行期才知道；字串版送出前一律 `respondsToSelector:`。
+- Foundation 的類別叢集讓 `[obj class]` 印出 `__NSCFString` 這種私有名字，判斷型別要用 6.3 的 `isKindOfClass:`。

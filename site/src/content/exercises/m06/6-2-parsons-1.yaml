@@ -1,0 +1,20 @@
+id: m06-6-2-parsons-1
+chapter: "6.2"
+type: parsons
+title: 排出訊息派送與三段救援的順序
+minutes: 3
+prompt: 把 `[obj msg]` 從送出到最後丟例外的步驟排成正確順序。
+lines:
+  - "objc_msgSend(obj, sel)：收件人是 nil 就回傳 0"
+  - "透過 isa 找到類別，查方法快取（以 SEL 為鍵的雜湊表）"
+  - "快取沒命中：掃方法列表，沿父類別鏈往上找；找到就寫進快取並執行"
+  - "+resolveInstanceMethod:：給類別機會用 class_addMethod 補上實作"
+  - "-forwardingTargetForSelector:：回傳另一個物件，訊息原封不動重送給它"
+  - "-methodSignatureForSelector: 回傳簽名，runtime 包成 NSInvocation"
+  - "-forwardInvocation:：自己處理整個呼叫"
+  - "-doesNotRecognizeSelector:：丟出 NSInvalidArgumentException（unrecognized selector）"
+distractors:
+  - "編譯器在編譯期檢查 obj 的類別有沒有這個方法，沒有就拒絕編譯"
+  - "-respondsToSelector: 回 NO 就直接 crash"
+solution_note: "快取在方法列表之前，動態解析在兩種轉送之前，快速轉送（換收件人）在完整轉送（NSInvocation）之前，最後才是 doesNotRecognizeSelector。respondsToSelector: 是你主動問的，不在派送流程裡。"
+hints: ["先正常查找（快取 → 列表 → 父類別），都沒有才救援。", "三段救援的成本由低到高：補實作 → 換人 → 打包 NSInvocation。", "方法簽名要在 forwardInvocation 之前。"]

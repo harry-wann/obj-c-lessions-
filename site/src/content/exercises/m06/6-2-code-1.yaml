@@ -1,0 +1,42 @@
+id: m06-6-2-code-1
+chapter: "6.2"
+type: code
+title: 用快速轉送把統計方法交給內部物件
+mobile: false
+minutes: 10
+prompt: "`LBLedger` 內部有一個 `_stats`（`LBStats *`）。實作 `forwardingTargetForSelector:` 與 `respondsToSelector:`：`_stats` 回應的 selector 就轉給它，否則交給 `super`；`respondsToSelector:` 也要反映轉送能力。"
+starter: |
+  @implementation LBLedger {
+      LBStats *_stats;
+  }
+  - (id)forwardingTargetForSelector:(SEL)sel {
+
+  }
+  - (BOOL)respondsToSelector:(SEL)sel {
+
+  }
+  @end
+checks:
+  - selector_equals: "forwardingTargetForSelector:"
+  - selector_equals: "respondsToSelector:"
+  - must_match: '_stats\s+respondsToSelector\s*:\s*sel\s*\]'
+    message: "要先問 _stats 會不會回應這個 selector"
+  - must_match: 'return\s+_stats\s*;'
+    message: "會回應就回傳 _stats"
+  - must_match: 'super\s+forwardingTargetForSelector\s*:\s*sel\s*\]'
+    message: "不接手就交給 super，讓流程走到下一段"
+  - must_match: 'super\s+respondsToSelector\s*:\s*sel\s*\]'
+    message: "respondsToSelector: 要保留 super 的答案"
+  - must_not_match: 'return\s+self\s*;'
+    message: "forwardingTargetForSelector: 回傳 self 會無限遞迴"
+  - "brackets_balanced: true"
+solution: |
+  - (id)forwardingTargetForSelector:(SEL)sel {
+      if ([_stats respondsToSelector:sel]) return _stats;
+      return [super forwardingTargetForSelector:sel];
+  }
+  - (BOOL)respondsToSelector:(SEL)sel {
+      return [super respondsToSelector:sel] || [_stats respondsToSelector:sel];
+  }
+solution_note: 兩個方法成對：轉送讓訊息能到，`respondsToSelector:` 讓呼叫端能先問。永遠不回傳 self；不接手就呼叫 super。
+hints: ["先問 _stats 會不會，再決定回誰。", "不接手時不要回 nil 也不要回 self，交給 super。", "respondsToSelector: 用 || 合併兩個答案。"]

@@ -1,0 +1,197 @@
+---
+title: 程式碼風格與工具
+module: 12
+chapter: "12.5"
+order: 5
+minutes: 30
+prereq: ["12.4"]
+objectives:
+  - 說出 Apple Coding Guidelines 與 Google ObjC Style 對命名、縮排、標頭的核心要求，寫出符合慣例的方法名
+  - 在專案放一份 .clang-format 並讓團隊格式一致
+  - 開 -Wall 與 -Werror，讀懂五種常見 warning 的意思並修掉
+summary: "Apple Coding Guidelines / Google ObjC Style 摘要；一份可直接用的 .clang-format；-Wall / -Wextra / -Werror；常見 warning 意義表（incompatible pointer types、implicit conversion loses precision、unused variable、method definition not found、undeclared selector）；OCLint 選用。"
+terms:
+  - { en: coding guidelines, tw: 程式碼規範, cn: 编码规范, jp: コーディング規約 }
+  - { en: formatter, tw: 格式化工具, cn: 格式化工具, jp: フォーマッタ }
+  - { en: warning, tw: 警告, cn: 警告, jp: 警告 }
+  - { en: lint, tw: 靜態檢查（lint）, cn: 静态检查, jp: リント }
+appProgress: 專案根目錄有 .clang-format，所有 ObjC 檔案格式化後無 diff；開 -Wall 與 -Werror 仍可建置。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// Swift：swift-format / SwiftLint；命名靠 API Design Guidelines
+// 參數標籤讀起來像句子：ledger.add(tx)、ledger.removeTransaction(withIdentifier: id)
+// 警告當錯誤：Build Settings → SWIFT_TREAT_WARNINGS_AS_ERRORS = YES
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// ktlint / detekt；官方 Kotlin coding conventions
+// build.gradle.kts：
+// tasks.withType<KotlinCompile> { kotlinOptions.allWarningsAsErrors = true }
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// google-java-format / Checkstyle；-Xlint:all -Werror
+// 慣例：getX()/setX()、常數全大寫、介面不加 I 前綴
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// Prettier 排版、ESLint 抓問題，兩個工具分工（= clang-format + OCLint）
+// tsconfig：noUnusedLocals、noImplicitAny、strict（= -Wall）
+```
+</Fragment>
+每個生態圈都把這件事拆成兩層：**排版工具**（Prettier、google-java-format、clang-format）只管空白與換行，沒有對錯；**靜態檢查**（ESLint、Checkstyle、編譯器 warning、OCLint）管「這段程式碼可能有問題」。前者讓 code review 不用再吵括號位置，後者讓 bug 在編譯期被抓到。ObjC 比較特別的是，編譯器本身的 warning 比 lint 工具重要得多，因為訊息派送太動態，很多在別的語言是編譯錯誤的事在 ObjC 只是 warning。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 命名：Apple Coding Guidelines 的核心
+
+Apple 的《Coding Guidelines for Cocoa》是 2000 年代的文件，但所有 Cocoa API 都照它寫，你的程式碼長得一樣，讀起來才不會卡。重點：
+
+- **方法名是一句話**：`-addTransaction:`、`-removeTransactionWithIdentifier:`、`-transactionAtIndex:`。參數前的詞描述參數：`WithIdentifier:`、`atIndex:`、`forKey:`。不寫 `-add:`、`-getTotal`（ObjC 不用 `get` 前綴，`get` 保留給透過指標回傳多個值的方法，如 `getBytes:length:`）。
+- **回傳 `BOOL` 的屬性用 `is` 作 getter**：`@property (getter=isExpense) BOOL expense;`，讀 `tx.isExpense`、寫 `tx.expense = YES`。
+- **類別三字母前綴**：`LB`。Apple 保留兩字母前綴。分類方法加小寫前綴 `lb_`，避免跟 Apple 未來新增的方法撞名（撞到的話哪個被呼叫沒有定義）。
+- **常數**：`static NSString * const LBErrorDomain`，全域的以類別前綴開頭，不用 `k` 前綴（那是 Carbon 時代的 C 慣例，Cocoa 不用）。列舉成員 `LBTransactionKindExpense`：型別名 + 成員名。
+- **委派方法**：第一個參數是送出者，`-editor:didSaveTransaction:`、`-editorDidCancel:`；「將要」用 `will`、「已經」用 `did`、問權限用 `should`。
+- **私有方法不加底線前綴**：Apple 自己用 `_`，你用了會撞到父類別的私有方法而不知道。要區別就用 `lb_` 或根本不區別（反正在類別延伸裡）。
+- **標頭檔只放公開介面**：實體變數、私有屬性、私有方法進 `.m` 的類別延伸；`#import` 只放真的需要的，其他用 `@class` 前向宣告，減少重編。
+
+Google 的 ObjC Style Guide 在這之上多規定了排版：2 空格縮排（Apple 預設 4）、每行 100 字（本站用 72 讓手機好讀）、方法之間一個空行、`@interface` 與 `{` 同行、`-` 與回傳型別間一個空格。排版的規定不用背，交給工具。
+
+### `.clang-format`：一份可以直接用的
+
+`clang-format` 是 LLVM 的排版工具，Xcode 不內建但 `brew install clang-format` 一行就有；也有人用 Xcode Source Editor Extension 版本。把這個檔案放在專案根目錄，所有人、CI 都用同一份：
+
+```yaml
+# .clang-format
+Language: ObjC
+BasedOnStyle: Google
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+ObjCBlockIndentWidth: 4
+ObjCSpaceAfterProperty: true          # @property (nonatomic) 的括號前留空格
+ObjCSpaceBeforeProtocolList: true     # id <LBDelegate> → id<LBDelegate> 由此控制
+AlignTrailingComments: true
+AllowShortBlocksOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+BreakBeforeBraces: Attach
+PointerAlignment: Right               # NSString *name，星號靠變數
+SpacesInContainerLiterals: true       # @[ a, b ]、@{ k : v }
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+IncludeBlocks: Preserve
+SortIncludes: false                   # ObjC 的 #import 順序常有意義，不要自動排
+```
+
+用法：
+
+```bash
+# 格式化單一檔案（原地改）
+$ clang-format -i LittleBook/LBLedger.m
+
+# CI：檢查有沒有沒格式化的檔案，有 diff 就讓建置失敗
+$ find LittleBook LittleBookTests -name '*.[hm]' \
+    | xargs clang-format --dry-run --Werror
+LittleBook/LBLedger.m:48:5: error: code should be clang-formatted [-Wclang-format-violations]
+```
+
+幾個 ObjC 特有的選項值得知道：`ObjCBlockIndentWidth` 管 block 內容的縮排；`ColumnLimit` 設 0 會關掉自動斷行，很多舊專案為了保留手工對齊的多參數方法呼叫這樣設；`ObjCBinPackProtocolList` 管 `<A, B, C>` 要不要擠一行。clang-format 不碰的事：命名、空行數量以外的結構、註解內容。接手舊專案時**先整個格式化成一個獨立 commit**，之後的 diff 才乾淨。
+
+### 把警告當錯誤：`-Wall`、`-Wextra`、`-Werror`
+
+Build Settings → Apple Clang - Warnings 有幾十個開關，從頭一個個勾不切實際。做法是 Other Warning Flags（`WARNING_CFLAGS`）填 `-Wall -Wextra`，Treat Warnings as Errors（`GCC_TREAT_WARNINGS_AS_ERRORS`）設 YES，等於 `-Werror`。再把少數吵又沒意義的個別關掉：`-Wno-unused-parameter`（委派方法常有沒用的參數）。幾個預設沒開但很值得的：
+
+| 旗標 | 抓什麼 |
+|---|---|
+| `-Wimplicit-retain-self` | block 裡用 `_ivar` 隱含捕獲 `self`（5.5） |
+| `-Wnullable-to-nonnull-conversion` | 把 nullable 值直接傳進 nonnull 參數（12.1） |
+| `-Wobjc-missing-property-synthesis` | 沒有 `@synthesize` 也沒有實作的屬性 |
+| `-Wstrict-prototypes` | `- (void)foo;` 以外的 C 函式宣告漏了 `void` |
+| `-Wundeclared-selector` | `@selector(doesNotExist)` 拼錯 |
+
+`-Werror` 在舊專案一開就有幾百個錯，策略是：先在新檔案與自己改到的檔案修掉，用 `#pragma clang diagnostic push / ignored "-Wxxx" / pop` 暫時圍住還沒處理的第三方程式碼，Pods 本身透過 `Podfile` 的 `post_install` 把 `GCC_TREAT_WARNINGS_AS_ERRORS` 設 NO。
+
+### 常見 warning 意義表
+
+| warning | 意思 | 修法 |
+|---|---|---|
+| `incompatible pointer types initializing 'NSString *' with an expression of type 'NSNumber *'` | 指標型別對不上。ObjC 不會幫你轉，執行期會對錯的類別送訊息 | 檢查來源，通常是字典取值或方法回傳型別搞錯；需要的話明確轉型並檢查 `isKindOfClass:` |
+| `implicit conversion loses integer precision: 'NSUInteger' to 'int'` | 64 位元塞進 32 位元，大值會截斷或變負數 | 變數型別改成 `NSUInteger` / `NSInteger`，或明確 `(int)` 轉型表示你知道 |
+| `implicit conversion loses floating-point precision: 'double' to 'float'` | 同上，浮點版 | 用 `CGFloat` / `double` 一致 |
+| `unused variable 'total'` | 宣告了沒用。常是重構後的殘留，或應該被用卻用了另一個同名變數 | 刪掉，或檢查是否拿錯變數 |
+| `method definition for 'removeTransactionWithIdentifier:' not found` | `.h` 宣告了、`.m` 沒實作（或拼錯）。執行期呼叫就是 `unrecognized selector` | 補實作或改宣告；這條一定要修 |
+| `undeclared selector 'reloadDatta'` | `@selector()` 裡的名字沒有任何類別宣告過，幾乎一定是拼錯 | 修名字 |
+| `'tx' may be used uninitialized` 或 `variable is uninitialized when used here` | 某條分支沒賦值就用 | 宣告時給初始值 |
+| `comparison of integers of different signs` | `NSUInteger` 跟 `-1` 比，永遠不成立 | `count == 0` 取代 `count > -1`，索引用 `NSNotFound` |
+| `format specifies type 'int' but the argument has type 'long'` | `NSLog(@"%d", (NSInteger)x)` | 用 `%ld` 加 `(long)` 轉型，或 `%@` 搭 `@(x)` |
+| `null passed to a callee that requires a non-null argument` | 把 nil 傳進 nonnull 參數 | 檢查呼叫端邏輯；nullability 標注是對的，是呼叫端錯了 |
+| `category is implementing a method which will also be implemented by its primary class` | 分類覆寫了原類別的方法，哪個生效沒有定義 | 改成子類別或 swizzling，不要用分類覆寫 |
+| `'oldMethod:' is deprecated: first deprecated in iOS 13.0` | API 棄用 | 看訊息裡的替代品；`@available` 分支 |
+
+### OCLint（選）
+
+`clang-format` 管排版，編譯器 warning 管型別層面的錯；介於中間的「程式碼品質」規則（方法太長、參數太多、迴圈嵌太深、沒用的 `else`）靠 lint。ObjC 常見的是 OCLint，讀 `compile_commands.json` 跑規則，輸出 HTML 報告。新專案多半只跑編譯器 warning 加 Analyze 就夠，OCLint 在接手大型舊專案時拿來量化「哪裡最爛」有用。SwiftLint 只管 Swift 檔，混編專案兩個都要。
+
+<Tip title="風格爭議的止損點">
+團隊能吵的只有 `.clang-format` 這一個檔案的內容，吵完 commit 進去就結案。code review 只看邏輯、命名、記憶體，不看空白。這是這個章節真正的目的。
+</Tip>
+
+<Pitfall title="用 -Wall 以為全開了">
+`-Wall` 的名字騙人，它只是「大家都同意該開的那一批」；`-Wextra` 再多一批；還有一大堆（`-Wimplicit-retain-self`、`-Wconversion`…）兩個都不包含。`-Weverything` 才是真的全開，但會吵到無法工作（`-Wpadded`、`-Wdirect-ivar-access`）。實務上 `-Wall -Wextra` 加上表裡那五個手動開。
+</Pitfall>
+
+<Pitfall title="clang-format 把對齊的多參數方法呼叫打散">
+<Fragment slot="bad">
+```objc
+// 原本依冒號對齊、一眼看出參數對應
+[self.ledger addTransaction:tx
+             undoStack:self.undoStack
+             completion:^{ ... }];
+// clang-format 預設可能把它排成一行或亂斷
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+// 設 ColumnLimit 讓它斷行時，clang-format 會自動做冒號對齊：
+[self.ledger addTransaction:tx
+                  undoStack:self.undoStack
+                 completion:^{
+                     // ...
+                 }];
+```
+</Fragment>
+clang-format 對 ObjC 方法呼叫會做冒號對齊，但前提是這行超過 `ColumnLimit` 需要斷行；短的呼叫會被合併成一行。想保留某一段手工排版，用 `// clang-format off` / `// clang-format on` 圍住。設 `ColumnLimit: 0` 是常見的妥協，代價是永遠不會自動斷行。
+</Pitfall>
+
+<Pitfall title="用 #pragma 把 warning 關掉當作修好">
+`#pragma clang diagnostic ignored "-Wincompatible-pointer-types"` 只是把編譯器的嘴捂住，執行期該 crash 還是 crash。pragma 只該用在兩種地方：第三方程式碼你不能改，或是你明確知道這條 warning 在這裡是誤報並寫了註解說明原因。一個檔案裡出現第三個 pragma 時，該重寫那段程式碼了。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: '-[__NSCFNumber length]: unrecognized selector sent to instance 0x8e3f2a1c5b40e1d2'
+#0  -[LBTransactionCell configureWithViewModel:]
+#1  -[LBTransactionListViewController tableView:cellForRowAtIndexPath:]`}>
+`__NSCFNumber` 是 `NSNumber` 的內部類別，`length` 是 `NSString` 的方法：有人把 `NSNumber` 當 `NSString` 用。回頭看建置紀錄，這一行早就有 warning `incompatible pointer types initializing 'NSString *' with an expression of type 'NSNumber *'`，只是淹沒在三百個其他 warning 裡。這就是 `-Werror` 存在的理由：這類錯誤在 Swift、Kotlin、Java 都是編譯錯誤，ObjC 只給 warning，你得自己把它升級成錯誤。修法是回到資料來源（這裡是 JSON 解析把金額解成 `NSNumber` 卻存進 `NSString *` 的 `amountText`），用 `NSNumberFormatter` 轉成字串。位址 `0x8e3f...` 這麼長是 tagged pointer，小整數 `NSNumber` 直接塞在指標裡，模組 4 講過。
+</Crash>
+
+## 小結
+
+- 命名照 Apple：方法名是句子、不用 `get`、`BOOL` 用 `is` getter、三字母前綴、分類方法 `lb_` 前綴、不用 `k` 與 `_` 前綴。
+- 一份 `.clang-format` 進 repo，CI 用 `--dry-run --Werror` 擋沒格式化的檔案；舊專案先整個格式化成獨立 commit。
+- `-Wall -Wextra` 加五個手動開的旗標，`-Werror` 升級成錯誤；舊程式碼用 pragma 圍住，不是關掉。
+- 五個必認得的 warning：incompatible pointer types、implicit conversion loses precision、unused variable、method definition not found、undeclared selector。
+- 排版交給工具，review 只看邏輯；OCLint 在大型舊專案量化品質時才需要。

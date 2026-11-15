@@ -1,0 +1,54 @@
+id: m12-12-4-code-1
+chapter: "12.4"
+type: code
+title: 讓 po 印出有用的東西
+mobile: false
+minutes: 6
+prompt: "為 `LBTransaction` 覆寫 `-description`，格式 `<LBTransaction: 0x...> 午餐 -120 (飲食)`：用 `%p` 印 self 位址、`note`、`amount`、`category.name`；沒分類印「未分類」。再覆寫 `-debugDescription` 直接回傳 `description`（lldb 的 po 優先用它）。"
+starter: |
+  @implementation LBTransaction
+
+  - (NSString *)description {
+
+  }
+
+  - (NSString *)debugDescription {
+
+  }
+
+  @end
+checks:
+  - selector_equals: "description"
+  - selector_equals: "debugDescription"
+  - must_match: 'stringWithFormat\s*:\s*@"<%@:\s*%p>'
+    message: "格式以 <%@: %p> 開頭，%@ 放類別名、%p 放 self"
+  - must_match: 'NSStringFromClass\s*\(\s*\[\s*self\s+class\s*\]\s*\)|\[\s*self\s+class\s*\]'
+    message: 類別名用 [self class]（子類別也會印對）
+  - must_match: 'self\.note|_note'
+    message: 要印 note
+  - must_match: 'self\.amount|_amount'
+    message: 要印 amount
+  - must_match: 'category\.name|category\s+name\]'
+    message: 要印分類名稱
+  - must_match: '\?:\s*@"未分類"|\?\s*[^:]+:\s*@"未分類"|未分類'
+    message: 沒分類時印「未分類」
+  - must_match: 'return\s+\[?\s*self\s+description\s*\]?|return\s+self\.description'
+    message: debugDescription 直接回傳 description
+  - "brackets_balanced: true"
+solution: |
+  @implementation LBTransaction
+
+  - (NSString *)description {
+      return [NSString stringWithFormat:@"<%@: %p> %@ %@ (%@)",
+              NSStringFromClass([self class]), self,
+              self.note, self.amount,
+              self.category.name ?: @"未分類"];
+  }
+
+  - (NSString *)debugDescription {
+      return [self description];
+  }
+
+  @end
+solution_note: "`po tx` 會印 `<LBTransaction: 0x6000021a0e40> 午餐 -120 (飲食)`，`po ledger.transactions` 的每個元素也會用這個格式。`%p` 印位址，之後對照 Zombie 訊息裡的位址時用得到。`?:` 是 GNU 的省略中間運算元三元運算子，對 nil 送 `name` 回 nil 再補預設值。"
+hints: ["NSStringFromClass([self class]) 而不是寫死類別名。", "%p 吃指標。", "category 可能是 nil，對 nil 送訊息回 nil，用 ?: 補預設值。"]

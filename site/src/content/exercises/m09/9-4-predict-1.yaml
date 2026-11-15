@@ -1,0 +1,26 @@
+id: m09-9-4-predict-1
+chapter: "9.4"
+type: predict
+title: 預測輸出：原子寫入到不存在的目錄
+minutes: 2
+code: |
+  NSURL *dir = [[NSURL fileURLWithPath:NSTemporaryDirectory()]
+                URLByAppendingPathComponent:@"NoSuchDir-9c3f" isDirectory:YES];
+  NSURL *file = [dir URLByAppendingPathComponent:@"ledger.json"];
+  NSData *data = [@"{}" dataUsingEncoding:NSUTF8StringEncoding];
+  NSError *error = nil;
+  BOOL ok = [data writeToURL:file options:NSDataWritingAtomic error:&error];
+  NSLog(@"%d %@ %ld", ok, error.domain, (long)error.code);
+  NSLog(@"%d", [[NSFileManager defaultManager] fileExistsAtPath:dir.path]);
+options:
+  - "0 NSCocoaErrorDomain 4\n0"
+  - "1 (null) 0\n1"
+  - "0 NSCocoaErrorDomain 4\n1"
+  - crash：NSInvalidArgumentException
+accept: ["0 NSCocoaErrorDomain 4 0"]
+feedback:
+  "1 (null) 0 1": "writeToURL: 不會替你建目錄；目錄不存在就失敗。"
+  "0 NSCocoaErrorDomain 4 1": 失敗了也不會順手把目錄建起來。
+  "crash：NSInvalidArgumentException": 檔案 I/O 失敗走 NSError，不丟例外。
+solution_note: "`writeToURL:` 失敗回 NO，error 是 `NSCocoaErrorDomain` code 4（`NSFileNoSuchFileError`，目錄不存在）。原子寫入的暫存檔也要放在同一個目錄，所以目錄必須先用 `createDirectoryAtURL:` 建好。"
+hints: ["writeToURL: 會自動 mkdir 嗎？", "9.1 的 Crash 現場講過 code 4 是什麼。"]

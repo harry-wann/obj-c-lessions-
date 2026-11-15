@@ -1,0 +1,17 @@
+id: m10-10-4-quiz-2
+chapter: "10.4"
+section: quiz
+type: quiz
+title: barrier 的前提
+minutes: 1
+prompt: "`dispatch_barrier_async` 要發揮「獨占」效果，佇列必須是？"
+options:
+  - 自己用 DISPATCH_QUEUE_CONCURRENT 建立的並行佇列
+  - 任何佇列都可以，包括全域佇列
+  - 串列佇列
+  - 主佇列
+answer: 0
+explain: 送到全域佇列的 barrier 退化成普通 dispatch_async（系統不會為了你停下整個全域佇列）；串列佇列本來就是獨占，barrier 沒意義。
+hints: ["全域佇列是大家共用的，系統會讓你擋住它嗎？", "串列佇列需要 barrier 嗎？"]
+feedback:
+  "1": 全域佇列上的 barrier 靜默失效，這是最難發現的那種 bug。

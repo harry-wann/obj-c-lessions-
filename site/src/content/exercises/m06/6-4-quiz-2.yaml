@@ -1,0 +1,18 @@
+id: m06-6-4-quiz-2
+chapter: "6.4"
+section: quiz
+type: quiz
+title: context 為什麼用靜態變數位址
+minutes: 1
+prompt: "`addObserver:forKeyPath:options:context:` 的 `context` 慣例傳一個靜態變數的位址，為什麼？"
+options:
+  - 因為 context 必須是 C 字串
+  - "回呼 observeValueForKeyPath: 是整個類別共用的一個方法，父類別可能也在觀察同一個 keyPath；用唯一位址比對才知道這次通知是不是自己註冊的，不是就交給 super"
+  - 這樣 KVO 才能自動在 dealloc 移除觀察
+  - 傳 NULL 會 crash
+answer: 1
+explain: 位址在整個程式唯一，比字串比對快也不會撞名。不比對 context 又不呼叫 super，父類別（例如 UIKit 的類別）的通知就被你吃掉。
+hints: ["observeValueForKeyPath: 一個類別有幾個？", "父類別也用 KVO 時會怎樣？"]
+feedback:
+  "2": KVO 不會自動移除任何東西，context 只用來辨識。
+  "3": NULL 合法，只是你就沒辦法分辨來源。

@@ -1,0 +1,337 @@
+---
+title: GCD 與派送佇列
+module: 7
+chapter: "7.3"
+order: 3
+minutes: 50
+prereq: ["7.2", "5.5"]
+objectives:
+  - "分辨串列 / 並行佇列、主佇列 / 全域佇列 / 自建佇列，並預測 dispatch_async / dispatch_sync 的執行順序"
+  - "用 dispatch_after、dispatch_once、dispatch_group、dispatch_barrier_async、dispatch_semaphore 解決延遲、單例、等多個任務、讀寫鎖、限流五種需求"
+  - "說出主佇列上 dispatch_sync 到主佇列為什麼死結，以及在 Debug Navigator 怎麼看出來"
+summary: "佇列概念（串列 / 並行）、main / global / dispatch_queue_create、dispatch_async vs dispatch_sync、dispatch_after、dispatch_once 單例、dispatch_group、dispatch_barrier_async、dispatch_semaphore；對照 Swift DispatchQueue、Kotlin coroutines Dispatchers、Java ExecutorService、JS 事件迴圈。"
+terms:
+  - { en: Grand Central Dispatch (GCD), tw: GCD, cn: GCD, jp: GCD }
+  - { en: dispatch queue, tw: 派送佇列, cn: 派发队列 / 调度队列, jp: ディスパッチキュー }
+  - { en: serial queue, tw: 串列佇列, cn: 串行队列, jp: シリアルキュー }
+  - { en: concurrent queue, tw: 並行佇列, cn: 并发队列, jp: 並行キュー }
+  - { en: main queue, tw: 主佇列, cn: 主队列, jp: メインキュー }
+  - { en: quality of service (QoS), tw: 服務品質, cn: 服务质量, jp: サービス品質 }
+  - { en: deadlock, tw: 死結, cn: 死锁, jp: デッドロック }
+  - { en: semaphore, tw: 號誌, cn: 信号量, jp: セマフォ }
+  - { en: barrier, tw: 屏障, cn: 栅栏, jp: バリア }
+appProgress: "LBRateFetcher 的同步 stub 改成在背景佇列抓、主佇列回呼；+[LBSettings shared] 用 dispatch_once。"
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+DispatchQueue.global(qos: .userInitiated).async {
+    let rates = loadRates()                      // 背景
+    DispatchQueue.main.async {
+        self.label.text = rates.description      // 回主執行緒更新 UI
+    }
+}
+DispatchQueue.main.asyncAfter(deadline: .now() + 2) { print("2 秒後") }
+let group = DispatchGroup()
+group.enter(); fetchA { group.leave() }
+group.enter(); fetchB { group.leave() }
+group.notify(queue: .main) { print("兩個都完成") }
+// Swift 5.5+：
+let rates = await loadRatesAsync(); label.text = ...   // 編譯器幫你切回 MainActor
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+viewModelScope.launch {                           // ≈ dispatch_async(main)
+    val rates = withContext(Dispatchers.IO) {     // ≈ dispatch_async(global) + 回來
+        loadRates()
+    }
+    label.text = rates.toString()                 // 回到 Dispatchers.Main
+}
+delay(2000)                                       // ≈ dispatch_after，但不卡執行緒
+val a = async { fetchA() }; val b = async { fetchB() }
+awaitAll(a, b)                                    // ≈ dispatch_group
+val lazyInstance by lazy { Settings() }           // ≈ dispatch_once
+```
+</Fragment>
+<Fragment slot="java">
+```java
+ExecutorService io = Executors.newFixedThreadPool(4);        // ≈ 並行佇列
+ExecutorService serial = Executors.newSingleThreadExecutor(); // ≈ 串列佇列
+io.submit(() -> {
+    var rates = loadRates();
+    SwingUtilities.invokeLater(() -> label.setText(rates.toString()));  // ≈ main.async
+});
+Future<?> f = io.submit(task); f.get();                      // ≈ dispatch_sync（會卡住）
+CountDownLatch latch = new CountDownLatch(2);                // ≈ dispatch_group
+Semaphore sem = new Semaphore(3);                            // ≈ dispatch_semaphore
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// 單執行緒事件迴圈：沒有第二條執行緒，只有「排到後面」
+setTimeout(() => console.log("2 秒後"), 2000);     // ≈ dispatch_after
+queueMicrotask(() => console.log("下一個 tick"));  // ≈ dispatch_async(main)
+await Promise.all([fetchA(), fetchB()]);           // ≈ dispatch_group
+// 沒有 dispatch_sync 的對應：阻塞唯一的執行緒就是把頁面卡死
+// 真的要多執行緒：new Worker("worker.js")，用 postMessage 溝通
+```
+</Fragment>
+GCD（<Term en="Grand Central Dispatch (GCD)" tw="GCD" cn="GCD" jp="GCD" />）是 Apple 平台的並行基礎設施，Swift 的 `DispatchQueue` 就是它的一對一包裝，所以 Swift 工程師學這一章只是換語法。Kotlin coroutines 的對照也很直接：`Dispatchers.Main` 就是主佇列、`withContext(Dispatchers.IO)` 就是「丟到全域佇列、做完回來」、`launch` 就是 `dispatch_async`。差別在 `suspend`：coroutine 可以在函式中間暫停再回來，GCD **沒有這個能力**，所有「做完之後」都得寫成 block 回呼，巢狀深了就是 callback pyramid。Java 的 `ExecutorService` 對應佇列、`Future.get()` 對應 `dispatch_sync`。最需要換腦袋的是 TS 工程師：JS 只有一條執行緒，`setTimeout` 與 `await` 都只是「排到後面」，從來不會有兩段程式**同時**跑。GCD 的全域佇列是真的多執行緒，從這一章起你得開始想「兩段程式同時碰同一個變數會怎樣」。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 佇列：你不管執行緒，你管佇列
+
+<Term en="dispatch queue" tw="派送佇列" cn="派发队列 / 调度队列" jp="ディスパッチキュー" />是一個放 block 的 FIFO 佇列，系統從裡面拿 block 出來在某條執行緒上執行。你不建立執行緒、不管理執行緒池，只決定「這段程式丟到哪個佇列」。佇列只有兩種：
+
+- <Term en="serial queue" tw="串列佇列" cn="串行队列" jp="シリアルキュー" />：一次只執行一個 block，前一個做完才拿下一個。順序有保證。
+- <Term en="concurrent queue" tw="並行佇列" cn="并发队列" jp="並行キュー" />：block 依 FIFO 順序**開始**，但可以多個同時在跑，誰先結束沒有保證。
+
+```objc
+dispatch_queue_t main   = dispatch_get_main_queue();                 // 串列，綁主執行緒
+dispatch_queue_t global = dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0);  // 並行，系統共用
+dispatch_queue_t mine   = dispatch_queue_create("com.littlebook.ledger", DISPATCH_QUEUE_SERIAL);
+dispatch_queue_t pool   = dispatch_queue_create("com.littlebook.import", DISPATCH_QUEUE_CONCURRENT);
+```
+
+<Term en="main queue" tw="主佇列" cn="主队列" jp="メインキュー" />是唯一跟特定執行緒綁死的佇列：它上面的 block 永遠在主執行緒跑，所有 UI 更新都要回到這裡。全域佇列依<Term en="quality of service (QoS)" tw="服務品質" cn="服务质量" jp="サービス品質" />分四級：`USER_INTERACTIVE`（動畫相關，幾乎不用）、`USER_INITIATED`（使用者點了在等）、`UTILITY`（進度條型的長任務）、`BACKGROUND`（使用者看不到的同步、備份）。選錯等級不會壞，但會影響系統排程與耗電；拿不定主意選 `UTILITY`。自建佇列的名字用反向 DNS，Debug Navigator 與 crash log 會顯示它，取好名字等於替未來的自己留線索。
+
+### `dispatch_async` vs `dispatch_sync`
+
+```objc
+NSLog(@"1");
+dispatch_async(global, ^{ NSLog(@"2"); });
+NSLog(@"3");
+// 輸出：1 3 2 或 1 2 3 —— 2 跟 3 誰先沒有保證，但 1 一定最先
+```
+
+`dispatch_async` 把 block 丟進佇列**立刻回來**，不等它執行。`dispatch_sync` 丟進去然後**卡在原地**直到 block 執行完：
+
+```objc
+NSLog(@"1");
+dispatch_sync(mine, ^{ NSLog(@"2"); });
+NSLog(@"3");
+// 輸出：1 2 3，保證
+```
+
+`dispatch_sync` 的用途很窄：「我需要那個佇列上的某個值，而且現在就要」，例如從保護狀態的串列佇列讀一個數字出來（7.5）。它的風險很大：卡住呼叫者的執行緒，而且如果目標佇列正好就是你現在所在的串列佇列，就是<Term en="deadlock" tw="死結" cn="死锁" jp="デッドロック" />：你在等 block 執行完，block 在等你讓出佇列，兩邊永遠等不到。最經典的版本是主執行緒上 `dispatch_sync(dispatch_get_main_queue(), ...)`，畫面瞬間卡死，沒有任何錯誤訊息。本章 crash 現場會教你怎麼看。
+
+### `dispatch_after`：延遲執行
+
+```objc
+dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)),
+               dispatch_get_main_queue(), ^{
+    NSLog(@"兩秒後");
+});
+```
+
+兩件事要知道：時間單位是**奈秒**，所以要乘 `NSEC_PER_SEC`；它是「至少兩秒後**排進**佇列」，不是「剛好兩秒後執行」，如果主佇列那時很忙就會晚。`dispatch_after` 沒有取消 API，要能取消的延遲用 `NSTimer`、`dispatch_block_cancel`（配 `dispatch_block_create`）或 10.x 的 debounce 寫法。
+
+### `dispatch_once`：單例
+
+```objc
++ (instancetype)shared {
+    static LBSettings *instance = nil;
+    static dispatch_once_t onceToken;             // 一定要 static（或全域）
+    dispatch_once(&onceToken, ^{
+        instance = [[LBSettings alloc] init];
+    });
+    return instance;
+}
+```
+
+`dispatch_once` 保證那個 block 在整個程式生命週期只跑一次，而且是執行緒安全的：兩條執行緒同時第一次呼叫 `shared`，一條建立、另一條等它建完。token 必須是 `static` 或全域變數，因為 `dispatch_once` 靠 token 的記憶體位置記住「跑過了」；宣告成區域變數，每次呼叫都是新的 0，就每次都跑。Swift 的 `static let shared = LBSettings()` 底層就是它；Kotlin 的 `object` 與 `by lazy` 同理。
+
+### `dispatch_group`：等多個任務全部完成
+
+```objc
+dispatch_group_t group = dispatch_group_create();
+for (NSString *code in @[@"USD", @"JPY", @"EUR"]) {
+    dispatch_group_enter(group);                                  // +1
+    [fetcher fetchRate:code completion:^(NSDecimalNumber *rate) {
+        [rates setObject:rate forKey:code];                       // 7.5 會回來談這一行安不安全
+        dispatch_group_leave(group);                              // −1
+    }];
+}
+dispatch_group_notify(group, dispatch_get_main_queue(), ^{
+    NSLog(@"三個都回來了：%@", rates);
+});
+```
+
+group 是一個計數器：`enter` 加一、`leave` 減一、歸零時觸發 `notify` 的 block。對「本來就是非同步、有自己回呼」的任務用 `enter` / `leave`；對單純要丟到佇列的 block 用 `dispatch_group_async(group, queue, block)`，它自動幫你配對。`dispatch_group_wait(group, timeout)` 是阻塞版，等到歸零或超時才回來，只能在背景執行緒用。`enter` 跟 `leave` 數量不配對是最常見的 bug：少一個 `leave`，`notify` 永遠不來；多一個 `leave`，直接 crash。每條會 return 的路徑都要有 `leave`。
+
+### `dispatch_barrier_async`：在並行佇列上插一道屏障
+
+```objc
+dispatch_queue_t q = dispatch_queue_create("com.littlebook.ledger", DISPATCH_QUEUE_CONCURRENT);
+dispatch_async(q, ^{ /* 讀 */ });
+dispatch_async(q, ^{ /* 讀 */ });
+dispatch_barrier_async(q, ^{ /* 寫：等前面的讀都做完才開始，做完前後面的都不能開始 */ });
+dispatch_async(q, ^{ /* 讀 */ });
+```
+
+<Term en="barrier" tw="屏障" cn="栅栏" jp="バリア" />block 在並行佇列上獨佔執行：它會等前面已開始的 block 全部結束，自己單獨跑，跑完後面的才能開始。這就是讀寫鎖：讀可以多人同時、寫要獨佔。**只對自建的並行佇列有效**，對全域佇列用 barrier 會退化成普通的 `dispatch_async`（系統不讓你獨佔共用資源）。7.5 的帳本重構會用它。
+
+### `dispatch_semaphore`：限制同時進行的數量
+
+```objc
+dispatch_semaphore_t sem = dispatch_semaphore_create(2);       // 最多 2 個同時
+for (NSURL *url in urls) {
+    dispatch_async(global, ^{
+        dispatch_semaphore_wait(sem, DISPATCH_TIME_FOREVER);     // 拿不到就等
+        [self download:url];
+        dispatch_semaphore_signal(sem);                          // 還回去
+    });
+}
+```
+
+<Term en="semaphore" tw="號誌" cn="信号量" jp="セマフォ" />是一個計數器：`wait` 減一，減到負數就卡住；`signal` 加一，喚醒一個在等的人。初始值 N 就是「最多 N 個同時」。初始值 0 的號誌常被拿來把非同步 API 變同步（`wait` 等到回呼裡 `signal`），**這只能在背景執行緒做**，在主執行緒上等一個會回主佇列的回呼就是另一種死結。10.x 的 `fetchRatesForBases:maxConcurrent:` 用它限流。
+
+### 完整範例（可貼進 Scratch）
+
+```objc
+#import <Foundation/Foundation.h>
+
+int main(void) {
+    dispatch_queue_t serial = dispatch_queue_create("com.littlebook.serial", DISPATCH_QUEUE_SERIAL);
+    dispatch_queue_t conc   = dispatch_queue_create("com.littlebook.conc", DISPATCH_QUEUE_CONCURRENT);
+    dispatch_queue_t main   = dispatch_get_main_queue();
+
+    NSLog(@"A");
+    dispatch_async(serial, ^{ NSLog(@"B"); });
+    dispatch_sync(serial,  ^{ NSLog(@"C"); });      // 等 B、C 都做完才往下
+    NSLog(@"D");
+
+    // group + barrier
+    dispatch_group_t group = dispatch_group_create();
+    NSMutableArray *log = [NSMutableArray array];
+    for (int i = 0; i < 3; i++) {
+        dispatch_group_async(group, conc, ^{
+            dispatch_barrier_async(conc, ^{ [log addObject:@(i)]; });   // 寫入用 barrier 保護
+        });
+    }
+    dispatch_group_notify(group, main, ^{
+        dispatch_barrier_sync(conc, ^{ NSLog(@"group 完成，共 %lu 筆", (unsigned long)log.count); });
+    });
+
+    // once
+    for (int i = 0; i < 3; i++) {
+        static dispatch_once_t token;
+        dispatch_once(&token, ^{ NSLog(@"只有一次"); });
+    }
+
+    // after + 結束
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), main, ^{
+        NSLog(@"0.5 秒後，結束");
+        exit(0);
+    });
+
+    dispatch_main();      // 命令列程式沒有 run loop，要讓主佇列動起來
+    return 0;
+}
+// 預期輸出：
+// A
+// B
+// C
+// D
+// 只有一次
+// group 完成，共 3 筆
+// 0.5 秒後，結束
+```
+
+`dispatch_main()` 是命令列程式才需要的：iOS App 的主執行緒本來就有 run loop 在跑主佇列，Scratch 沒有，不呼叫它 `main` 直接 return、程式結束、主佇列上的 block 一個都不會執行。「group 完成」排在「只有一次」之後是因為 `notify` 要等三個背景 block 做完才排進主佇列，而主佇列要等 `dispatch_main()` 才開始消化。
+
+<Steps title="死結時怎麼在 Debug Navigator 看">
+<ol>
+<li>App 卡住、沒有 crash、Xcode 什麼都沒印：先按 Debug 工具列的 Pause（⏸）。</li>
+<li>左側 Debug Navigator（⌘7）切到依執行緒檢視，展開 <code>Thread 1 Queue: com.apple.main-thread</code>。</li>
+<li>最上面幾個 frame 若是 <code>__ulock_wait</code> → <code>_dispatch_lock_wait</code> → <code>_dispatch_sync_f_slow</code>，就是 <code>dispatch_sync</code> 在等。往下找第一個自己的方法，就是寫錯的那一行。</li>
+<li>展開其他執行緒，找同樣在 <code>_dispatch_sync_f_slow</code> 或 <code>dispatch_semaphore_wait</code> 停住的那一條；兩條互相等就是死結。</li>
+<li>在 lldb 輸入 <code>thread backtrace all</code> 可以一次印出全部，貼進 issue 給同事看。</li>
+</ol>
+</Steps>
+
+<Pitfall title="主執行緒上 dispatch_sync 到主佇列">
+<Fragment slot="bad">
+```objc
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    dispatch_sync(dispatch_get_main_queue(), ^{     // 自己等自己
+        self.titleLabel.text = @"小帳本";
+    });
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (void)updateTitle {
+    if ([NSThread isMainThread]) {
+        self.titleLabel.text = @"小帳本";
+    } else {
+        dispatch_async(dispatch_get_main_queue(), ^{ self.titleLabel.text = @"小帳本"; });
+    }
+}
+```
+</Fragment>
+`viewDidLoad` 已經在主執行緒，`dispatch_sync` 要等 block 執行完，但 block 排在主佇列尾端，要等現在這段程式（也就是 `dispatch_sync` 本身）結束才輪到它。畫面凍住、沒有訊息。「不確定在哪條執行緒就 `dispatch_async(main)`」永遠安全，頂多晚一個 run loop。
+</Pitfall>
+
+<Pitfall title="dispatch_once 的 token 宣告成區域變數">
+<Fragment slot="bad">
+```objc
++ (instancetype)shared {
+    dispatch_once_t token;           // 每次呼叫都是新變數，值是垃圾或 0
+    static LBSettings *instance;
+    dispatch_once(&token, ^{ instance = [LBSettings new]; });
+    return instance;
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
++ (instancetype)shared {
+    static dispatch_once_t token;    // static：整個程式只有這一份
+    static LBSettings *instance;
+    dispatch_once(&token, ^{ instance = [LBSettings new]; });
+    return instance;
+}
+```
+</Fragment>
+新版編譯器會對非 static 的 token 給警告，別忽略它。症狀是單例每次都是新物件，設定存了又不見。
+</Pitfall>
+
+<Pitfall title="group 的 enter / leave 不配對">
+非同步 API 的回呼裡有 early return（例如 `if (error) return;`）而 `dispatch_group_leave` 寫在 return 之後，計數永遠不歸零，`notify` 永遠不來，畫面上的轉圈圈轉到天荒地老。規則：`leave` 放在回呼的**第一行**，或者每條 return 路徑前都寫一次。反過來 `leave` 比 `enter` 多一次會 crash：`BUG IN CLIENT OF LIBDISPATCH: Unbalanced call to dispatch_group_leave()`。
+</Pitfall>
+
+<Pitfall title="對全域佇列用 barrier">
+`dispatch_barrier_async(dispatch_get_global_queue(...), ^{ 寫 })` 不會報錯，但 barrier 語意直接消失，變成普通 `dispatch_async`，寫入跟其他讀取還是會同時發生。barrier 只在**自己建的** `DISPATCH_QUEUE_CONCURRENT` 佇列上有效。要用讀寫鎖就自己建佇列。
+</Pitfall>
+
+<Crash message={`（沒有 crash、沒有訊息，畫面卡死。按 Pause 後 Debug Navigator：）
+Thread 1 Queue : com.apple.main-thread (serial)
+#0  0x00000001a1c3e2d4 in __ulock_wait ()
+#1  0x00000001a0f4d7a8 in _dlock_wait ()
+#2  0x00000001a0f4d5b0 in _dispatch_lock_wait ()
+#3  0x00000001a0f4f0c0 in _dispatch_sync_f_slow ()
+#4  0x0000000104a1d3f8 in -[LBLedgerViewController viewDidLoad] at LBLedgerViewController.m:42
+#5  0x00000001b2c4e8a0 in -[UIViewController _sendViewDidLoadWithAppearanceProxyObjectTaggingEnabled] ()`}>
+死結是本模組唯一沒有錯誤訊息的 crash 現場，所以要先學會「主動去看」。第 42 行是 `dispatch_sync(dispatch_get_main_queue(), ...)`：`_dispatch_sync_f_slow` 代表 `dispatch_sync` 走進了慢速路徑（目標佇列正忙），`__ulock_wait` 是它在等鎖。而目標佇列（主佇列）正忙的原因就是 `viewDidLoad` 本身還沒返回。某些情況 libdispatch 偵測得到「同步派送到自己正在執行的佇列」，會直接以 `EXC_BAD_INSTRUCTION` 終止並印出 `BUG IN CLIENT OF LIBDISPATCH: dispatch_sync called on queue already owned by current thread`，這算幸運的版本；主佇列的死結通常不會有這個提示。修法：改 `dispatch_async`，或先判 `[NSThread isMainThread]`。類似的另一種死結是主執行緒上 `dispatch_semaphore_wait` 等一個回主佇列的回呼，frame 會停在 `dispatch_semaphore_wait` 而不是 `_dispatch_sync_f_slow`。
+</Crash>
+
+## 小結
+
+- GCD 讓你管佇列不管執行緒。佇列分**串列**（一次一個、順序保證）與**並行**（依序開始、同時執行）；主佇列綁主執行緒，全域佇列依 QoS 分級，自建佇列取反向 DNS 名字。
+- `dispatch_async` 丟了就走；`dispatch_sync` 等到做完才回來，用途窄、風險大。主執行緒上 sync 到主佇列 = 死結，沒有訊息，按 Pause 看 Debug Navigator。
+- `dispatch_after` 單位是奈秒、不能取消；`dispatch_once` token 必須 static；`dispatch_group` 的 enter / leave 要配對；barrier 只對自建並行佇列有效；semaphore 初始值 = 最多同時幾個。
+- 命令列範例最後要 `dispatch_main()` 主佇列才會動；iOS App 有 run loop 不用。
+- 對照：Swift `DispatchQueue` 一對一；Kotlin `Dispatchers.Main` = 主佇列、`withContext(IO)` = async 到 global 再回來，但 GCD 沒有 `suspend`，一切靠回呼。

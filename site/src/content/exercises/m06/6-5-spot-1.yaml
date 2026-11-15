@@ -1,0 +1,43 @@
+id: m06-6-5-spot-1
+chapter: "6.5"
+type: spot
+title: 這個 swizzle 有兩個問題
+minutes: 3
+prompt: 這段埋點程式碼有兩處會出事。點出有問題的行並選原因。
+code: |
+  @implementation UIViewController (LBTracking)
+  + (void)initialize {
+      Method o = class_getInstanceMethod(self, @selector(viewDidAppear:));
+      Method s = class_getInstanceMethod(self, @selector(lb_viewDidAppear:));
+      method_exchangeImplementations(o, s);
+  }
+  - (void)lb_viewDidAppear:(BOOL)animated {
+      [self viewDidAppear:animated];
+      NSLog(@"[頁面] %@", NSStringFromClass([self class]));
+  }
+  @end
+bug_lines: [2, 8]
+reasons:
+  - "swizzle 放在 +initialize 會被每個子類別再觸發、交換多次等於換回去，應放 +load 並包 dispatch_once；第 8 行呼叫原名稱會跳回自己，無限遞迴，要呼叫 lb_viewDidAppear:"
+  - 分類裡不能宣告 +initialize
+  - "class_getInstanceMethod 應該改用 class_getClassMethod"
+  - "NSStringFromClass 不能在 viewDidAppear: 裡呼叫"
+answer_reason: 0
+fix: |
+  + (void)load {
+      static dispatch_once_t once;
+      dispatch_once(&once, ^{
+          Method o = class_getInstanceMethod(self, @selector(viewDidAppear:));
+          Method s = class_getInstanceMethod(self, @selector(lb_viewDidAppear:));
+          method_exchangeImplementations(o, s);
+      });
+  }
+  - (void)lb_viewDidAppear:(BOOL)animated {
+      [self lb_viewDidAppear:animated];
+      NSLog(@"[頁面] %@", NSStringFromClass([self class]));
+  }
+solution_note: 兩個最常見的 swizzle 事故：放錯地方（+initialize 多次觸發）與交換後呼叫錯名字（無限遞迴）。完整樣板還會先 class_addMethod 避免換到父類別，但對 UIViewController 本身 swizzle 它自己有實作，可省。
+hints: ["+initialize 會被觸發幾次？偶數次交換等於什麼？", "交換之後，viewDidAppear: 這個名字指向誰？"]
+feedback:
+  "1": 分類可以實作 +initialize（會覆寫類別的，這是另一個問題），但不是這題的錯。
+  "2": "viewDidAppear: 是實體方法，class_getInstanceMethod 正確。"

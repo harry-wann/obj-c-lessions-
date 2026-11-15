@@ -1,0 +1,304 @@
+---
+title: UITableView 不掉幀
+module: 10
+chapter: "10.2"
+order: 2
+minutes: 45
+prereq: ["10.1", "8.2", "4.4"]
+objectives:
+  - 把 cell 配置方法改成「零格式化」：view model 在背景算好字串，cell 只貼
+  - 找出並修掉離屏渲染與圖層混合：cornerRadius + masksToBounds、沒有 shadowPath 的陰影、透明背景
+  - 說出列高快取、prepareForReuse 最小重設與 prefetchDataSource 各解決什麼問題
+summary: "cellForRowAtIndexPath: 內不准建 formatter / 算字串 / 同步 I/O；view model 預先算好（背景 + LRU 快取）；列高快取 vs estimatedRowHeight；prepareForReuse 最小重設；離屏渲染（cornerRadius + masksToBounds、shadowPath、mask）；圖層混合與不透明背景；prefetchDataSource；Color Blended Layers / Offscreen-Rendered。"
+terms:
+  - { en: view model, tw: 檢視模型（view model）, cn: 视图模型, jp: ビューモデル }
+  - { en: offscreen rendering, tw: 離屏渲染, cn: 离屏渲染, jp: オフスクリーンレンダリング }
+  - { en: blending, tw: 圖層混合, cn: 图层混合, jp: ブレンディング }
+  - { en: cell reuse, tw: cell 重用, cn: cell 复用, jp: セルの再利用 }
+  - { en: prefetching, tw: 預先擷取, cn: 预取, jp: プリフェッチ }
+appProgress: LBTransactionViewModel 加 LRU 快取、cell 內零格式化；Color Offscreen-Rendered 全綠；捲動 100,000 筆 ≥ 58 FPS。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// 同一套 UIKit：規則一樣，cell 只貼 view model
+func tableView(_ tv: UITableView, cellForRowAt ip: IndexPath) -> UITableViewCell {
+    let cell = tv.dequeueReusableCell(withIdentifier: "LBTransactionCell", for: ip)
+    (cell as! LBTransactionCell).configure(with: viewModels[ip.row])  // 字串早就算好
+    return cell
+}
+// 資料變動：UITableViewDiffableDataSource 在背景算 diff
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+class TxAdapter : ListAdapter<TxRow, TxVH>(DIFF) {   // DiffUtil 在背景算差異
+    override fun onBindViewHolder(h: TxVH, pos: Int) {
+        val row = getItem(pos)          // row.amountText 已經是字串
+        h.amount.text = row.amountText  // 這裡不准 new DecimalFormat()
+    }
+}
+```
+</Fragment>
+<Fragment slot="java">
+```java
+@Override public void onBindViewHolder(TxVH h, int pos) {
+    TxRow row = rows.get(pos);
+    h.amount.setText(row.amountText);   // 同樣：綁定只做賦值
+}
+// RecyclerView.setHasFixedSize(true) ↔ 固定列高；setItemViewCacheSize ↔ 預先擷取
+```
+</Fragment>
+<Fragment slot="ts">
+```tsx
+// react-window：只渲染可見列；格式化結果用 useMemo 快取
+const rows = useMemo(() => txs.map(toRow), [txs]);   // 一次算好
+<FixedSizeList itemCount={rows.length} itemSize={56}>
+  {({ index, style }) => <div style={style}>{rows[index].amountText}</div>}
+</FixedSizeList>
+```
+</Fragment>
+RecyclerView 的 `onBindViewHolder`、react-window 的 row renderer、UIKit 的 `cellForRowAtIndexPath:`，是同一個角色：**每捲一列就被叫一次，可能一秒上百次**。所有平台的最佳實務都是同一句話：綁定方法裡只做賦值，顯示字串在別處一次算好。Android 的 `DiffUtil` 在背景算差異再套到列表，跟 10.6 要做的「背景 diff、主執行緒套用」是同一招。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### cellForRowAtIndexPath: 的三條禁令
+
+1. **不准建立 formatter。** `NSDateFormatter` / `NSNumberFormatter` 的建立成本是毫秒級（要載入 locale 資料），`stringFromDate:` 本身也要幾十微秒。一列兩個 formatter、一幀畫三列，預算就沒了。
+2. **不准算字串。** `stringWithFormat:`、金額的 `NSDecimalNumber` 四捨五入、分類名稱的拼接，都該在資料變動時算一次，而不是每次捲到那一列再算。
+3. **不准同步 I/O。** `UIImage imageNamed:` 以外的任何讀檔、`NSUserDefaults` 以外的任何磁碟存取，都不能出現在這裡。
+
+### view model：把「算」搬出 cell
+
+模組 8 已經有 `LBTransactionViewModel`，本章補兩件事：字串在背景算、算過的用 LRU 快取。
+
+```objc
+// LBTransactionViewModel.m
+@implementation LBTransactionViewModel
+
++ (NSDateFormatter *)dateFormatter {         // 整個 App 共用一個
+    static NSDateFormatter *f;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        f = [NSDateFormatter new];
+        f.dateFormat = @"M/d EEE";
+    });
+    return f;
+}
+
++ (LBLRUCache *)cache {                        // 4.4 寫的 LRU
+    static LBLRUCache *c;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        c = [[LBLRUCache alloc] initWithCapacity:500];
+    });
+    return c;
+}
+
++ (instancetype)viewModelWithTransaction:(LBTransaction *)tx {
+    NSString *key = [NSString stringWithFormat:@"%@-%@",
+                     tx.identifier, @(tx.modifiedAt.timeIntervalSince1970)];
+    LBTransactionViewModel *cached = [[self cache] objectForKey:key];
+    if (cached) return cached;                 // 命中：零格式化
+
+    LBTransactionViewModel *vm = [LBTransactionViewModel new];
+    vm->_title = [tx.note copy];
+    vm->_subtitle = [NSString stringWithFormat:@"%@ · %@",
+                     [[self dateFormatter] stringFromDate:tx.date],
+                     tx.category.name];
+    vm->_amountText = [tx.amount lb_currencyString];   // NSNumberFormatter 也共用
+    vm->_isExpense = tx.isExpense;
+    vm->_symbolName = tx.category.symbolName;
+    [[self cache] setObject:vm forKey:key];
+    return vm;
+}
+@end
+```
+
+快取的 key 帶上 `modifiedAt`：交易被編輯後 key 變了，舊的 view model 自然失效，不用手動清。`LBTransactionViewModelTests/testFormatsOnceAndCaches` 用一個計數的 formatter 子類別確認同一筆交易第二次呼叫沒有再格式化。
+
+view model 的建立放在資料變動時的背景佇列：
+
+```objc
+// LBTransactionListViewController.m
+- (void)ledgerDidChange {
+    NSArray<LBTransaction *> *txs = [self.ledger transactions];   // 快照
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSMutableArray *vms = [NSMutableArray arrayWithCapacity:txs.count];
+        for (LBTransaction *tx in txs) {
+            [vms addObject:[LBTransactionViewModel viewModelWithTransaction:tx]];
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.viewModels = vms;
+            [self.tableView reloadData];
+        });
+    });
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView
+         cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    LBTransactionCell *cell =
+        [tableView dequeueReusableCellWithIdentifier:@"LBTransactionCell"
+                                        forIndexPath:indexPath];
+    [cell configureWithViewModel:self.viewModels[indexPath.row]];  // 只貼
+    return cell;
+}
+```
+
+注意 `LBTransactionViewModel` 的屬性都是 `readonly, copy`：它是不可變的值物件，所以在背景建立、主執行緒讀取不需要鎖。
+
+### formatter 共用到底差多少
+
+貼進 Scratch 看數字：
+
+```objc
+#import <Foundation/Foundation.h>
+#import <QuartzCore/QuartzCore.h>
+
+int main(void) {
+    @autoreleasepool {
+        NSDate *d = [NSDate date];
+        NSUInteger n = 2000;             // 捲動 100 列、每列 20 次重綁
+
+        CFTimeInterval t0 = CACurrentMediaTime();
+        for (NSUInteger i = 0; i < n; i++) {
+            NSDateFormatter *f = [NSDateFormatter new];     // 每次新建
+            f.dateFormat = @"M/d EEE";
+            (void)[f stringFromDate:d];
+        }
+        CFTimeInterval t1 = CACurrentMediaTime();
+
+        NSDateFormatter *shared = [NSDateFormatter new];
+        shared.dateFormat = @"M/d EEE";
+        for (NSUInteger i = 0; i < n; i++) (void)[shared stringFromDate:d];
+        CFTimeInterval t2 = CACurrentMediaTime();
+
+        NSString *cached = [shared stringFromDate:d];
+        for (NSUInteger i = 0; i < n; i++) (void)[cached length];
+        CFTimeInterval t3 = CACurrentMediaTime();
+
+        NSLog(@"新建 %.1f ms / 共用 %.1f ms / 快取 %.3f ms",
+              (t1 - t0) * 1000, (t2 - t1) * 1000, (t3 - t2) * 1000);
+        NSLog(@"每列：新建 %.3f ms", (t1 - t0) * 1000 / n);
+    }
+    return 0;
+}
+// 預期輸出（數字依機器不同，比例相近）：
+// 新建 310.2 ms / 共用 9.8 ms / 快取 0.012 ms
+// 每列：新建 0.155 ms
+```
+
+每列 0.15 ms 看起來不多，但一列有日期、金額兩個 formatter，加上 Auto Layout 與繪製，一幀畫 3 列就是 1 ms 以上純粹浪費。共用 formatter 省 30 倍，快取字串再省 1000 倍。
+
+### 列高：快取或估計
+
+列高不固定時，`heightForRowAtIndexPath:` 對每一列都會被呼叫（table view 要算 content size）。兩條路：
+
+- **`estimatedRowHeight` + `UITableViewAutomaticDimension`**：table view 先用估計值排版，捲到時才算真實高度。寫法最少，但估計差太多會讓捲動條跳動。
+- **預先算好快取**：在建 view model 時順便算 `rowHeight`（文字寬度已知時用 `boundingRectWithSize:`），`heightForRowAtIndexPath:` 只回傳數字。小帳本的交易 cell 固定 56 pt，直接設 `tableView.rowHeight = 56`，連 delegate 方法都不實作，最快。
+
+### prepareForReuse：只重設會殘留的
+
+`prepareForReuse` 在 cell 被重用前呼叫，正確用途是清掉「下一次配置不一定會蓋掉」的狀態：取消進行中的圖片下載、重設 `accessoryType`、把選取狀態清掉。**不要**在裡面把每個 label 設成 nil，`configureWithViewModel:` 馬上又會全部設回來，白做一次 layout。模組 8 的 `testCellResetsAllFields` 檢查的是「配置會蓋掉所有欄位」，不是「prepareForReuse 清光」。
+
+### 離屏渲染與圖層混合
+
+Render Server 畫圖層時，有些效果沒辦法一次畫完，得先畫到一塊額外的緩衝區再合回來，這就是<Term en="offscreen rendering" tw="離屏渲染" cn="离屏渲染" jp="オフスクリーンレンダリング" />。每個離屏圖層都是一次額外的 GPU 來回，一列三個就夠掉幀。三大兇手：
+
+```objc
+// LBTransactionCell.m
+// ✗ 離屏：cornerRadius + masksToBounds 套在有子圖層或圖片的 view
+_iconView.layer.cornerRadius = 20;
+_iconView.layer.masksToBounds = YES;
+
+// ✗ 離屏：陰影沒給 shadowPath，每幀依內容重算
+_card.layer.shadowOpacity = 0.2;
+
+// ✗ 離屏：任何 layer.mask
+
+// ✓ 圖片在背景先裁成圓形，cell 只顯示
+_iconView.image = vm.roundedIcon;        // UIGraphicsImageRenderer 裁好
+
+// ✓ 給陰影形狀，Render Server 不用算
+_card.layer.shadowPath =
+    [UIBezierPath bezierPathWithRoundedRect:_card.bounds
+                               cornerRadius:12].CGPath;
+
+// ✓ 單純一個純色背景的 view 只設 cornerRadius 不設 masksToBounds，
+//   iOS 會走快速路徑，不離屏
+_badge.layer.cornerRadius = 8;
+```
+
+<Term en="blending" tw="圖層混合" cn="图层混合" jp="ブレンディング" />是另一件事：透明背景的 label 疊在 cell 上，GPU 要把每個像素跟下層混色。`label.backgroundColor = UIColor.systemBackgroundColor; label.opaque = YES;` 就不用混。效果比離屏小，但列表上百個 label 加起來看得出來。
+
+<Steps title="Debug 選單自我檢查">
+1. 模擬器選單 **Debug → Color Off-screen Rendered**：黃色區塊就是離屏圖層，目標是整個列表沒有黃色。
+2. **Debug → Color Blended Layers**：紅色是混合、綠色是不透明。label 與 cell 背景都該是綠的。
+3. 真機：Xcode 的 Debug → View Debugging → Rendering 選單有同樣的選項。
+4. 修完後 ⌘I 選 Time Profiler，錄 10 秒捲動，確認 `cellForRowAtIndexPath:` 在 Call Tree 裡占比 &lt; 10%，且底下沒有 `NSDateFormatter`。
+</Steps>
+
+### prefetchDataSource
+
+`UITableViewDataSourcePrefetching` 在列即將進入畫面前（通常提早好幾列）呼叫 `tableView:prefetchRowsAtIndexPaths:`，給你時間在背景準備重的東西（圖片解碼、網路縮圖）。小帳本的 view model 已經全部算好，用不上；真的需要時記得實作 `cancelPrefetchingForRowsAtIndexPaths:` 把捲過頭的取消。
+
+<Pitfall title="每個 cell 一個 NSDateFormatter">
+<Fragment slot="bad">
+```objc
+- (void)configureWithTransaction:(LBTransaction *)tx {
+    NSDateFormatter *f = [NSDateFormatter new];     // 每列 0.15 ms
+    f.dateFormat = @"M/d";
+    self.dateLabel.text = [f stringFromDate:tx.date];
+    NSNumberFormatter *nf = [NSNumberFormatter new]; // 再 0.1 ms
+    nf.numberStyle = NSNumberFormatterCurrencyStyle;
+    self.amountLabel.text = [nf stringFromNumber:tx.amount];
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (void)configureWithViewModel:(LBTransactionViewModel *)vm {
+    self.dateLabel.text = vm.subtitle;      // 字串早就算好
+    self.amountLabel.text = vm.amountText;
+}
+```
+</Fragment>
+Time Profiler 裡 `-[NSDateFormatter init]` 排第一名，是 iOS 列表卡頓最常見的原因，沒有之一。formatter 用 `dispatch_once` 共用（`NSDateFormatter` iOS 7 起執行緒安全），字串放 view model。
+</Pitfall>
+
+<Pitfall title="cornerRadius + masksToBounds 套在每列的圖片上">
+`imageView.layer.cornerRadius = 20; imageView.layer.masksToBounds = YES;` 看起來無害，開 Color Off-screen Rendered 整列都是黃的。裁圓的工作要在背景做一次（`UIGraphicsImageRenderer` 畫進圓形路徑），存成 `UIImage` 放進 view model。只有純色、沒有子圖層的 view 才可以直接設 `cornerRadius`。
+</Pitfall>
+
+<Pitfall title="陰影沒有 shadowPath">
+`layer.shadowOpacity = 0.3` 而沒給 `shadowPath`，Render Server 每幀都要從圖層內容算出陰影形狀。設 `shadowPath` 之後它只是把一個固定形狀畫模糊，便宜十倍。view 大小會變時在 `layoutSubviews` 更新 path。
+</Pitfall>
+
+<Pitfall title="每次資料變動都 reloadData">
+新增一筆交易就 `reloadData`，10 萬列的 table view 會重新問一遍 `numberOfRowsInSection:` 與可見列的 cell，還會把捲動位置弄亂。用 `performBatchUpdates:` 插入單列（10.3），或 `UITableViewDiffableDataSource` 幫你算（10.6）。
+</Pitfall>
+
+<Crash message={`Hang detected: 1.84s (debugger attached, not reporting)
+Main Thread Checker: UI API called on a background thread: -[UILabel setText:]
+PID: 1234, TID: 56789, Thread name: (none), Queue name: com.apple.root.user-initiated-qos, QoS: 25
+Backtrace:
+4   LittleBook  -[LBTransactionCell configureWithViewModel:] + 64
+5   LittleBook  __52-[LBTransactionListViewController ledgerDidChange]_block_invoke + 180`}>
+兩則訊息常常一起出現，都不是 crash，但都要處理。第一行是 Xcode 14 起內建的 **hang 偵測**：主執行緒連續 1.84 秒沒有回到 run loop，正式版會被 MetricKit 記錄成 hang，超過 10 秒就是 10.1 的 watchdog。第二段是 **Main Thread Checker**：有人在 `com.apple.root.user-initiated-qos`（全域佇列）上呼叫了 `setText:`，往下看自己的 frame：`configureWithViewModel:` 被 `ledgerDidChange` 的 block 直接在背景呼叫了。這是「把算搬到背景」時最容易犯的錯：連「貼」也搬過去了。修法是背景只建立 view model，`configureWithViewModel:` 一定在 `dispatch_async(dispatch_get_main_queue(), ...)` 裡面；hang 的部分用 Time Profiler 看那 1.84 秒主執行緒在跑什麼，多半是 formatter 或 reloadData。
+</Crash>
+
+## 小結
+
+- `cellForRowAtIndexPath:` 三條禁令：不建 formatter、不算字串、不做 I/O；cell 只貼 view model。
+- view model 是不可變值物件，在背景佇列建立、用 LRU 快取（key 帶 `modifiedAt` 自動失效）、主執行緒讀。
+- 列高固定就設 `rowHeight`；不固定用 `estimatedRowHeight` 或在 view model 裡預算快取。`prepareForReuse` 只清會殘留的狀態。
+- 離屏渲染三兇手：`cornerRadius` + `masksToBounds`、沒 `shadowPath` 的陰影、`mask`；混合用不透明背景解。Debug 選單 Color Off-screen Rendered / Blended Layers 要全綠。
+- Main Thread Checker 抓到背景改 UI；Hang detected 是主執行緒卡住的早期警告，用 Time Profiler 找出兇手。

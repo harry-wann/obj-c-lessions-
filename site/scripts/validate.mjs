@@ -31,7 +31,7 @@ for (const f of walk(join(root, 'exercises'), '.yaml')) {
   if (d.type === 'quiz' && typeof d.answer === 'number' && d.answer >= d.options.length) errors.push(`${rel}: answer 超出 options`);
   if (d.type === 'spot' && d.answer_reason >= d.reasons.length) errors.push(`${rel}: answer_reason 超出 reasons`);
   if (d.type === 'crash' && d.answer >= d.options.length) errors.push(`${rel}: answer 超出 options`);
-  if (d.type === 'fill') { const n = (d.code.match(/___\d+___/g) || []).length; if (n !== Object.keys(d.blanks).length) errors.push(`${rel}: 空格數 ${n} 與 blanks ${Object.keys(d.blanks).length} 不符`); }
+  if (d.type === 'fill') { const n = new Set(d.code.match(/___\d+___/g) || []).size; if (n !== Object.keys(d.blanks).length) errors.push(`${rel}: 空格數 ${n} 與 blanks ${Object.keys(d.blanks).length} 不符`); }
   if (d.type === 'code') for (const c of d.checks) for (const k of ['must_match','must_not_match']) if (c[k]) { try { new RegExp(c[k]); } catch (e) { errors.push(`${rel}: 正規表達式錯誤 ${c[k]}`); } }
   if (!chapters.has(d.chapter)) errors.push(`${rel}: 警告：找不到章節 ${d.chapter} 的課文`);
   if (!d.hints || d.hints.length === 0) if (!['xcode','flash'].includes(d.type)) errors.push(`${rel}: 警告：沒有 hints`);

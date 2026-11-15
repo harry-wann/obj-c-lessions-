@@ -1,0 +1,18 @@
+id: m08-8-1-quiz-3
+chapter: "8.1"
+section: quiz
+type: quiz
+title: 該在哪個狀態存檔
+minutes: 1
+prompt: 小帳本要在使用者切走 App 時把帳本寫進磁碟。最晚該在哪個回呼做？
+options:
+  - sceneWillResignActive:，來電時也會觸發
+  - sceneDidEnterBackground:，之後可能直接進 Suspended 被殺而沒有回呼
+  - sceneDidDisconnect:，場景被釋放時
+  - applicationWillTerminate:，App 被殺時一定會呼叫
+answer: 1
+explain: "Background → Suspended 沒有回呼，Suspended 被系統殺掉也沒有；所以 sceneDidEnterBackground: 是最後一次確定能執行程式碼的機會。applicationWillTerminate: 只在少數情況（前景被殺）才會呼叫，不能依賴。"
+hints: ["哪個狀態之後就「不保證還有機會跑程式碼」？", "Suspended 沒有任何回呼。"]
+feedback:
+  "0": 來電、拉下通知中心也會 resign active，存檔太頻繁；而且使用者沒切走。
+  "3": 從背景被殺時不會呼叫 applicationWillTerminate:，這是最常見的誤解。

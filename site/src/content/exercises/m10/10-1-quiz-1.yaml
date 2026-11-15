@@ -1,0 +1,14 @@
+id: m10-10-1-quiz-1
+chapter: "10.1"
+section: quiz
+type: quiz
+title: 120 Hz 的幀預算
+minutes: 1
+prompt: ProMotion 螢幕以 120 Hz 重畫時，主執行緒一幀大約有多少時間？
+options: ["16.7 ms", "8.3 ms", "33.4 ms", "4.2 ms"]
+answer: 1
+explain: 1000 ms ÷ 120 ≈ 8.3 ms。60 Hz 是 16.7 ms。小帳本驗收寫「單幀 < 8 ms」就是為了在兩種螢幕上都過。
+hints: ["一秒有 1000 ms，分給 120 幀。", "60 Hz 是 16.7，120 Hz 剛好一半。"]
+feedback:
+  "0": 那是 60 Hz 的預算。
+  "2": 33 ms 是 30 FPS，已經掉幀了。

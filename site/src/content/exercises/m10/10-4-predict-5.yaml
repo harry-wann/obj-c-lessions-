@@ -1,0 +1,28 @@
+id: m10-10-4-predict-5
+chapter: "10.4"
+type: predict
+title: 預測結果：os_unfair_lock 遞迴
+minutes: 2
+code: |
+  @implementation LBStats { os_unfair_lock _lock; double _sum; NSUInteger _n; }
+  - (NSUInteger)count {
+      os_unfair_lock_lock(&_lock);
+      NSUInteger n = _n;
+      os_unfair_lock_unlock(&_lock);
+      return n;
+  }
+  - (double)average {
+      os_unfair_lock_lock(&_lock);
+      double avg = _n ? _sum / [self count] : 0;   // 鎖內呼叫 count
+      os_unfair_lock_unlock(&_lock);
+      return avg;
+  }
+  @end
+  // NSLog(@"%.1f", [stats average]);
+options: ["印出平均值", "程式中止：BUG IN CLIENT OF LIBPLATFORM（遞迴加鎖）", "永遠卡住", "印出 0.0"]
+accept: ["程式中止：BUG IN CLIENT OF LIBPLATFORM（遞迴加鎖）", "crash", "中止"]
+feedback:
+  "永遠卡住": NSLock 才會卡住；os_unfair_lock 會偵測到持有者就是自己並中止。
+  "印出平均值": average 持有鎖時呼叫 count，count 再鎖一次。
+solution_note: os_unfair_lock 不可遞迴。libplatform 偵測到同一條執行緒重複加鎖會直接 abort。修法：鎖內只碰 ivar（用 _n 不呼叫 [self count]）。
+hints: ["average 拿到鎖之後呼叫了誰？", "count 第一行做什麼？"]

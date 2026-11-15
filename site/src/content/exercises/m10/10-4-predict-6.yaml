@@ -1,0 +1,23 @@
+id: m10-10-4-predict-6
+chapter: "10.4"
+type: predict
+title: 預測順序：semaphore 等待非同步工作
+minutes: 2
+code: |
+  dispatch_semaphore_t sema = dispatch_semaphore_create(0);
+  dispatch_queue_t bg = dispatch_get_global_queue(QOS_CLASS_UTILITY, 0);
+  NSLog(@"A");
+  dispatch_async(bg, ^{
+      usleep(50000);
+      NSLog(@"B");
+      dispatch_semaphore_signal(sema);
+  });
+  dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
+  NSLog(@"C");
+options: ["A\nB\nC", "A\nC\nB", "A，然後死結", "B\nA\nC"]
+accept: ["A B C"]
+feedback:
+  "A C B": wait 會阻塞直到 signal，而 signal 在 B 之後。
+  "A，然後死結": signal 來自全域佇列的另一條執行緒，不依賴正在等待的這條，所以不會死結。
+solution_note: 初始值 0 的 semaphore 是「等一件事完成」。A 印出後 wait 阻塞；背景 50 ms 後印 B 並 signal；wait 返回印 C。若把 bg 換成主佇列、且這段在主執行緒跑，就會死結。
+hints: ["初始值 0 時 wait 會怎樣？", "signal 在哪條執行緒？它需要等待中的那條嗎？"]

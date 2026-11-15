@@ -1,0 +1,35 @@
+id: m11-11-1-spot-1
+chapter: "11.1"
+type: spot
+title: 找錯：少了一個 release
+minutes: 3
+prompt: 這是 MRC 檔案（有 -fno-objc-arc）。有一處洩漏，點出那一行並選原因。
+code: |
+  - (void)addLunch {
+      LBLegacyTransaction *tx = [[LBLegacyTransaction alloc] init];
+      tx.note = @"午餐";
+      tx.amount = [NSDecimalNumber decimalNumberWithString:@"120"];
+      [self.ledger addTransaction:tx];
+      NSLog(@"added %@", tx.note);
+  }
+bug_lines: [2]
+reasons:
+  - "alloc 得到 +1 的物件，addTransaction: 之後沒有對應的 release，每次呼叫洩漏一個 LBLegacyTransaction"
+  - "decimalNumberWithString: 回傳的物件沒有 retain"
+  - "tx.note 用 @\"午餐\" 字面值會洩漏"
+  - "NSLog 之後應該呼叫 [tx autorelease]"
+answer_reason: 0
+fix: |
+  - (void)addLunch {
+      LBLegacyTransaction *tx = [[LBLegacyTransaction alloc] init];
+      tx.note = @"午餐";
+      tx.amount = [NSDecimalNumber decimalNumberWithString:@"120"];
+      [self.ledger addTransaction:tx];
+      NSLog(@"added %@", tx.note);
+      [tx release];                       // 配對第 2 行的 alloc
+  }
+solution_note: "+1 來自 `alloc`（規則 1），要有一個 −1 配它。`addTransaction:` 內部的 retain 是 ledger 的帳，不是你的。放手的位置在最後一次用到 tx 之後。"
+hints: ["哪一行讓你「擁有」了一個物件？", "往下找有沒有對應的 release 或 autorelease。"]
+feedback:
+  "1": "decimalNumberWithString: 回傳 +0，經過 retain setter 正好；不需要你 retain。"
+  "3": "autorelease 也可以，但補在 alloc 那行比較清楚；問題的本質是「少了一個 −1」。"

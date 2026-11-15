@@ -1,0 +1,19 @@
+id: m08-8-2-quiz-2
+chapter: "8.2"
+section: quiz
+type: quiz
+title: 這段設定該放哪
+minutes: 2
+prompt: 把下列工作配對到正確的回呼。哪一個配對是錯的？
+options:
+  - "registerClass:forCellReuseIdentifier: → viewDidLoad"
+  - "讀 tableView.bounds 設定 backgroundView.frame → viewDidLayoutSubviews"
+  - "addObserver 帳本變動通知 → viewDidAppear:，removeObserver → dealloc"
+  - "清空 LBLRUCache → didReceiveMemoryWarning"
+answer: 2
+explain: "viewDidAppear: 每次進畫面都跑，dealloc 只跑一次，混搭會累積觀察者。成對規則：viewWillAppear: ↔ viewWillDisappear:，或 viewDidLoad ↔ dealloc。"
+hints: ["註冊與移除要在「同一對」回呼裡。", "哪個配對的兩邊呼叫次數不一樣？"]
+feedback:
+  "0": 正確：一次性設定放 viewDidLoad。
+  "1": 正確：frame 在 layout 之後才可靠。
+  "3": 正確：記憶體警告時釋放可重建的快取。

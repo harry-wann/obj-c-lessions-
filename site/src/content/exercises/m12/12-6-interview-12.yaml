@@ -1,0 +1,14 @@
+id: m12-12-6-interview-12
+chapter: "12.6"
+type: flash
+tier: interview
+title: 面試速記：對 nil 送訊息
+minutes: 2
+front: |
+  `[nil doSomething]` 會怎樣？這個設計的優缺點是什麼？在 Swift 混編時有什麼要注意的？
+back: |
+  什麼都不發生：objc_msgSend 開頭檢查 receiver 為 nil 就直接回傳，回傳值是 0 / nil / NO / 全零的 struct，不丟例外。
+  優點：少寫一大堆 nil 檢查，self.category.name 在沒分類時自然得到 nil；鏈式呼叫很順。
+  缺點：錯誤默默傳遞，nil 流到很遠的地方才以莫名其妙的方式出錯（例如存進字典時 crash：object cannot be nil）。
+  Swift 端沒有這個保護：沒標 nullability 的 ObjC 成員變成 ! 型別，nil 一到 Swift 就是 Fatal error，所以標頭要標好 nullable。
+  加分延伸：早期 PowerPC 時代回傳大型 struct 的結果未定義，64 位元 runtime 已保證全零。

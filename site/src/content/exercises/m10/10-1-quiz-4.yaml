@@ -1,0 +1,17 @@
+id: m10-10-1-quiz-4
+chapter: "10.1"
+section: quiz
+type: quiz
+title: CADisplayLink 的 run loop 模式
+minutes: 1
+prompt: 把 CADisplayLink 加進主 run loop 時用 `NSDefaultRunLoopMode`，會發生什麼？
+options:
+  - 捲動 table view 期間收不到回呼，FPS 監視器在最需要時停住
+  - 回呼頻率變成兩倍
+  - 編譯錯誤，CADisplayLink 只接受 NSRunLoopCommonModes
+  - 沒有差別
+answer: 0
+explain: 捲動時 run loop 在 UITrackingRunLoopMode，只有加進 common modes 的來源會被處理。NSTimer 也有同樣的問題。
+hints: ["捲動時 run loop 處在哪個模式？", "common modes 是什麼的集合？"]
+feedback:
+  "3": 平常看起來沒差，一捲動就停了，這正是最難發現的那種 bug。

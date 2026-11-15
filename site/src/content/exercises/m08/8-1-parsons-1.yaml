@@ -1,0 +1,19 @@
+id: m08-8-1-parsons-1
+chapter: "8.1"
+type: parsons
+title: 排出 App 啟動到第一個畫面的順序
+minutes: 2
+prompt: 把不用 Storyboard 的程式碼啟動流程排成正確順序。有兩行是干擾行。
+lines:
+  - "main() 呼叫 UIApplicationMain(argc, argv, nil, @\"AppDelegate\")"
+  - "系統建立 UIApplication 與 AppDelegate 實體"
+  - "application:didFinishLaunchingWithOptions: 回傳 YES"
+  - "系統依 Info.plist 的 UIApplicationSceneManifest 建立 SceneDelegate"
+  - "scene:willConnectToSession:options: 建立 UIWindow、設 rootViewController、makeKeyAndVisible"
+  - "根 VC 的 viewDidLoad → viewWillAppear: → viewDidAppear:"
+  - "sceneDidBecomeActive:，使用者可以互動"
+distractors:
+  - "UIApplicationMain 回傳 0，main 結束"
+  - "系統載入 Main.storyboard 建立 initial view controller"
+solution_note: 程序 → UIApplication / AppDelegate → didFinishLaunching → 場景與 SceneDelegate → window → VC 生命週期 → active。UIApplicationMain 永遠不回傳；程式碼啟動沒有 Storyboard 那一步。
+hints: ["先有 UIApplication 才有 delegate 回呼。", "場景層在 didFinishLaunching 之後才建立。", "window 建好、根 VC 的 view 才會載入。"]

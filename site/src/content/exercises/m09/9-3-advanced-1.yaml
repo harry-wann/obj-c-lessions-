@@ -1,0 +1,59 @@
+id: m09-9-3-advanced-1
+chapter: "9.3"
+type: code
+tier: advanced
+title: 進階：版本遷移（加欄位＋改類別名）
+mobile: false
+minutes: 15
+prompt: "小帳本 1.0 的交易類別叫 `LBOldTransaction`，只存 `amount`（字串）與 `note`；2.0 改名 `LBTransaction` 並加了 `flags`。寫一個類別方法 `+ (nullable LBTransaction *)transactionFromLegacyData:(NSData *)data error:(NSError **)error`：用 `initForReadingFromData:error:` 建 `NSKeyedUnarchiver`，`setClass:forClassName:` 把 `LBOldTransaction` 對到 `LBTransaction`，`requiresSecureCoding = YES`，用 `decodeObjectOfClass:forKey:NSKeyedArchiveRootObjectKey` 解出根物件，最後 `finishDecoding`。同時補 `initWithCoder:` 裡 flags 的向下相容：用 `containsValueForKey:` 判斷，沒有就 `LBTransactionFlagsNone`。"
+starter: |
+  @implementation LBTransaction (Migration)
+
+  + (nullable LBTransaction *)transactionFromLegacyData:(NSData *)data
+                                                  error:(NSError **)error {
+
+  }
+
+  @end
+
+  // initWithCoder: 裡 flags 的那一段（補完）：
+  // _flags = ...
+checks:
+  - must_match: 'initForReadingFromData\s*:\s*\w+\s+error\s*:'
+    message: "用 initForReadingFromData:error: 建立 NSKeyedUnarchiver"
+  - must_match: 'setClass\s*:\s*\[\s*LBTransaction\s+class\s*\]\s*forClassName\s*:\s*@"LBOldTransaction"'
+    message: setClass:[LBTransaction class] forClassName:@"LBOldTransaction"
+  - must_match: 'requiresSecureCoding\s*=\s*YES'
+    message: 設 requiresSecureCoding = YES
+  - must_match: 'decodeObjectOfClass\s*:\s*\[\s*LBTransaction\s+class\s*\]\s*forKey\s*:\s*NSKeyedArchiveRootObjectKey'
+    message: 用 decodeObjectOfClass:forKey:NSKeyedArchiveRootObjectKey 解根物件
+  - must_match: 'finishDecoding\s*\]'
+    message: 最後呼叫 finishDecoding
+  - must_match: 'containsValueForKey\s*:\s*@"flags"'
+    message: "flags 用 containsValueForKey: 判斷"
+  - must_match: 'LBTransactionFlagsNone'
+    message: 沒有 flags 時給 LBTransactionFlagsNone
+  - must_not_match: 'unarchiveObjectWithData\s*:|unarchiveTopLevelObjectWithData'
+    message: "不要用已棄用的 unarchiveObjectWithData:"
+  - "brackets_balanced: true"
+solution: |
+  + (nullable LBTransaction *)transactionFromLegacyData:(NSData *)data
+                                                  error:(NSError **)error {
+      NSKeyedUnarchiver *u = [[NSKeyedUnarchiver alloc] initForReadingFromData:data
+                                                                         error:error];
+      if (!u) return nil;
+      u.requiresSecureCoding = YES;
+      [u setClass:[LBTransaction class] forClassName:@"LBOldTransaction"];
+      LBTransaction *tx = [u decodeObjectOfClass:[LBTransaction class]
+                                          forKey:NSKeyedArchiveRootObjectKey];
+      [u finishDecoding];
+      if (!tx && error && u.error) *error = u.error;
+      return tx;
+  }
+
+  // initWithCoder: 裡：
+  _flags = [coder containsValueForKey:@"flags"]
+         ? (LBTransactionFlags)[coder decodeIntegerForKey:@"flags"]
+         : LBTransactionFlagsNone;
+solution_note: 兩種遷移合在一起：類別改名靠 `setClass:forClassName:`（封存檔裡存的是類別名字串）；加欄位靠 `containsValueForKey:` 給預設值。真專案裡再放一個 `version` 整數欄位、把舊版 App 產生的真檔案放進測試 bundle 當 fixture，每次改 model 都跑一次。
+hints: ["便利方法 unarchivedObjectOfClass: 沒辦法設 class mapping，要自己建 NSKeyedUnarchiver。", "根物件的 key 是 NSKeyedArchiveRootObjectKey。", "flags 的三元運算：有 key 就 decodeIntegerForKey:，沒有就 None。"]

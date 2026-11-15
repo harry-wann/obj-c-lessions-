@@ -1,0 +1,27 @@
+id: m08-8-2-fill-1
+chapter: "8.2"
+type: fill
+title: 空狀態視圖放在哪個回呼
+minutes: 2
+prompt: 空狀態視圖要填滿表格、跟著旋轉調整。補完方法名與屬性。
+code: |
+  - (void)___1___ {
+      [super ___1___];
+      self.emptyView = [self makeEmptyView];        // 只建一次
+      self.tableView.backgroundView = self.emptyView;
+  }
+
+  - (void)___2___ {
+      [super ___2___];
+      self.emptyView.frame = self.tableView.___3___;   // 每次版面重算都更新
+  }
+blanks:
+  "1": { accept: ["viewDidLoad"], chips: ["viewDidLoad", "loadView", "viewDidAppear:", "init"] }
+  "2": { accept: ["viewDidLayoutSubviews"], chips: ["viewDidLayoutSubviews", "viewDidLoad", "viewWillAppear:", "layoutSubviews"] }
+  "3": { accept: ["bounds"], chips: ["bounds", "frame", "contentSize", "safeAreaInsets"] }
+hints: ["建立物件只做一次。", "frame 什麼時候才是真的？", "子視圖的 frame 要用父視圖的哪個座標系？"]
+feedback:
+  "2=viewDidLoad": 這時候 tableView.bounds 還是預設值，換裝置或旋轉就錯。
+  "2=layoutSubviews": 那是 UIView 的方法，VC 對應的是 viewDidLayoutSubviews。
+  "3=frame": frame 是在父視圖座標系裡的位置；子視圖要填滿父視圖要用父視圖的 bounds。
+solution_note: 建立放 viewDidLoad、量尺寸放 viewDidLayoutSubviews、填滿用 bounds。用 Auto Layout 可以省掉第二段。

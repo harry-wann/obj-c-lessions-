@@ -1,0 +1,27 @@
+id: m11-11-4-crash-1
+chapter: "11.4"
+type: crash
+title: 讀 crash：Could not load NIB in bundle
+minutes: 2
+log: |
+  *** Terminating app due to uncaught exception 'NSInternalInconsistencyException',
+  reason: 'Could not load NIB in bundle: 'NSBundle </Users/you/Library/Developer/Xcode/DerivedData/.../LittleBookTests.xctest> (loaded)'
+  with name 'LBTransactionCell''
+options:
+  - "bundle 是 LittleBookTests.xctest：測試裡用了 bundle:nil（main bundle），要改成 bundleForClass:；若 bundle 是 App 本身則檢查 XIB 的 Target Membership 與檔名"
+  - "LBTransactionCell 類別沒有實作 awakeFromNib"
+  - "XIB 裡的 cell 沒填 reuse identifier"
+  - "XIB 格式損毀，要重建"
+answer: 0
+fix: |
+  // 先看訊息裡的 bundle 路徑：
+  //  - 結尾是 .xctest → 傳了 nil bundle，改成
+  UINib *nib = [UINib nibWithNibName:@"LBTransactionCell"
+                              bundle:[NSBundle bundleForClass:[LBTransactionCell class]]];
+  //  - 是 .app → File inspector 看 Target Membership；檔名與字串大小寫是否一致
+  // 修完 ⇧⌘K Clean Build Folder 再跑
+solution_note: "訊息裡的 bundle 路徑就是答案：它告訴你 UIKit 在哪裡找。`.xctest` 結尾是 bundle 傳錯；`.app` 結尾是 XIB 沒進 target 或名字不符。"
+hints: ["bundle 路徑的結尾是什麼？", "11.4 的 Crash 列了三個原因，依頻率排。"]
+feedback:
+  "2": "沒填 identifier 的訊息是 invalid nib registered for identifier。"
+  "3": "損毀的 XIB 在 IB 打開就會報錯，跟執行期找不到檔案是不同訊息。"

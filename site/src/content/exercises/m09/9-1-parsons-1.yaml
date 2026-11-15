@@ -1,0 +1,23 @@
+id: m09-9-1-parsons-1
+chapter: "9.1"
+type: parsons
+title: 排出「建目錄再寫檔」的流程
+minutes: 3
+prompt: 把在 Documents 底下建 LittleBook 子目錄並寫入 ledger.json 的程式排成正確順序。有三行是干擾行。
+lines:
+  - "NSURL *docs = [[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory"
+  - "                                                    inDomains:NSUserDomainMask].firstObject;"
+  - "NSURL *dir = [docs URLByAppendingPathComponent:@\"LittleBook\" isDirectory:YES];"
+  - "NSError *error = nil;"
+  - "if (![[NSFileManager defaultManager] createDirectoryAtURL:dir"
+  - "                              withIntermediateDirectories:YES"
+  - "                                               attributes:nil"
+  - "                                                    error:&error]) return NO;"
+  - "NSURL *file = [dir URLByAppendingPathComponent:@\"ledger.json\"];"
+  - "return [data writeToURL:file options:NSDataWritingAtomic error:&error];"
+distractors:
+  - "NSURL *docs = [NSURL URLWithString:@\"~/Documents\"];"
+  - "if (![[NSFileManager defaultManager] fileExistsAtPath:dir]) return NO;"
+  - "return [data writeToFile:file atomically:YES];"
+solution_note: 先拿 Documents、再拼子目錄、建目錄（`withIntermediateDirectories:YES` 已存在也回 YES）、最後原子寫入。`fileExistsAtPath:` 吃字串不吃 NSURL；`writeToFile:` 是字串版，跟 NSURL 不搭。
+hints: ["目錄不存在時 writeToURL: 不會幫你建。", "先查目錄、拼路徑、建目錄、寫檔。", "干擾行有一行把 NSURL 傳給吃字串的方法。"]

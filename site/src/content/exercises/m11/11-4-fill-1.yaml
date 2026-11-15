@@ -1,0 +1,19 @@
+id: m11-11-4-fill-1
+chapter: "11.4"
+type: fill
+title: 註冊 XIB 版 cell
+minutes: 1
+prompt: 補完以 XIB 註冊 LBTransactionCell 的程式碼。
+code: |
+  UINib *nib = [UINib ___1___:@"LBTransactionCell"
+                      bundle:[NSBundle ___2___:[LBTransactionCell class]]];
+  [self.tableView ___3___:nib forCellReuseIdentifier:@"LBTransactionCell"];
+blanks:
+  "1": { accept: ["nibWithNibName"], chips: ["nibWithNibName", "nibNamed", "loadNibNamed", "nibWithName"] }
+  "2": { accept: ["bundleForClass"], chips: ["bundleForClass", "mainBundle", "bundleWithIdentifier", "bundleForNib"] }
+  "3": { accept: ["registerNib"], chips: ["registerNib", "registerClass", "dequeueReusableCellWithIdentifier", "loadNib"] }
+hints: ["UINib 的類別方法。", "測試與 App 都正確的 bundle 取法。", "註冊 XIB 用的方法名跟 registerClass: 對稱。"]
+feedback:
+  "2=mainBundle": "App 裡可以，單元測試裡 main bundle 是 xctest runner，會找不到。"
+  "3=registerClass": "registerClass: 是程式碼版 cell 用的。"
+solution_note: "註冊之後 `dequeueReusableCellWithIdentifier:forIndexPath:` 一行都不用改。"

@@ -1,0 +1,222 @@
+---
+title: Storyboard / XIB 入門
+module: 8
+chapter: "8.7"
+order: 7
+minutes: 35
+prereq: ["8.5", "6.4"]
+objectives:
+  - 說出 IBOutlet / IBAction 在執行期是怎麼被連起來的（KVC），以及斷線時會發生什麼
+  - "用 segue 與 prepareForSegue:sender:、instantiateViewControllerWithIdentifier: 在 Storyboard 畫面之間傳值"
+  - "把 LBTransactionCell 另做一個 XIB 版本，用 registerNib: 註冊，兩種寫法並存"
+summary: "IBOutlet / IBAction 與 KVC 連線機制、連線與斷線、segue 與 prepareForSegue:sender:、instantiateViewControllerWithIdentifier:、XIB 載入 cell 與 registerNib:；本課程兩種都用：列表 / 編輯頁程式碼、設定頁 Storyboard、cell 另做 XIB 版；深入在模組 11。"
+terms:
+  - { en: storyboard, tw: Storyboard, cn: 故事板, jp: ストーリーボード }
+  - { en: XIB / NIB, tw: XIB（介面檔）, cn: XIB 文件, jp: XIB }
+  - { en: outlet, tw: 出口（IBOutlet）, cn: 插座 / 出口, jp: アウトレット }
+  - { en: action, tw: 動作（IBAction）, cn: 动作, jp: アクション }
+  - { en: segue, tw: 轉場（segue）, cn: 转场, jp: セグエ }
+  - { en: key-value coding, tw: 鍵值編碼（KVC）, cn: 键值编码, jp: キー値コーディング }
+appProgress: 新增 Settings.storyboard 的骨架（static cells、segue 到效能面板）與 LBTransactionCell.xib；列表可以在程式碼版與 XIB 版 cell 之間切換，兩版畫面一致。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// UIKit Swift：@IBOutlet 一定是 weak 可選，@IBAction 一定 @objc
+class LBSettingsViewController: UITableViewController {
+    @IBOutlet weak var currencyLabel: UILabel!
+    @IBAction func centsSwitchChanged(_ sender: UISwitch) { settings.showsCents = sender.isOn }
+    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
+        if segue.identifier == "showPerformance" {
+            (segue.destination as? LBPerformanceViewController)?.ledger = ledger
+        }
+    }
+}
+// SwiftUI 沒有 Storyboard：版面就是程式碼
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// Android XML 版面 ↔ Storyboard / XIB；ViewBinding ↔ IBOutlet（但編譯期檢查）
+class SettingsFragment : Fragment(R.layout.fragment_settings) {
+    private lateinit var binding: FragmentSettingsBinding
+    override fun onViewCreated(v: View, s: Bundle?) {
+        binding = FragmentSettingsBinding.bind(v)          // inflate ≈ 載入 nib
+        binding.centsSwitch.setOnCheckedChangeListener { _, on -> settings.showsCents = on }
+        binding.perfRow.setOnClickListener { findNavController().navigate(R.id.showPerformance) }  // ≈ segue
+    }
+}
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// findViewById 以字串 / 整數 id 連線，跟 IBOutlet 一樣是執行期才知道有沒有
+public class SettingsActivity extends AppCompatActivity {
+    @Override protected void onCreate(Bundle s) {
+        super.onCreate(s);
+        setContentView(R.layout.activity_settings);
+        TextView currencyLabel = findViewById(R.id.currencyLabel);   // id 刪了 → null → NPE
+        Switch centsSwitch = findViewById(R.id.centsSwitch);
+        centsSwitch.setOnCheckedChangeListener((v, on) -> settings.setShowsCents(on));
+    }
+}
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// JSX 是反過來的：標記寫在程式碼裡，沒有「連線」這件事
+function Settings({ settings, onShowPerformance }: Props) {
+  const ref = useRef<HTMLSpanElement>(null);        // ref ≈ IBOutlet，但型別安全
+  return (
+    <ul>
+      <li>主幣別 <span ref={ref}>{settings.currencyCode}</span></li>
+      <li><input type="checkbox" checked={settings.showsCents}
+                 onChange={e => settings.setShowsCents(e.target.checked)} /></li>
+      <li onClick={onShowPerformance}>效能面板 ›</li>
+    </ul>
+  );
+}
+```
+</Fragment>
+Android 工程師最有感：XML 版面檔 ↔ Storyboard / XIB、`inflate` ↔ 載入 nib、`findViewById` ↔ `IBOutlet`，連「id 刪了執行期才爆」的痛都一樣（ViewBinding 與 Swift 都沒有完全解決這點）。React 工程師則要接受「版面存在另一個檔案裡、靠字串對上程式碼」這件事。本課程**兩種都用**：列表與編輯頁純程式碼（可測、可 diff、適合多人協作），設定頁用 Storyboard（static cells 用程式碼寫很囉嗦），交易 cell 另做一個 XIB 版讓你比較。工作上接手的 ObjC 專案幾乎都有 Storyboard，看不懂等於不能改。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### IBOutlet / IBAction：靠 KVC 連起來的
+
+```objc
+// LBSettingsViewController.h
+@interface LBSettingsViewController : UITableViewController
+@property (nonatomic, weak) IBOutlet UILabel *currencyLabel;
+@property (nonatomic, weak) IBOutlet UISwitch *centsSwitch;
+@property (nonatomic, weak) IBOutlet UILabel *appearanceLabel;
+@property (nonatomic, strong) LBSettings *settings;        // 屬性注入（8.5）
+- (IBAction)centsSwitchChanged:(UISwitch *)sender;
+@end
+```
+
+`IBOutlet` 與 `IBAction` 都是**空巨集**（`#define IBOutlet`、`#define IBAction void`），對編譯器沒有意義，只是給 Interface Builder 的記號：有這兩個字，Xcode 右鍵面板才列出可連的項目。連線後 Storyboard 的 XML 裡存了一條 `<outlet property="currencyLabel" destination="xYz-12"/>`。載入時 UIKit 把物件解碼出來，然後對你的 VC 呼叫 `[vc setValue:label forKey:@"currencyLabel"]`，這就是 6.4 的<Term en="key-value coding" tw="鍵值編碼" cn="键值编码" jp="キー値コーディング" />。所以 outlet 名字改了、連線沒更新，執行期就是本章的崩潰現場；也所以 outlet 在 `viewDidLoad` 之前都是 nil（`init` 裡讀不到）。
+
+outlet 用 `weak`：view 已經被 superview 持有，VC 只是借個指標。頂層物件（XIB 裡不在 view 階層裡的東西，例如獨立的 `UIView`、手勢）才用 `strong`。`IBAction` 的方法簽名跟 8.6 的 target-action 一樣三種，連線其實就是幫你呼叫 `addTarget:action:forControlEvents:`。
+
+<Steps title="連線與斷線">
+1. 開 `Settings.storyboard`，選 VC，Identity Inspector（⌥⌘4）的 Class 填 `LBSettingsViewController`、Storyboard ID 也填同名。
+2. 開 Assistant Editor（⌃⌥⌘↩），從 label **右鍵拖**到 `.h` 的 `@property` 行上，放開：圓圈變實心就是連上。
+3. 看 Connections Inspector（⌥⌘6）：每條連線一行，點 × 斷線。
+4. 重新命名 outlet：**先在 Connections Inspector 斷線，再改名，再重連**。只用 Refactor → Rename 有時不會更新 Storyboard。
+5. 找「幽靈連線」：Connections Inspector 裡標 ⚠ 的那一行，就是 outlet 已經刪掉但 Storyboard 還記得的。
+</Steps>
+
+### segue 與 prepareForSegue:sender:
+
+<Term en="segue" tw="轉場" cn="转场" jp="セグエ" />是 Storyboard 裡畫出來的箭頭：從一個 cell / 按鈕拖到另一個 VC，選 Show（push）或 Present Modally。觸發時 UIKit 自己建立目的地 VC，所以**不能用指定初始化器傳值**，只能在轉場前用屬性注入：
+
+```objc
+// LBSettingsViewController.m
+- (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
+    if ([segue.identifier isEqualToString:@"showPerformance"]) {
+        LBPerformanceViewController *perf = segue.destinationViewController;
+        perf.ledger = self.ledger;                // 目的地 VC 已建立、view 還沒載入
+    }
+}
+
+// 程式碼觸發同一條 segue
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    if (indexPath.section == 2 && indexPath.row == 0) {
+        [self performSegueWithIdentifier:@"showPerformance" sender:self];
+    }
+}
+```
+
+identifier 是字串，Attributes Inspector 裡設，打錯會 crash（`Receiver has no segue with identifier`）；跟 cell 識別字一樣抽成常數。注意 `prepareForSegue:` 時目的地的 `view` 還沒載入，`perf.fpsLabel.text = ...` 會對 nil 送訊息什麼都不發生：**傳 model，不傳顯示內容**，讓目的地在自己的 `viewDidLoad` 處理。Show segue 進 `UINavigationController` 時 `destinationViewController` 是 nav，要再取 `topViewController`。
+
+### instantiateViewControllerWithIdentifier:
+
+不想畫箭頭、或要從程式碼的 VC 進入 Storyboard 的畫面（小帳本的 tab bar 是程式碼建的，設定頁在 Storyboard）：
+
+```objc
+// SceneDelegate.m
+UIStoryboard *sb = [UIStoryboard storyboardWithName:@"Settings" bundle:nil];
+LBSettingsViewController *settings =
+    [sb instantiateViewControllerWithIdentifier:@"LBSettingsViewController"];
+settings.settings = LBSettings.shared;                    // 屬性注入
+UINavigationController *settingsNav =
+    [[UINavigationController alloc] initWithRootViewController:settings];
+```
+
+名字對應 Identity Inspector 的 Storyboard ID；`instantiateInitialViewController` 拿箭頭指的那個入口。6.3 的 `LBRouter` 用 `NSClassFromString` 建程式碼 VC，這裡是 Storyboard 版的同一件事：字串 → 物件，執行期才知道對不對。
+
+### XIB 載入 cell
+
+XIB（編譯後叫 NIB）是單一畫面或單一 view 的介面檔，沒有 segue。cell 用 XIB 的流程：File → New → View（`LBTransactionCell.xib`）、刪掉預設 view 拖進一個 Table View Cell、Class 設 `LBTransactionCell`、Identifier 設 `LBTransactionCell`、拉 outlet；**File's Owner 不用設**（cell 的 outlet 連到 cell 本身，不是 owner）。程式碼：
+
+```objc
+// LBTransactionListViewController.m viewDidLoad
+#if LB_USE_XIB_CELL
+[self.tableView registerNib:[UINib nibWithNibName:@"LBTransactionCell" bundle:nil]
+     forCellReuseIdentifier:kCellID];
+#else
+[self.tableView registerClass:[LBTransactionCell class]
+       forCellReuseIdentifier:kCellID];
+#endif
+// cellForRowAtIndexPath: 一個字都不用改
+```
+
+XIB 版的 cell 不會走 `initWithStyle:reuseIdentifier:`，而是 `initWithCoder:`，然後 `awakeFromNib`；程式碼版 `setupViews` 建的 view 在 XIB 版裡是 outlet。`configureWithViewModel:` 兩版共用。M11 的 `testNibLoadsCellWithOutlets` 會檢查 `[[UINib nibWithNibName:...] instantiateWithOwner:nil options:nil].firstObject` 的 outlet 都不是 nil。
+
+### 什麼時候用哪個
+
+| | 程式碼 | Storyboard | XIB |
+|---|---|---|---|
+| 版本控制 / code review | 好 | XML 難 diff，多人改同一檔必衝突 | 一個檔一個 view，衝突少 |
+| 傳值 | 指定初始化器 | 屬性注入 + `prepareForSegue:` | 屬性注入 |
+| 可測性 | 直接 `alloc init` | 要載入 Storyboard | 要載入 nib |
+| 適合 | 列表、動態版面、被重用的畫面 | 流程固定的 static cells 頁、原型 | 單一 cell / 自訂 view |
+| 小帳本 | 列表、編輯頁、分類選擇 | 設定頁（畫面 08） | 交易 cell 第二版 |
+
+模組 11 會把設定頁真的做出來、修 Legacy 專案裡斷掉的 outlet 與打錯的 segue identifier；本章先把機制搞懂。
+
+### 設計稿對照
+
+對應設計稿 **08 設定**（https://www.figma.com/design/4d6HGy38x11n2uOfkzOBzj ）。`UITableViewStyleInsetGrouped` 的 static cells，三個群組：「一般」（主幣別 → 右側值 + chevron、顯示小數位 → `UISwitch`、外觀 → 右側值 + chevron）、「資料」（匯出 JSON、匯入 100,000 筆測試資料、效能面板 ›，最後一列是 `showPerformance` segue 的來源）、「危險區」（紅字「清除全部資料」，點了 8.6 的 alert 二次確認）。列高 44、群組圓角 12、section header 用 secondaryLabel 13 pt 大寫；導覽列標題「設定」。三個 outlet 剛好對應 TESTS.md 的 `currencyLabel` / `centsSwitch` / `appearanceLabel`。
+
+<Pitfall title="在 init 或 prepareForSegue: 裡碰 outlet">
+`init` 時 outlet 全部是 nil（view 還沒載入）；`prepareForSegue:` 時目的地 VC 的 outlet 也是 nil。`perf.fpsLabel.text = @"60"` 不會 crash（對 nil 送訊息），只是畫面沒變，很難查。規則：往 VC 傳 model 屬性，顯示邏輯寫在目的地的 `viewDidLoad` 裡讀自己的屬性。真的需要提早載入，`[vc loadViewIfNeeded]`，但那通常代表設計要調。
+</Pitfall>
+
+<Pitfall title="改了 outlet 名字，Storyboard 還連著舊名">
+Refactor → Rename 大多會同步 Storyboard，但手動改 `.h` 不會。症狀是本章崩潰現場的 `not key value coding-compliant`。另一個版本：複製貼上一個 VC 到別的 Storyboard，Class 忘了改，outlet 連到一個沒有那些屬性的基底類別。檢查 Connections Inspector 的 ⚠。
+</Pitfall>
+
+<Pitfall title="XIB cell 用 registerClass: 註冊">
+用 `registerClass:` 註冊一個 XIB 設計的 cell，表格會用 `initWithStyle:reuseIdentifier:` 建它，XIB 根本沒被載入，所有 outlet 都是 nil，畫面一片空白但不 crash。XIB 版用 `registerNib:`；反過來程式碼版用 `registerNib:` 會因為找不到 nib 檔直接 crash（`Could not load NIB in bundle`）。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSUnknownKeyException',
+reason: '[<LBSettingsViewController 0x7fa3c2e0a400> setValue:forUndefinedKey:]:
+this class is not key value coding-compliant for the key currencyLabel.'
+*** First throw call stack:
+(
+  2  Foundation  -[NSObject(NSKeyValueCoding) setValue:forUndefinedKey:]
+  3  UIKitCore   -[UIRuntimeOutletConnection connect]
+  4  UIKitCore   -[UINib instantiateWithOwner:options:]
+  5  UIKitCore   -[UIViewController loadView]
+)`}>
+6.4 埋的伏筆在這裡回收。讀法：`setValue:forUndefinedKey:` 說有人用 KVC 設一個不存在的 key；`UIRuntimeOutletConnection connect` 說那個人是 nib 載入器在連 outlet；key 是 `currencyLabel`、類別是 `LBSettingsViewController`。意思就是 Storyboard 裡還存著一條連到 `currencyLabel` 的線，但類別裡已經沒有這個屬性（改名、刪除、或 Class 設錯成別的類別）。修法：到 Connections Inspector 找帶 ⚠ 的連線，× 掉或重連到新名字。如果 key 是你完全沒看過的名字，通常是 Class 填錯，連到別人的 VC 設計。Legacy 專案的六個埋雷之一就是這個。
+</Crash>
+
+## 小結
+
+- `IBOutlet` / `IBAction` 是空巨集，連線存在 Storyboard XML 裡，載入時用 KVC `setValue:forKey:` 接上；斷線就是 `not key value coding-compliant` crash。
+- outlet 用 `weak`，`viewDidLoad` 之前是 nil；`init` 與 `prepareForSegue:` 都不能碰目的地的 outlet，只傳 model。
+- segue 的 identifier 是字串，`prepareForSegue:sender:` 做屬性注入；程式碼進 Storyboard 用 `instantiateViewControllerWithIdentifier:`。
+- XIB cell 用 `registerNib:`，`initWithCoder:` + `awakeFromNib`；`cellForRowAtIndexPath:` 與 `configureWithViewModel:` 兩版共用。
+- 本課程程式碼為主、Storyboard 做設定頁、XIB 做 cell 第二版；深入與 Legacy 修雷在模組 11。

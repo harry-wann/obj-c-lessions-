@@ -1,0 +1,20 @@
+id: m12-12-5-xcode-1
+chapter: "12.5"
+type: xcode
+title: clang-format 無 diff
+mobile: false
+minutes: 20
+prompt: 在專案根目錄放一份 .clang-format，把所有 ObjC 檔案格式化成一個獨立 commit，之後 --dry-run 無 diff。
+starter: xcode/M12-starter
+steps:
+  - "`brew install clang-format`；把課文 12.5 那份 `.clang-format` 放到專案根目錄（與 `.xcworkspace` 同層）。"
+  - "`find LittleBook LittleBookTests -name '*.[hm]' | xargs clang-format -i` 原地格式化；用 git diff 瀏覽一次，確認沒有把對齊的多參數呼叫弄醜；需要的話調 `ColumnLimit` 或用 `// clang-format off` 圍住。"
+  - "⌘B 確認仍可建置、⌘U 全綠（格式化不該改語意，但要驗證）。"
+  - "`find ... | xargs clang-format --dry-run --Werror` 應該沒有輸出、exit code 0。"
+  - "選用：加一個 Run Script build phase 或 git pre-commit hook 跑同一條指令。"
+tests: []
+acceptance:
+  - "`clang-format --dry-run --Werror` 對所有 .h / .m 無輸出"
+  - "格式化是獨立的一個 commit，commit 訊息註明 clang-format 版本"
+  - 格式化後 ⌘U 全綠
+solution_note: 獨立 commit 的理由：之後 git blame 可以用 `--ignore-rev` 跳過這個 commit，不然每一行的最後修改者都變成「格式化那個人」。

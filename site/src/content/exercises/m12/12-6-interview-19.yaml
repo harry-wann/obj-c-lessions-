@@ -1,0 +1,14 @@
+id: m12-12-6-interview-19
+chapter: "12.6"
+type: flash
+tier: interview
+title: 面試速記：cell 怎麼不掉幀
+minutes: 2
+front: |
+  UITableView 捲動掉幀，你會檢查哪些地方？為什麼 cell 裡不能建 formatter？
+back: |
+  cellForRowAtIndexPath: 每秒可能跑上百次，裡面只能做「賦值」：不要建 NSDateFormatter / NSNumberFormatter（建立成本是毫秒級）、不要同步讀圖或算字串，格式化結果預先算進 view model 並快取（LBTransactionViewModel + LRU）。
+  圖片非同步載入，回呼時檢查 cell 是否已被重用（比對 indexPath 或 identifier）再設；prepareForReuse 重設所有欄位避免殘影。
+  版面：Auto Layout 層級太深就預算高度或用 estimatedRowHeight；避免 cornerRadius + masksToBounds 的離屏渲染、避免半透明層疊。
+  量測：Time Profiler 看主執行緒熱點，Animation Hitches 看哪一幀超過 16.7 ms；不量不改。
+  加分延伸：formatter 用 static + dispatch_once 共用，iOS 7 之後 NSDateFormatter 執行緒安全；大量資料改用 UITableViewDiffableDataSource 做差異更新。

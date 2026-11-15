@@ -1,0 +1,38 @@
+id: m12-12-2-spot-1
+chapter: "12.2"
+type: spot
+title: ObjC 說找不到這個 Swift 類別
+minutes: 3
+prompt: "ObjC 端 `#import \"LittleBook-Swift.h\"` 後寫 `[[StatsViewModel alloc] initWithLedger:ledger]`，編譯錯誤 `Use of undeclared identifier 'StatsViewModel'`。點出有問題的行並選原因。"
+code: |
+  // StatsViewModel.swift
+  import Foundation
+
+  final class StatsViewModel {
+      private let ledger: LBLedger
+      init(ledger: LBLedger) {
+          self.ledger = ledger
+      }
+      var balance: NSDecimalNumber { ... }
+  }
+bug_lines: [4, 6]
+reasons:
+  - "類別沒繼承 NSObject 也沒加 @objc，ObjC runtime 無法表達它，不會出現在 -Swift.h；init 也要標 @objc 才會變 initWithLedger:"
+  - "import Foundation 要改成 import UIKit"
+  - private 屬性不能出現在 @objc 類別裡
+  - 計算屬性不能給 ObjC 用
+answer_reason: 0
+fix: |
+  @objc final class StatsViewModel: NSObject {
+      private let ledger: LBLedger
+      @objc init(ledger: LBLedger) {
+          self.ledger = ledger
+          super.init()
+      }
+      @objc var balance: NSDecimalNumber { ... }
+  }
+solution_note: 三個條件缺一不可：繼承 `NSObject`、類別標 `@objc`、要給 ObjC 用的成員各自標 `@objc`（或類別用 `@objcMembers`）。`private` 成員本來就不會露出，沒問題；計算屬性在 ObjC 端就是 readonly 屬性。
+hints: ["ObjC 對它送訊息要靠什麼指標？", "Swift 4 之後 @objc 類別的成員會自動露出嗎？"]
+feedback:
+  "2": private 成員本來就不露出，不影響類別可見性。
+  "3": 計算屬性在 ObjC 端是 readonly @property，完全可以。

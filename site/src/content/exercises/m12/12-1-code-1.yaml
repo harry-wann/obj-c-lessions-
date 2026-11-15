@@ -1,0 +1,46 @@
+id: m12-12-1-code-1
+chapter: "12.1"
+type: code
+title: 把 LBCategory.h 標好給 Swift 用
+mobile: false
+minutes: 8
+prompt: "改寫這份標頭：加上 NS_ASSUME_NONNULL 區塊；`parent` 根分類時為 nil、`children` 永遠有陣列（可能空）；`children` 補輕量泛型；`categoryNamed:` 找不到回 nil；`+defaultTree` 在 Swift 端希望叫 `LBCategory.defaultTree()`（名字已經很好，不用改）。"
+starter: |
+  @interface LBCategory : NSObject
+  @property (nonatomic, copy) NSString *name;
+  @property (nonatomic, weak) LBCategory *parent;
+  @property (nonatomic, copy, readonly) NSArray *children;
+  + (NSArray *)defaultTree;
+  + (LBCategory *)categoryNamed:(NSString *)name inTree:(NSArray *)tree;
+  @end
+checks:
+  - contains: NS_ASSUME_NONNULL_BEGIN
+    message: 標頭開頭要有 NS_ASSUME_NONNULL_BEGIN
+  - contains: NS_ASSUME_NONNULL_END
+    message: 結尾要有 NS_ASSUME_NONNULL_END
+  - must_match: 'weak\s*,\s*nullable\s*\)\s*LBCategory\s*\*\s*parent|nullable\s*,\s*weak\s*\)\s*LBCategory\s*\*\s*parent|weak\s*\)\s*LBCategory\s*\*\s*_Nullable\s*parent'
+    message: parent 要標 nullable（根分類沒有 parent）
+  - must_match: 'NSArray\s*<\s*LBCategory\s*\*\s*>\s*\*\s*children'
+    message: "children 要補輕量泛型 NSArray<LBCategory *>"
+  - must_not_match: 'nullable[^;]*children'
+    message: children 永遠有陣列，不要標 nullable
+  - must_match: 'NSArray\s*<\s*LBCategory\s*\*\s*>\s*\*\s*\)\s*defaultTree'
+    message: "defaultTree 回傳 NSArray<LBCategory *>"
+  - must_match: '\(\s*nullable\s+LBCategory\s*\*\s*\)\s*categoryNamed|\(\s*LBCategory\s*\*\s*_Nullable\s*\)\s*categoryNamed'
+    message: "categoryNamed:inTree: 找不到回 nil，要標 nullable"
+  - "brackets_balanced: true"
+solution: |
+  NS_ASSUME_NONNULL_BEGIN
+
+  @interface LBCategory : NSObject
+  @property (nonatomic, copy) NSString *name;
+  @property (nonatomic, weak, nullable) LBCategory *parent;
+  @property (nonatomic, copy, readonly) NSArray<LBCategory *> *children;
+  + (NSArray<LBCategory *> *)defaultTree;
+  + (nullable LBCategory *)categoryNamed:(NSString *)name
+                               inTree:(NSArray<LBCategory *> *)tree;
+  @end
+
+  NS_ASSUME_NONNULL_END
+solution_note: "Swift 端會變成：`parent: LBCategory?`、`children: [LBCategory]`、`class func defaultTree() -> [LBCategory]`、`class func category(named:in:) -> LBCategory?`。沒標之前這四個全是 `!` 或 `[Any]`。"
+hints: ["先包 ASSUME，再想哪幾個「真的會 nil」。", "weak 屬性幾乎一定該 nullable。", "陣列的元素型別靠角括號。"]

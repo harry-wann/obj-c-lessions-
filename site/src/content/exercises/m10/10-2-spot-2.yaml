@@ -1,0 +1,43 @@
+id: m10-10-2-spot-2
+chapter: "10.2"
+type: spot
+title: 整列都是黃的
+minutes: 3
+prompt: 開 Color Off-screen Rendered 後每列的圖示與卡片都是黃色。點出造成離屏渲染的行並選出原因。
+code: |
+  - (void)setupViews {
+      _iconView.layer.cornerRadius = 20;
+      _iconView.layer.masksToBounds = YES;
+      _card.layer.cornerRadius = 12;
+      _card.backgroundColor = UIColor.secondarySystemBackgroundColor;
+      _card.layer.shadowOpacity = 0.15;
+      _card.layer.shadowRadius = 6;
+      _amountLabel.backgroundColor = UIColor.clearColor;
+  }
+bug_lines: [2, 3, 6]
+reasons:
+  - 有圖片的 imageView 用 cornerRadius + masksToBounds 裁切、陰影沒有 shadowPath，兩者都要離屏；圖片應在背景先裁圓，陰影要給 shadowPath
+  - cornerRadius 不能超過 10
+  - _card 不該設背景色
+  - shadowRadius 太大
+answer_reason: 0
+fix: |
+  - (void)setupViews {
+      // 圖示：view model 在背景用 UIGraphicsImageRenderer 裁好圓形
+      _card.layer.cornerRadius = 12;        // 純色 + cornerRadius 走快速路徑
+      _card.backgroundColor = UIColor.secondarySystemBackgroundColor;
+      _card.layer.shadowOpacity = 0.15;
+      _card.layer.shadowRadius = 6;
+      _amountLabel.backgroundColor = UIColor.secondarySystemBackgroundColor;
+      _amountLabel.opaque = YES;             // 順手修掉混合
+  }
+  - (void)layoutSubviews {
+      [super layoutSubviews];
+      _card.layer.shadowPath =
+          [UIBezierPath bezierPathWithRoundedRect:_card.bounds
+                                     cornerRadius:12].CGPath;
+  }
+solution_note: 第 4 行的 _card 只設 cornerRadius 且是純色，不離屏，所以不算。clearColor 的 label 是「混合」（Blended Layers 紅），不是離屏，但順手修掉。shadowPath 要在 layoutSubviews 裡跟 bounds 一起更新。
+hints: ["裁切有內容的圖層要不要離屏？純色圓角呢？", "陰影少了哪個屬性會讓 Render Server 每幀重算？"]
+feedback:
+  "2": 純色背景加 cornerRadius 是快速路徑，不是問題。

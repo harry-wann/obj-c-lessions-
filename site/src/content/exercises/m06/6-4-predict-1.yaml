@@ -1,0 +1,30 @@
+id: m06-6-4-predict-1
+chapter: "6.4"
+type: predict
+title: 預測輸出：setter 與 ivar
+minutes: 2
+code: |
+  // LBLedger 有 @property (nonatomic, strong) NSDecimalNumber *total;
+  // 觀察者在 observeValueForKeyPath: 印 NSLog(@"→ %@", change[NSKeyValueChangeNewKey]);
+  // 已用 NSKeyValueObservingOptionNew 註冊觀察 @"total"
+  @implementation LBLedger
+  - (void)bump {
+      _total = [NSDecimalNumber decimalNumberWithString:@"1"];
+      self.total = [NSDecimalNumber decimalNumberWithString:@"2"];
+      [self setValue:[NSDecimalNumber decimalNumberWithString:@"3"] forKey:@"total"];
+      _total = [NSDecimalNumber decimalNumberWithString:@"4"];
+  }
+  @end
+  [ledger bump];
+  NSLog(@"最後 %@", ledger.total);
+options:
+  - "→ 1\n→ 2\n→ 3\n→ 4\n最後 4"
+  - "→ 2\n→ 3\n最後 4"
+  - "→ 2\n→ 3\n最後 3"
+  - "→ 2\n最後 4"
+accept: ["→ 2 → 3 最後 4"]
+feedback:
+  "→ 1 → 2 → 3 → 4 最後 4": 直接寫 _total 不走 setter，KVO 不會知道。
+  "→ 2 → 3 最後 3": 最後一行的 _total = 4 雖然沒通知，值還是真的改了。
+solution_note: 只有點語法與 `setValue:forKey:`（內部也是呼叫 setter）觸發通知；兩次直接寫 ivar 都安靜地改了值，所以觀察者的畫面會停在 3，資料卻是 4。這就是 UI 與資料不同步的經典來源。
+hints: ["KVO 是在哪裡夾進 willChange / didChange 的？", "setValue:forKey: 最後呼叫的是什麼？"]

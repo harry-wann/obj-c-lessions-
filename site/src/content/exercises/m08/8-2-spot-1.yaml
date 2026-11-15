@@ -1,0 +1,48 @@
+id: m08-8-2-spot-1
+chapter: "8.2"
+type: spot
+title: 回來一次就多一個觀察者
+minutes: 3
+prompt: 這個 VC 從編輯頁回來之後，每次帳本變動 reloadData 都被叫兩次、三次……。點出有問題的行並選原因。
+code: |
+  - (void)viewWillAppear:(BOOL)animated {
+      [super viewWillAppear:animated];
+      [NSNotificationCenter.defaultCenter addObserver:self
+                                             selector:@selector(ledgerDidChange:)
+                                                 name:LBLedgerDidChangeNotification
+                                               object:nil];
+      [self.tableView reloadData];
+  }
+
+  - (void)dealloc {
+      [NSNotificationCenter.defaultCenter removeObserver:self];
+  }
+bug_lines: [3, 11]
+reasons:
+  - "viewWillAppear: 每次進畫面都跑，dealloc 只跑一次：註冊 N 次只移除一次，觀察者累積"
+  - "reloadData 不能放在 viewWillAppear:"
+  - 通知的 object 參數不能是 nil
+  - "selector 應該寫成 @selector(ledgerDidChange) 不帶冒號"
+answer_reason: 0
+fix: |
+  - (void)viewWillAppear:(BOOL)animated {
+      [super viewWillAppear:animated];
+      [NSNotificationCenter.defaultCenter addObserver:self
+                                             selector:@selector(ledgerDidChange:)
+                                                 name:LBLedgerDidChangeNotification
+                                               object:nil];
+      [self.tableView reloadData];
+  }
+
+  - (void)viewWillDisappear:(BOOL)animated {
+      [super viewWillDisappear:animated];
+      [NSNotificationCenter.defaultCenter removeObserver:self
+                                                    name:LBLedgerDidChangeNotification
+                                                  object:nil];
+  }
+solution_note: "在哪一對回呼註冊，就在同一對的另一半移除。要麼 viewWillAppear: / viewWillDisappear:，要麼 viewDidLoad / dealloc。"
+hints: ["數一數：push 回來三次，addObserver 跑了幾次？removeObserver 跑了幾次？", "viewWillAppear: 的另一半是誰？"]
+feedback:
+  "1": reloadData 放這裡很常見，是為了同步離開期間的變動。
+  "2": object 為 nil 代表接收所有來源，合法。
+  "3": 通知的 selector 帶一個 NSNotification 參數，有冒號是對的。

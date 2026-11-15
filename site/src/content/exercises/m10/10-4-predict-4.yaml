@@ -1,0 +1,21 @@
+id: m10-10-4-predict-4
+chapter: "10.4"
+type: predict
+title: 預測結果：NSRecursiveLock 遞迴
+minutes: 2
+code: |
+  NSRecursiveLock *lock = [NSRecursiveLock new];
+  [lock lock];
+  NSLog(@"1");
+  [lock lock];          // 同一條執行緒再鎖一次
+  NSLog(@"2");
+  [lock unlock];
+  [lock unlock];
+  NSLog(@"3");
+options: ["1\n2\n3", "1，然後卡住", "1\n2，然後 crash", "編譯錯誤"]
+accept: ["1 2 3"]
+feedback:
+  "1，然後卡住": 那是 NSLock 的行為。NSRecursiveLock 對同一條執行緒計數，兩次 lock 配兩次 unlock。
+  "1 2，然後 crash": os_unfair_lock 才會 crash。
+solution_note: NSRecursiveLock 允許持有者重複 lock，內部計數到 0 才真正釋放。換成 NSLock 會在第二次 lock 永遠等待；換成 os_unfair_lock 會中止程式。
+hints: ["三種鎖對「同一條執行緒再鎖一次」各有不同反應。", "Recursive 的意思就是允許這件事。"]

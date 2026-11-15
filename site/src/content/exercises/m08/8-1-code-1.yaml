@@ -1,0 +1,47 @@
+id: m08-8-1-code-1
+chapter: "8.1"
+type: code
+title: 用程式碼組出 UITabBarController
+mobile: false
+minutes: 10
+prompt: "寫一個 `makeRootViewController` 方法：建立 `LBTransactionListViewController`（用 `initWithLedger:undoStack:`）包進 `UINavigationController`，設定 `tabBarItem`（標題「帳本」、SF Symbol `list.bullet`），放進 `UITabBarController` 的 `viewControllers` 並回傳。`self.ledger` 與 `self.undoStack` 已存在。"
+starter: |
+  - (UIViewController *)makeRootViewController {
+      // 1. 列表 VC（指定初始化器）
+      // 2. 包一層 UINavigationController
+      // 3. tabBarItem 設在 nav 上
+      // 4. UITabBarController 放進去並回傳
+  }
+checks:
+  - must_match: 'LBTransactionListViewController\s+alloc\]\s*initWithLedger\s*:\s*self\.ledger\s+undoStack\s*:\s*self\.undoStack'
+    message: "用指定初始化器 initWithLedger:undoStack: 建立列表 VC"
+  - must_match: 'UINavigationController\s+alloc\]\s*initWithRootViewController\s*:'
+    message: 列表要包一層 UINavigationController
+  - must_match: '\.tabBarItem\s*='
+    message: 要設定 tabBarItem
+  - must_match: 'UITabBarItem\s+alloc\]\s*initWithTitle\s*:\s*@"帳本"'
+    message: tabBarItem 標題為「帳本」
+  - must_match: 'systemImageNamed\s*:\s*@"list\.bullet"'
+    message: 圖示用 SF Symbol list.bullet
+  - must_match: '\.viewControllers\s*=\s*@\['
+    message: 用 viewControllers 屬性放入分頁
+  - must_match: 'return\s+\w+\s*;'
+    message: 要回傳 tab bar controller
+  - "brackets_balanced: true"
+solution: |
+  - (UIViewController *)makeRootViewController {
+      LBTransactionListViewController *list =
+          [[LBTransactionListViewController alloc] initWithLedger:self.ledger
+                                                        undoStack:self.undoStack];
+      UINavigationController *nav =
+          [[UINavigationController alloc] initWithRootViewController:list];
+      nav.tabBarItem =
+          [[UITabBarItem alloc] initWithTitle:@"帳本"
+                                        image:[UIImage systemImageNamed:@"list.bullet"]
+                                          tag:0];
+      UITabBarController *tabs = [UITabBarController new];
+      tabs.viewControllers = @[ nav ];
+      return tabs;
+  }
+solution_note: tabBarItem 設在 nav 上，因為 tab bar 看的是它的直接子 VC。之後統計與設定分頁用同樣寫法加進陣列。
+hints: ["先建列表 VC，再包 nav，再設 nav.tabBarItem。", "UITabBarItem 的初始化器是 initWithTitle:image:tag:。", "viewControllers 是陣列字面值 @[ ... ]。"]

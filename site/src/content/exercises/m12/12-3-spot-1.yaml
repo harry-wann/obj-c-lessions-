@@ -1,0 +1,27 @@
+id: m12-12-3-spot-1
+chapter: "12.3"
+type: spot
+title: 這個測試有時過有時不過
+minutes: 2
+prompt: 這個測試在 CI 上偶爾失敗。點出有問題的行並選原因。
+code: |
+  - (void)testParsesNoteFromJSON {
+      NSData *data = [@"{\"note\":\"午餐\",\"amount\":\"120\"}" dataUsingEncoding:NSUTF8StringEncoding];
+      LBTransaction *tx = [LBTransaction transactionFromJSONData:data error:NULL];
+      XCTAssertNotNil(tx);
+      XCTAssertEqual(tx.note, @"午餐");
+      XCTAssertEqualObjects(tx.amount, [NSDecimalNumber decimalNumberWithString:@"120"]);
+  }
+bug_lines: [5]
+reasons:
+  - "XCTAssertEqual 比兩個 NSString 的位址；解析出來的字串跟字面值不是同一個物件，是否相等取決於 NSString 內部快取"
+  - 中文字串不能當測試資料
+  - "error:NULL 會讓解析失敗"
+  - XCTAssertNotNil 應該放最後
+answer_reason: 0
+fix: |
+  XCTAssertEqualObjects(tx.note, @"午餐");
+solution_note: "「偶爾過」是比位址的典型症狀：tagged pointer 字串、常數字串合併讓同值字串有時剛好是同一個物件。兩邊是物件就用 `XCTAssertEqualObjects`。"
+hints: ["哪一行的兩個運算元是物件卻用了標量斷言？", "為什麼不是每次都失敗？"]
+feedback:
+  "2": error 參數傳 NULL 是合法的，代表不關心錯誤內容。

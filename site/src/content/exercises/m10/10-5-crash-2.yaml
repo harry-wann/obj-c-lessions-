@@ -1,0 +1,42 @@
+id: m10-10-5-crash-2
+chapter: "10.5"
+type: crash
+title: 讀 watchdog 報告：0x8badf00d
+minutes: 3
+prompt: 使用者回報 App 偶爾「畫面停住然後消失」。從 crash report 判斷原因。
+log: |
+  Exception Type:  EXC_CRASH (SIGKILL)
+  Termination Reason: FRONTBOARD 2343432205
+  <RBSTerminateContext| code:0x8BADF00D explanation:scene-update watchdog transgression:
+   application<tw.littlebook>:2201 exhausted real (wall clock) time allowance of 10.00 seconds
+  Thread 0 name:  Dispatch queue: com.apple.main-thread
+  Thread 0 Crashed:
+  0   libsystem_kernel.dylib   semaphore_wait_trap
+  1   libdispatch.dylib        _dispatch_sema4_wait
+  2   libdispatch.dylib        _dispatch_semaphore_wait_slow
+  3   LittleBook               -[LBRateService ratesForBasesSync:] + 96
+  4   LittleBook               -[LBRatesViewController viewWillAppear:] + 140
+  Thread 9:
+  0   libsystem_kernel.dylib   __ulock_wait
+  3   libdispatch.dylib        __DISPATCH_WAIT_FOR_QUEUE__
+  4   LittleBook               __40-[LBRateService fetchRatesForBase:completion:]_block_invoke + 72
+options:
+  - "主執行緒在 viewWillAppear: 用 dispatch_semaphore_wait 等網路結果，而網路回呼要 dispatch_sync 回主佇列才會 signal：死結，10 秒後 watchdog 以 0x8BADF00D 殺掉 App"
+  - 網路太慢，App 被系統判定記憶體不足
+  - "LBRateService 有 EXC_BAD_ACCESS"
+  - 使用者手動強制關閉 App
+answer: 0
+fix: |
+  // 主執行緒永遠不等 semaphore；改成非同步回呼：
+  - (void)viewWillAppear:(BOOL)animated {
+      [super viewWillAppear:animated];
+      [self.service fetchRatesForBases:self.bases maxConcurrent:2
+                            completion:^(NSDictionary *r, NSArray *e) {
+          [self render:r];              // completion 已在主佇列
+      }];
+  }
+solution_note: 三個線索：Termination 的 0x8BADF00D（watchdog）、Thread 0 停在 semaphore_wait、另一條執行緒停在 __DISPATCH_WAIT_FOR_QUEUE__ 等主佇列。兩條執行緒互相等就是死結；主執行緒卡滿 10 秒系統就殺。semaphore 不會把優先權借出去，所以就算不死結也會卡很久。
+hints: ["Termination Reason 的 code 是哪個魔術數字？", "Thread 0 在等什麼？Thread 9 在等誰？"]
+feedback:
+  "1": 記憶體不足是 EXC_RESOURCE / MEMORY 或 jetsam，這裡是 watchdog。
+  "2": SIGKILL 是系統殺的，不是程式自己存取錯誤。

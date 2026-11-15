@@ -1,0 +1,365 @@
+---
+title: "JSON 與資料映射"
+module: 7
+chapter: "7.7"
+order: 7
+minutes: 45
+prereq: ["7.6", "3.4"]
+objectives:
+  - "用 NSJSONSerialization 解析 JSON，說出每種 JSON 值對應到哪個 Foundation 類別、為什麼 ObjC 沒有 Codable 要手寫映射"
+  - "寫出防禦式的 +[LBRate rateWithJSON:]：isKindOfClass:、NSNull、數字當字串、缺欄位、日期字串四種髒資料都不 crash"
+  - "完成 +[LBRateService ratesFromJSONData:error:]，三個解析測試轉綠；（選讀）用二元堆積實作優先佇列"
+summary: "NSJSONSerialization 回 NSDictionary / NSArray、沒有 Codable 要手寫 +[LBRate rateWithJSON:]、型別防禦（isKindOfClass:、NSNull、數字當字串、缺欄位）、ISO8601DateFormatter；選讀：二元堆積 / 優先佇列排程預算提醒。"
+terms:
+  - { en: serialization, tw: 序列化, cn: 序列化, jp: シリアライズ }
+  - { en: mapping, tw: 映射, cn: 映射, jp: マッピング }
+  - { en: defensive parsing, tw: 防禦式解析, cn: 防御式解析, jp: 防御的パース }
+  - { en: type check, tw: 型別檢查, cn: 类型检查, jp: 型チェック }
+  - { en: heap / priority queue, tw: 堆積 / 優先佇列, cn: 堆 / 优先队列, jp: ヒープ / 優先度付きキュー }
+  - { en: binary heap, tw: 二元堆積, cn: 二叉堆, jp: 二分ヒープ }
+appProgress: "LBRateService 能把匯率 JSON 解析成 NSDecimalNumber 字典，壞資料回 NSError 不 crash；三個解析測試轉綠。小帳本有匯率換算了。"
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+struct RatesResponse: Codable {
+    let base: String
+    let date: Date
+    let rates: [String: Decimal]
+}
+let decoder = JSONDecoder()
+decoder.dateDecodingStrategy = .iso8601
+let response = try decoder.decode(RatesResponse.self, from: data)
+// 型別不符、缺欄位、null 都變成 DecodingError，一行 try 全包
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+@Serializable
+data class RatesResponse(
+    val base: String,
+    val date: String,
+    val rates: Map<String, Double>
+)
+val response = Json { ignoreUnknownKeys = true }.decodeFromString<RatesResponse>(text)
+// Moshi / Gson 同理：註解 + 反射或 codegen，型別不符丟 SerializationException
+```
+</Fragment>
+<Fragment slot="java">
+```java
+record RatesResponse(String base, Instant date, Map<String, BigDecimal> rates) {}
+ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+RatesResponse response = mapper.readValue(json, RatesResponse.class);
+// Jackson 靠反射對欄位名；數字給字串 "31.25" 預設會寬鬆轉換；null 進 record 要自己擋
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+const raw = JSON.parse(text);           // 型別是 any：跟 ObjC 的 id 一樣什麼都不保證
+const rates = raw.rates.USD;            // raw.rates 是 undefined 就 TypeError
+// 認真的專案用 zod 做執行期驗證：
+const Schema = z.object({ base: z.string(), rates: z.record(z.number()) });
+const parsed = Schema.parse(raw);       // 不符就 throw ZodError
+```
+</Fragment>
+Swift 的 `Codable`、Kotlin 的 `@Serializable`、Java 的 Jackson 都是「宣告一個型別，框架幫你對欄位」。**Objective-C 沒有這種東西。** `NSJSONSerialization` 只做到 TS 的 `JSON.parse` 那一步：給你一棵 `NSDictionary` / `NSArray` / `NSString` / `NSNumber` / `NSNull` 組成的樹，型別是 `id`，之後每一個欄位都要自己拿、自己檢查、自己轉。TS 工程師會覺得很熟悉：這就是沒有 zod 的 `JSON.parse`，而 ObjC 的 `id` 比 `any` 更危險，因為送錯訊息不是 `TypeError` 而是 `unrecognized selector` 直接 crash。所以這一章的核心不是 API，是**防禦的紀律**。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### NSJSONSerialization：JSON 樹 ↔ Foundation 物件
+
+```objc
+NSError *error = nil;
+id json = [NSJSONSerialization JSONObjectWithData:data options:0 error:&error];
+if (json == nil) { /* 不是合法 JSON，error 是 NSCocoaErrorDomain code 3840 */ }
+```
+
+<Term en="serialization" tw="序列化" cn="序列化" jp="シリアライズ" />的對應表背起來，之後每個欄位都要用到：
+
+| JSON | Foundation | 注意 |
+|---|---|---|
+| `{ }` | `NSDictionary` | key 一定是 `NSString` |
+| `[ ]` | `NSArray` | |
+| `"text"` | `NSString` | |
+| `31.25`、`100`、`true` | `NSNumber` | 整數、浮點、布林都是 `NSNumber`，`__NSCFNumber` / `__NSCFBoolean` |
+| `null` | `NSNull` | **是一個物件，不是 nil**，對它送訊息會 crash |
+
+回傳型別是 `id`，因為最外層可能是物件也可能是陣列。`options` 常用兩個：`NSJSONReadingMutableContainers`（回可變集合，想就地修改時用）、`NSJSONReadingFragmentsAllowed`（允許最外層是字串或數字，預設不行）。反方向 `dataWithJSONObject:options:error:` 只接受上表的五種類別，塞一個 `NSDate` 或 `NSDecimalNumber` 進去會直接 raise `NSInvalidArgumentException`，所以輸出前先 `[NSJSONSerialization isValidJSONObject:obj]`，或先把日期轉字串、金額轉字串。
+
+### 沒有 Codable：手寫映射
+
+<Term en="mapping" tw="映射" cn="映射" jp="マッピング" />就是「JSON 字典 → 模型物件」這一步。ObjC 的慣例是在模型類別上寫一個類別方法：
+
+```objc
+// LBRate.h
+@interface LBRate : NSObject
+@property (nonatomic, copy, readonly) NSString *code;              // @"USD"
+@property (nonatomic, strong, readonly) NSDecimalNumber *rate;    // 1 TWD 換多少
+@property (nonatomic, copy, readonly, nullable) NSDate *updatedAt;
++ (nullable instancetype)rateWithJSON:(NSDictionary *)json;       // 不合格回 nil
+@end
+```
+
+回 `nullable`：資料不合格就回 nil，由呼叫端決定是跳過這一筆還是整批失敗。要帶原因就加 `error:` 參數走 7.1 的慣例。
+
+### 防禦四件事
+
+<Term en="defensive parsing" tw="防禦式解析" cn="防御式解析" jp="防御的パース" />的對手永遠是同樣四種髒資料：**型別不對、`null`、數字給成字串、欄位缺少**。一個一個擋：
+
+```objc
++ (nullable instancetype)rateWithJSON:(NSDictionary *)json {
+    // 0. 根本不是字典
+    if (![json isKindOfClass:[NSDictionary class]]) return nil;
+
+    // 1. 型別檢查 + 缺欄位：isKindOfClass: 對 nil 回 NO，一句話同時擋兩種
+    NSString *code = json[@"code"];
+    if (![code isKindOfClass:[NSString class]] || code.length == 0) return nil;
+
+    // 2. 數字可能是 NSNumber 也可能是字串 "31.25"；null 兩者都不是
+    id rawRate = json[@"rate"];
+    NSDecimalNumber *rate = nil;
+    if ([rawRate isKindOfClass:[NSNumber class]]) {
+        rate = [NSDecimalNumber decimalNumberWithDecimal:[rawRate decimalValue]];
+    } else if ([rawRate isKindOfClass:[NSString class]]) {
+        rate = [NSDecimalNumber decimalNumberWithString:rawRate];
+        if ([rate isEqual:[NSDecimalNumber notANumber]]) rate = nil;   // "abc" 會變 NaN
+    }
+    if (rate == nil) return nil;
+
+    // 3. 可選欄位：缺、null、格式錯都當 nil，不讓整筆失敗
+    NSDate *updatedAt = nil;
+    id rawDate = json[@"updated_at"];
+    if ([rawDate isKindOfClass:[NSString class]]) {
+        updatedAt = [[self iso8601Formatter] dateFromString:rawDate];    // 解析失敗回 nil
+    }
+
+    return [[self alloc] initWithCode:code rate:rate updatedAt:updatedAt];
+}
+
++ (NSISO8601DateFormatter *)iso8601Formatter {
+    static NSISO8601DateFormatter *formatter;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ formatter = [[NSISO8601DateFormatter alloc] init]; });   // formatter 很貴，共用
+    return formatter;
+}
+```
+
+幾個細節：
+
+- `isKindOfClass:` 是<Term en="type check" tw="型別檢查" cn="类型检查" jp="型チェック" />的標準寫法，**對 nil 送訊息回 NO**，所以「缺欄位」跟「型別錯」用同一句擋掉；`NSNull` 也不是 `NSString`，順便擋掉。這比先 `if (json[@"code"] == nil)` 再 `if ([x isKindOfClass:...])` 乾淨。
+- 判斷 `NSNull` 不要用 `[x isKindOfClass:[NSNull class]]` 之外的方法；它是單例，`x == [NSNull null]` 也可以。
+- `NSDecimalNumber` 從 `NSNumber` 轉要走 `decimalValue`，別走 `doubleValue`：`0.1` 經過 double 會變 `0.1000000000000000055`。金額相關全部這樣轉；伺服器如果願意把金額給成字串 `"31.25"` 反而最準。
+- `NSISO8601DateFormatter`（iOS 10+）直接吃 `2024-05-01T08:30:00Z`；有毫秒的 `2024-05-01T08:30:00.123Z` 要設 `formatOptions |= NSISO8601DateFormatWithFractionalSeconds`。`NSDateFormatter` 建立成本高，用 `dispatch_once` 共用一份。
+- 用 `json[@"rate"]` 下標而不是 `valueForKey:`：KVC 版本對 `NSNull` 一樣危險，而且 key 以 `@` 開頭時會走別的路。
+
+### ratesFromJSONData:error:：整批解析 + NSError
+
+```objc
++ (nullable NSDictionary<NSString *, NSDecimalNumber *> *)ratesFromJSONData:(NSData *)data
+                                                                     error:(NSError **)error {
+    NSError *jsonError = nil;
+    id root = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonError];
+    if (![root isKindOfClass:[NSDictionary class]]) {
+        LBSetError(error, LBErrorCodeMalformedJSON, @"匯率回應不是 JSON 物件", jsonError);
+        return nil;
+    }
+    id rates = root[@"rates"];
+    if (![rates isKindOfClass:[NSDictionary class]]) {
+        LBSetError(error, LBErrorCodeUnexpectedType, @"缺少 rates 欄位或型別不對", nil);
+        return nil;
+    }
+    NSMutableDictionary *result = [NSMutableDictionary dictionary];
+    for (NSString *code in rates) {
+        id raw = rates[code];
+        if (![raw isKindOfClass:[NSNumber class]]) {            // 這裡採嚴格策略：一筆壞整批失敗
+            LBSetError(error, LBErrorCodeUnexpectedType,
+                       [NSString stringWithFormat:@"%@ 的匯率不是數字", code], nil);
+            return nil;
+        }
+        result[code] = [NSDecimalNumber decimalNumberWithDecimal:[raw decimalValue]];
+    }
+    return [result copy];
+}
+```
+
+`LBSetError` 是 7.1 建議的小函式（檢查 `error` 非 NULL、組 `userInfo`、放 `NSUnderlyingErrorKey`）。這個方法是純函式，不碰網路、不碰執行緒，所以三個解析測試可以直接餵 `NSData` 不用 stub。要不要「一筆壞整批失敗」是產品決策：匯率表少一個幣別也許可以接受（跳過並 log），帳本匯入少一筆交易就不行（整批失敗讓使用者知道）。測試 `testReportsErrorWhenRateIsNotNumber` 要的是嚴格版。
+
+### 完整範例（可貼進 Scratch）
+
+```objc
+#import <Foundation/Foundation.h>
+
+static NSDecimalNumber *LBDecimalFromJSON(id raw) {
+    if ([raw isKindOfClass:[NSNumber class]]) return [NSDecimalNumber decimalNumberWithDecimal:[raw decimalValue]];
+    if ([raw isKindOfClass:[NSString class]]) {
+        NSDecimalNumber *d = [NSDecimalNumber decimalNumberWithString:raw];
+        return [d isEqual:[NSDecimalNumber notANumber]] ? nil : d;
+    }
+    return nil;                                   // nil、NSNull、陣列、字典都到這裡
+}
+
+static void parse(NSString *text) {
+    NSData *data = [text dataUsingEncoding:NSUTF8StringEncoding];
+    NSError *error = nil;
+    id root = [NSJSONSerialization JSONObjectWithData:data options:0 error:&error];
+    if (![root isKindOfClass:[NSDictionary class]]) {
+        NSLog(@"不是 JSON 物件：%@", error.localizedDescription ?: [root class]);
+        return;
+    }
+    id rawRates = root[@"rates"];
+    if (![rawRates isKindOfClass:[NSDictionary class]]) { NSLog(@"缺 rates"); return; }
+    NSMutableDictionary *rates = [NSMutableDictionary dictionary];
+    for (NSString *code in rawRates) {
+        NSDecimalNumber *d = LBDecimalFromJSON(rawRates[code]);
+        if (d) rates[code] = d; else NSLog(@"跳過 %@（%@）", code, [rawRates[code] class]);
+    }
+    NSLog(@"解析到 %@", rates);
+}
+
+int main(void) {
+    @autoreleasepool {
+        parse(@"{\"rates\": {\"USD\": 0.031, \"JPY\": \"4.85\"}}");
+        parse(@"{\"rates\": {\"USD\": null, \"EUR\": 0.029}}");
+        parse(@"{\"rates\": [1, 2]}");
+        parse(@"[1, 2]");
+        parse(@"{rates: oops}");
+    }
+    return 0;
+}
+// 預期輸出：
+// 解析到 {
+//     JPY = "4.85";
+//     USD = "0.031";
+// }
+// 跳過 USD（NSNull）
+// 解析到 {
+//     EUR = "0.029";
+// }
+// 缺 rates
+// 不是 JSON 物件：__NSArrayI
+// 不是 JSON 物件：The data couldn’t be read because it isn’t in the correct format.
+```
+
+第一行示範數字與字串都接受、第二行示範 `NSNull` 被跳過、第四行示範最外層是陣列時 `root` 是 `NSArray` 而不是 nil（`error` 也是 nil，因為它是合法 JSON），所以型別檢查一定要做在 `JSONObjectWithData:` 之後，不能只看 nil。
+
+<Tip title="輸出 JSON 也要防禦">
+`dataWithJSONObject:` 遇到 `NSDate`、`NSDecimalNumber`、`NSURL`、自訂物件會 raise。`LBTransaction` 的 `dictionaryRepresentation`（9.x）要先把 `amount` 轉成字串（`stringValue`，精度不丟）、`date` 轉成 ISO 8601 字串、`identifier` 轉 `UUIDString`，而且輸出前 `NSAssert([NSJSONSerialization isValidJSONObject:dict], ...)` 擋在 Debug。`NSDecimalNumber` 是 `NSNumber` 的子類別所以技術上可以直接放，但輸出會變成 double，金額失真，還是轉字串。
+</Tip>
+
+## 選讀：堆積與優先佇列
+
+小帳本的「預算提醒」要在幾十個提醒裡每次拿**最早到期**的那一個；每次插入新提醒時全部重排是 O(n log n)，用<Term en="heap / priority queue" tw="堆積 / 優先佇列" cn="堆 / 优先队列" jp="ヒープ / 優先度付きキュー" />插入與取出都是 O(log n)。<Term en="binary heap" tw="二元堆積" cn="二叉堆" jp="二分ヒープ" />是最簡單的實作：用一個陣列裝完全二元樹，索引 `i` 的父節點是 `(i − 1) / 2`、子節點是 `2i + 1` 與 `2i + 2`，保持「父節點優先度 ≥ 子節點」（最大堆積）或 ≤（最小堆積）。
+
+```objc
+@implementation LBBinaryHeap {
+    NSMutableArray *_items;
+    NSComparator _compare;      // 回 NSOrderedAscending 的那個排前面（最小堆積）
+}
+- (instancetype)initWithComparator:(NSComparator)compare {
+    if (self = [super init]) { _items = [NSMutableArray array]; _compare = [compare copy]; }
+    return self;
+}
+- (void)insert:(id)obj {
+    [_items addObject:obj];
+    NSUInteger i = _items.count - 1;
+    while (i > 0) {                                        // sift up
+        NSUInteger parent = (i - 1) / 2;
+        if (_compare(_items[i], _items[parent]) != NSOrderedAscending) break;
+        [_items exchangeObjectAtIndex:i withObjectAtIndex:parent];
+        i = parent;
+    }
+}
+- (nullable id)extract {
+    if (_items.count == 0) return nil;
+    id top = _items.firstObject;
+    id last = _items.lastObject;
+    [_items removeLastObject];
+    if (_items.count > 0) {
+        _items[0] = last;
+        NSUInteger i = 0, n = _items.count;
+        while (YES) {                                      // sift down
+            NSUInteger l = 2 * i + 1, r = l + 1, best = i;
+            if (l < n && _compare(_items[l], _items[best]) == NSOrderedAscending) best = l;
+            if (r < n && _compare(_items[r], _items[best]) == NSOrderedAscending) best = r;
+            if (best == i) break;
+            [_items exchangeObjectAtIndex:i withObjectAtIndex:best];
+            i = best;
+        }
+    }
+    return top;
+}
+- (nullable id)peek { return _items.firstObject; }
+- (NSUInteger)count { return _items.count; }
+@end
+```
+
+`insert` 放到尾端往上浮，`extract` 拿走頂端、把尾端搬到頂端往下沉。排程預算提醒：comparator 比 `fireDate`，每次 `extract` 就是下一個要發的提醒。10.5 的背景任務排程會再用一次，面試題「前 K 大」「合併 K 路」「資料流中位數」都是它，收在「想多練？」。Foundation 沒有內建堆積；Swift 的 Collections 套件有 `Heap`，Java 有 `PriorityQueue`。
+
+<Pitfall title="數字欄位用 NSString 接">
+<Fragment slot="bad">
+```objc
+NSString *rate = json[@"rate"];                        // 伺服器給的是 31.25（數字）
+NSDecimalNumber *d = [NSDecimalNumber decimalNumberWithString:rate];   // -[__NSCFNumber length]: unrecognized selector
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+id raw = json[@"rate"];
+NSDecimalNumber *d = nil;
+if ([raw isKindOfClass:[NSNumber class]]) d = [NSDecimalNumber decimalNumberWithDecimal:[raw decimalValue]];
+else if ([raw isKindOfClass:[NSString class]]) d = [NSDecimalNumber decimalNumberWithString:raw];
+```
+</Fragment>
+宣告成 `NSString *` 不會做任何轉換或檢查，只是你對編譯器的承諾；物件實際是 `NSNumber`，第一個字串方法就 crash。反過來（宣告 `NSNumber *` 接到字串）在 `integerValue` 上剛好不會 crash，因為 `NSString` 也有 `integerValue`，但 `[rate compare:]` 就會。後端改欄位型別不會通知你，一律用 `id` 接、`isKindOfClass:` 分流。
+</Pitfall>
+
+<Pitfall title="對 NSNull 送訊息">
+<Fragment slot="bad">
+```objc
+NSString *note = json[@"note"];
+cell.textLabel.text = note.length > 0 ? note : @"（無備註）";   // note 是 NSNull → -[NSNull length]
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+id raw = json[@"note"];
+NSString *note = [raw isKindOfClass:[NSString class]] ? raw : nil;   // NSNull、缺欄位都變 nil
+cell.textLabel.text = note.length > 0 ? note : @"（無備註）";       // 對 nil 送 length 回 0，安全
+```
+</Fragment>
+JSON 的 `null` 變成 `NSNull` 單例，是**真的物件**，不是 nil；對 nil 送訊息安全的保護傘罩不到它。把它在解析層就轉成 nil，模型層以後就不用再想這件事。
+</Pitfall>
+
+<Pitfall title="NSDecimalNumber 經過 double">
+`[NSDecimalNumber decimalNumberWithDecimal:[raw decimalValue]]` 跟 `[[NSDecimalNumber alloc] initWithDouble:[raw doubleValue]]` 看起來一樣，後者會把 `0.1` 變成 `0.1000000000000000055511151231257827`。金額一律走 `decimalValue` 或字串。這也是為什麼 M09 持久化時金額存字串不存數字。
+</Pitfall>
+
+<Pitfall title="每次解析都 alloc 一個 NSDateFormatter">
+`NSDateFormatter` / `NSISO8601DateFormatter` 建立成本是以毫秒計的，100 筆交易各建一個就是畫面卡一下。用 `dispatch_once` 共用一份（7.3）；要在多執行緒解析，iOS 7 以後 `NSDateFormatter` 是執行緒安全的，共用沒問題。改 `dateFormat` 不是執行緒安全的，共用的那份不要改設定。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException', reason: '-[NSNull length]: unrecognized selector sent to instance 0x1e8c4d8f0'
+*** First throw call stack:
+(
+    3   CoreFoundation    ___forwarding___ + 1324
+    4   CoreFoundation    _CF_forwarding_prep_0 + 96
+    5   LittleBook        +[LBRate rateWithJSON:] + 148
+    6   LittleBook        +[LBRateService ratesFromJSONData:error:] + 276
+)`}>
+`unrecognized selector sent to instance` 是 ObjC 的「型別錯誤」：你對某個物件送了它沒有的訊息。前面的 `-[NSNull length]` 告訴你兩件事：物件是 `NSNull`（JSON 的 `null`）、你把它當 `NSString` 用了（`length`）。同系列還有 `-[__NSCFNumber length]`（數字被當字串）、`-[__NSCFString decimalValue]`（字串被當數字）、`-[__NSArrayI objectForKey:]`（陣列被當字典）。`___forwarding___` 是 runtime 找不到方法後走到轉送機制的最後一站，往下第一個自己模組的 frame（`+[LBRate rateWithJSON:]`）就是沒做型別檢查的那一行。修法不是 `@try`，是回去補 `isKindOfClass:`。想一次抓到所有這種 crash：Exception Breakpoint（7.2）會停在送訊息的那一行。
+</Crash>
+
+## 小結
+
+- `NSJSONSerialization` 只做 `JSON.parse` 那一步：回 `id`，裡面是 `NSDictionary` / `NSArray` / `NSString` / `NSNumber` / `NSNull`。沒有 Codable，映射手寫成 `+[LBRate rateWithJSON:]`。
+- 防禦四件事：**型別不對、`NSNull`、數字給字串、缺欄位**。`isKindOfClass:` 對 nil 回 NO，一句同時擋缺欄位與型別錯；`NSNull` 是物件不是 nil。
+- 金額從 `NSNumber` 轉 `NSDecimalNumber` 走 `decimalValue`，不走 `doubleValue`；日期用共用的 `NSISO8601DateFormatter`。
+- 最外層可能是陣列：`root` 非 nil 不代表是字典，先 `isKindOfClass:` 再下標。
+- （選讀）二元堆積：陣列裝完全二元樹，`insert` 上浮、`extract` 下沉，O(log n)；排程預算提醒與 10.5 的背景任務。

@@ -1,0 +1,331 @@
+---
+title: 幀預算與主執行緒
+module: 10
+chapter: "10.1"
+order: 1
+minutes: 40
+prereq: ["7.2", "7.4"]
+objectives:
+  - 說出 60 / 120 Hz 的幀預算，判斷哪些工作可以留在主執行緒、哪些必須搬走
+  - 用 CADisplayLink 與環狀緩衝區寫出 FPS 監視器，並讀懂 Time Profiler 與 Animation Hitches 的畫面
+  - 用 os_signpost 標記區間，解釋 hitch 比率怎麼算
+summary: "16.7 / 8.3 ms 幀預算、主執行緒只貼結果、CADisplayLink 自寫 FPS 監視器、環狀緩衝區取樣、Time Profiler 與 Animation Hitches 讀法、os_signpost、hitch 比率、watchdog 0x8badf00d。"
+terms:
+  - { en: frame budget, tw: 幀預算, cn: 帧预算, jp: フレームバジェット }
+  - { en: frame drop, tw: 掉幀, cn: 掉帧, jp: コマ落ち }
+  - { en: hitch, tw: 卡頓（hitch）, cn: 卡顿, jp: ヒッチ }
+  - { en: ring buffer, tw: 環狀緩衝區, cn: 环形缓冲区, jp: リングバッファ }
+  - { en: main thread, tw: 主執行緒, cn: 主线程, jp: メインスレッド }
+  - { en: signpost, tw: 標記（signpost）, cn: 标记, jp: サインポスト }
+appProgress: LBRingBuffer 與 LBFPSMonitor 完成，效能面板（畫面 10）顯示即時 FPS 與最近 60 幀；三個測試轉綠。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+let link = CADisplayLink(target: self, selector: #selector(tick(_:)))
+link.add(to: .main, forMode: .common)
+
+@objc func tick(_ link: CADisplayLink) {
+    let ms = (link.targetTimestamp - link.timestamp) * 1000
+    // 每一幀被呼叫一次；ms 就是這一幀的預算
+}
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+Choreographer.getInstance().postFrameCallback(object : FrameCallback {
+    override fun doFrame(frameTimeNanos: Long) {
+        // 每一幀一次；用上一幀的時間差算 FPS
+        Choreographer.getInstance().postFrameCallback(this)
+    }
+})
+// 耗時工作：withContext(Dispatchers.Default) { ... } 再切回 Main
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// Android：Choreographer 同上。桌面 JavaFX：
+AnimationTimer timer = new AnimationTimer() {
+    @Override public void handle(long now) { /* 每幀一次 */ }
+};
+timer.start();
+// 耗時工作交給 ExecutorService，結果用 Platform.runLater 貼回 UI
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+let last = performance.now();
+function tick(now: number) {
+  const ms = now - last; last = now;   // 這一幀花了多久
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+// 耗時工作：new Worker("parse.js")，結果 postMessage 回主執行緒
+```
+</Fragment>
+每個平台都有「螢幕每次重畫前叫我一下」的 API：瀏覽器的 `requestAnimationFrame`、Android 的 `Choreographer`、iOS 的 `CADisplayLink`。規則也一樣：UI 執行緒只有一條，而且每一幀只給你十幾毫秒。TS 開發者最熟這件事，因為 JS 本來就是單執行緒；差別在於 iOS 給你真正的多執行緒去分擔，所以本章的句子都是「把 X 搬到背景，主執行緒只貼結果」。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 幀預算：16.7 ms，實際只能用一半
+
+60 Hz 的螢幕每 16.7 ms 重畫一次，iPhone 13 Pro 之後的 ProMotion 螢幕是 120 Hz，預算只剩 8.3 ms。這段時間裡主執行緒要處理觸控事件、跑你的程式、算 Auto Layout、把圖層交給 Render Server。**一幀只要超過預算，這一幀就不會出現**，使用者看到的是畫面停了一下，這就是<Term en="frame drop" tw="掉幀" cn="掉帧" jp="コマ落ち" />。小帳本的驗收指標寫「單幀主執行緒 &lt; 8 ms」，是把 60 Hz 預算的一半留給系統。
+
+所以主執行緒的角色是：**只做「把算好的結果貼到畫面上」**。日期格式化、金額字串、排序、JSON 解析、檔案讀寫、圖片解碼，全部不是「貼」，都該在背景佇列算完再送回來。「只有幾 ms」是最常聽到的藉口；三個「幾 ms」加在一起就是一次 hitch。
+
+### 用 CADisplayLink 自己寫 FPS 監視器
+
+`CADisplayLink` 是跟螢幕重畫同步的計時器：每一幀呼叫你一次，`timestamp` 是這一幀開始的時間，`targetTimestamp` 是下一幀該顯示的時間。兩幀 `timestamp` 的差就是上一幀實際花了多久。
+
+```objc
+// LBFPSMonitor.m
+#import <QuartzCore/QuartzCore.h>
+
+@implementation LBFPSMonitor {
+    CADisplayLink *_link;
+    CFTimeInterval _lastTimestamp;
+    LBRingBuffer *_history;        // 最近 60 幀的毫秒數
+}
+
++ (instancetype)shared {
+    static LBFPSMonitor *shared;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ shared = [LBFPSMonitor new]; });
+    return shared;
+}
+
+- (void)start {
+    if (_link) return;
+    _history = [[LBRingBuffer alloc] initWithCapacity:60];
+    _link = [CADisplayLink displayLinkWithTarget:self
+                                        selector:@selector(tick:)];
+    [_link addToRunLoop:NSRunLoop.mainRunLoop
+                forMode:NSRunLoopCommonModes];   // 捲動時也要收到
+}
+
+- (void)stop {
+    [_link invalidate];            // 解除 run loop 對 target 的持有
+    _link = nil;
+}
+
+- (void)tick:(CADisplayLink *)link {
+    if (_lastTimestamp > 0) {
+        double ms = (link.timestamp - _lastTimestamp) * 1000.0;
+        [_history append:ms];
+        _lastFrameMilliseconds = ms;
+        _fps = 1000.0 / MAX([_history average], 0.001);
+    }
+    _lastTimestamp = link.timestamp;
+}
+
++ (NSInteger)classifyFrameDuration:(double)milliseconds {
+    if (milliseconds < 16.7) return 0;     // 正常
+    if (milliseconds < 33.4) return 1;     // 警告：掉了一幀
+    return 2;                              // 掉幀：兩幀以上
+}
+@end
+```
+
+兩個細節：模式要用 `NSRunLoopCommonModes`，不然 `UITrackingRunLoopMode`（捲動中）收不到回呼，監視器會在你最想看的時候停住。`stop` 要 `invalidate`，因為 run loop 強持有 `target`，不解除的話單例以外的監視器永遠不會釋放。
+
+### 環狀緩衝區：固定容量、覆寫最舊
+
+<Term en="ring buffer" tw="環狀緩衝區" cn="环形缓冲区" jp="リングバッファ" />是「最近 N 筆」的標準容器。`NSMutableArray` 的 `removeObjectAtIndex:0` 是 O(n)，每幀搬一次沒必要；環狀緩衝區用固定長度的 C 陣列加一個寫入位置，寫滿後從頭覆寫，`append` 永遠 O(1)。
+
+```objc
+#import <Foundation/Foundation.h>
+#import <QuartzCore/QuartzCore.h>   // CACurrentMediaTime
+
+@interface LBRingBuffer : NSObject
+- (instancetype)initWithCapacity:(NSUInteger)capacity;
+- (void)append:(double)value;
+- (double)average;
+- (double)max;
+- (NSUInteger)count;
+- (NSArray<NSNumber *> *)values;    // 由舊到新
+@end
+
+@implementation LBRingBuffer {
+    double *_slots;
+    NSUInteger _capacity, _head, _count;   // _head：下一個要寫的位置
+}
+- (instancetype)initWithCapacity:(NSUInteger)capacity {
+    if (self = [super init]) {
+        _capacity = MAX(capacity, 1);
+        _slots = calloc(_capacity, sizeof(double));
+    }
+    return self;
+}
+- (void)dealloc { free(_slots); }
+- (void)append:(double)value {
+    _slots[_head] = value;
+    _head = (_head + 1) % _capacity;       // 繞回開頭
+    if (_count < _capacity) _count++;
+}
+- (NSUInteger)count { return _count; }
+- (double)average {
+    if (_count == 0) return 0;
+    double sum = 0;
+    for (NSUInteger i = 0; i < _count; i++) sum += _slots[i];
+    return sum / _count;
+}
+- (double)max {
+    double m = 0;
+    for (NSUInteger i = 0; i < _count; i++) m = MAX(m, _slots[i]);
+    return m;
+}
+- (NSArray<NSNumber *> *)values {
+    NSMutableArray *out = [NSMutableArray arrayWithCapacity:_count];
+    NSUInteger start = (_count < _capacity) ? 0 : _head;   // 最舊的那格
+    for (NSUInteger i = 0; i < _count; i++) {
+        [out addObject:@(_slots[(start + i) % _capacity])];
+    }
+    return out;
+}
+@end
+
+int main(void) {
+    @autoreleasepool {
+        LBRingBuffer *rb = [[LBRingBuffer alloc] initWithCapacity:3];
+        for (double v = 1; v <= 5; v++) [rb append:v];
+        NSLog(@"values=%@ avg=%.1f max=%.0f count=%lu",
+              [[rb values] componentsJoinedByString:@","],
+              [rb average], [rb max], (unsigned long)[rb count]);
+
+        // 簡易 benchmark：環狀緩衝區 vs NSMutableArray 移頭
+        NSUInteger n = 200000;
+        LBRingBuffer *big = [[LBRingBuffer alloc] initWithCapacity:60];
+        CFTimeInterval t0 = CACurrentMediaTime();
+        for (NSUInteger i = 0; i < n; i++) [big append:i];
+        CFTimeInterval t1 = CACurrentMediaTime();
+        NSMutableArray *arr = [NSMutableArray array];
+        for (NSUInteger i = 0; i < n; i++) {
+            [arr addObject:@(i)];
+            if (arr.count > 60) [arr removeObjectAtIndex:0];
+        }
+        CFTimeInterval t2 = CACurrentMediaTime();
+        NSLog(@"ring %.1f ms, array %.1f ms",
+              (t1 - t0) * 1000, (t2 - t1) * 1000);
+    }
+    return 0;
+}
+// 預期輸出（時間依機器不同，比例大致如此）：
+// values=3,4,5 avg=4.0 max=5 count=3
+// ring 1.2 ms, array 18.6 ms
+```
+
+`values` 的起點是重點：還沒寫滿時從 0 開始；寫滿後 `_head` 指的那格剛好是最舊的一筆。`LBRingBufferTests/testOverwritesOldest` 檢查的就是這一行。
+
+### Instruments：Time Profiler 與 Animation Hitches
+
+- **Time Profiler**（⌘I 選它）：錄一段捲動，勾選左下 **Call Tree → Invert Call Tree、Hide System Libraries**，再看 Main Thread 底下最重的幾個自己的方法。看到 `-[NSDateFormatter stringFromDate:]` 排第一就是 10.2 的故事。
+- **Animation Hitches**：直接告訴你哪幾幀遲到、遲到多久，紅色區段點進去可以看到那一幀主執行緒在跑什麼。它把 hitch 分成兩類：**Commit hitch**（你的程式與 layout 太慢，主執行緒的問題）與 **Render hitch**（Render Server 畫太慢，通常是離屏渲染與過多混合）。
+- **Hitch 比率**：Apple 用「每秒卡頓毫秒數」（ms/s）衡量，hitch time ratio。&lt; 5 ms/s 算好，&gt; 10 ms/s 使用者會明顯感覺。小帳本的「全程 ≥ 58 FPS」是同一件事的另一種說法。
+
+### os_signpost：自己標記區間
+
+Time Profiler 告訴你「哪個函式重」，但不會告訴你「這次匯入的解析階段花了多久」。`os_signpost` 讓你在 Instruments 的時間軸上畫自己的區間：
+
+```objc
+#import <os/signpost.h>
+
+static os_log_t LBPerfLog(void) {
+    static os_log_t log;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        log = os_log_create("tw.littlebook", "Performance");
+    });
+    return log;
+}
+
+- (void)parseCSV {
+    os_signpost_id_t sid = os_signpost_id_generate(LBPerfLog());
+    os_signpost_interval_begin(LBPerfLog(), sid, "parseCSV",
+                               "rows=%lu", (unsigned long)rows);
+    // ... 解析 ...
+    os_signpost_interval_end(LBPerfLog(), sid, "parseCSV");
+}
+```
+
+Instruments 選 **os_signpost** 樂器，就能看到 `parseCSV` 的區間疊在 CPU 使用率上面。Release 建置裡它幾乎沒有成本，可以留著。
+
+<Steps title="在效能面板顯示 FPS（畫面 10）">
+1. `LBPerformanceViewController.m`：`viewDidAppear:` 呼叫 `[LBFPSMonitor.shared start]`，`viewDidDisappear:` 呼叫 `stop`。
+2. 用 `NSTimer` 每 0.5 秒讀 `fps`、`lastFrameMilliseconds`，更新頂端兩個 label；`history.values` 畫成 60 根長條（`CAShapeLayer` 或簡單的 `UIView` 陣列）。
+3. 顏色依 `classifyFrameDuration:`：0 綠、1 黃、2 紅。
+4. 整個類別包在 `#if DEBUG` 裡；設定頁的「效能面板」入口也只在 DEBUG 顯示。
+5. Product → Profile（⌘I）→ Animation Hitches，捲動帳本列表 10 秒，確認面板讀數與 Instruments 一致。
+</Steps>
+
+<Pitfall title="「只有幾 ms」的主執行緒 I/O">
+<Fragment slot="bad">
+```objc
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    NSData *data = [NSData dataWithContentsOfURL:self.fileURL];   // 3 ms
+    self.ledger = [LBLedger ledgerWithJSONData:data error:nil];    // 6 ms
+    [self.tableView reloadData];                                   // 4 ms
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSData *data = [NSData dataWithContentsOfURL:self.fileURL];
+        LBLedger *ledger = [LBLedger ledgerWithJSONData:data error:nil];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.ledger = ledger;
+            [self.tableView reloadData];     // 只剩「貼」
+        });
+    });
+}
+```
+</Fragment>
+三段各自都「只有幾 ms」，合起來 13 ms 已經接近預算；轉場動畫同時在跑，這一幀必掉。I/O 與解析搬到背景，主執行緒只剩 reloadData。
+</Pitfall>
+
+<Pitfall title="CADisplayLink 強持有 target">
+`displayLinkWithTarget:selector:` 之後，run loop 持有 display link，display link 持有 target。一個普通的 view controller 當 target 又忘了 `invalidate`，controller 永遠不會 dealloc，而且 `tick:` 繼續每幀跑。在 `viewDidDisappear:` 或 `dealloc` 呼叫 `[_link invalidate]`；不想讓 controller 當 target 就用一個只持有 weak 參考的小代理物件。本章用單例所以沒差，照樣要在 `stop` 裡 `invalidate`。
+</Pitfall>
+
+<Pitfall title="用 NSTimer 量 FPS">
+`NSTimer` 的觸發時間跟螢幕重畫沒有關係，間隔 16 ms 的 timer 可能在一幀裡被叫兩次、下一幀零次，量出來的數字沒有意義。而且預設模式下捲動時 timer 根本不觸發。量幀只能用 `CADisplayLink`，它就是為了「跟螢幕同步」存在的。
+</Pitfall>
+
+<Pitfall title="只看平均 FPS">
+平均 59.5 FPS 可能是「每秒有一幀花了 100 ms」：使用者感覺到的是那一下，不是平均值。這就是為什麼 `LBFPSMonitor` 同時記 `lastFrameMilliseconds` 與 `max`，Animation Hitches 用 ms/s 而不用 FPS。看效能面板時紅色長條的數量比平均 FPS 重要。
+</Pitfall>
+
+<Crash message={`Exception Type:  EXC_CRASH (SIGKILL)
+Exception Codes: 0x0000000000000000, 0x0000000000000000
+Exception Note:  EXC_CORPSE_NOTIFY
+Termination Reason: FRONTBOARD 2343432205
+<RBSTerminateContext| domain:10 code:0x8BADF00D explanation:scene-update watchdog transgression: application<tw.littlebook>:1234 exhausted real (wall clock) time allowance of 10.00 seconds
+Thread 0 name:  Dispatch queue: com.apple.main-thread
+Thread 0 Crashed:
+0   libsystem_kernel.dylib  __ulock_wait
+1   libdispatch.dylib       _dlock_wait
+2   libdispatch.dylib       _dispatch_thread_event_wait_slow
+3   libdispatch.dylib       __DISPATCH_WAIT_FOR_QUEUE__
+4   LittleBook              -[LBLedger transactions] + 88
+5   LittleBook              -[LBTransactionListViewController viewWillAppear:] + 212`}>
+`0x8BADF00D`（讀作 ate bad food）是 watchdog：主執行緒卡住超過系統容忍的時間（這裡 10 秒），直接被殺，不是你的程式自己 crash。這種 log 不會有 Xcode 的紫色箭頭，要從 crash report 讀：先確認 Termination Reason 有 `0x8BADF00D`，再看 **Thread 0**（主執行緒）的堆疊，由上往下找到第一個自己的 frame。這裡是 `-[LBLedger transactions]` 在 `__DISPATCH_WAIT_FOR_QUEUE__` 等待，表示它用 `dispatch_sync` 等一條被卡住的佇列，而那條佇列正在等主執行緒：10.4 會講的死結。修法是把 `transactions` 的讀取改成 barrier 讀寫鎖，或至少不要在主執行緒 `dispatch_sync` 到一條會回到主執行緒的佇列。
+</Crash>
+
+## 小結
+
+- 60 Hz 一幀 16.7 ms、120 Hz 8.3 ms；驗收用一半（&lt; 8 ms）。主執行緒只做「貼結果」，格式化、解析、I/O 都搬走。
+- `CADisplayLink` 是唯一跟螢幕同步的計時器；加進 `NSRunLoopCommonModes`，不用時 `invalidate`。
+- 環狀緩衝區：固定長度陣列加寫入位置，`append` O(1)，寫滿覆寫最舊；`values` 的起點在寫滿前是 0、寫滿後是 `_head`。
+- Time Profiler 看哪個方法重（Invert Call Tree + Hide System Libraries）；Animation Hitches 看哪一幀遲到，分 commit / render 兩類；hitch 比率 &lt; 5 ms/s。
+- `os_signpost` 在時間軸上畫自己的區間；`0x8BADF00D` 是 watchdog，從 Thread 0 的堆疊找卡住的呼叫。

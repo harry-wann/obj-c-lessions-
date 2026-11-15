@@ -1,0 +1,17 @@
+id: m07-7-2-quiz-4
+chapter: "7.2"
+section: quiz
+type: quiz
+title: 哪裡要用 NSCAssert
+minutes: 1
+prompt: "在 C 函式 `static NSDecimalNumber *LBSum(NSArray *values)` 裡寫 `NSAssert(values != nil, @\"...\")` 會發生什麼？"
+options:
+  - 正常運作，NSAssert 哪裡都能用
+  - "編譯錯誤 use of undeclared identifier 'self'，因為 NSAssert 的展開會用到 self 與 _cmd；C 函式要用 NSCAssert"
+  - 執行期 crash
+  - 只在 Release 編譯錯誤
+answer: 1
+explain: NSAssert 展開時引用 self 與 _cmd 組訊息，C 函式沒有這兩個東西。NSCAssert / NSCParameterAssert 是 C 函式版本。同理，block 裡用 NSAssert 會隱含捕獲 self。
+hints: ["NSAssert 的錯誤訊息為什麼能印出類別名與方法名？", "C 函式裡有 self 嗎？"]
+feedback:
+  "0": 試試看，編譯器會告訴你 self 沒宣告。

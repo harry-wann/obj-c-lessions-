@@ -1,0 +1,25 @@
+id: m12-12-3-fill-1
+chapter: "12.3"
+section: quiz
+type: fill
+title: 非同步測試樣板
+minutes: 2
+prompt: 補完一個等 completion block 回到主執行緒的測試。
+code: |
+  - (void)testCompletionCalledOnMainQueue {
+      XCTestExpectation *done = [self ___1___:@"rates fetched"];
+      [self.service fetchRatesForBase:@"TWD" completion:^(NSDictionary *rates, NSError *error) {
+          XCTAssertTrue([NSThread isMainThread]);
+          XCTAssertNil(error);
+          [done ___2___];
+      }];
+      [self ___3___:@[done] timeout:1.0];
+  }
+blanks:
+  "1": { accept: ["expectationWithDescription"], chips: ["expectationWithDescription", "expectationForNotification", "keyValueObservingExpectationForObject", "expectation"] }
+  "2": { accept: ["fulfill"], chips: ["fulfill", "complete", "resolve", "finish"] }
+  "3": { accept: ["waitForExpectations"], chips: ["waitForExpectations", "waitForExpectationsWithTimeout", "wait", "waitUntil"] }
+hints: ["建立、達成、等待，三個動作。", "等待的方法接一個陣列。"]
+feedback:
+  "3=waitForExpectationsWithTimeout": "`waitForExpectationsWithTimeout:handler:` 是舊 API，等的是所有未完成的 expectation，不接陣列；新 API 是 `waitForExpectations:timeout:`。"
+solution_note: "`expectationWithDescription:` → 回呼裡 `fulfill` 一次 → `waitForExpectations:timeout:`。wait 會跑 run loop，所以主佇列的回呼進得來。"

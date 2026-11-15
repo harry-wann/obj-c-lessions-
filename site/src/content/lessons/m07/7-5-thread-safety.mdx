@@ -1,0 +1,327 @@
+---
+title: 執行緒安全
+module: 7
+chapter: "7.5"
+order: 5
+minutes: 40
+prereq: ["7.3", "7.4"]
+objectives:
+  - "解釋為什麼 atomic 不等於執行緒安全、為什麼可變集合在多執行緒下會隨機 crash"
+  - "用串列佇列或並行佇列 + barrier 保護共享狀態，說出 @synchronized 的代價與適用場合"
+  - "把 LBLedger 改成讀並行、寫 barrier，讓 testConcurrentReadsAndWritesDoNotCrash 轉綠"
+summary: "atomic 不等於執行緒安全（只保證單次存取完整）、可變集合不是執行緒安全、串列佇列保護共享狀態（actor 的前身）、並行佇列 + barrier 讀寫鎖、@synchronized 的代價、主執行緒才能碰 UI 與 Main Thread Checker。"
+terms:
+  - { en: thread safety, tw: 執行緒安全, cn: 线程安全, jp: スレッドセーフ }
+  - { en: data race, tw: 資料競爭, cn: 数据竞争, jp: データ競合 }
+  - { en: race condition, tw: 競態條件, cn: 竞态条件, jp: 競合状態 }
+  - { en: atomic, tw: 原子的, cn: 原子的, jp: アトミック }
+  - { en: critical section, tw: 臨界區, cn: 临界区, jp: クリティカルセクション }
+  - { en: read-write lock, tw: 讀寫鎖, cn: 读写锁, jp: 読み書きロック }
+  - { en: mutex, tw: 互斥鎖, cn: 互斥锁, jp: ミューテックス }
+  - { en: Main Thread Checker, tw: 主執行緒檢查器, cn: 主线程检查器, jp: メインスレッドチェッカー }
+appProgress: "LBLedger 內部改成 DISPATCH_QUEUE_CONCURRENT + barrier，多執行緒同時讀寫不再 crash；testConcurrentReadsAndWritesDoNotCrash 轉綠。"
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+actor Ledger {                                   // Swift 5.5+：編譯器保證一次只有一個人在裡面
+    private var transactions: [Transaction] = []
+    func add(_ tx: Transaction) { transactions.append(tx) }
+    var count: Int { transactions.count }
+}
+await ledger.add(tx)                             // 進入 actor 要 await
+// 沒有 actor 的年代：跟 ObjC 一樣用 DispatchQueue 串列佇列或 NSLock
+@MainActor func updateLabel() { label.text = "..." }   // 編譯期保證在主執行緒
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+class Ledger {
+    private val mutex = Mutex()                  // coroutine 友善的鎖
+    private val transactions = mutableListOf<Transaction>()
+    suspend fun add(tx: Transaction) = mutex.withLock { transactions.add(tx) }
+}
+// 或：所有操作都 withContext(singleThreadDispatcher) ≈ 串列佇列
+// Android：view 只能在 main thread 碰，否則 CalledFromWrongThreadException
+@Volatile var flag = false                       // 只保證可見性，不保證 count++ 安全
+```
+</Fragment>
+<Fragment slot="java">
+```java
+class Ledger {
+    private final List<Transaction> transactions = new ArrayList<>();
+    public synchronized void add(Transaction tx) { transactions.add(tx); }   // ≈ @synchronized
+    public synchronized int count() { return transactions.size(); }
+}
+Collections.synchronizedList(list);              // 每個方法上鎖，但「先 size 再 get」仍不安全
+ConcurrentHashMap<String, Rate> rates;           // 真正為多執行緒設計的集合
+AtomicInteger counter; counter.incrementAndGet();  // ≈ atomic，但多了「讀改寫」的原子操作
+ReadWriteLock rw = new ReentrantReadWriteLock(); // ≈ 並行佇列 + barrier
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// 單執行緒：兩段 JS 永遠不會同時執行，沒有 data race
+let count = 0;
+setTimeout(() => count++);
+setTimeout(() => count++);         // 一定是 2
+// 但 await 中間別人可以插隊：
+async function add(tx: Tx) {
+  const n = store.count;           // 讀
+  await save(tx);                  // 這裡讓出控制權
+  store.count = n + 1;             // 寫：n 已經過期 → 邏輯競態還是會有
+}
+// Web Worker 之間用 postMessage 傳訊息，不共享記憶體（SharedArrayBuffer 例外）
+```
+</Fragment>
+Swift 的 `actor` 與 `@MainActor` 讓編譯器幫你檢查執行緒問題，Kotlin 的 `Mutex` 與 Java 的 `synchronized` / `ConcurrentHashMap` 是你手動上鎖的工具。TS 工程師最需要注意：JS 單執行緒**沒有** <Term en="data race" tw="資料競爭" cn="数据竞争" jp="データ競合" />（兩條執行緒同時讀寫同一塊記憶體），但 `await` 中間別人插隊造成的<Term en="race condition" tw="競態條件" cn="竞态条件" jp="競合状態" />（結果取決於時序）仍然存在。到了 ObjC 兩種都有，而且第一種的症狀是**隨機 crash**，不是邏輯錯。這一章教的是 2010 年代的工具：串列佇列、barrier、`@synchronized`。它們就是 Swift `actor` 的前身，概念一樣，只是沒有編譯器幫你檢查。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 什麼叫執行緒安全
+
+<Term en="thread safety" tw="執行緒安全" cn="线程安全" jp="スレッドセーフ" />：多條執行緒同時呼叫，結果仍然正確、不會 crash。Foundation 的規則很簡單：**不可變物件（`NSArray`、`NSString`、`NSNumber`……）執行緒安全，可變物件（`NSMutableArray`、`NSMutableDictionary`、`NSMutableString`……）一律不安全。** 兩條執行緒同時對 `NSMutableArray` 做 `addObject:`，內部的容量擴充與元素搬移互相踩到，結果是 `EXC_BAD_ACCESS` 或 `malloc: *** error for object: pointer being freed was not allocated`，而且只有偶爾發生。這也是為什麼 `LBLedger` 從 3.x 開始對外只回不可變的快照：快照拿出去之後怎麼讀都安全。
+
+### `atomic` 不等於執行緒安全
+
+```objc
+@property (atomic, strong) NSMutableArray *items;    // 屬性預設就是 atomic
+```
+
+<Term en="atomic" tw="原子的" cn="原子的" jp="アトミック" />保證的只有一件事：**單次** getter 或 setter 是完整的。兩條執行緒同時 `self.items = newArray`，不會拿到一半舊一半新的指標，也不會因為舊值被提前釋放而 crash。就這樣。它**不保證**：
+
+- `[self.items addObject:x]`：getter 是原子的，拿到指標之後對陣列做的事不在保護範圍。
+- `self.count = self.count + 1`：讀跟寫是兩次原子操作，中間可以被插隊，兩條執行緒各加一可能只加了一。
+- 「先檢查再動作」：`if (self.items.count > 0) [self.items removeLastObject];` 檢查完到動作前陣列可能已經空了。
+
+所以實務上幾乎所有屬性都寫 `nonatomic`（省掉自旋鎖的成本），真的要執行緒安全就用下面的工具保護**整個操作**，而不是靠 `atomic`。Java 的 `AtomicInteger.incrementAndGet()` 之所以安全是因為它把「讀改寫」包成一個原子操作，ObjC 的 `atomic` 屬性沒有這種東西。
+
+### 工具一：串列佇列保護狀態（actor 的前身）
+
+```objc
+@implementation LBLedger {
+    dispatch_queue_t _queue;
+    NSMutableArray<LBTransaction *> *_transactions;   // 只在 _queue 上碰
+}
+- (instancetype)init {
+    if (self = [super init]) {
+        _queue = dispatch_queue_create("com.littlebook.ledger", DISPATCH_QUEUE_SERIAL);
+        _transactions = [NSMutableArray array];
+    }
+    return self;
+}
+- (void)addTransaction:(LBTransaction *)tx {
+    dispatch_async(_queue, ^{ [self->_transactions addObject:tx]; });      // 寫：丟了就走
+}
+- (NSArray<LBTransaction *> *)transactions {
+    __block NSArray *snapshot;
+    dispatch_sync(_queue, ^{ snapshot = [self->_transactions copy]; });    // 讀：等結果
+    return snapshot;
+}
+@end
+```
+
+原則：**共享狀態只在一條串列佇列上碰**，所有讀寫都是丟到那條佇列上的 block。串列佇列一次只跑一個 block，所以<Term en="critical section" tw="臨界區" cn="临界区" jp="クリティカルセクション" />（碰共享狀態的那段程式）天然互斥。寫用 `dispatch_async` 不等；讀要結果，用 `dispatch_sync` 等。這就是 Swift `actor` 做的事：actor 內部有一個串列執行器，`await ledger.add(tx)` 就是把呼叫排進去。差別是 Swift 編譯器會擋住你在外面直接碰 `transactions`，ObjC 靠的是你把 ivar 藏好、所有存取都走這條佇列的紀律。
+
+### 工具二：並行佇列 + barrier 的讀寫鎖
+
+串列佇列的缺點是讀也排隊：十個執行緒同時讀，九個在等。讀多寫少的資料（帳本正是）可以升級成<Term en="read-write lock" tw="讀寫鎖" cn="读写锁" jp="読み書きロック" />：讀可以同時、寫要獨佔。7.3 的 barrier 剛好就是這個：
+
+```objc
+_queue = dispatch_queue_create("com.littlebook.ledger", DISPATCH_QUEUE_CONCURRENT);
+
+- (void)addTransaction:(LBTransaction *)tx {
+    dispatch_barrier_async(_queue, ^{ [self->_transactions addObject:tx]; });   // 寫：barrier 獨佔
+}
+- (NSArray<LBTransaction *> *)transactions {
+    __block NSArray *snapshot;
+    dispatch_sync(_queue, ^{ snapshot = [self->_transactions copy]; });         // 讀：並行
+    return snapshot;
+}
+```
+
+只改兩個字：佇列型態改 `CONCURRENT`、寫入改 `dispatch_barrier_async`。讀取的 `dispatch_sync` 不變，多個讀可以同時在佇列上跑；barrier 來的時候等所有進行中的讀結束、獨佔執行、結束後讀才繼續。這就是 M07 第三個 xcode 題的全部內容，對應 Java 的 `ReentrantReadWriteLock`。
+
+### 工具三：`@synchronized` 與它的代價
+
+```objc
+- (void)addTransaction:(LBTransaction *)tx {
+    @synchronized (self) {                     // 以 self 當鎖
+        [_transactions addObject:tx];
+    }
+}
+```
+
+`@synchronized (obj) { ... }` 是語言內建的<Term en="mutex" tw="互斥鎖" cn="互斥锁" jp="ミューテックス" />：同一時間只有一條執行緒能進入以同一個 `obj` 當鎖的區塊。對照 Java 的 `synchronized (this)`，連語法都一樣。它方便，但有三個代價：
+
+1. **慢。** runtime 要用 `obj` 的位址去一張全域雜湊表查對應的鎖，再加上它是可重入鎖（同一條執行緒可以重複進入），比 `os_unfair_lock` 慢好幾倍。10.x 的 `LBLockBenchmark` 會量給你看。
+2. **隱含 `@try / @finally`。** 為了確保例外飛過時鎖會釋放，編譯器把區塊包進例外處理，這在 7.2 說過有額外成本。
+3. **鎖的粒度綁在物件上。** 用 `self` 當鎖等於整個物件一把鎖，任何人都可以在外面 `@synchronized (ledger)` 跟你搶同一把；用 `nil` 當鎖則什麼都不鎖、也不報錯。
+
+結論：**偶爾進入、幾行就出來的小臨界區**（懶初始化、計數器）用 `@synchronized` 很好讀；高頻、要讀寫分離的狀態用佇列。`NSLock`、`os_unfair_lock`、`pthread_mutex` 等更底層的鎖留到 10.x 一起比。
+
+### 主執行緒才能碰 UI
+
+UIKit 不是執行緒安全的，而且它的規則比「上鎖」更嚴：**所有 UIKit 物件只能在主執行緒存取**。這不是慣例，是 Core Animation 的 layer tree 與事件系統的設計前提。從背景執行緒設 `label.text`，可能沒事、可能畫面不更新、可能幾秒後在完全無關的地方 crash。所以任何背景工作的結尾都是一句：
+
+```objc
+dispatch_async(dispatch_get_main_queue(), ^{
+    self.totalLabel.text = total.lb_currencyString;
+});
+```
+
+Xcode 9 起的<Term en="Main Thread Checker" tw="主執行緒檢查器" cn="主线程检查器" jp="メインスレッドチェッカー" />（Scheme → Diagnostics，預設開啟）會在偵錯時攔下背景執行緒上的 UIKit 呼叫，印出紫色警告並暫停在那一行；本章 crash 現場就是它。另一個偵錯工具 Thread Sanitizer（同一個面板）能抓到資料競爭本身，開著跑一次測試能省很多猜測，10.x 會要求 TSan 零警告。
+
+### 完整範例（可貼進 Scratch）
+
+```objc
+#import <Foundation/Foundation.h>
+
+@interface LBCounter : NSObject
+- (void)bump;
+- (NSUInteger)value;
+@end
+
+// 不安全版：atomic 屬性 + 多執行緒 ++
+@interface LBAtomicCounter : LBCounter
+@property (atomic, assign) NSUInteger count;
+@end
+@implementation LBAtomicCounter
+- (void)bump { self.count = self.count + 1; }        // 讀、加、寫三步，中間會被插隊
+- (NSUInteger)value { return self.count; }
+@end
+
+// 安全版：串列佇列
+@interface LBQueueCounter : LBCounter
+@end
+@implementation LBQueueCounter { dispatch_queue_t _q; NSUInteger _count; }
+- (instancetype)init {
+    if (self = [super init]) _q = dispatch_queue_create("counter", DISPATCH_QUEUE_SERIAL);
+    return self;
+}
+- (void)bump { dispatch_async(_q, ^{ self->_count++; }); }
+- (NSUInteger)value { __block NSUInteger v; dispatch_sync(_q, ^{ v = self->_count; }); return v; }
+@end
+
+// 安全版：@synchronized
+@interface LBLockCounter : LBCounter
+@end
+@implementation LBLockCounter { NSUInteger _count; }
+- (void)bump { @synchronized (self) { _count++; } }
+- (NSUInteger)value { @synchronized (self) { return _count; } }
+@end
+
+static void run(LBCounter *c, NSString *name) {
+    dispatch_apply(10000, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^(size_t i) {
+        [c bump];                                      // 10000 次，多執行緒並行
+    });
+    NSLog(@"%@：%lu", name, (unsigned long)c.value);
+}
+
+int main(void) {
+    @autoreleasepool {
+        run([LBAtomicCounter new], @"atomic");
+        run([LBQueueCounter new],  @"serial queue");
+        run([LBLockCounter new],   @"@synchronized");
+    }
+    return 0;
+}
+// 預期輸出（atomic 那行每次不同、小於 10000）：
+// atomic：9871
+// serial queue：10000
+// @synchronized：10000
+```
+
+`dispatch_apply` 是 GCD 的平行 for 迴圈，會用多條執行緒同時跑 block，是製造資料競爭最方便的工具。第一行少掉的那一百多次就是被插隊吃掉的 `++`。把 `LBAtomicCounter` 的 `count` 改成 `NSMutableArray` 做 `addObject:`，結果就不是少算而是 crash。
+
+<Tip title="Swift actor 怎麼對應回來">
+`actor` ≈ 串列佇列 + 藏好的 ivar；`await actor.method()` ≈ `dispatch_async` 丟進去（有回傳值則 ≈ `dispatch_sync`）；`@MainActor` ≈ 「這個類別的所有東西都要 `dispatch_async(main)`」；`nonisolated` ≈ 不碰狀態、不用進佇列的方法。12.x 混編時，ObjC 這邊用串列佇列保護的類別，Swift 那邊可以放心標成 `@unchecked Sendable`。
+</Tip>
+
+<Pitfall title="atomic 當執行緒安全，多執行緒 addObject:">
+<Fragment slot="bad">
+```objc
+@property (atomic, strong) NSMutableArray<LBTransaction *> *pending;
+// 多個網路回呼同時：
+[self.pending addObject:tx];            // getter 原子，addObject: 不是 → 隨機 crash
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+@property (nonatomic, strong) NSMutableArray<LBTransaction *> *pending;   // 只在 _queue 上碰
+dispatch_async(self.queue, ^{ [self.pending addObject:tx]; });
+```
+</Fragment>
+症狀是每幾十次同步才 crash 一次，堆疊停在 `-[__NSArrayM insertObject:atIndex:]` 或 `objc_release`，看起來跟你的程式無關。看到 `atomic` 配可變集合就該警覺。
+</Pitfall>
+
+<Pitfall title="在背景執行緒更新 UI">
+<Fragment slot="bad">
+```objc
+[[NSURLSession sharedSession] dataTaskWithURL:url completionHandler:^(NSData *data, NSURLResponse *r, NSError *e) {
+    self.rateLabel.text = [self parse:data];    // 回呼在背景執行緒
+}];
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+[[NSURLSession sharedSession] dataTaskWithURL:url completionHandler:^(NSData *data, NSURLResponse *r, NSError *e) {
+    NSString *text = [self parse:data];          // 解析可以留在背景
+    dispatch_async(dispatch_get_main_queue(), ^{ self.rateLabel.text = text; });
+}];
+```
+</Fragment>
+`NSURLSession`、`NSOperationQueue`、`dispatch_get_global_queue` 的回呼全部在背景。規則：**碰 UIKit 之前問自己在哪條執行緒**，不確定就 `dispatch_async(main)`。Main Thread Checker 開著，Debug 時會幫你抓。
+</Pitfall>
+
+<Pitfall title="barrier 裡面又 dispatch_sync 回同一條佇列">
+<Fragment slot="bad">
+```objc
+- (void)addTransaction:(LBTransaction *)tx {
+    dispatch_barrier_async(_queue, ^{
+        [self->_transactions addObject:tx];
+        NSLog(@"共 %lu 筆", (unsigned long)self.transactions.count);   // transactions 的 getter dispatch_sync 到 _queue
+    });
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (void)addTransaction:(LBTransaction *)tx {
+    dispatch_barrier_async(_queue, ^{
+        [self->_transactions addObject:tx];
+        NSLog(@"共 %lu 筆", (unsigned long)self->_transactions.count);  // 已經在佇列上，直接碰 ivar
+    });
+}
+```
+</Fragment>
+barrier 正在獨佔佇列，`dispatch_sync` 到同一條佇列要等 barrier 結束，barrier 要等 `dispatch_sync` 回來：7.3 的死結換了個地方。在保護佇列上的程式碼要直接碰 ivar，不要再經過公開的 getter / setter。
+</Pitfall>
+
+<Pitfall title="檢查與動作分成兩步">
+`if (self.pending.count > 0) { [self process:self.pending.firstObject]; [self.pending removeObjectAtIndex:0]; }`：每一行各自上鎖也沒用，三行之間別人可以把陣列清空。Java 的 `Collections.synchronizedList` 同樣的坑。整段「檢查 + 動作」要在**同一個** block 或同一個 `@synchronized` 裡。
+</Pitfall>
+
+<Crash message={`Main Thread Checker: UI API called on a background thread: -[UILabel setText:]
+PID: 4121, TID: 90321, Thread name: (none), Queue name: com.apple.NSURLSession-delegate, QoS: 0
+Backtrace:
+4   LittleBook    __52-[LBRateViewController fetchRatesWithCompletion:]_block_invoke + 212
+5   CFNetwork     __40-[__NSURLSessionLocal taskForClass:request:uploadFile:bodyData:completion:]_block_invoke_3 + 28
+6   Foundation    __NSBLOCKOPERATION_IS_CALLING_OUT_TO_A_BLOCK__ + 16`}>
+Main Thread Checker 的訊息三段式：**哪個 API**（`-[UILabel setText:]`）、**在哪條佇列**（`com.apple.NSURLSession-delegate`，不是 main）、**誰呼叫的**（第一個自己模組的 frame：`fetchRatesWithCompletion:` 裡的 block）。它預設只印警告並暫停，程式不會真的終止，但不修的話就是在 Release 隨機 crash 或畫面不更新。修法：把碰 UI 的那幾行包進 `dispatch_async(dispatch_get_main_queue(), ^{ ... })`。想讓它一出現就當成 crash（避免被忽略），在 Scheme → Diagnostics 勾 Main Thread Checker 旁邊的 Pause on issues。
+</Crash>
+
+## 小結
+
+- 不可變物件執行緒安全，可變集合一律不安全；同時 `addObject:` 是隨機 crash。
+- `atomic` 只保證**單次** getter / setter 完整，不保護「取出後的操作」「讀改寫」「先檢查再動作」；實務上幾乎都寫 `nonatomic`，用別的工具保護整個操作。
+- 保護共享狀態的三個工具：**串列佇列**（寫 async、讀 sync，Swift actor 的前身）、**並行佇列 + barrier**（讀並行、寫獨佔，讀寫鎖）、**`@synchronized`**（方便、慢、鎖綁物件，小臨界區用）。
+- 在保護佇列上的程式直接碰 ivar，別再 `dispatch_sync` 回同一條佇列。
+- UIKit 只能在主執行緒碰；背景回呼結尾 `dispatch_async(main)`。Main Thread Checker 與 Thread Sanitizer 都在 Scheme → Diagnostics。

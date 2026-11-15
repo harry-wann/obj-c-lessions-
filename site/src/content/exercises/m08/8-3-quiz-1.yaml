@@ -1,0 +1,18 @@
+id: m08-8-3-quiz-1
+chapter: "8.3"
+section: quiz
+type: quiz
+title: 三步驟的順序
+minutes: 1
+prompt: 用程式碼加一個 label 並用約束排版，正確的順序是？
+options:
+  - "activateConstraints: → addSubview: → translatesAutoresizingMaskIntoConstraints = NO"
+  - "addSubview: → activateConstraints: → translatesAutoresizingMaskIntoConstraints = NO"
+  - "translatesAutoresizingMaskIntoConstraints = NO → addSubview: → activateConstraints:"
+  - 順序不重要，Auto Layout 會在下一次 layout 時統一處理
+answer: 2
+explain: "先關 autoresizing 轉換（不然會多出 NSAutoresizingMaskLayoutConstraint 衝突），再加進階層（約束需要共同祖先），最後啟用約束。先啟用再 addSubview: 會 crash。"
+hints: ["約束的兩端必須已經在同一棵樹上。", "哪一步是「關掉歷史包袱」？"]
+feedback:
+  "0": "先 activate 後 addSubview: 會 crash：no common ancestor。"
+  "3": 順序錯的話是 crash 或衝突警告，不會自動修好。

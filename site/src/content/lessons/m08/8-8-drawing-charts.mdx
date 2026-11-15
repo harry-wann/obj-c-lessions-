@@ -1,0 +1,242 @@
+---
+title: 自訂繪圖與簡單圖表
+module: 8
+chapter: "8.8"
+order: 8
+minutes: 35
+prereq: ["8.3"]
+optional: true
+objectives:
+  - "覆寫 drawRect: 用 UIBezierPath 與 CGContext 畫出長條圖，知道 setNeedsDisplay 什麼時候該呼叫"
+  - "用 CAShapeLayer 畫同一張圖，說出它與 drawRect: 在效能與動畫上的差別"
+  - "讀懂 CGContext 相關的錯誤訊息，知道繪圖程式碼只能在 drawRect: 裡跑"
+summary: "drawRect: 與 setNeedsDisplay、UIBezierPath、CGContext 基本（座標系、fill / stroke、狀態堆疊）、CAShapeLayer 與隱式動畫、contentMode redraw；統計頁的 LBBarChartView 長條圖；對照 SwiftUI Canvas、Android onDraw、Web Canvas / SVG。"
+terms:
+  - { en: drawing, tw: 繪圖, cn: 绘制, jp: 描画 }
+  - { en: bezier path, tw: 貝茲路徑（UIBezierPath）, cn: 贝塞尔路径, jp: ベジェパス }
+  - { en: graphics context, tw: 繪圖環境（CGContext）, cn: 图形上下文, jp: グラフィックスコンテキスト }
+  - { en: layer, tw: 圖層（CALayer）, cn: 图层, jp: レイヤー }
+  - { en: points vs pixels, tw: 點與像素, cn: 点与像素, jp: ポイントとピクセル }
+appProgress: Views/LBBarChartView 畫出「依分類支出」長條圖，給 12.1 的 Swift 統計頁使用；值變動時重畫、深色模式顏色自動切換。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// SwiftUI Canvas：宣告式，閉包裡還是命令式的 Path / fill
+Canvas { ctx, size in
+    for (i, v) in values.enumerated() {
+        let h = size.height * CGFloat(v / maxValue)
+        let rect = CGRect(x: CGFloat(i) * step + 8, y: size.height - h, width: step - 16, height: h)
+        ctx.fill(Path(roundedRect: rect, cornerRadius: 4), with: .color(.accentColor))
+    }
+}
+// UIKit Swift：override func draw(_ rect: CGRect) 跟 ObjC 一樣
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+class BarChartView(ctx: Context) : View(ctx) {
+    private val paint = Paint().apply { color = 0xFF007AFF.toInt() }
+    var values = listOf<Float>(); set(v) { field = v; invalidate() }     // invalidate ≈ setNeedsDisplay
+    override fun onDraw(canvas: Canvas) {                               // ≈ drawRect:
+        val step = width / values.size.toFloat()
+        values.forEachIndexed { i, v ->
+            val h = height * v / values.max()
+            canvas.drawRoundRect(i * step + 8, height - h, (i + 1) * step - 8, height.toFloat(), 4f, 4f, paint)
+        }
+    }
+}
+```
+</Fragment>
+<Fragment slot="java">
+```java
+public class BarChartView extends View {
+    private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    @Override protected void onDraw(Canvas canvas) {
+        super.onDraw(canvas);
+        float step = getWidth() / (float) values.size();
+        for (int i = 0; i < values.size(); i++) {
+            float h = getHeight() * values.get(i) / max;
+            canvas.drawRoundRect(i * step + 8, getHeight() - h, (i + 1) * step - 8, getHeight(), 4, 4, paint);
+        }
+    }
+}
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// Canvas 2D：幾乎跟 CGContext 一對一（fillRect / beginPath / arc / stroke）
+const ctx = canvas.getContext('2d')!;
+ctx.clearRect(0, 0, w, h);
+values.forEach((v, i) => {
+  const bh = h * v / max;
+  ctx.fillStyle = '#007AFF';
+  ctx.roundRect(i * step + 8, h - bh, step - 16, bh, 4); ctx.fill();
+});
+// SVG 則像 CAShapeLayer：給 path 字串，瀏覽器幫你畫、幫你動畫
+<rect x={i * step + 8} y={h - bh} width={step - 16} height={bh} rx={4} />
+```
+</Fragment>
+2D 繪圖的 API 在所有平台長得差不多：拿到一個 context、設顏色、畫矩形 / 路徑、fill 或 stroke。Android 的 `onDraw` + `invalidate()` 對 iOS 的 `drawRect:` + `setNeedsDisplay`，Web Canvas 的 `ctx` 對 `CGContext`，SVG 元素對 `CAShapeLayer`（給路徑、系統幫你畫與動畫）。唯一要特別記的 iOS 差異：座標原點在左上、單位是點（pt）不是像素，Retina 螢幕一個點等於 2 或 3 個像素，`contentScaleFactor` 幫你處理。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### drawRect: 與 setNeedsDisplay
+
+`UIView` 預設什麼都不畫（只有背景色），覆寫 `drawRect:` 就能在它的 bounds 裡畫東西。系統在需要時呼叫它（第一次顯示、大小改變、你叫了 `setNeedsDisplay`），**你永遠不自己呼叫 `drawRect:`**。`setNeedsDisplay` 只是做個記號，真正的重畫合併到下一個畫面更新週期，連叫一百次也只畫一次。
+
+```objc
+// LBBarChartView.h
+@import UIKit;
+NS_ASSUME_NONNULL_BEGIN
+@interface LBBarChartView : UIView
+@property (nonatomic, copy) NSArray<NSNumber *> *values;      // 每根長條的值
+@property (nonatomic, copy) NSArray<NSString *> *labels;      // 分類名
+@property (nonatomic, strong) UIColor *barColor;              // 預設 systemBlue
+@end
+NS_ASSUME_NONNULL_END
+
+// LBBarChartView.m
+#import "LBBarChartView.h"
+
+static const CGFloat kBarInset = 8;
+static const CGFloat kLabelHeight = 20;
+
+@implementation LBBarChartView
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    if (self = [super initWithFrame:frame]) {
+        _barColor = UIColor.systemBlueColor;
+        _values = @[]; _labels = @[];
+        self.backgroundColor = UIColor.clearColor;     // 透明背景一定要明寫（見陷阱）
+        self.contentMode = UIViewContentModeRedraw;    // 大小改變就重畫，不要拉伸舊圖
+    }
+    return self;
+}
+
+- (void)setValues:(NSArray<NSNumber *> *)values {
+    _values = [values copy];
+    [self setNeedsDisplay];                            // 資料變了 → 排一次重畫
+}
+
+- (void)drawRect:(CGRect)rect {
+    if (self.values.count == 0) return;
+    CGFloat maxValue = 0;
+    for (NSNumber *n in self.values) maxValue = MAX(maxValue, n.doubleValue);
+    if (maxValue <= 0) return;
+
+    CGRect chart = CGRectMake(0, 0, self.bounds.size.width,
+                              self.bounds.size.height - kLabelHeight);
+    CGFloat step = chart.size.width / self.values.count;
+
+    // 基準線：CGContext 直接畫
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+    CGContextSetStrokeColorWithColor(ctx, UIColor.separatorColor.CGColor);
+    CGContextSetLineWidth(ctx, 1.0 / self.contentScaleFactor);   // 剛好一個像素
+    CGContextMoveToPoint(ctx, 0, CGRectGetMaxY(chart) - 0.5);
+    CGContextAddLineToPoint(ctx, chart.size.width, CGRectGetMaxY(chart) - 0.5);
+    CGContextStrokePath(ctx);
+
+    // 長條：UIBezierPath 比較好讀
+    [self.barColor setFill];
+    NSDictionary *attrs = @{
+        NSFontAttributeName: [UIFont preferredFontForTextStyle:UIFontTextStyleCaption2],
+        NSForegroundColorAttributeName: UIColor.secondaryLabelColor,
+    };
+    for (NSUInteger i = 0; i < self.values.count; i++) {
+        CGFloat h = chart.size.height * (self.values[i].doubleValue / maxValue);
+        CGRect bar = CGRectMake(i * step + kBarInset, CGRectGetMaxY(chart) - h,
+                                step - kBarInset * 2, h);
+        UIBezierPath *path =
+            [UIBezierPath bezierPathWithRoundedRect:bar
+                                  byRoundingCorners:UIRectCornerTopLeft | UIRectCornerTopRight
+                                        cornerRadii:CGSizeMake(4, 4)];
+        [path fill];
+
+        if (i < self.labels.count) {
+            CGRect labelRect = CGRectMake(i * step, CGRectGetMaxY(chart) + 4, step, kLabelHeight);
+            NSString *text = self.labels[i];
+            CGSize size = [text sizeWithAttributes:attrs];
+            CGPoint origin = CGPointMake(CGRectGetMidX(labelRect) - size.width / 2,
+                                         labelRect.origin.y);
+            [text drawAtPoint:origin withAttributes:attrs];
+        }
+    }
+}
+@end
+```
+
+幾個觀念：`UIGraphicsGetCurrentContext()` 只在 `drawRect:` 期間有值，在別處拿是 `NULL`（本章崩潰現場）。`UIBezierPath` 是 `CGPath` 的 ObjC 包裝，`setFill` / `fill` 比 `CGContextSetFillColorWithColor` + `CGContextFillPath` 短。`CGContextSaveGState` / `RestoreGState` 是一個堆疊（5.5），改了裁切、變換、顏色之後要還原就 push / pop。線寬 `1.0 / contentScaleFactor` 加上座標 `.5` 的偏移，是「畫出剛好一像素細線」的慣用法；不處理會畫成兩像素的模糊灰線。
+
+### 顏色與深色模式
+
+`UIColor.systemBlueColor`、`separatorColor` 這些動態色在 `drawRect:` 裡取值時會依當下的 trait 解析，所以切換外觀後只要重畫就對了。`traitCollectionDidChange:`（iOS 17 改用 `registerForTraitChanges:`）裡呼叫 `setNeedsDisplay`，不然舊圖會留著淺色的顏色。設計稿的 16 個顏色 token 全部對應系統色，就是為了這裡零成本。
+
+### CAShapeLayer：讓系統畫
+
+```objc
+// 同一根長條，改用圖層
+CAShapeLayer *bar = [CAShapeLayer layer];
+bar.path = [UIBezierPath bezierPathWithRoundedRect:barRect cornerRadius:4].CGPath;
+bar.fillColor = self.barColor.CGColor;            // CGColor 不是動態色，外觀切換要重設
+[self.layer addSublayer:bar];
+
+// 動畫：改 path 就有隱式動畫（0.25 秒），不用 UIView animate
+bar.path = newPath.CGPath;
+```
+
+<Term en="layer" tw="圖層" cn="图层" jp="レイヤー" />版的好處：GPU 合成、不用整張 view 重畫、改 `path` / `strokeEnd` 自動有動畫（畫線條從 0 到 1 的效果就是 `strokeEnd`）。壞處：顏色是 `CGColorRef`，深色切換要自己更新；長條很多時圖層數量也多。經驗法則：靜態、複雜、要文字 → `drawRect:`；少量形狀、要動畫 → `CAShapeLayer`。統計頁的三張卡片用 `drawRect:` 畫長條，進度環用 `CAShapeLayer` 的 `strokeEnd`。
+
+### CGContext 速查
+
+| 要做 | CGContext | UIKit 包裝 |
+|---|---|---|
+| 拿 context | `UIGraphicsGetCurrentContext()` | — |
+| 填色 / 線色 | `CGContextSetFillColorWithColor(ctx, c.CGColor)` | `[color setFill]` / `setStroke` |
+| 矩形 | `CGContextFillRect(ctx, r)` | `UIRectFill(r)` |
+| 路徑 | `CGContextMoveToPoint` / `AddLineToPoint` / `AddArc` | `UIBezierPath` 的 `moveToPoint:` / `addLineToPoint:` |
+| 畫 | `CGContextFillPath` / `StrokePath` | `[path fill]` / `[path stroke]` |
+| 存 / 還原狀態 | `CGContextSaveGState` / `RestoreGState` | — |
+| 裁切 | `CGContextClipToRect` | `[path addClip]` |
+| 文字 | — | `[string drawAtPoint:withAttributes:]` |
+| 圖片 | `CGContextDrawImage`（上下顛倒） | `[image drawInRect:]` |
+
+CoreGraphics 是 C API（1.x），`CGColorRef`、`CGPathRef` 是 Core Foundation 物件，ARC 不管它們：自己 `CGPathCreate...` 的要 `CGPathRelease`，從 `UIBezierPath.CGPath` 或 `UIColor.CGColor` 拿到的是借用的，不用釋放。
+
+### 設計稿對照
+
+對應設計稿 **06 統計（Swift）**（https://www.figma.com/design/4d6HGy38x11n2uOfkzOBzj ）。頂部三張「統計卡」元件（支出 / 收入 / 結餘，高 88、圓角 12、`secondarySystemGroupedBackground` 底、數字 28 pt 等寬）；中段「依分類支出」卡片裡就是本章的 `LBBarChartView`：高 180、長條間距 8（`kBarInset`）、長條頂端圓角 4、底部一條 1 px `separator` 基準線、每根下方 caption2 分類名、長條顏色用分類的系統色（本章先統一 `systemBlue`）；下段「每日支出」柱狀圖是同一個 view 換資料。12.1 用 Swift 寫統計頁時，直接從 Swift 建立這個 ObjC view。
+
+<Pitfall title="透明背景忘了設，view 變黑底">
+`UIView` 預設 `opaque = YES`，覆寫 `drawRect:` 之後如果 `backgroundColor` 是 nil，沒畫到的地方會變黑色（系統假設你會畫滿）。`init` 裡設 `backgroundColor = UIColor.clearColor`（會自動把 `opaque` 設為 NO）或設一個實色。Storyboard 建的 view 走 `initWithCoder:`，記得兩個初始化器都要處理。
+</Pitfall>
+
+<Pitfall title="大小改變後圖被拉伸">
+`contentMode` 預設 `ScaleToFill`：view 變大時系統把上次畫好的點陣圖拉伸，長條變模糊、文字變形。設 `UIViewContentModeRedraw` 讓 bounds 改變時重新呼叫 `drawRect:`。旋轉、Dynamic Type、分割畫面都會觸發。
+</Pitfall>
+
+<Pitfall title="在 drawRect: 裡做重活">
+`drawRect:` 在主執行緒、每次重畫都跑。在裡面排序 10 萬筆、建 `NSDateFormatter`、算統計，捲動就掉幀（10.2 會量）。資料整理放在 `setValues:` 之前的 model 層（12.1 的 `StatsViewModel`），`drawRect:` 只拿算好的數字畫。另外 `setNeedsDisplay` 不要在 `drawRect:` 裡呼叫，會每幀重畫、CPU 100%。
+</Pitfall>
+
+<Crash message={`CGContextSetFillColorWithColor: invalid context 0x0. If you want to see the
+backtrace, please set CG_CONTEXT_SHOW_BACKTRACE environmental variable.
+CGContextAddPath: invalid context 0x0.
+CGContextFillPath: invalid context 0x0.`}>
+不是 crash，是主控台一連串錯誤，而且畫面上什麼都沒有。`invalid context 0x0` 說 `UIGraphicsGetCurrentContext()` 回了 `NULL`：繪圖程式碼跑在 `drawRect:` 之外，常見是在 `init`、`layoutSubviews`、或 `setValues:` 裡「順便畫一下」，或是自己呼叫了 `[self drawRect:self.bounds]`。UIKit 只在 `drawRect:` 期間幫你準備好 context。修法：把畫的程式碼搬回 `drawRect:`，其他地方只 `setNeedsDisplay`。真的要在別處畫（產生圖片給分享用），用 `UIGraphicsImageRenderer` 自己開一個 context：`[renderer imageWithActions:^(UIGraphicsImageRendererContext *c) { ... }]`。
+</Crash>
+
+## 小結
+
+- 覆寫 `drawRect:` 畫、`setNeedsDisplay` 排程重畫、永遠不自己呼叫 `drawRect:`；`UIGraphicsGetCurrentContext()` 只在裡面有值。
+- `UIBezierPath` 是 `CGPath` 的 ObjC 包裝，`setFill` / `fill`；`CGContextSaveGState` / `RestoreGState` 是堆疊。
+- 透明背景要明寫 `clearColor`；`contentMode = Redraw` 讓大小改變時重畫；一像素線用 `1 / contentScaleFactor` 加 `.5` 偏移。
+- `CAShapeLayer`：GPU 合成、改 `path` / `strokeEnd` 自動動畫，但 `CGColor` 不會跟著深色模式變。
+- Android `onDraw` / `invalidate()`、Web Canvas `ctx` 幾乎一對一；SVG ↔ `CAShapeLayer`。

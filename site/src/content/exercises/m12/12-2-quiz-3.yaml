@@ -1,0 +1,17 @@
+id: m12-12-2-quiz-3
+chapter: "12.2"
+section: quiz
+type: quiz
+title: NSClassFromString 找 Swift 類別
+minutes: 1
+prompt: "`@objc final class StatsViewController: UIViewController` 在 `LittleBook` 模組裡。ObjC 端 `NSClassFromString(@\"StatsViewController\")` 回什麼？"
+options:
+  - 回 StatsViewController 類別，跟 ObjC 類別一樣
+  - "回 nil；runtime 名字是 LittleBook.StatsViewController，要用 @objc(StatsViewController) 固定名字"
+  - 編譯錯誤
+  - 回 UIViewController 類別
+answer: 1
+explain: Swift 類別在 runtime 的名字預設帶模組前綴，`-Swift.h` 裡那串 `SWIFT_CLASS("_TtC10LittleBook19StatsViewController")` 就是證據。用 `@objc(名字)` 指定 ObjC 名字，Storyboard 的 Custom Class、`NSClassFromString`、`NSKeyedUnarchiver` 都靠它。
+hints: ["看 -Swift.h 裡 SWIFT_CLASS 括號裡那串。", "Storyboard 的 Module 欄位為什麼存在？"]
+feedback:
+  "0": ObjC 類別沒有模組概念，Swift 類別有。

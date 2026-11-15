@@ -1,0 +1,17 @@
+id: m11-11-7-quiz-2
+chapter: "11.7"
+section: quiz
+type: quiz
+title: ARC 轉換的順序
+minutes: 1
+prompt: 小步 ARC 轉換應該從哪類檔案開始？為什麼？
+options:
+  - "從 AppDelegate 開始，因為它是入口"
+  - "從最大的 VC 開始，因為它最危險"
+  - "從沒有被其他 MRC 檔案持有的模型類別（葉節點）開始，這樣每次只有一個方向的擁有權要想"
+  - "隨機，順序不重要"
+answer: 2
+explain: "先轉 `LBLegacyTransaction`，再轉持有它的 `LBLegacyLedger`，VC 最後。每檔一個 commit（`ARC: 檔名`），方便 `git bisect`；轉完立刻跑 Zombie 一輪。"
+hints: ["轉 A 時，A 持有的東西已經在 ARC 下會比較簡單還是比較難？", "11.1 的 Steps 挑的是哪種檔案？"]
+feedback:
+  "1": "VC 持有最多東西，最後轉。"

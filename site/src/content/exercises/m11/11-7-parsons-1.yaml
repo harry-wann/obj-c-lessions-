@@ -1,0 +1,18 @@
+id: m11-11-7-parsons-1
+chapter: "11.7"
+type: parsons
+title: 排出 ObjC VC 改寫成 Swift 的步驟
+minutes: 2
+prompt: 把一個 ObjC VC 改寫成 Swift 的六步排序（有干擾步驟）。
+lines:
+  - "在用到的 ObjC 標頭補 nullability（NS_ASSUME_NONNULL_BEGIN / END + 個別 nullable）"
+  - "把 VC 裡的 Singleton 改成 init 參數注入"
+  - "先轉模型與 service 到 Swift（@objc、繼承 NSObject），再轉 VC"
+  - "新 Swift 檔與舊 ObjC 檔並存一個版本，feature flag 切換，觀察 crash 率"
+  - "刪掉 ObjC 版，從 storyboard / 路由表 / 橋接標頭移除參考"
+  - "更新 ONBOARDING.md 標記已是 Swift 的模組"
+distractors:
+  - "先把 VC 轉成 Swift，再回頭補 ObjC 標頭的 nullability"
+  - "同一個 PR 裡轉 Swift 並順便重構架構"
+solution_note: "順序不能反的原因：沒標注的 ObjC API 在 Swift 裡每個回傳值都是 `!`，先轉 VC 等於把地雷全搬過去。「搬家」與「裝修」分開 PR。"
+hints: ["Swift 端的安全來自 ObjC 端的標注，哪個先？", "葉節點先轉，跟 ARC 轉換一樣。"]

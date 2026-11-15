@@ -1,0 +1,17 @@
+id: m12-12-5-quiz-4
+chapter: "12.5"
+section: quiz
+type: quiz
+title: -Wall 開了什麼
+minutes: 1
+prompt: 把 Other Warning Flags 設成 `-Wall`，以下哪個敘述正確？
+options:
+  - "全部 warning 都開了"
+  - "只開了一批常用的；-Wextra 再多一批；-Wimplicit-retain-self 之類的還要手動加；-Weverything 才是真的全開"
+  - "-Wall 等於 -Werror"
+  - "-Wall 只對 C 檔有效，ObjC 要用 -Wobjc-all"
+answer: 1
+explain: 名字騙人。實務組合是 `-Wall -Wextra` 加上手動開的幾個（implicit-retain-self、nullable-to-nonnull-conversion、undeclared-selector），然後 Treat Warnings as Errors。`-Weverything` 會開 `-Wpadded` 這種沒人要的。
+hints: ["all 是「大家同意的那批」。", "把 warning 當錯誤是另一個開關。"]
+feedback:
+  "2": -Werror 是「把 warning 升級成錯誤」，跟開哪些 warning 無關。

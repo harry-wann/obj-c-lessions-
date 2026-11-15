@@ -16,7 +16,7 @@ checks:
   - must_match: 'return\s+\w+\s*\*\s*LBCentsPerDollar'
     message: 函式內要乘上 LBCentsPerDollar
   - must_not_match: '#define'
-    message: 不要留下 #define
+    message: "不要留下 #define"
   - brackets_balanced: true
 solution: |
   static const long long LBCentsPerDollar = 100;

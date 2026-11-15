@@ -1,0 +1,19 @@
+id: m09-9-5-quiz-3
+chapter: "9.5"
+section: quiz
+type: quiz
+title: 改了 .xcdatamodeld 之後
+minutes: 2
+prompt: 你在 `.xcdatamodeld` 替 CDTransaction 加了一個 `tags` 屬性，直接建置到裝了上一版的手機上。會發生什麼？
+options:
+  - 自動多一欄，舊資料的 tags 是 nil
+  - "loadPersistentStores 回報 NSPersistentStoreIncompatibleVersionHashError（code 134100），資料庫打不開；要先 Add Model Version 並開輕量遷移選項"
+  - 編譯錯誤
+  - 舊資料被清空、重新建立空資料庫
+answer: 1
+explain: Core Data 用 model 的雜湊比對儲存體，對不上就拒絕開啟。簡單改動（加欄位）用 Xcode 的 Add Model Version 建新版本，並在 store description 開 NSMigratePersistentStoresAutomaticallyOption 與 NSInferMappingModelAutomaticallyOption 做輕量遷移。
+hints: ["schema 一出門就不能隨便改，9.3 講過同一個教訓。", "Core Data 怎麼知道 model 跟磁碟上的儲存體不一致？"]
+feedback:
+  "0": 沒有遷移的話連開都開不了，不會自動加欄。
+  "2": 編譯期不知道裝置上的資料庫長什麼樣，問題在執行期。
+  "3": Core Data 不會自己刪使用者的資料；它拒絕開啟並回報 error。

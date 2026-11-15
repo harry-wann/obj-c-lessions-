@@ -1,0 +1,17 @@
+id: m10-10-5-quiz-3
+chapter: "10.5"
+section: quiz
+type: quiz
+title: dispatch_apply 的迭代次數
+minutes: 1
+prompt: 用 dispatch_apply 平行處理 100,000 筆交易，第一個參數該給多少？
+options:
+  - 核心數左右的「塊數」（例如 8），每塊自己跑一段迴圈
+  - "100000，一筆一次"
+  - "1，否則不安全"
+  - 必須等於執行緒數上限 64
+answer: 0
+explain: 每次迭代都有排程成本，100,000 次排程蓋過幾微秒的工作。分成少量大塊，每塊寫自己的容器，最後合併。
+hints: ["每次迭代的排程成本跟工作本身比起來如何？", "dispatch_apply 內部會用幾條執行緒？"]
+feedback:
+  "1": 排程 100,000 次比單執行緒直接跑還慢。

@@ -1,0 +1,19 @@
+id: m09-9-5-quiz-2
+chapter: "9.5"
+section: quiz
+type: quiz
+title: API token 該放哪
+minutes: 1
+prompt: 匯率服務的 API token 該存哪裡？
+options:
+  - "NSUserDefaults，setObject:forKey: 一行"
+  - "Documents 裡的 token.txt"
+  - "Keychain（kSecClassGenericPassword），用 Security framework 或封裝庫"
+  - 寫死在程式碼的常數裡
+answer: 2
+explain: NSUserDefaults 與 Documents 都是明文，電腦備份、越獄裝置都讀得到；Keychain 由系統加密保管。寫死在程式碼裡的字串用 strings 指令就能抽出來。
+hints: ["哪一個選項是作業系統加密保管的？", "plist 跟 txt 都是明文。"]
+feedback:
+  "0": 明文 plist，備份一打開就看到。
+  "1": 明文檔，而且會跟著備份走。
+  "3": 二進位裡的字串常數可以直接抽出來，而且換 token 要重新上架。

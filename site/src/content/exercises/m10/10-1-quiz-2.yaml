@@ -1,0 +1,21 @@
+id: m10-10-1-quiz-2
+chapter: "10.1"
+section: quiz
+type: quiz
+title: 哪些工作該留在主執行緒
+minutes: 2
+prompt: 以下哪些工作**可以**留在主執行緒做？（可複選）
+multi: true
+options:
+  - "`cell.titleLabel.text = vm.title;`"
+  - "`[NSDateFormatter new]` 之後 `stringFromDate:`"
+  - "`[NSJSONSerialization JSONObjectWithData:...]` 解析 2 MB 回應"
+  - "`[tableView reloadData]`"
+  - "`[NSData dataWithContentsOfURL:fileURL]`"
+answer: [0, 3]
+explain: 主執行緒只做「把算好的結果貼上去」：賦值給 label、呼叫 reloadData。建立 formatter、解析 JSON、讀檔都是「算」，搬到背景佇列。
+hints: ["問自己：這是「貼」還是「算」？", "I/O 與解析永遠不是貼。"]
+feedback:
+  "1": 建立 NSDateFormatter 是 ms 等級的工作，10.2 會告訴你它是捲動掉幀的頭號兇手。
+  "2": 解析 JSON 是純計算，放背景佇列算完再送回主執行緒。
+  "4": 檔案 I/O 的時間不可預測，一律背景。

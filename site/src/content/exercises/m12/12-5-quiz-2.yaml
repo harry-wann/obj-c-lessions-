@@ -1,0 +1,18 @@
+id: m12-12-5-quiz-2
+chapter: "12.5"
+section: quiz
+type: quiz
+title: 讀 warning 選修法：loses integer precision
+minutes: 1
+prompt: "warning: `implicit conversion loses integer precision: 'NSUInteger' (aka 'unsigned long') to 'int'`，在 `int count = self.ledger.transactions.count;`。該怎麼修？"
+options:
+  - "變數型別改成 NSUInteger（或 NSInteger），跟來源一致"
+  - "寫 int count = (int)...，加轉型就好"
+  - "改用 NSNumber 包起來"
+  - 不用修，陣列不會超過 int 範圍
+answer: 0
+explain: 64 位元塞 32 位元會截斷。正確做法是型別一致：Cocoa 的 count 都是 `NSUInteger`，變數就用它；`%lu` 加 `(unsigned long)` 轉型印。明確轉型只在你確定值域、而且有理由要 int 時用（例如傳給只接 int 的 C API）。
+hints: ["Cocoa 的 count、length、index 是什麼型別？", "轉型是「我知道我在做什麼」的宣告，你知道嗎？"]
+feedback:
+  "1": 能過，但它表達的是「我確定不會超過 21 億」，這裡沒必要承擔這個承諾。
+  "3": 現在不會，但這條 warning 在 index 計算、位元運算的地方會真的咬人，養成一致的習慣。

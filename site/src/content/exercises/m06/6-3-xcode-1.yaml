@@ -1,0 +1,20 @@
+id: m06-6-3-xcode-1
+chapter: "6.3"
+type: xcode
+title: LBRouter：用字串建立 ViewController
+mobile: false
+minutes: 25
+prompt: 打開 M06 起始專案，實作 LBRouter，用 NSClassFromString 與內省三道關卡依字串建立畫面。
+starter: xcode/M06-starter
+steps:
+  - "新增 LBRouter.h / .m，宣告 `+ (nullable UIViewController *)viewControllerForName:(NSString *)name;` 與 `+ (void)registerAlias:(NSString *)alias forClassName:(NSString *)className;`。"
+  - "別名表用一個靜態 NSMutableDictionary，以 dispatch_once 建立；`viewControllerForName:` 先查別名，查不到就把 name 當類別名。"
+  - "第一關：`NSClassFromString` 回 Nil 就 return nil（testUnknownRouteReturnsNil）。"
+  - "第二關：`[cls isSubclassOfClass:[UIViewController class]]` 為 NO 就 return nil（testRouteRejectsNonViewControllerClass 會傳 @\"NSString\"）。"
+  - "第三關：`[cls instancesRespondToSelector:@selector(initWithLedger:)]` 為 YES 就用 initWithLedger: 建立，否則 `[[cls alloc] init]`（testRouteCreatesViewControllerByName 會檢查回傳物件的類別）。"
+  - ⌘U 跑三個測試。
+tests:
+  - LBRouterTests/testRouteCreatesViewControllerByName
+  - LBRouterTests/testUnknownRouteReturnsNil
+  - LBRouterTests/testRouteRejectsNonViewControllerClass
+solution_note: 這是舊專案 URL scheme 的經典寫法。注意手上只有 Class 時要用類別層級的 `isSubclassOfClass:` 與 `instancesRespondToSelector:`，不是 `isKindOfClass:` 與 `respondsToSelector:`。

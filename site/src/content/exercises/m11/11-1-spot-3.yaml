@@ -1,0 +1,38 @@
+id: m11-11-1-spot-3
+chapter: "11.1"
+type: spot
+title: 找錯：assign 指向已釋放物件
+minutes: 3
+prompt: MRC 檔案。列表頁釋放後偶爾 crash 在 rateService 的回呼裡。點出有問題的行並選原因。
+code: |
+  // LBLegacyListViewController.m
+  - (void)viewDidLoad {
+      [super viewDidLoad];
+      _rateService = [[LBLegacyRateService alloc] init];
+      _rateService.delegate = self;        // delegate 是 assign
+      [_rateService fetchRatesForBase:@"TWD"];
+  }
+
+  - (void)dealloc {
+      [_rateService release];
+      [super dealloc];
+  }
+bug_lines: [10]
+reasons:
+  - "release 後 rateService 不一定歸零（網路請求進行中會被 NSURLConnection 持有），它的 assign delegate 仍指向已釋放的 self，回呼時送訊息到死物件"
+  - "_rateService 應該用 autorelease"
+  - "viewDidLoad 裡 alloc 會洩漏"
+  - "delegate 應該改成 retain"
+answer_reason: 0
+fix: |
+  - (void)dealloc {
+      _rateService.delegate = nil;         // 先切斷指向自己的 assign 指標
+      [_rateService cancel];               // 取消進行中的請求
+      [_rateService release];
+      [super dealloc];
+  }
+solution_note: "MRC 沒有自動歸零的 weak，assign 指標在被指的物件釋放後還留著舊位址。慣例是在 dealloc 裡把所有「指向自己」的 delegate 設 nil、進行中的請求 cancel。這就是 LittleBook-Legacy 埋雷 6 的根因。"
+hints: ["self 釋放後，誰還拿著指向 self 的指標？", "release 一個物件不保證它立刻歸零。"]
+feedback:
+  "3": "delegate 改 retain 會形成 VC ↔ service 的循環參考，兩個都永遠不釋放。"
+  "2": "viewDidLoad 的 alloc 有 dealloc 的 release 配對，不洩漏。"

@@ -1,0 +1,51 @@
+id: m07-7-1-code-1
+chapter: "7.1"
+type: code
+title: 寫一個會回 NSError 的方法
+mobile: false
+minutes: 8
+prompt: "實作 `- (BOOL)removeTransactionWithIdentifier:(NSUUID *)identifier error:(NSError **)error`：找不到該筆交易時回 NO，並填入 domain 為 `LBErrorDomain`、code 為 `LBErrorCodeNotFound` 的 NSError（userInfo 要有 `NSLocalizedDescriptionKey`）；找到就移除並回 YES。`_transactions` 是 `NSMutableArray<LBTransaction *>`，可用 `[self transactionWithIdentifier:identifier]` 找到物件。"
+starter: |
+  - (BOOL)removeTransactionWithIdentifier:(NSUUID *)identifier error:(NSError **)error {
+      LBTransaction *tx = [self transactionWithIdentifier:identifier];
+
+  }
+checks:
+  - must_match: 'if\s*\(\s*!\s*tx\s*\)|if\s*\(\s*tx\s*==\s*nil\s*\)|if\s*\(\s*nil\s*==\s*tx\s*\)'
+    message: 先判斷有沒有找到（tx 為 nil）
+  - must_match: 'if\s*\(\s*error\s*(!=\s*NULL\s*)?\)'
+    message: 寫 *error 之前要先檢查 error 不是 NULL
+  - must_match: '\*\s*error\s*=\s*\[\s*NSError\s+errorWithDomain\s*:\s*LBErrorDomain'
+    message: 用 [NSError errorWithDomain:LBErrorDomain ...] 建立錯誤
+  - must_match: 'code\s*:\s*LBErrorCodeNotFound'
+    message: code 要是 LBErrorCodeNotFound
+  - must_match: 'NSLocalizedDescriptionKey'
+    message: userInfo 要有 NSLocalizedDescriptionKey
+  - must_match: 'return\s+NO\s*;'
+    message: 找不到時回 NO
+  - must_match: 'removeObject\s*:\s*tx|removeObjectIdenticalTo\s*:\s*tx'
+    message: 找到要從 _transactions 移除
+  - must_match: 'return\s+YES\s*;'
+    message: 成功回 YES
+  - must_not_match: '@throw|NSException'
+    message: 可預期的失敗用 NSError，不用例外
+  - must_not_match: '\*\s*error\s*=\s*nil'
+    message: 成功時不需要把 *error 設成 nil，呼叫端用回傳值判斷
+  - "brackets_balanced: true"
+solution: |
+  - (BOOL)removeTransactionWithIdentifier:(NSUUID *)identifier error:(NSError **)error {
+      LBTransaction *tx = [self transactionWithIdentifier:identifier];
+      if (tx == nil) {
+          if (error) {
+              *error = [NSError errorWithDomain:LBErrorDomain
+                                           code:LBErrorCodeNotFound
+                                       userInfo:@{ NSLocalizedDescriptionKey: @"找不到這筆交易",
+                                                   @"identifier": identifier.UUIDString }];
+          }
+          return NO;
+      }
+      [_transactions removeObject:tx];
+      return YES;
+  }
+solution_note: 三個固定動作：判斷失敗條件、`if (error)` 再填、回 NO；成功路徑不碰 error。把 identifier 放進 userInfo 是好習慣，查 log 時能知道是哪一筆。
+hints: ["先寫失敗分支：tx 是 nil 時要做什麼？", "填 *error 前的那一行檢查是什麼？", "成功分支只有兩行：移除、回 YES。"]

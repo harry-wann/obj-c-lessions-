@@ -1,0 +1,21 @@
+id: m06-6-5-xcode-1
+chapter: "6.5"
+type: xcode
+tier: advanced
+title: 選讀：swizzle viewDidAppear 記錄頁面名稱
+mobile: false
+minutes: 20
+prompt: 體會埋點 SDK 的作法與風險：用 swizzling 讓每個 ViewController 出現時印出類別名稱與出現時間，不改任何 ViewController 的程式碼。
+starter: xcode/M06-starter
+steps:
+  - "新增 `UIViewController+LBTracking.h/.m`，`#import <objc/runtime.h>`。"
+  - "在 `+load` 裡用 `dispatch_once` 包住 swizzle：`class_getInstanceMethod` 取 `viewDidAppear:` 與 `lb_viewDidAppear:`，先 `class_addMethod` 嘗試新增，成功就 `class_replaceMethod`，失敗才 `method_exchangeImplementations`。"
+  - "`lb_viewDidAppear:` 先呼叫 `[self lb_viewDidAppear:animated]`（原實作），再 `NSLog(@\"[頁面] %@\", NSStringFromClass([self class]))`。"
+  - "用關聯物件幫 UIViewController 加 `lb_appearedAt`（NSDate，RETAIN_NONATOMIC），在 lb_viewDidAppear: 裡記下 `[NSDate date]`。"
+  - "跑 App，在帳本 / 統計 / 設定三個分頁之間切換，Console 應依序印出三個類別名；UIKit 內部的容器 ViewController（UINavigationController、UITabBarController）也會出現，這就是埋點 SDK 要過濾的雜訊。"
+  - "實驗風險：複製這個分類改名成 `UIViewController+LBTracking2`，第二份也 swizzle 同一個方法但用同樣的 `lb_viewDidAppear:` 名稱。觀察 crash，理解為什麼前綴要唯一。然後刪掉第二份。"
+acceptance:
+  - 切換分頁時 Console 印出每個頁面的類別名稱，App 行為不變。
+  - "把 lb_viewDidAppear: 裡的呼叫改成 `[self viewDidAppear:animated]` 跑一次，看到堆疊溢位 crash 後改回來。"
+  - 關聯物件 lb_appearedAt 在第二次出現時能取到上一次的時間。
+solution_note: 三個親眼看一次的事故：原名呼叫的無限遞迴、兩個 swizzle 撞名、容器 ViewController 的雜訊。真正的埋點 SDK 還要過濾系統類別、處理多 SDK 共存，這是它們的核心 ObjC 程式碼至今沒換成 Swift 的原因。

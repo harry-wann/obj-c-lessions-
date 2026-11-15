@@ -1,0 +1,20 @@
+id: m11-11-1-quiz-3
+chapter: "11.1"
+section: quiz
+type: quiz
+title: 哪些是 MRC 的錯誤
+minutes: 2
+prompt: 以下哪些在 MRC 檔案裡是 bug？（可複選）
+multi: true
+options:
+  - "self.ledger = [[LBLegacyLedger alloc] init];（ledger 是 retain 屬性）"
+  - "- (void)dealloc { [_delegate release]; [super dealloc]; }（delegate 是 assign）"
+  - "LBTransaction *tx = [[LBTransaction alloc] init]; [array addObject:tx]; [tx release];"
+  - "NSString *s = [NSString stringWithFormat:@\"%d\", n]; return s;（方法回傳 +0）"
+  - "- (void)dealloc { [super dealloc]; [_note release]; }"
+answer: [0, 1, 4]
+explain: "選項 A 多 retain 一次永遠洩漏；B 對 assign 屬性 release 是 over-release；E 的 `[super dealloc]` 之後記憶體已不存在，再碰 ivar 是存取已釋放記憶體。C 是標準寫法；D 回傳 autorelease 物件符合 +0 慣例。"
+hints: ["每個選項數 +1 與 −1。", "[super dealloc] 之後還能做什麼？"]
+feedback:
+  "2": "這是正確的「放進集合後放手」。"
+  "3": "stringWithFormat: 回傳 autorelease 物件，直接回傳符合 +0 慣例，沒有錯。"

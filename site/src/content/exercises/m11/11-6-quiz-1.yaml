@@ -1,0 +1,18 @@
+id: m11-11-6-quiz-1
+chapter: "11.6"
+section: quiz
+type: quiz
+title: "-ObjC 旗標在做什麼"
+minutes: 1
+prompt: "`Other Linker Flags` 加 `-ObjC` 解決了什麼問題？"
+options:
+  - "讓專案能編譯 Objective-C"
+  - "連結靜態庫時，把所有含 ObjC 類別或 category 的 object file 都拉進來，否則只含 category 的檔案會被連結器丟掉"
+  - "開啟 ARC"
+  - "讓 Swift 可以呼叫 ObjC"
+answer: 1
+explain: "連結器預設只拉「有被參考到符號」的 object file；呼叫 category 方法是送訊息不是參考符號，所以純 category 的 `.m` 會被丟掉，執行期 `unrecognized selector`。`-ObjC` 關掉這個最佳化。"
+hints: ["連結器怎麼決定要不要拉一個 object file？", "category 方法的呼叫會產生符號參考嗎？"]
+feedback:
+  "0": "編譯 ObjC 不需要任何旗標。"
+  "3": "Swift 呼叫 ObjC 靠橋接標頭 / module map，跟連結旗標無關。"

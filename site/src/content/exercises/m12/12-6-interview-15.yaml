@@ -1,0 +1,14 @@
+id: m12-12-6-interview-15
+chapter: "12.6"
+type: flash
+tier: interview
+title: 面試速記：dispatch_once 與單例
+minutes: 2
+front: |
+  ObjC 的單例標準寫法是什麼？`dispatch_once` 保證了什麼？有什麼陷阱？
+back: |
+  + (instancetype)shared { static LBSettings *shared; static dispatch_once_t token; dispatch_once(&token, ^{ shared = [[self alloc] init]; }); return shared; }
+  dispatch_once 保證 block 在整個程式生命週期只執行一次，且多執行緒同時呼叫時其他執行緒會等它完成，執行緒安全又不用每次上鎖。
+  陷阱一：token 必須是 static 或全域，放在實體變數裡會每個實體各一份；陷阱二：block 裡再呼叫 shared（遞迴）會死結。
+  陷阱三：單例讓測試難隔離，所以同時提供 initWithUserDefaults: 這類可注入的初始化器，測試不走 shared。
+  加分延伸：Swift 的 static let 內建同樣的 once 語意，dispatch_once 在 Swift 已不可用；alloc / init 可以用 NS_UNAVAILABLE 擋掉避免外部多建實體。

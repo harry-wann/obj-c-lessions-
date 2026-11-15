@@ -1,0 +1,305 @@
+---
+title: NSSecureCoding 與 NSKeyedArchiver
+module: 9
+chapter: "9.3"
+order: 3
+minutes: 40
+prereq: ["9.2", "3.3", "7.7"]
+objectives:
+  - "替 model 實作 encodeWithCoder: / initWithCoder: 與 +supportsSecureCoding，用 NSKeyedArchiver 把物件圖轉成 NSData 再讀回"
+  - "解釋 NSSecureCoding 比 NSCoding 多防了什麼，以及 decodeObjectOfClass:forKey: 為什麼要指定類別"
+  - "規劃版本遷移：加欄位給預設值、類別改名用 setClass:forClassName:"
+summary: "ObjC 沒有 Codable：model 自己寫 encodeWithCoder: / initWithCoder:，+supportsSecureCoding 回 YES；archivedDataWithRootObject:requiringSecureCoding:error: 轉 NSData、unarchivedObjectOfClass:fromData:error: 讀回；加欄位與改類別名的遷移。"
+terms:
+  - { en: serialization, tw: 序列化, cn: 序列化, jp: シリアライズ }
+  - { en: archiving, tw: 封存（archive）, cn: 归档, jp: アーカイブ }
+  - { en: secure coding, tw: 安全編碼（NSSecureCoding）, cn: 安全编码, jp: セキュアコーディング }
+  - { en: object graph, tw: 物件圖, cn: 对象图, jp: オブジェクトグラフ }
+  - { en: schema migration, tw: 版本遷移, cn: 版本迁移, jp: マイグレーション }
+appProgress: LBTransaction 採用 NSSecureCoding，可以封存成 NSData 再完整讀回；testSecureCodingRoundTrip 轉綠。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+struct Transaction: Codable {       // 編譯器自動合成 encode / decode
+    let id: UUID
+    let amount: Decimal
+    let note: String
+}
+let data = try JSONEncoder().encode(tx)
+let back = try JSONDecoder().decode(Transaction.self, from: data)
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+@Serializable                        // kotlinx.serialization 的編譯器外掛
+data class Transaction(val id: String, val amount: String, val note: String)
+val json = Json.encodeToString(tx)
+val back = Json.decodeFromString<Transaction>(json)
+// Android 的 Parcelable 則要手寫 writeToParcel / CREATOR，跟 NSCoding 很像
+```
+</Fragment>
+<Fragment slot="java">
+```java
+class Transaction implements Serializable {
+    private static final long serialVersionUID = 1L;   // 版本號
+    UUID id; BigDecimal amount; String note;
+}
+// ObjectOutputStream / ObjectInputStream；反序列化任意類別是著名的安全漏洞
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// 沒有序列化協定；靠 JSON 加手寫驗證
+const json = JSON.stringify(tx);
+const raw = JSON.parse(json) as unknown;
+if (typeof raw === "object" && raw && "amount" in raw) { /* 一欄一欄檢查 */ }
+```
+</Fragment>
+Swift 的 `Codable` 是編譯器幫你寫 encode / decode；**Objective-C 沒有這種東西**，本章跟 9.4 就是 `Codable` 的手寫版：這一章用 Foundation 原生的二進位格式（`NSKeyedArchiver`），下一章用 JSON。最接近的親戚是 Java 的 `Serializable`：同樣是物件自己描述怎麼存，同樣踩過「反序列化任意類別」的安全坑；`NSSecureCoding` 就是 Apple 對這個坑的回答，相當於 Java 的 `ObjectInputFilter`。Android 的 `Parcelable` 手寫 `writeToParcel` 的手感也幾乎一樣。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 兩個協定、一個封存器
+
+- `NSCoding`：兩個方法，`encodeWithCoder:` 把自己的欄位一個一個寫進 coder，`initWithCoder:` 從 coder 一個一個讀回來。2012 年之前的標準。
+- `NSSecureCoding`：繼承 `NSCoding`，多一個類別方法 `+supportsSecureCoding` 回 YES，並要求解碼時用**指定類別**的 `decodeObjectOfClass:forKey:`。
+- `NSKeyedArchiver` / `NSKeyedUnarchiver`：具體的 coder，產生與讀取 `NSData`。「keyed」表示每個欄位有名字，欄位順序無關、缺欄位讀到 nil / 0 而不是壞掉，這是版本遷移的基礎。
+
+為什麼要「secure」？舊的 `decodeObjectForKey:` 會照資料裡寫的類別名建立物件：資料被竄改（或只是另一個 App 透過 pasteboard、擴充功能傳過來）就可以讓你的 App 實體化任何類別、呼叫它的 `initWithCoder:`，這是 Java 反序列化漏洞的翻版。`decodeObjectOfClass:forKey:` 先檢查「資料裡的類別是不是我指定的（或其子類別）」，不是就丟例外。從 iOS 12 起不帶 `requiringSecureCoding:` 的 API 全部棄用，新程式一律走 secure。
+
+### 替 `LBTransaction` 實作
+
+```objc
+// LBTransaction.h
+@interface LBTransaction : NSObject <NSCopying, NSSecureCoding>
+
+// LBTransaction.m
+static NSString * const kIdentifier = @"identifier";
+static NSString * const kAmount     = @"amount";
+static NSString * const kKind       = @"kind";
+static NSString * const kDate       = @"date";
+static NSString * const kNote       = @"note";
+static NSString * const kFlags      = @"flags";
+
++ (BOOL)supportsSecureCoding { return YES; }
+
+- (void)encodeWithCoder:(NSCoder *)coder {
+    [coder encodeObject:_identifier forKey:kIdentifier];
+    [coder encodeObject:_amount     forKey:kAmount];
+    [coder encodeInteger:_kind      forKey:kKind];
+    [coder encodeObject:_date       forKey:kDate];
+    [coder encodeObject:_note       forKey:kNote];
+    [coder encodeInteger:(NSInteger)_flags forKey:kFlags];
+}
+
+- (nullable instancetype)initWithCoder:(NSCoder *)coder {
+    NSUUID *identifier = [coder decodeObjectOfClass:[NSUUID class]
+                                             forKey:kIdentifier];
+    NSDecimalNumber *amount = [coder decodeObjectOfClass:[NSDecimalNumber class]
+                                                  forKey:kAmount];
+    NSDate *date = [coder decodeObjectOfClass:[NSDate class] forKey:kDate];
+    NSString *note = [coder decodeObjectOfClass:[NSString class] forKey:kNote];
+    if (!identifier || !amount || !date) return nil;     // 必要欄位缺了就失敗
+
+    self = [self initWithAmount:amount
+                           kind:[coder decodeIntegerForKey:kKind]
+                           date:date
+                           note:note ?: @""
+                       category:nil];
+    if (self) {
+        _identifier = [identifier copy];                  // 蓋掉初始化器自動產生的
+        _flags = (LBTransactionFlags)[coder decodeIntegerForKey:kFlags];
+    }
+    return self;
+}
+```
+
+幾個決定值得說明。物件用 `encodeObject:forKey:`，純量用 `encodeInteger:` / `encodeBool:` / `encodeDouble:`，純量讀回用對應的 `decodeIntegerForKey:`，缺欄位回 0。`NSDecimalNumber` 自己就支援 `NSSecureCoding`，直接存，不要轉成 double 失去精度。`initWithCoder:` 是另一個初始化器，3.3 的規則適用：最後要走到指定初始化器，所以先把東西讀出來、再呼叫 `initWithAmount:...`，最後把 `identifier` 覆寫回去（它在 `.m` 裡是可寫的 ivar）。`category` 這裡先不存：分類是一棵共享的樹，存 `identifier` 再查表比整棵樹跟著每筆交易一起封存合理，這個決定留到 9.4 一起做。
+
+### 封存與解封：完整範例（可貼進 Scratch）
+
+```objc
+#import <Foundation/Foundation.h>
+
+@interface LBTransaction : NSObject <NSSecureCoding>
+@property (nonatomic, copy, readonly) NSUUID *identifier;
+@property (nonatomic, strong, readonly) NSDecimalNumber *amount;
+@property (nonatomic, copy, readonly) NSString *note;
+- (instancetype)initWithAmount:(NSDecimalNumber *)amount note:(NSString *)note;
+@end
+
+@implementation LBTransaction
+- (instancetype)initWithAmount:(NSDecimalNumber *)amount note:(NSString *)note {
+    if (self = [super init]) {
+        _identifier = [NSUUID UUID];
+        _amount = amount;
+        _note = [note copy];
+    }
+    return self;
+}
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)coder {
+    [coder encodeObject:_identifier forKey:@"identifier"];
+    [coder encodeObject:_amount forKey:@"amount"];
+    [coder encodeObject:_note forKey:@"note"];
+}
+- (instancetype)initWithCoder:(NSCoder *)coder {
+    NSDecimalNumber *amount = [coder decodeObjectOfClass:[NSDecimalNumber class]
+                                                  forKey:@"amount"];
+    NSString *note = [coder decodeObjectOfClass:[NSString class] forKey:@"note"];
+    NSUUID *identifier = [coder decodeObjectOfClass:[NSUUID class]
+                                             forKey:@"identifier"];
+    if (!amount || !identifier) return nil;
+    if (self = [self initWithAmount:amount note:note ?: @""]) {
+        _identifier = [identifier copy];
+    }
+    return self;
+}
+@end
+
+int main(void) {
+    @autoreleasepool {
+        LBTransaction *tx = [[LBTransaction alloc]
+            initWithAmount:[NSDecimalNumber decimalNumberWithString:@"128.50"]
+                      note:@"午餐"];
+
+        // 1. 物件 → NSData
+        NSError *error = nil;
+        NSData *data = [NSKeyedArchiver archivedDataWithRootObject:tx
+                                             requiringSecureCoding:YES
+                                                             error:&error];
+        NSLog(@"%lu bytes, error=%@", (unsigned long)data.length, error);
+
+        // 2. 寫檔、讀檔（路徑用 tmp）
+        NSURL *url = [[NSURL fileURLWithPath:NSTemporaryDirectory()]
+                      URLByAppendingPathComponent:@"tx.archive"];
+        [data writeToURL:url options:NSDataWritingAtomic error:nil];
+        NSData *loaded = [NSData dataWithContentsOfURL:url];
+
+        // 3. NSData → 物件：必須說清楚你期待哪個類別
+        LBTransaction *back = [NSKeyedUnarchiver
+            unarchivedObjectOfClass:[LBTransaction class]
+                           fromData:loaded
+                              error:&error];
+        NSLog(@"%@ %@ same id: %d", back.amount, back.note,
+              [back.identifier isEqual:tx.identifier]);
+
+        // 4. 陣列：根物件是 NSArray，裡面是 LBTransaction，兩個類別都要列
+        NSData *listData = [NSKeyedArchiver archivedDataWithRootObject:@[tx, tx]
+                                                 requiringSecureCoding:YES
+                                                                 error:&error];
+        NSSet *classes = [NSSet setWithObjects:[NSArray class],
+                                               [LBTransaction class], nil];
+        NSArray *list = [NSKeyedUnarchiver unarchivedObjectOfClasses:classes
+                                                            fromData:listData
+                                                               error:&error];
+        NSLog(@"%lu items", (unsigned long)list.count);
+
+        [[NSFileManager defaultManager] removeItemAtURL:url error:nil];
+    }
+    return 0;
+}
+// 預期輸出（bytes 數會略有不同）：
+// 5xx bytes, error=(null)
+// 128.5 午餐 same id: 1
+// 2 items
+```
+
+注意第 4 步：解封陣列時要把**容器類別跟元素類別都列進去**，漏了 `LBTransaction` 會在解到第一個元素時丟例外（見下方 Crash）。iOS 14 起有 `unarchivedArrayOfObjectsOfClass:fromData:error:` 幫你列，但舊專案的最低版本常常不到。
+
+兩個反覆出現的 `error` 參數走 7.7 一樣的規則：回傳 nil 才看 error。`archivedDataWithRootObject:` 在物件不支援 `NSSecureCoding` 時會透過 error 回報，而不是 crash；`unarchivedObjectOfClass:` 遇到類別不符也走 error。只有舊 API（`unarchiveObjectWithData:`）或 `requiresSecureCoding` 不一致時才直接丟例外。
+
+### 版本遷移的思考
+
+檔案一旦出門（使用者的手機上），下一版 App 讀的就是舊格式，你沒辦法回去改它。keyed 封存給你三個工具：
+
+**加欄位**：直接在 `encodeWithCoder:` 多寫一個 key，`initWithCoder:` 用 `containsValueForKey:` 判斷有沒有，沒有就給預設值。舊檔讀新程式沒問題；新檔讀舊程式會忽略多出來的 key，也沒問題。
+
+```objc
+_flags = [coder containsValueForKey:kFlags]
+       ? (LBTransactionFlags)[coder decodeIntegerForKey:kFlags]
+       : LBTransactionFlagsNone;
+```
+
+**改欄位名或型別**：千萬別直接改 key。新 key 照寫，`initWithCoder:` 先讀新 key、讀不到再讀舊 key 轉換。例如金額從 `double` 改成 `NSDecimalNumber`：
+
+```objc
+NSDecimalNumber *amount = [coder decodeObjectOfClass:[NSDecimalNumber class]
+                                              forKey:@"amount"];
+if (!amount && [coder containsValueForKey:@"amountDouble"]) {       // v1 格式
+    double d = [coder decodeDoubleForKey:@"amountDouble"];
+    amount = [NSDecimalNumber decimalNumberWithString:
+              [NSString stringWithFormat:@"%.2f", d]];      // 經字串避免二進位誤差
+}
+```
+
+**改類別名**：封存檔裡存的是類別名字串，你把 `LBOldTransaction` 改名成 `LBTransaction` 之後，舊檔裡的名字對不到任何類別，解封直接失敗。解法是告訴解封器「看到這個名字請用這個類別」：
+
+```objc
+NSKeyedUnarchiver *u = [[NSKeyedUnarchiver alloc] initForReadingFromData:data
+                                                                    error:&error];
+[u setClass:[LBTransaction class] forClassName:@"LBOldTransaction"];
+LBTransaction *tx = [u decodeObjectOfClass:[LBTransaction class]
+                                    forKey:NSKeyedArchiveRootObjectKey];
+[u finishDecoding];
+```
+
+反方向也有 `-[NSKeyedArchiver setClassName:forClass:]`，可以讓新程式繼續寫舊名字，給還沒升級的舊版讀。最後一招是存一個 `version` 整數欄位，`initWithCoder:` 開頭先讀它再分支，格式改動多的 model 這樣最清楚。
+
+<Tip title="什麼時候用這一章、什麼時候用 9.4 的 JSON">
+`NSKeyedArchiver` 的優點：Foundation 型別（`NSDate`、`NSDecimalNumber`、`NSUUID`、`UIColor`）原生支援不用轉，物件圖裡同一個物件被參考多次只存一份、讀回來還是同一個，型別檢查內建。缺點：二進位 plist 只有 Apple 平台讀得懂，不能給伺服器、不能用文字編輯器看、改類別名要遷移。**只在裝置上存、含複雜物件圖、要存 `UIColor` / `NSAttributedString` 這類東西** → 用這章。**要跟後端交換、要人看得懂、跨平台** → 用 9.4。小帳本的主檔用 JSON，`NSSecureCoding` 用在 state restoration 與剪貼簿。
+</Tip>
+
+<Pitfall title="忘了 +supportsSecureCoding，或回 NO">
+<Fragment slot="bad">
+```objc
+@interface LBTransaction : NSObject <NSCoding>      // 只宣告 NSCoding
+// 沒有 +supportsSecureCoding
+[NSKeyedArchiver archivedDataWithRootObject:tx
+                      requiringSecureCoding:YES error:&error];   // 回 nil，error 說不支援
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+@interface LBTransaction : NSObject <NSSecureCoding>
++ (BOOL)supportsSecureCoding { return YES; }
+```
+</Fragment>
+`NSSecureCoding` 是「我保證 `initWithCoder:` 裡每一個 `decodeObject` 都指定了類別」的承諾，所以要你明寫 YES。子類別也要重寫一次（它不是繼承來的語意，雖然技術上會繼承）。另外，`NSObject` 預設不符合 `NSCoding`，別以為 `[super initWithCoder:]` 一定存在：父類別是 `NSObject` 時呼叫 `[super init]`，父類別是 `UIView` 這類本來就支援 coding 的才呼叫 `[super initWithCoder:]`。
+</Pitfall>
+
+<Pitfall title="用 decodeObjectForKey: 偷懶">
+在 `NSSecureCoding` 類別裡寫 `[coder decodeObjectForKey:@"note"]`，解封時直接丟 `NSInvalidUnarchiveOperationException`：secure 模式下不指定類別就是錯誤。而且就算沒丟，你也失去了型別檢查：資料裡的 `note` 被換成 `NSArray`，後面第一個 `[note length]` 就 crash。永遠寫 `decodeObjectOfClass:forKey:`；需要多種可能類別（例如 `NSString` 或 `NSNumber`）用 `decodeObjectOfClasses:forKey:` 給一個 `NSSet`。
+</Pitfall>
+
+<Pitfall title="改了 key 名、改了類別名，舊檔讀不回來">
+`@"note"` 改成 `@"memo"`、`LBTransaction` 改名 `LBEntry`，在開發機上看起來一切正常，因為你的測試檔都是新格式。上架後第一天使用者打開 App 帳本是空的，一星期才等到第一則一星評論。規矩：**key 只加不改不刪**；類別改名必須配 `setClass:forClassName:`；每次改 model 都用上一版 App 產生的真檔案跑一次解封測試（放進測試 bundle 當 fixture）。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidUnarchiveOperationException',
+reason: 'value for key 'NS.objects' was of unexpected class 'LBTransaction'.
+Allowed classes are '{(
+    NSArray
+)}'.'
+
+*** Terminating app due to uncaught exception 'NSInvalidUnarchiveOperationException',
+reason: 'This decoder will only decode classes that adopt NSSecureCoding.
+Class 'LBCategory' does not adopt it.'`}>
+同一個例外名稱、兩種常見原因。第一種：你用 `unarchivedObjectOfClass:[NSArray class]` 解一個裝 `LBTransaction` 的陣列，解封器解到陣列元素時發現 `LBTransaction` 不在允許清單裡（`NS.objects` 是 `NSArray` 內部存元素的 key）。修法：改用 `unarchivedObjectOfClasses:` 把容器與元素類別都列進 `NSSet`。第二種：物件圖裡某個類別（這裡是 `LBTransaction` 持有的 `LBCategory`）沒有採用 `NSSecureCoding`，封存時可能只是 error、解封時就直接丟例外。修法：讓每一個會被封存到的類別都實作三件組（`+supportsSecureCoding`、`encodeWithCoder:`、`initWithCoder:`），或者像本章那樣改存分類的 `identifier` 不存整個物件。看到 `NSInvalidUnarchiveOperationException` 先看 reason 的後半段：它一定告訴你是哪個類別、哪個 key。
+</Crash>
+
+## 小結
+
+- ObjC 沒有 `Codable`：model 自己寫 `encodeWithCoder:`（一欄一個 key）與 `initWithCoder:`（讀回後走指定初始化器），加 `+supportsSecureCoding` 回 YES。
+- 物件用 `encodeObject:forKey:` / `decodeObjectOfClass:forKey:`，純量用 `encodeInteger:` / `decodeIntegerForKey:`；必要欄位缺了回 nil。
+- `archivedDataWithRootObject:requiringSecureCoding:YES error:` 產生 `NSData`；`unarchivedObjectOfClass:fromData:error:` 讀回，容器要用 `unarchivedObjectOfClasses:` 列出所有類別。
+- `NSSecureCoding` 防的是「資料指定任意類別被實體化」；`decodeObjectForKey:` 在 secure 模式下直接丟例外。
+- 遷移：加欄位用 `containsValueForKey:` 給預設值；key 只加不改；類別改名用 `setClass:forClassName:`；留舊版真檔當測試 fixture。

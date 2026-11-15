@@ -1,0 +1,17 @@
+id: m11-11-4-quiz-2
+chapter: "11.4"
+section: quiz
+type: quiz
+title: registerNib 與 registerClass
+minutes: 1
+prompt: "`viewDidLoad` 同時寫了 `registerNib:forCellReuseIdentifier:@\"LBTransactionCell\"` 和 `registerClass:forCellReuseIdentifier:@\"LBTransactionCell\"`，會怎樣？"
+options:
+  - 編譯錯誤，同一個 identifier 只能註冊一次
+  - "執行期 NSInternalInconsistencyException"
+  - 後註冊的蓋掉先註冊的，沒有任何警告
+  - 兩種都會被用，交替 dequeue
+answer: 2
+explain: "同一 identifier 的註冊是「最後一個有效」，無聲無息。舊專案常見 base class 註冊了 class、子類別又註冊 XIB，結果 cell 空白。用 `#if` 二選一就是在避免這件事。"
+hints: ["register 是設定一個 identifier → 來源的對應表。", "對應表同一個 key 寫兩次會怎樣？"]
+feedback:
+  "1": "註冊本身不會丟例外；XIB 內容不對（頂層不是 cell）才會。"

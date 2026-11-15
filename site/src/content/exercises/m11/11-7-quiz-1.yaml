@@ -1,0 +1,18 @@
+id: m11-11-7-quiz-1
+chapter: "11.7"
+section: quiz
+type: quiz
+title: 重構前先做什麼
+minutes: 1
+prompt: 要重構一個沒有測試、3000 行、直接呼叫 Singleton 與網路的舊 VC。第一步是？
+options:
+  - "直接開始拆，邊拆邊寫測試"
+  - "先把能抽出來的純函式抽成類別方法寫單元測試；抽不出來的用真實 fixture 寫特徵測試釘住現狀"
+  - "一次轉成 Swift，順便重寫"
+  - "先 Convert to ARC 整個專案"
+answer: 1
+explain: "沒有測試的重構叫改寫。特徵測試不評價行為對不對，只釘住「現在是怎樣」，讓之後每一步都有比對基準。只有煙霧測試保護的檔案只做機械式轉換。"
+hints: ["壞了怎麼知道？", "特徵測試（characterization test）是什麼？"]
+feedback:
+  "2": "改語言又改結構，壞了找不到原因。"
+  "3": "ARC 轉換也要有測試保護，而且要從葉節點一檔一檔轉。"

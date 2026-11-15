@@ -1,0 +1,35 @@
+id: m09-9-4-predict-2
+chapter: "9.4"
+type: predict
+title: 預測輸出：日期與時區
+minutes: 3
+prompt: 裝置時區是台北（UTC+8）。印出什麼？
+code: |
+  NSDate *date = [NSDate dateWithTimeIntervalSince1970:1700000000];  // 2023-11-14 22:13:20 UTC
+
+  NSISO8601DateFormatter *iso = [NSISO8601DateFormatter new];
+  NSString *a = [iso stringFromDate:date];
+
+  NSDateFormatter *local = [NSDateFormatter new];
+  local.dateFormat = @"yyyy-MM-dd HH:mm";                 // 沒設 timeZone
+  local.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+  NSString *b = [local stringFromDate:date];
+
+  local.timeZone = [NSTimeZone timeZoneWithName:@"Asia/Tokyo"];   // 搬到東京再讀回
+  NSDate *back = [local dateFromString:b];
+
+  NSLog(@"%@", a);
+  NSLog(@"%@", b);
+  NSLog(@"%.0f", [back timeIntervalSinceDate:date]);
+options:
+  - "2023-11-14T22:13:20Z\n2023-11-15 06:13\n-3600"
+  - "2023-11-15T06:13:20+08:00\n2023-11-15 06:13\n0"
+  - "2023-11-14T22:13:20Z\n2023-11-14 22:13\n0"
+  - "2023-11-14T22:13:20Z\n2023-11-15 06:13\n3600"
+accept: ["2023-11-14T22:13:20Z 2023-11-15 06:13 -3600"]
+feedback:
+  "2023-11-15T06:13:20+08:00 2023-11-15 06:13 0": NSISO8601DateFormatter 預設輸出 UTC（尾巴 Z），不是裝置時區。
+  "2023-11-14T22:13:20Z 2023-11-14 22:13 0": NSDateFormatter 沒設 timeZone 時用裝置時區（台北 +8），所以是 06:13。
+  "2023-11-14T22:13:20Z 2023-11-15 06:13 3600": 東京比台北早一小時，同樣的「06:13」在東京代表的瞬間比台北早 3600 秒，所以差值是負的。
+solution_note: ISO 8601 帶時區（Z）任何地方讀回都是同一瞬間；不帶時區的 `yyyy-MM-dd HH:mm` 寫出來是台北的 06:13，拿到東京解讀就早了一小時。日期要存就用 `NSISO8601DateFormatter` 或 `timeIntervalSince1970`。
+hints: ["NSISO8601DateFormatter 預設是哪個時區？", "台北 06:13 跟東京 06:13 是同一個瞬間嗎？哪個早？"]

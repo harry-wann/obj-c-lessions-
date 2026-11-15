@@ -1,0 +1,17 @@
+id: m10-10-4-quiz-3
+chapter: "10.4"
+section: quiz
+type: quiz
+title: atomic 到底保證什麼
+minutes: 1
+prompt: "`@property (atomic, strong) NSMutableArray *items;` 之後，多條執行緒同時 `[self.items addObject:x]`，結果是？"
+options:
+  - 隨機 crash；atomic 只保證 self.items 這一次讀寫完整，不保護陣列內部操作
+  - 安全，atomic 就是執行緒安全
+  - 編譯警告
+  - 只有最後一條執行緒的 addObject 會生效
+answer: 0
+explain: "atomic 保護的是 getter / setter 本身，addObject: 是對回傳物件的操作。要保護操作就用鎖或佇列。"
+hints: ["atomic 作用在哪個方法上？", "addObject: 是誰的方法？"]
+feedback:
+  "1": 這是最常見的誤解，課文的 Crash 就是結果。

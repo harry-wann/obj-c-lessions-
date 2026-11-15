@@ -1,0 +1,288 @@
+---
+title: 高併發設計
+module: 10
+chapter: "10.5"
+order: 5
+minutes: 50
+prereq: ["10.4", "7.3", "7.7"]
+objectives:
+  - 解釋執行緒爆炸怎麼發生，用 semaphore 或 maxConcurrentOperationCount 限流，並用 dispatch_group 聚合結果
+  - 用 dispatch_apply 平行處理迴圈，把逾時與取消傳遞給子任務
+  - 開啟 Thread Sanitizer、讀懂報告的兩條堆疊，分清資料競爭與競態條件
+summary: "執行緒爆炸、semaphore / maxConcurrentOperationCount 限流、dispatch_apply、dispatch_group 聚合、逾時與取消傳遞、Thread Sanitizer 報告讀法、資料競爭 vs 競態條件；優先佇列排程與任務相依圖拓撲排序。"
+terms:
+  - { en: thread explosion, tw: 執行緒爆炸, cn: 线程爆炸, jp: スレッド爆発 }
+  - { en: rate limiting, tw: 限流, cn: 限流, jp: 流量制限 }
+  - { en: data race, tw: 資料競爭, cn: 数据竞争, jp: データ競合 }
+  - { en: race condition, tw: 競態條件, cn: 竞态条件, jp: 競合状態 }
+  - { en: Thread Sanitizer, tw: 執行緒檢查器（TSan）, cn: 线程检查器, jp: スレッドサニタイザ }
+  - { en: priority queue, tw: 優先佇列, cn: 优先队列, jp: 優先度付きキュー }
+  - { en: topological sort, tw: 拓撲排序, cn: 拓扑排序, jp: トポロジカルソート }
+appProgress: 匯率頁（畫面 07）5 幣別並行抓取、semaphore 限流 2、dispatch_group 聚合；效能面板「並行請求」壓力測試 50 個請求執行緒數 < 10；TSan 零警告。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+let results = try await withThrowingTaskGroup(of: (String, Rates).self) { group in
+    var pending = bases.makeIterator()
+    for _ in 0..<2 { if let b = pending.next() { group.addTask { try await fetch(b) } } }
+    var out: [String: Rates] = [:]
+    for try await (base, r) in group {       // 一個完成就補一個：限流 2
+        out[base] = r
+        if let b = pending.next() { group.addTask { try await fetch(b) } }
+    }
+    return out
+}
+// 取消：task.cancel() 自動傳給所有子任務
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+val sem = Semaphore(2)                                   // 限流 2
+val results = coroutineScope {
+    bases.map { base ->
+        async(Dispatchers.IO) { sem.withPermit { fetch(base) } }
+    }.awaitAll()                                         // ↔ dispatch_group
+}
+// 或 Dispatchers.IO.limitedParallelism(2)；取消由 scope 傳遞
+```
+</Fragment>
+<Fragment slot="java">
+```java
+ExecutorService pool = Executors.newFixedThreadPool(2);   // 固定 2 條：天然限流
+List<Future<Rates>> fs = bases.stream()
+    .map(b -> pool.submit(() -> fetch(b))).toList();
+for (Future<Rates> f : fs) out.add(f.get(5, TimeUnit.SECONDS));   // 逾時
+pool.shutdownNow();                                       // interrupt 全部
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+const ac = new AbortController();
+async function pool<T>(items: string[], limit: number, fn: (b: string) => Promise<T>) {
+  const out: T[] = []; let i = 0;
+  await Promise.all(Array.from({ length: limit }, async () => {
+    while (i < items.length) out.push(await fn(items[i++]));   // 限流 limit
+  }));
+  return out;
+}
+await pool(bases, 2, (b) => fetch(url(b), { signal: ac.signal }).then(r => r.json()));
+```
+</Fragment>
+Java 的固定大小執行緒池是最直覺的限流：只有 2 條執行緒，自然只有 2 個請求在飛。Kotlin 的 `Semaphore(2)` 與 Swift 的 TaskGroup 手動補任務都是同一個想法。TS 沒有執行緒，但「同時最多 N 個 Promise」的 worker pool 寫法完全對應。GCD 的全域佇列**沒有**固定大小，所以 ObjC 要自己加 semaphore，不然會長出幾十條執行緒。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 執行緒爆炸
+
+```objc
+for (NSURL *url in urls) {                                  // 50 個
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        NSData *d = [NSData dataWithContentsOfURL:url];     // 同步阻塞 I/O
+        ...
+    });
+}
+```
+
+GCD 的並行佇列看到一條執行緒被 I/O 阻塞，就再開一條來跑下一個 block；50 個阻塞的 block 就是 50 條執行緒（上限 64 左右）。每條執行緒 512 KB 堆疊、切換成本、全部搶同一條網路，結果比排隊還慢，這叫<Term en="thread explosion" tw="執行緒爆炸" cn="线程爆炸" jp="スレッド爆発" />。Debug Navigator 的 CPU 面板直接看得到執行緒數飆高。小帳本的驗收指標「50 個請求、限流 4、執行緒數 &lt; 10」就是在測這一點。
+
+### 限流：semaphore 或 NSOperationQueue
+
+```objc
+// LBRateService.m：semaphore 限流 + dispatch_group 聚合（畫面 07）
+- (void)fetchRatesForBases:(NSArray<NSString *> *)bases
+             maxConcurrent:(NSUInteger)max
+                completion:(void (^)(NSDictionary *results,
+                                     NSArray<NSError *> *errors))completion {
+    dispatch_semaphore_t gate = dispatch_semaphore_create(max);   // max 張通行證
+    dispatch_group_t group = dispatch_group_create();
+    NSMutableDictionary *results = [NSMutableDictionary dictionary];
+    NSMutableArray *errors = [NSMutableArray array];
+    dispatch_queue_t sync = dispatch_queue_create("lb.rates.sync", NULL);
+    dispatch_queue_t work = dispatch_get_global_queue(QOS_CLASS_UTILITY, 0);
+
+    for (NSString *base in bases) {
+        dispatch_group_enter(group);
+        dispatch_async(work, ^{
+            dispatch_semaphore_wait(gate, DISPATCH_TIME_FOREVER);  // 排隊
+            [self fetchRatesForBase:base completion:^(NSDictionary *rates,
+                                                      NSError *error) {
+                dispatch_async(sync, ^{                            // 寫結果：串列
+                    if (rates) results[base] = rates;
+                    if (error) [errors addObject:error];
+                });
+                dispatch_semaphore_signal(gate);                   // 還通行證
+                dispatch_group_leave(group);
+            }];
+        });
+    }
+    dispatch_group_notify(group, dispatch_get_main_queue(), ^{
+        dispatch_sync(sync, ^{});          // 確保最後一筆結果寫完
+        completion([results copy], [errors copy]);
+    });
+}
+```
+
+三個角色各做一件事：**semaphore** 控制同時幾個在飛；**group** 等全部完成；**串列佇列** 保護結果字典。`enter` / `leave` 必須成對，而且 `leave` 要在每條路徑（成功、失敗、取消）都呼叫，少一次 `notify` 永遠不來。`LBRateServiceTests/testConcurrentFetchLimitedBySemaphore` 用 stub 讓每個請求睡 100 ms，記錄同時在飛的最大值，必須 ≤ `max`。
+
+`NSOperationQueue` 版本更短：`queue.maxConcurrentOperationCount = 2`，每個請求包成 `NSOperation`，佇列自己排隊。需要取消、相依、優先度時選它；只是限流選 semaphore。
+
+### dispatch_apply：平行迴圈
+
+```objc
+// 10 萬筆交易建 view model，分 8 塊平行算
+NSUInteger n = txs.count, chunks = 8, per = (n + chunks - 1) / chunks;
+NSMutableArray *parts = [NSMutableArray arrayWithCapacity:chunks];
+for (NSUInteger i = 0; i < chunks; i++) [parts addObject:[NSMutableArray array]];
+
+dispatch_apply(chunks, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0),
+               ^(size_t c) {
+    NSUInteger end = MIN((c + 1) * per, n);
+    for (NSUInteger i = c * per; i < end; i++) {
+        [parts[c] addObject:[LBTransactionViewModel viewModelWithTransaction:txs[i]]];
+    }
+});                                    // 同步：全部跑完才回來
+```
+
+`dispatch_apply` 是同步的、會用剛好夠的執行緒數（通常等於核心數），所以不會爆炸。每塊寫**自己的**陣列，最後再合併，避免共用可變狀態。迭代次數要給「塊數」不是「筆數」：`dispatch_apply(100000, ...)` 每筆排程一次，排程成本蓋過工作本身。
+
+### 逾時與取消傳遞
+
+```objc
+// 逾時：等 group 最多 5 秒
+long timedOut = dispatch_group_wait(group,
+    dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+if (timedOut) { [self cancelAll]; }         // 非零表示逾時
+
+// 取消傳遞：父 operation 取消時，子 operation 跟著取消
+NSOperation *parent = ...;
+for (NSOperation *child in children) {
+    __weak NSOperation *weakChild = child;
+    [parent addObserver:...];               // 或在 parent 的 cancel 覆寫裡
+}
+// 實務上最簡單：一個共用的 NSOperationQueue，取消就 cancelAllOperations
+```
+
+`NSURLSessionTask` 有自己的 `cancel`，`NSOperation` 子類別的 `cancel` 覆寫裡順手呼叫 `[task cancel]`，取消就從 UI 一路傳到網路層。Swift 的 `Task` 取消自動傳遞給子任務，ObjC 要自己接線。
+
+### Thread Sanitizer
+
+<Term en="Thread Sanitizer" tw="執行緒檢查器（TSan）" cn="线程检查器" jp="スレッドサニタイザ" />在執行期記錄每次記憶體存取與鎖的順序，發現「兩條執行緒存取同一位址、至少一個是寫、中間沒有同步」就報警。它抓的是真正發生的存取，所以要讓程式真的走到多執行緒的路徑（跑 `LBLedgerConcurrencyTests` 最有效）。
+
+<Steps title="開啟 TSan 並讀報告">
+1. Product → Scheme → Edit Scheme → Test → Diagnostics，勾 **Thread Sanitizer**（模擬器限定，速度慢 2–20 倍）。
+2. ⌘U 跑並行測試。Issue Navigator 會出現紫色的 Runtime Issue。
+3. 報告頂端 `WARNING: ThreadSanitizer: data race` 之後有兩段堆疊：**Write of size 8 by thread T7** 與 **Previous read of size 8 by main thread**，各自的第 0 個 frame 之後找第一個自己的檔案與行號，那就是競爭的兩行。
+4. 下面 `Location is heap block of size 48` 告訴你是哪個物件的哪個 ivar（位移）。
+5. 修完再跑，直到零警告。驗收：`LBLedgerConcurrencyTests` 與 `LBRateServiceTests` 在 TSan 下零警告。
+</Steps>
+
+### 資料競爭 vs 競態條件
+
+- <Term en="data race" tw="資料競爭" cn="数据竞争" jp="データ競合" />：兩條執行緒**沒有同步地**存取同一塊記憶體、至少一個寫。這是未定義行為，TSan 抓得到，鎖或佇列可以修。
+- <Term en="race condition" tw="競態條件" cn="竞态条件" jp="競合状態" />：結果取決於執行順序，但每一步都正確同步。例如「檢查餘額夠不夠」和「扣款」各自加鎖，兩個使用者同時扣款仍可能透支。TSan 抓不到，要靠設計：把「檢查 + 動作」放進同一個臨界區。
+
+10.6 的「舊搜尋結果覆蓋新結果」是競態條件，不是資料競爭：每次賦值都在主執行緒，沒有未同步存取，只是順序錯了。
+
+## 優先佇列：排程背景任務
+
+效能面板的壓力測試有好幾種背景任務（匯入、重算統計、預先格式化），不是先來先跑，而是依優先度。<Term en="priority queue" tw="優先佇列" cn="优先队列" jp="優先度付きキュー" />用<Term en="heap" tw="二元堆積" cn="二叉堆" jp="二分ヒープ" />實作：陣列存完全二元樹，索引 `i` 的子節點是 `2i+1`、`2i+2`，父節點 `(i-1)/2`。`insert` 放到尾端往上浮，`extractMax` 取根、把尾端放到根往下沉，兩者都 O(log n)，7.7 已經做過 `LBPriorityQueue` 的基礎版。
+
+```objc
+// 以優先度排程：高優先度先出
+LBPriorityQueue *pq = [[LBPriorityQueue alloc]
+    initWithComparator:^NSComparisonResult(LBTask *a, LBTask *b) {
+        return [@(a.priority) compare:@(b.priority)];
+    }];
+[pq insert:[LBTask taskNamed:@"預先格式化" priority:1]];
+[pq insert:[LBTask taskNamed:@"匯入"       priority:3]];
+[pq insert:[LBTask taskNamed:@"重算統計"   priority:2]];
+while (pq.count) NSLog(@"%@", [pq extractMax].name);
+// 匯入、重算統計、預先格式化
+```
+
+Foundation 的對應是 `NSOperation.queuePriority`（五級列舉）：`NSOperationQueue` 內部就是依優先度挑下一個。自己寫堆積的時機：優先度是連續值、需要動態調整、或根本不是 operation（例如依「使用者最近看過」排序要預先算的月份）。
+
+### 選讀：任務相依圖與拓撲排序
+
+「重算統計」要等「匯入」完成，「畫圖表」要等「重算統計」：這是一張有向圖。`NSOperation` 的 `addDependency:` 就是在圖上加一條邊，`NSOperationQueue` 內建<Term en="topological sort" tw="拓撲排序" cn="拓扑排序" jp="トポロジカルソート" />：入度為 0 的先跑，跑完把後繼的入度減一。自己寫的版本（Kahn 演算法）：
+
+```objc
+// nodes: 任務名；edges[a] = a 完成後才能跑的任務們
+NSMutableDictionary<NSString *, NSNumber *> *indeg = ...;   // 每個節點入度
+NSMutableArray *ready = [NSMutableArray array];             // 入度 0
+for (NSString *n in nodes) if (indeg[n].intValue == 0) [ready addObject:n];
+NSMutableArray *order = [NSMutableArray array];
+while (ready.count) {
+    NSString *n = ready.firstObject; [ready removeObjectAtIndex:0];
+    [order addObject:n];
+    for (NSString *m in edges[n]) {
+        indeg[m] = @(indeg[m].intValue - 1);
+        if (indeg[m].intValue == 0) [ready addObject:m];
+    }
+}
+if (order.count < nodes.count) NSLog(@"有環：相依互相等，永遠跑不完");
+```
+
+最後那行就是 `NSOperationQueue` 不會幫你的事：A 依賴 B、B 依賴 A，兩個 operation 永遠 `isReady == NO`，佇列靜靜地卡住，沒有任何錯誤。
+
+<Pitfall title="無限 dispatch_async 到並行佇列">
+<Fragment slot="bad">
+```objc
+for (LBTransaction *tx in all) {                       // 100,000 次
+    dispatch_async(dispatch_get_global_queue(0, 0), ^{
+        [self formatTransaction:tx];                   // 幾 µs 的工作
+    });
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+dispatch_apply(8, dispatch_get_global_queue(0, 0), ^(size_t c) {
+    for (NSUInteger i = c; i < all.count; i += 8) [self formatTransaction:all[i]];
+});
+```
+</Fragment>
+每個 block 配置、排程、切換的成本遠超過幾微秒的工作；若 block 裡有阻塞 I/O，還會長出幾十條執行緒。`dispatch_apply` 分塊，或 `NSOperationQueue` 限制 `maxConcurrentOperationCount`。
+</Pitfall>
+
+<Pitfall title="主執行緒等 semaphore">
+`dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER)` 寫在主執行緒，等一個網路回呼來 `signal`。回呼若排在主佇列（`NSURLSession` 預設 delegate queue 不是，但很多包裝會切回主佇列）就是死結；即使不是，主執行緒凍住幾秒也是 hitch，而且 semaphore 不會把優先權借給背景那條。主執行緒只能用 `dispatch_group_notify` / completion block，不能 `wait`。
+</Pitfall>
+
+<Pitfall title="enter / leave 不成對">
+錯誤路徑 `return` 之前忘了 `dispatch_group_leave`，`notify` 永遠不觸發，畫面上的轉圈圈轉到天荒地老。反過來 `leave` 多一次會 crash：`BUG IN CLIENT OF LIBDISPATCH: Unbalanced call to dispatch_group_leave()`。慣例：`enter` 之後的 block 第一行就寫好所有路徑的 `leave`，或用 `dispatch_group_async` 讓系統配對。
+</Pitfall>
+
+<Pitfall title="TSan 只抓跑過的路徑">
+開了 TSan 跑一次 App 沒警告不代表沒有資料競爭，它只檢查真正發生過的存取。要讓並行路徑真的被走到：跑 `LBLedgerConcurrencyTests` 這種刻意開多條執行緒的測試，壓力測試按鈕也要在 TSan 下按過。還有，TSan 不能跟 Address Sanitizer 同時開。
+</Pitfall>
+
+<Crash message={`WARNING: ThreadSanitizer: data race (pid=4821)
+  Write of size 8 at 0x7b0c00012340 by thread T7:
+    #0 -[LBRateService fetchRatesForBases:maxConcurrent:completion:]_block_invoke_2 LBRateService.m:58
+    #1 __NSURLSessionTaskCompletion_block_invoke
+  Previous read of size 8 at 0x7b0c00012340 by main thread:
+    #0 -[LBRateService fetchRatesForBases:maxConcurrent:completion:]_block_invoke_3 LBRateService.m:71
+    #1 _dispatch_call_block_and_release
+  Location is heap block of size 48 at 0x7b0c00012320 allocated by main thread:
+    #0 +[NSMutableDictionary dictionary]
+SUMMARY: ThreadSanitizer: data race LBRateService.m:58 in fetchRatesForBases:maxConcurrent:completion:_block_invoke_2`}>
+讀法三步。第一段 **Write by thread T7**：第 0 個自己的 frame 是 `LBRateService.m:58`，是網路回呼裡 `results[base] = rates;` 那行，在 `NSURLSession` 的執行緒上。第二段 **Previous read by main thread**：`LBRateService.m:71`，是 `notify` 裡讀 `results` 的那行，在主執行緒。第三段 **Location**：一個 `NSMutableDictionary`，就是 `results`。兩條執行緒、同一個字典、一寫一讀、中間沒有同步，就是資料競爭。修法是課文的版本：寫入走一條串列佇列（`sync`），讀之前 `dispatch_sync(sync, ^{})` 排空。`SUMMARY` 那行是最快的入口，直接點 `LBRateService.m:58`。
+</Crash>
+
+## 小結
+
+- 全域佇列遇到阻塞 I/O 會不斷開執行緒；50 個同步請求 = 50 條執行緒。限流用 semaphore（`create(N)` + `wait` / `signal`）或 `maxConcurrentOperationCount`。
+- `dispatch_group`：`enter` / `leave` 成對、`notify` 聚合；`dispatch_group_wait` 帶逾時。結果容器用串列佇列保護。
+- `dispatch_apply` 同步、分塊、不爆炸；每塊寫自己的容器。
+- TSan 報告看兩段堆疊各自第一個自己的 frame，加 Location 的物件；只抓實際跑過的路徑。
+- 資料競爭（未同步存取，TSan 抓）≠ 競態條件（順序問題，靠設計）。優先佇列用二元堆積 O(log n)；任務相依是圖，`NSOperationQueue` 內建拓撲排序，但有環會靜默卡住。

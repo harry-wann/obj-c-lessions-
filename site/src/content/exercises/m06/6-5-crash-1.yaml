@@ -1,0 +1,29 @@
+id: m06-6-5-crash-1
+chapter: "6.5"
+type: crash
+title: swizzle 後無限遞迴
+minutes: 2
+log: |
+  Thread 1: EXC_BAD_ACCESS (code=2, address=0x16f603ff0)
+  #0  -[UIViewController(LBTracking) lb_viewDidAppear:] + 24
+  #1  -[UIViewController(LBTracking) lb_viewDidAppear:] + 40
+  #2  -[UIViewController(LBTracking) lb_viewDidAppear:] + 40
+  ...（重複約 60,000 層）
+  #65533 -[UINavigationController viewDidAppear:] + 152
+  // lb_viewDidAppear: 裡：[self viewDidAppear:animated];
+options:
+  - "UINavigationController 不允許被 swizzle"
+  - "交換後 viewDidAppear: 這個 selector 指向 lb_viewDidAppear: 的實作；新實作裡呼叫 viewDidAppear: 等於呼叫自己，遞迴到堆疊溢位（code=2、位址在堆疊邊界）"
+  - animated 參數型別錯誤導致記憶體越界
+  - 這是記憶體洩漏造成的 crash
+answer: 1
+fix: |
+  - (void)lb_viewDidAppear:(BOOL)animated {
+      [self lb_viewDidAppear:animated];   // 交換後這個名字才是原實作
+      NSLog(@"[頁面] %@", NSStringFromClass([self class]));
+  }
+solution_note: "幾萬層同一個方法 + EXC_BAD_ACCESS code=2 + 位址接近堆疊區段 = 堆疊溢位。方法名帶的分類名 (LBTracking) 直接指出是哪個 swizzle。另一種來源是兩個 SDK 用了同一個 swizzled selector 名稱形成環，所以前綴用自己的縮寫。"
+hints: ["幾萬層同一個 frame 代表什麼？", "交換之後名字對調了，新實作裡該呼叫哪個名字？"]
+feedback:
+  "2": 參數型別沒變，兩個方法簽名一樣；位址在堆疊區是溢位的特徵。
+  "3": 洩漏不會造成即時 crash，更不會產生幾萬層遞迴。

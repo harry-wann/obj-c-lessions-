@@ -1,0 +1,18 @@
+id: m10-10-1-predict-1
+chapter: "10.1"
+type: predict
+title: 預測輸出：環狀緩衝區覆寫
+minutes: 2
+prompt: 容量 3 的 LBRingBuffer（課文版），依序 append 10、20、30、40。
+code: |
+  LBRingBuffer *rb = [[LBRingBuffer alloc] initWithCapacity:3];
+  for (NSNumber *n in @[@10, @20, @30, @40]) [rb append:n.doubleValue];
+  NSLog(@"%@", [[rb values] componentsJoinedByString:@","]);
+  NSLog(@"%.0f %lu", [rb average], (unsigned long)[rb count]);
+options: ["20,30,40\n30 3", "40,20,30\n30 3", "10,20,30\n20 3", "10,20,30,40\n25 4"]
+accept: ["20,30,40 30 3"]
+feedback:
+  "40,20,30 30 3": 記憶體裡確實是 [40, 20, 30]，但 values 從 _head（最舊那格）開始讀，所以輸出由舊到新。
+  "10,20,30,40 25 4": 容量 3，第四筆覆寫最舊的 10；count 最多等於容量。
+solution_note: "第四筆寫到索引 0 覆寫 10，_head 回到 1；values 從 _head 開始繞一圈：20、30、40。平均 (20+30+40)/3 = 30。"
+hints: ["第四筆寫到哪一格？", "values 的起點是 _head 還是 0？寫滿了嗎？"]

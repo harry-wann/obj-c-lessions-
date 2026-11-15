@@ -1,0 +1,18 @@
+id: m07-7-1-quiz-1
+chapter: "7.1"
+section: quiz
+type: quiz
+title: 怎麼判斷方法失敗
+minutes: 1
+prompt: "`NSError *error = nil; NSArray *txs = [store loadTransactionsWithError:&error];` 之後，判斷這次呼叫有沒有失敗的正確依據是？"
+options:
+  - "`if (error)`：有錯誤物件就是失敗"
+  - "`if (txs == nil)`：回傳值才是成敗的唯一依據，error 只是補充說明"
+  - "`if (error.code != 0)`"
+  - "兩個都要成立：`txs == nil && error != nil`"
+answer: 1
+explain: Apple 文件明說成功時 error 參數的內容未定義，方法沒有義務把它設成 nil。先判回傳值（nil / NO），失敗了才讀 error。
+hints: ["Apple 文件對「成功時 error 的值」怎麼說？", "回傳值是 nullable 的意義是什麼？"]
+feedback:
+  "0": 成功時 error 可能留著中途重試失敗的殘值，這樣寫會在資料載入成功時誤跳錯誤框。
+  "3": 失敗時 error 理論上一定有值，但多判一個條件沒有意義，而且遇到沒填 error 的爛 API 會漏掉失敗。

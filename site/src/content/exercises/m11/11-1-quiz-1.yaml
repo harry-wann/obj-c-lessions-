@@ -1,0 +1,19 @@
+id: m11-11-1-quiz-1
+chapter: "11.1"
+section: quiz
+type: quiz
+title: retain setter 的順序
+minutes: 1
+prompt: "MRC 下手寫 `retain` 屬性的 setter，哪一個順序是正確的？"
+options:
+  - "先 release 舊的，再 retain 新的，最後賦值"
+  - "先 retain 新的，再 release 舊的，最後賦值"
+  - "直接賦值，dealloc 時再統一 release"
+  - "先賦值，再 retain 新值"
+answer: 1
+explain: 新舊值可能是同一個物件；先 release 可能讓它當場歸零，接著 retain 的就是死物件。所以一律先 retain 新的、再 release 舊的，或先用 `if (_x == x) return;` 擋掉。
+hints: ["如果新舊值是同一個物件，先 release 會發生什麼？", "setter 要負責放掉舊值，不能等 dealloc。"]
+feedback:
+  "0": 新舊同一物件時，release 後計數可能歸零，retain 的是已釋放的物件。
+  "2": 舊值永遠不會被 release，每次設值都洩漏一個物件。
+  "3": 賦值後舊值的指標就丟了，再也沒機會 release 它。

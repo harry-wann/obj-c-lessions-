@@ -1,0 +1,35 @@
+id: m11-11-2-spot-1
+chapter: "11.2"
+type: spot
+title: 找錯：換成 NSURLSession 後 UI 在背景執行緒更新
+minutes: 2
+prompt: 把 NSURLConnection 改成 NSURLSession 後，Main Thread Checker 跳紫色警告。點出有問題的行並選原因。
+code: |
+  - (void)reloadRates {
+      NSURL *url = [self urlForBase:@"TWD"];
+      NSURLSessionDataTask *task = [self.session dataTaskWithURL:url
+          completionHandler:^(NSData *data, NSURLResponse *r, NSError *e) {
+              NSDictionary *rates = [LBRateService ratesFromJSONData:data error:nil];
+              self.rateLabel.text = rates[@"USD"].stringValue;
+          }];
+      [task resume];
+  }
+bug_lines: [6]
+reasons:
+  - "completion 在 session 的背景佇列執行，直接改 UILabel 是跨執行緒碰 UI；要 dispatch_async 回主佇列"
+  - "ratesFromJSONData: 不能傳 nil 當 error"
+  - "task 沒有被 retain 會提早釋放"
+  - "應該用 dataTaskWithRequest: 而不是 dataTaskWithURL:"
+answer_reason: 0
+fix: |
+  completionHandler:^(NSData *data, NSURLResponse *r, NSError *e) {
+      NSDictionary *rates = [LBRateService ratesFromJSONData:data error:nil];
+      dispatch_async(dispatch_get_main_queue(), ^{
+          self.rateLabel.text = rates[@"USD"].stringValue;
+      });
+  }];
+solution_note: "NSURLConnection 的 delegate 在啟動請求的執行緒回呼（多半是主執行緒），所以舊碼直接改 UI 沒事；NSURLSession 的 completion 預設在背景。最好在 service 層統一切回主佇列（M07 的 testCompletionCalledOnMainQueue）。"
+hints: ["completion block 在哪條執行緒跑？", "UIKit 只能在主執行緒碰。"]
+feedback:
+  "2": "session 會持有進行中的 task 直到完成，不需要自己 retain。"
+  "1": "error 傳 NULL 是允許的，只是拿不到錯誤。"

@@ -1,0 +1,31 @@
+id: m10-10-2-fill-1
+chapter: "10.2"
+type: fill
+title: 共用 formatter 與 shadowPath
+minutes: 2
+prompt: 補完共用 formatter 與陰影路徑的寫法。
+code: |
+  + (NSDateFormatter *)dateFormatter {
+      static NSDateFormatter *f;
+      static dispatch_once_t once;
+      ___1___(&once, ^{
+          f = [NSDateFormatter new];
+          f.dateFormat = @"M/d EEE";
+      });
+      return f;
+  }
+  - (void)layoutSubviews {
+      [super layoutSubviews];
+      _card.layer.___2___ =
+          [UIBezierPath bezierPathWithRoundedRect:_card.bounds
+                                     cornerRadius:12].___3___;
+  }
+blanks:
+  "1": { accept: ["dispatch_once"], chips: ["dispatch_once", "dispatch_sync", "dispatch_async", "@synchronized"] }
+  "2": { accept: ["shadowPath"], chips: ["shadowPath", "shadowOffset", "mask", "path"] }
+  "3": { accept: ["CGPath"], chips: ["CGPath", "path", "bounds", "layer"] }
+hints: ["只建一次的慣用寫法是什麼？", "讓 Render Server 不用算陰影形狀的屬性。", "CALayer 要的是 Core Graphics 型別。"]
+feedback:
+  "1=dispatch_sync": dispatch_sync 不保證只執行一次。
+  "2=mask": mask 本身就會離屏，剛好相反。
+solution_note: formatter 用 `dispatch_once` 建一次全 App 共用（iOS 7 起執行緒安全）；`shadowPath` 接 `CGPath`，在 `layoutSubviews` 隨 bounds 更新。

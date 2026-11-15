@@ -1,0 +1,35 @@
+id: m06-6-4-crash-1
+chapter: "6.4"
+type: crash
+title: 被觀察者先走了
+minutes: 2
+log: |
+  *** Terminating app due to uncaught exception 'NSInternalInconsistencyException',
+  reason: 'An instance 0x600002b1c3a0 of class LBLedger was deallocated while key value
+  observers were still registered with it. Current observation info:
+  <NSKeyValueObservationInfo 0x600001d08f20> (
+  <NSKeyValueObservance 0x600001d0a1c0: Observer: 0x7fb3c2d0a800, Key path: total,
+   Options: <New: YES, Old: NO, Prior: NO> Context: 0x10a3f4e58, Property: 0x600001d09b40>
+  )'
+options:
+  - LBLedger 必須覆寫 dealloc 才能被觀察
+  - "有一個觀察者（0x7fb3c2d0a800）註冊了 total 卻沒有在 ledger 釋放前 removeObserver:；通常是觀察者的 dealloc 漏了移除，或換帳本時沒移除舊的"
+  - KVO 不能觀察 NSDecimalNumber 型別的屬性
+  - context 不能是 0x10a3f4e58 這種位址
+answer: 1
+fix: |
+  // 觀察者
+  - (void)dealloc {
+      [_ledger removeObserver:self forKeyPath:@"total" context:LBTotalContext];
+  }
+  // 若被觀察物件會被換掉：
+  - (void)setLedger:(LBLedger *)ledger {
+      [_ledger removeObserver:self forKeyPath:@"total" context:LBTotalContext];
+      _ledger = ledger;
+      [_ledger addObserver:self forKeyPath:@"total" options:NSKeyValueObservingOptionNew context:LBTotalContext];
+  }
+solution_note: "訊息把觀察者位址、keyPath、context 都給你了，拿 Context 去對原始碼的靜態變數就知道是誰註冊的。iOS 11 起這一條放寬成不丟例外，但觀察者先釋放沒移除依然是 EXC_BAD_ACCESS，所以 dealloc 移除的規矩不變。"
+hints: ["誰註冊了就該由誰移除。", "Context 的值能幫你找到哪個類別。"]
+feedback:
+  "0": dealloc 不需要覆寫；問題是觀察者沒移除。
+  "2": 任何 KVC-compliant 的屬性都能觀察，型別無關。

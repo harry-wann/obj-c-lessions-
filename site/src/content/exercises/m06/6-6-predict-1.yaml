@@ -1,0 +1,28 @@
+id: m06-6-6-predict-1
+chapter: "6.6"
+type: predict
+title: 預測輸出：取消 afterDelay
+minutes: 2
+code: |
+  // LBLedger 有 - (void)recalc { NSLog(@"recalc"); }
+  [ledger performSelector:@selector(recalc) withObject:nil afterDelay:0.1];
+  [ledger performSelector:@selector(recalc) withObject:nil afterDelay:0.2];
+  [NSObject cancelPreviousPerformRequestsWithTarget:ledger
+                                           selector:@selector(recalc)
+                                             object:nil];
+  [ledger performSelector:@selector(recalc) withObject:nil afterDelay:0.1];
+  NSLog(@"排好了");
+  [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.5]];
+  NSLog(@"結束");
+options:
+  - "排好了\nrecalc\n結束"
+  - "排好了\nrecalc\nrecalc\nrecalc\n結束"
+  - "排好了\n結束"
+  - "recalc\n排好了\n結束"
+accept: ["排好了 recalc 結束"]
+feedback:
+  "排好了 recalc recalc recalc 結束": cancelPrevious 取消了前兩個還沒執行的請求；只剩取消之後排的那一個。
+  "排好了 結束": 取消之後又排了一次，而且 run loop 有在跑，所以它會執行。
+  "recalc 排好了 結束": afterDelay 一定是非同步的，就算延遲 0 也要等 run loop 下一圈。
+solution_note: 這就是輸入防抖的寫法：每次先取消再重排。`cancelPreviousPerformRequestsWithTarget:selector:object:` 取消所有「同 target、同 selector、同 object」還沒執行的請求。沒有最後那行 run loop，連一個 recalc 都不會印。
+hints: ["cancelPrevious 取消了哪幾個？", "取消之後又排了一個嗎？"]

@@ -1,0 +1,19 @@
+id: m09-9-1-quiz-1
+chapter: "9.1"
+section: quiz
+type: quiz
+title: 帳本檔該放哪個目錄
+minutes: 1
+prompt: 使用者辛苦記了三年的帳本檔 `ledger.json`，應該放在沙盒的哪個目錄？
+options:
+  - "tmp/：讀寫最快"
+  - "Library/Caches/：系統會幫忙管理空間"
+  - "Documents/：會進備份、系統不會清"
+  - 寫到 App bundle 旁邊，跟程式放一起
+answer: 2
+explain: 判斷標準是「弄丟了能不能重新生出來」。帳本不能，所以放 Documents（或 Library/Application Support），會備份、不會被清。
+hints: ["這份資料弄丟了能重新算出來嗎？", "哪個目錄在空間不足時會被系統清？"]
+feedback:
+  "0": tmp 在 App 沒執行時隨時可能被清空，只能放用完就丟的東西。
+  "1": Caches 在裝置空間不足時會被清，帳本放這裡某天就不見了。
+  "3": App bundle 是唯讀的，而且不在沙盒的資料容器裡；程式碼簽章後也不能改。

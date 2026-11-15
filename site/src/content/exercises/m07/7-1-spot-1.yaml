@@ -1,0 +1,58 @@
+id: m07-7-1-spot-1
+chapter: "7.1"
+type: spot
+title: 呼叫端與方法端各錯一處
+minutes: 3
+prompt: 這段程式有兩個關於 NSError 慣例的錯誤：一個在方法端、一個在呼叫端。點選有問題的行並選出原因。
+code: |
+  - (BOOL)importRow:(NSString *)row error:(NSError **)error {
+      NSArray *parts = [row componentsSeparatedByString:@","];
+      if (parts.count != 3) {
+          *error = [NSError errorWithDomain:LBErrorDomain code:LBErrorCodeUnexpectedType
+                                   userInfo:@{ NSLocalizedDescriptionKey: @"欄位數不對" }];
+          return NO;
+      }
+      return YES;
+  }
+
+  - (void)importAll:(NSArray<NSString *> *)rows {
+      NSError *error = nil;
+      for (NSString *row in rows) {
+          [self importRow:row error:&error];
+          if (error) { NSLog(@"第一筆壞的：%@", row); break; }
+      }
+  }
+bug_lines: [4, 15]
+reasons:
+  - "第 4 行沒檢查 error 是否為 NULL 就解參考，呼叫端傳 NULL 會 crash；第 15 行用 if (error) 判斷失敗而不是回傳值，而且 error 變數跨迴圈重用"
+  - 第 4 行應該改成 raise NSException
+  - 第 13 行 error 應該宣告成 __block
+  - 第 14 行應該傳 error 而不是 &error
+answer_reason: 0
+fix: |
+  - (BOOL)importRow:(NSString *)row error:(NSError **)error {
+      NSArray *parts = [row componentsSeparatedByString:@","];
+      if (parts.count != 3) {
+          if (error) {
+              *error = [NSError errorWithDomain:LBErrorDomain code:LBErrorCodeUnexpectedType
+                                       userInfo:@{ NSLocalizedDescriptionKey: @"欄位數不對" }];
+          }
+          return NO;
+      }
+      return YES;
+  }
+
+  - (void)importAll:(NSArray<NSString *> *)rows {
+      for (NSString *row in rows) {
+          NSError *error = nil;
+          if (![self importRow:row error:&error]) {
+              NSLog(@"第一筆壞的：%@（%@）", row, error.localizedDescription);
+              break;
+          }
+      }
+  }
+solution_note: 兩個規則：方法端寫 `*error` 前先 `if (error)`；呼叫端用回傳值判斷。用 `if (error)` 的版本若第一筆失敗、第二筆成功，error 殘值還在，會把成功的那筆報成壞的。
+hints: ["呼叫端可以傳 NULL 給 error 參數嗎？", "判斷失敗的依據是什麼？"]
+feedback:
+  "1": 資料格式錯是可預期的失敗，走 NSError 是對的，問題在怎麼填。
+  "3": 傳 &error 是正確的，方法才能寫回呼叫端的變數。

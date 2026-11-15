@@ -1,0 +1,236 @@
+---
+title: Objective-C 呼叫 Swift
+module: 12
+chapter: "12.2"
+order: 2
+minutes: 35
+prereq: ["12.1"]
+objectives:
+  - 在 .m 檔裡 import 自動產生的 LittleBook-Swift.h，建立並使用 Swift 類別
+  - 列出 ObjC 看不到的 Swift 特性（struct、關聯值列舉、泛型、protocol extension、Int? 等值型別 Optional、頂層函式、tuple）
+  - 用 @objc / @objcMembers / NSObject 子類別與包裝層，把 Swift 功能安全地開給 ObjC
+summary: "自動產生的 LittleBook-Swift.h 只能在 .m 裡 import；@objc / @objcMembers、繼承 NSObject；ObjC 看不到 struct、關聯值 enum、泛型、protocol extension、Int?、頂層函式、tuple；用 @objc 包裝層補洞；@objc(Name) 與 NSClassFromString 的模組前綴。"
+terms:
+  - { en: generated header, tw: 自動產生標頭, cn: 自动生成头文件, jp: 自動生成ヘッダ }
+  - { en: Objective-C runtime visibility, tw: ObjC 可見性, cn: ObjC 可见性, jp: ObjC 可視性 }
+  - { en: wrapper, tw: 包裝層, cn: 包装层, jp: ラッパー }
+  - { en: module name, tw: 模組名稱, cn: 模块名, jp: モジュール名 }
+appProgress: ObjC 的 AppDelegate 透過 LittleBook-Swift.h 建立 Swift 寫的 StatsViewController 並放進 Tab；LBBridgingTests 兩個測試轉綠。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// StatsViewController.swift：要給 ObjC 用，就得長得像 ObjC 類別
+@objc final class StatsViewController: UIViewController {
+    private let viewModel: StatsViewModel
+    @objc init(ledger: LBLedger) {            // 沒加 @objc 的 init，ObjC 看不到
+        viewModel = StatsViewModel(ledger: ledger)
+        super.init(nibName: nil, bundle: nil)
+    }
+    required init?(coder: NSCoder) { fatalError() }
+}
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// Kotlin 寫給 Java 用：頂層函式、object、預設參數都要加註解才好看
+object Stats {
+    @JvmStatic fun total(list: List<Tx>): BigDecimal = ...   // 否則 Java 要 Stats.INSTANCE.total()
+}
+@JvmOverloads fun format(x: BigDecimal, cents: Boolean = true) = ...
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// Java 看 Kotlin：data class 沒問題；sealed class 的 when 窮舉在 Java 端變成 instanceof 鏈
+BigDecimal t = Stats.total(list);          // 有 @JvmStatic 才能這樣寫
+String s = StatsKt.format(x);              // 頂層函式掛在 FileNameKt 上
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// JS 呼叫 TS 編譯結果：interface、type、enum（const enum）在輸出的 JS 裡根本不存在
+// stats.ts
+export interface Breakdown { name: string; total: number }   // JS 端：沒有這個東西
+export const enum Kind { Expense, Income }                   // 內嵌成數字，JS 看不到名字
+```
+</Fragment>
+反方向的互通比較殘酷：新語言的型別系統比舊語言豐富，多出來的那部分**在舊語言端沒有對應，就是看不到**。Kotlin 的頂層函式、`object`、預設參數要加 `@JvmStatic` / `@JvmOverloads` 才在 Java 端好用；TS 的 `interface` 在 JS 輸出裡消失。Swift 給 ObjC 看的規則是同一句話：**只有 ObjC runtime 能表達的東西，ObjC 才看得到**，而這份清單比你想的短。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 自動產生的 `LittleBook-Swift.h`
+
+只要 target 裡有 `.swift` 檔，編譯器就會替你產生一個 `<ProductModuleName>-Swift.h`（小帳本是 `LittleBook-Swift.h`），裡面是所有 `@objc` 可見的 Swift 宣告翻譯成的 ObjC 標頭。你不用建立它，也不會在專案導覽裡看到它，只要在 `.m` 檔裡 import：
+
+```objc
+// AppDelegate.m
+#import "LittleBook-Swift.h"       // 只能在 .m，不能在 .h
+
+- (void)setUpTabs {
+    StatsViewController *stats = [[StatsViewController alloc] initWithLedger:self.ledger];
+    stats.title = @"統計";
+    UINavigationController *nav =
+        [[UINavigationController alloc] initWithRootViewController:stats];
+    self.tabBarController.viewControllers = @[ledgerNav, nav, settingsNav];
+}
+```
+
+**不能在 `.h` 裡 import 它**，原因是循環：產生 `-Swift.h` 需要先編 Swift，編 Swift 需要先讀橋接標頭，橋接標頭 import 的 `.h` 又 import `-Swift.h`。標頭檔裡要用 Swift 類別，用前向宣告 `@class StatsViewController;`，到 `.m` 再 import。檔名用 `$(SWIFT_MODULE_NAME)-Swift.h` 規則，產品名有空格或連字號會被換成底線（`Little Book` → `Little_Book-Swift.h`），在 Build Settings 搜「Objective-C Generated Interface Header Name」可以看到實際檔名。
+
+想看它長什麼樣，建置一次後在 `.m` 裡 ⌘-點擊 `#import "LittleBook-Swift.h"`，會開啟 DerivedData 底下的真檔；每個類別前面有一串 `SWIFT_CLASS("_TtC10LittleBook19StatsViewController")`，那是 Swift 的符號名稱。
+
+### 讓 Swift 類別進入 ObjC 的視線
+
+三個條件：**繼承 `NSObject`**（直接或間接；`UIViewController` 子類別當然算）、類別或成員標 `@objc`、成員型別本身也要是 ObjC 看得到的。
+
+```swift
+// StatsViewModel.swift
+@objc final class StatsViewModel: NSObject {          // 1. NSObject 子類別、2. @objc
+    private let ledger: LBLedger
+
+    @objc init(ledger: LBLedger) { ... }                // 初始化器要自己標
+    @objc var expenseTotal: NSDecimalNumber { ... }     // NSDecimalNumber 是 ObjC 類別：OK
+    @objc var incomeTotal: NSDecimalNumber { ... }
+    @objc var balance: NSDecimalNumber { ... }
+
+    func categoryBreakdown() -> [(name: String, total: NSDecimalNumber)] { ... }
+    // 3. 回傳 tuple 陣列：ObjC 沒有 tuple，就算加 @objc 也會編譯錯誤
+
+    @objc func categoryNames() -> [String] {            // 另外提供 ObjC 吃得下的版本
+        categoryBreakdown().map { $0.name }
+    }
+}
+```
+
+| Swift 寫法 | 效果 |
+|---|---|
+| `@objc` 在類別上 | 類別本身可見；成員**不會**自動可見（Swift 4 之後） |
+| `@objc` 在成員上 | 這個方法 / 屬性 / 初始化器可見 |
+| `@objcMembers` 在類別上 | 所有能露的成員自動露出；方便但會變胖，`-Swift.h` 變大、建置變慢 |
+| `@objc(LBStatsViewModel)` | 指定 ObjC 端的名字，順便加前綴、避開模組前綴問題 |
+| `dynamic` | 透過 ObjC 訊息派送呼叫，KVO / swizzling 才會生效 |
+
+`-Swift.h` 裡 `StatsViewModel` 會長成：
+
+```objc
+SWIFT_CLASS("_TtC10LittleBook14StatsViewModel")
+@interface StatsViewModel : NSObject
+- (nonnull instancetype)initWithLedger:(LBLedger * _Nonnull)ledger OBJC_DESIGNATED_INITIALIZER;
+@property (nonatomic, readonly, strong) NSDecimalNumber * _Nonnull expenseTotal;
+@property (nonatomic, readonly, strong) NSDecimalNumber * _Nonnull incomeTotal;
+@property (nonatomic, readonly, strong) NSDecimalNumber * _Nonnull balance;
+- (NSArray<NSString *> * _Nonnull)categoryNames SWIFT_WARN_UNUSED_RESULT;
+- (nonnull instancetype)init SWIFT_UNAVAILABLE;
+@end
+```
+
+注意兩件事：Swift 的非 Optional 到 ObjC 端全是 `_Nonnull`，`String?` 是 `_Nullable`，方向反過來資訊不會丟；而 `init` 被標 `SWIFT_UNAVAILABLE`，因為 Swift 類別沒提供無參數初始化器，ObjC 端 `[StatsViewModel new]` 會編譯錯誤，這是好事。
+
+### ObjC 看不到的 Swift 東西
+
+<Term en="Objective-C runtime visibility" tw="ObjC 可見性" cn="ObjC 可见性" jp="ObjC 可視性" />的清單要背起來，面試會問，工作上每天會撞：
+
+| Swift 特性 | ObjC 端 | 替代做法 |
+|---|---|---|
+| `struct`（含 `Decimal`、`Date` 以外的自訂 struct） | 看不到 | 包成 `@objc class`，或只露欄位 |
+| 有關聯值的 `enum`、非 `Int` 原始值的 `enum` | 看不到 | `@objc enum Kind: Int` 才會變 `NS_ENUM` |
+| 泛型類別 `Box<T>` | 看不到 | 用 `NSArray` / `id` 或具體型別包一層 |
+| protocol extension 的預設實作 | 看不到（協定本身 `@objc` 才可見） | 在 class 裡明寫一份轉呼叫 |
+| `Int?`、`Bool?`、`Double?` 等值型別 Optional | 看不到 | 改成 `NSNumber?`，或拆成 `hasX` + `x` |
+| tuple、`Result<T, E>` | 看不到 | 多個回傳參數或 completion block |
+| 頂層函式、全域變數 | 看不到 | 掛到 class 上當 `@objc static` |
+| 巢狀型別 `Outer.Inner`、`typealias` | 看不到巢狀；alias 展開成原型別 | `@objc(LBOuterInner)` 給名字 |
+| `throws` | 轉成 `error:` 參數 + `BOOL` / nullable 回傳 | 自動，但只支援丟 `NSError` 相容型別 |
+| 預設參數、參數標籤 | 預設值消失，每個參數都要給 | 多寫幾個 `@objc` 多載版本 |
+| `let` 常數屬性 | `readonly` | — |
+| `Character`、`Substring`、`Any` 以外的協定組合 | 看不到 | 轉成 `String` / `NSString` |
+
+ObjC 的錯誤訊息很誠實：`Method cannot be marked @objc because its result type cannot be represented in Objective-C`。看到它就對照上表找替代。
+
+### 包裝層：把 Swift 核心包成 ObjC 看得懂的殼
+
+小帳本的 `categoryBreakdown()` 回傳 tuple 陣列是最自然的 Swift 寫法，不該為了 ObjC 犧牲；做法是加一層：
+
+```swift
+// StatsBreakdownItem.swift：給 ObjC 看的殼
+@objc final class StatsBreakdownItem: NSObject {
+    @objc let name: String
+    @objc let total: NSDecimalNumber
+    init(name: String, total: NSDecimalNumber) {
+        self.name = name; self.total = total
+    }
+}
+
+extension StatsViewModel {
+    @objc func breakdownItems() -> [StatsBreakdownItem] {
+        categoryBreakdown().map { StatsBreakdownItem(name: $0.name, total: $0.total) }
+    }
+}
+```
+
+```objc
+// LBStatsSummaryCell.m：ObjC 端用起來跟一般類別沒兩樣
+for (StatsBreakdownItem *item in [viewModel breakdownItems]) {
+    NSLog(@"%@ %@", item.name, item.total);
+}
+```
+
+原則：Swift 內部照 Swift 寫；邊界上另闢 `@objc` 入口，型別只用 `NSObject` 子類別、`String`、`NSNumber`、`[T]`、`[K: V]`、`Int` 系列、`Bool`、`NS_ENUM`。`@objc` 入口的檔案集中放，之後 ObjC 退場時好刪。
+
+### `NSClassFromString` 與模組前綴
+
+模組 6 的 `LBRouter` 用 `NSClassFromString(@"LBSettingsViewController")` 找類別。Swift 類別在 runtime 的名字預設帶模組：`LittleBook.StatsViewController`，所以 `NSClassFromString(@"StatsViewController")` 回 `nil`。兩個修法：Swift 端加 `@objc(StatsViewController)` 指定純名字（Storyboard 的 Custom Class 也靠這個），或 router 端先試 `名字`、再試 `模組.名字`。
+
+<Tip title="Swift 側用 `@objc(LBXxx)` 補前綴">
+ObjC 沒有命名空間，`StatsViewController` 這種沒前綴的名字在 ObjC 端跟任何第三方套件撞名的機率不低。給 ObjC 看的 Swift 類別用 `@objc(LBStatsViewController)` 一次解決前綴與模組名問題，Swift 端照樣叫 `StatsViewController`。
+</Tip>
+
+<Pitfall title="Swift 類別沒繼承 NSObject，或忘了 @objc">
+<Fragment slot="bad">
+```swift
+final class StatsViewModel {                     // 純 Swift 類別
+    @objc var balance: NSDecimalNumber { ... }   // 錯誤：@objc 成員必須在 NSObject 子類別裡
+}
+```
+</Fragment>
+<Fragment slot="good">
+```swift
+@objc final class StatsViewModel: NSObject {
+    @objc var balance: NSDecimalNumber { ... }
+}
+```
+</Fragment>
+純 Swift 類別沒有 `isa` 指標、沒有方法表，ObjC runtime 無法對它送訊息，所以根本不會出現在 `-Swift.h`。錯誤訊息是 `Only classes that inherit from NSObject can be declared @objc`。反過來也要注意：繼承了 `NSObject` 但沒標 `@objc` 的成員，ObjC 端一樣看不到，ObjC 編譯錯誤是 `No visible @interface for 'StatsViewModel' declares the selector 'balance'`。
+</Pitfall>
+
+<Pitfall title="Swift enum 沒加 @objc 與 Int 原始值">
+`enum StatsPeriod { case week, month }` 在 ObjC 端不存在，用它當屬性型別的 `@objc` 成員會一起消失。改成 `@objc enum StatsPeriod: Int { case week, month }`，`-Swift.h` 裡會出現 `typedef SWIFT_ENUM(NSInteger, StatsPeriod, closed)`，成員名是 `StatsPeriodWeek`。`String` 原始值的 enum 不行，關聯值的 enum 也不行，只有 `Int` 系列。
+</Pitfall>
+
+<Pitfall title="在 .h 裡 import LittleBook-Swift.h">
+會得到 `'LittleBook-Swift.h' file not found`，而且錯誤時有時無（取決於建置順序），讓人以為是 Xcode 壞了。標頭檔只能前向宣告 `@class StatsViewController;`，實作檔才 import。協定也一樣：`@protocol StatsDelegate;`。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: 'Application tried to push a nil view controller on target <UINavigationController: 0x7f8e3c80a200>.'
+#0  -[UINavigationController pushViewController:animated:]
+#1  -[LBRouter pushRouteNamed:from:]
+#2  -[LBSettingsViewController tableView:didSelectRowAtIndexPath:]`}>
+`LBRouter` 用 `NSClassFromString(@"StatsViewController")` 建立 VC，Swift 類別在 runtime 的名字其實是 `LittleBook.StatsViewController`，查不到就回 nil，`viewControllerForName:` 回 nil，呼叫端直接 push 進去，UIKit 丟例外。先在 lldb 驗證：`po NSClassFromString(@"StatsViewController")` 印 `nil`，`po NSClassFromString(@"LittleBook.StatsViewController")` 印出類別。修法擇一：Swift 端 `@objc(StatsViewController)`（或帶前綴的 `LBStatsViewController`，並同步改 router 的 alias 表），或是 `viewControllerForName:` 查不到時再試一次模組前綴。這個 crash 的另一個常見來源是 Storyboard：Custom Class 填了 Swift 類別但 Module 欄位空白。
+</Crash>
+
+## 小結
+
+- `-Swift.h` 由編譯器產生，只在 `.m` 裡 import；`.h` 用 `@class` 前向宣告。
+- Swift 類別要給 ObjC 看：繼承 `NSObject` + `@objc`（類別與成員各自標），或 `@objcMembers` 全露。
+- ObjC 看不到：struct、關聯值 / 非 Int 的 enum、泛型、protocol extension 預設實作、`Int?` 等值型別 Optional、tuple、頂層函式、預設參數。
+- 邊界上另寫 `@objc` 包裝層，型別只用 ObjC 能表達的；Swift 內部照 Swift 寫。
+- runtime 類別名帶模組前綴，`NSClassFromString` 與 Storyboard 用 `@objc(LBName)` 固定名字。

@@ -1,0 +1,377 @@
+---
+title: "NSOperation 與佇列資料結構"
+module: 7
+chapter: "7.4"
+order: 4
+minutes: 45
+prereq: ["7.3"]
+objectives:
+  - "用 NSBlockOperation / NSOperationQueue 寫出可取消、有相依性、限制同時數量的背景任務，並說出何時選它不選 GCD"
+  - "實作 FIFO 佇列：比較陣列與鏈結串列實作的成本，寫出環狀佇列與生產者 / 消費者"
+  - "完成 LBSyncQueue：串列 dispatch queue 保護狀態、dispatch_group 等全部完成"
+summary: "NSOperation / NSOperationQueue：可取消、addDependency:、maxConcurrentOperationCount、NSBlockOperation、何時選它不選 GCD；佇列資料結構：FIFO、陣列 vs 鏈結實作、環狀佇列、生產者 / 消費者；LBSyncQueue 離線待同步。"
+terms:
+  - { en: operation, tw: 作業（operation）, cn: 操作, jp: オペレーション }
+  - { en: dependency, tw: 相依性, cn: 依赖, jp: 依存関係 }
+  - { en: cancellation, tw: 取消, cn: 取消, jp: キャンセル }
+  - { en: queue (data structure), tw: 佇列, cn: 队列, jp: キュー }
+  - { en: FIFO, tw: 先進先出, cn: 先进先出, jp: 先入れ先出し }
+  - { en: circular queue, tw: 環狀佇列, cn: 环形队列 / 循环队列, jp: 循環キュー（リングキュー） }
+  - { en: producer / consumer, tw: 生產者 / 消費者, cn: 生产者 / 消费者, jp: 生産者 / 消費者 }
+  - { en: deque, tw: 雙端佇列, cn: 双端队列, jp: 両端キュー }
+appProgress: "LBSyncQueue 把離線時的操作排成 FIFO 待同步，flushWithCompletion: 等全部完成後回主佇列；兩個測試轉綠。"
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+let queue = OperationQueue()                       // 跟 NSOperationQueue 是同一個類別
+queue.maxConcurrentOperationCount = 2
+let parse = BlockOperation { parseCSV() }
+let save  = BlockOperation { saveToLedger() }
+save.addDependency(parse)
+queue.addOperations([parse, save], waitUntilFinished: false)
+parse.cancel()
+// Swift 5.5+ 結構化並行：
+let task = Task { try await importCSV() }
+task.cancel()                                      // 合作式取消，裡面要檢查 Task.isCancelled
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+val scope = CoroutineScope(Dispatchers.IO.limitedParallelism(2))   // ≈ maxConcurrentOperationCount
+val job = scope.launch {
+    val rows = parseCSV()                 // 相依性 = 順序寫在同一個 coroutine 裡
+    ensureActive()                        // ≈ isCancelled 檢查
+    saveToLedger(rows)
+}
+job.cancel()                              // 合作式取消：掛起點會丟 CancellationException
+val channel = Channel<Row>(capacity = 10) // 生產者 / 消費者
+```
+</Fragment>
+<Fragment slot="java">
+```java
+ExecutorService pool = Executors.newFixedThreadPool(2);
+Future<List<Row>> parse = pool.submit(() -> parseCSV());
+Future<?> save = pool.submit(() -> saveToLedger(parse.get()));   // 相依性：等前一個 Future
+parse.cancel(true);                       // 設 interrupt 旗標，任務要自己檢查
+CompletableFuture.supplyAsync(this::parseCSV, pool).thenAccept(this::saveToLedger);
+BlockingQueue<Row> queue = new ArrayBlockingQueue<>(10);         // 生產者 / 消費者
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+const controller = new AbortController();
+async function run(signal: AbortSignal) {
+  const rows = await parseCSV(signal);    // 相依性 = await 順序
+  if (signal.aborted) return;             // 合作式取消
+  await saveToLedger(rows);
+}
+run(controller.signal);
+controller.abort();
+// 限制同時數量得自己寫或用 p-limit；沒有內建的「佇列」物件
+```
+</Fragment>
+GCD 給你的是「把 block 丟進佇列」這麼薄的一層；真實專案很快就會要三件它沒有的東西：**取消**、**相依性**、**限制同時幾個**。四種語言都有對應：Swift / Kotlin 的 `Task` / `Job` 可取消但都是合作式（任務要自己檢查）、Java 的 `Future` 與 `ExecutorService` 幾乎就是 `NSOperation` 與 `NSOperationQueue` 的原型、TS 用 `AbortController` 傳遞取消。`NSOperation` 是 Cocoa 把這三件事包成物件的答案，比 GCD 老，比 coroutines 笨重，但在 ObjC 專案裡它仍是「可取消的背景任務」最常見的寫法。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### NSOperation 是一個「可以被管理的任務物件」
+
+<Term en="operation" tw="作業（operation）" cn="操作" jp="オペレーション" />把一段工作包成物件，物件就有狀態（`isReady` / `isExecuting` / `isFinished` / `isCancelled`）、有優先權、可以互相依賴。最常用的是 `NSBlockOperation`，把 block 包起來：
+
+```objc
+NSOperationQueue *queue = [[NSOperationQueue alloc] init];
+queue.name = @"com.littlebook.import";
+queue.maxConcurrentOperationCount = 2;          // 1 = 串列；預設 = 系統決定
+
+NSBlockOperation *parse = [NSBlockOperation blockOperationWithBlock:^{
+    NSLog(@"解析 CSV");
+}];
+NSBlockOperation *save = [NSBlockOperation blockOperationWithBlock:^{
+    NSLog(@"寫進帳本");
+}];
+[save addDependency:parse];                     // save 等 parse 完成才會開始
+[queue addOperations:@[save, parse] waitUntilFinished:NO];   // 加入順序不重要，相依性決定順序
+```
+
+`NSOperationQueue` 底層還是 GCD，但多了一層排程：它看每個 operation 的<Term en="dependency" tw="相依性" cn="依赖" jp="依存関係" />與 `queuePriority`，只把「準備好」的送去執行。`maxConcurrentOperationCount` 設 1 就是一個串列佇列，設 N 就是最多 N 個同時，這在 GCD 裡得靠 semaphore 自己做。相依性可以跨佇列：A 在佇列 1、B 在佇列 2、`[B addDependency:A]` 一樣有效。`[NSOperationQueue mainQueue]` 是主佇列的 operation 版本，用來把結果送回 UI。
+
+### 取消是合作式的
+
+```objc
+NSBlockOperation *op = [[NSBlockOperation alloc] init];
+__weak NSBlockOperation *weakOp = op;           // block 被 op 持有，捕獲 op 會循環
+[op addExecutionBlock:^{
+    for (NSString *row in rows) {
+        if (weakOp.isCancelled) return;         // 自己檢查，自己收手
+        [self importRow:row];
+    }
+}];
+[queue addOperation:op];
+...
+[op cancel];                                    // 只是把 isCancelled 設成 YES
+[queue cancelAllOperations];                    // 對佇列裡每一個呼叫 cancel
+```
+
+<Term en="cancellation" tw="取消" cn="取消" jp="キャンセル" />在 `NSOperation`、Swift `Task`、Kotlin `Job`、Java `Future` 全都是**合作式**：`cancel` 只是升一面旗子，正在跑的程式要自己看旗子決定要不要停。還沒開始的 operation 被取消後佇列會直接跳過它（但 `isFinished` 仍會變 YES，相依它的 operation 照樣開始，所以相依者也要檢查上游有沒有被取消）。這跟 GCD 的根本差異就在這裡：丟進 `dispatch_async` 的 block 沒有把手可以抓，一旦丟出去就只能等它跑完。
+
+### 自訂 NSOperation 子類別
+
+```objc
+@interface LBParseOperation : NSOperation
+@property (nonatomic, copy) NSString *csv;
+@property (nonatomic, copy, readonly) NSArray *rows;   // 結果放屬性，下游 operation 來拿
+@end
+@implementation LBParseOperation
+- (void)main {                                  // 同步型：覆寫 main 就好
+    if (self.isCancelled) return;
+    NSMutableArray *rows = [NSMutableArray array];
+    for (NSString *line in [self.csv componentsSeparatedByString:@"\n"]) {
+        if (self.isCancelled) return;
+        [rows addObject:line];
+    }
+    _rows = rows;
+}
+@end
+```
+
+覆寫 `main` 的叫同步型 operation：`main` 返回，operation 就算完成。工作本身是非同步的（裡面要打網路、等回呼）時要寫非同步型：覆寫 `start`、自己管理 `isExecuting` / `isFinished` 並發 KVO 通知，寫錯一步佇列就會以為它還沒完、卡住後面所有人。非同步型的細節留給 10.x；本章先知道「回呼型工作放進 operation 要很小心」就好。
+
+### 什麼時候選 NSOperation、什麼時候 GCD
+
+| 需求 | 選 |
+|---|---|
+| 一段程式丟到背景、做完回主執行緒 | GCD（`dispatch_async` 兩層就好） |
+| 延遲、單例、等多個、讀寫鎖 | GCD（`after` / `once` / `group` / `barrier`） |
+| 要能**取消** | `NSOperation` |
+| 任務之間有**相依順序**，而且會動態增減 | `NSOperation`（`addDependency:`） |
+| 要**限制同時數量**而且常改 | `NSOperation`（`maxConcurrentOperationCount`）；GCD 要自己用 semaphore |
+| 要觀察進度、暫停整個佇列 | `NSOperation`（`suspended`、KVO `operationCount`） |
+| 任務是物件、要重用、要單元測試 | `NSOperation` 子類別 |
+
+一句話：**沒有取消與相依需求就用 GCD**，它輕、直接、少一層抽象；一旦要管理任務的生命週期就升級成 `NSOperation`。兩者可以混用，operation 裡面照樣可以 `dispatch_async`。`NSURLSessionTask` 的 `cancel`、`NSProgress` 的 `cancel` 都是同一套合作式取消的思路。
+
+## 佇列：先進先出的容器
+
+<Term en="queue (data structure)" tw="佇列" cn="队列" jp="キュー" />是<Term en="FIFO" tw="先進先出" cn="先进先出" jp="先入れ先出し" />的容器：`enqueue` 從尾端放、`dequeue` 從頭端拿、`peek` 看頭端。GCD 的派送佇列、`NSOperationQueue`、小帳本的離線待同步，全都是這個結構。Foundation 沒有 `NSQueue`，常見的做法有兩種，成本差很多：
+
+| 實作 | enqueue | dequeue | 說明 |
+|---|---|---|---|
+| `NSMutableArray` + `removeObjectAtIndex:0` | O(1) 攤銷 | **O(n)** | 每次拿走頭端，後面全部往前搬 |
+| `NSMutableArray` + 頭指標（不真的移除） | O(1) | O(1) | 偶爾壓縮；最簡單的實務寫法 |
+| 鏈結串列（4.3 的 `LBLinkedList`） | O(1) | O(1) | 每個節點多一個物件；不佔連續記憶體 |
+| 環狀佇列（固定容量陣列） | O(1) | O(1) | 不配置記憶體；滿了要擴容或拒絕 |
+
+幾千筆以內用第一種也沒人會發現；一秒鐘幾千次的生產者 / 消費者就得換。5.5 的「兩個堆疊做佇列」是第五種，攤銷 O(1)。
+
+### 環狀佇列
+
+<Term en="circular queue" tw="環狀佇列" cn="环形队列 / 循环队列" jp="循環キュー（リングキュー）" />用一個固定長度的陣列加兩個索引：`head` 指向下一個要拿的位置、`tail` 指向下一個要放的位置，走到尾端就繞回 0（取餘數）。另外存一個 `count` 分辨「空」與「滿」，因為這兩種情況 `head == tail` 都成立。
+
+```objc
+@implementation LBRingQueue {
+    NSMutableArray *_slots;      // 固定 capacity，用 NSNull 佔位
+    NSUInteger _head, _tail, _count, _capacity;
+}
+- (instancetype)initWithCapacity:(NSUInteger)capacity {
+    if (self = [super init]) {
+        _capacity = capacity;
+        _slots = [NSMutableArray arrayWithCapacity:capacity];
+        for (NSUInteger i = 0; i < capacity; i++) [_slots addObject:[NSNull null]];
+    }
+    return self;
+}
+- (BOOL)enqueue:(id)obj {
+    if (_count == _capacity) return NO;            // 滿：拒絕（10.1 的環狀緩衝區則是覆寫最舊）
+    _slots[_tail] = obj;
+    _tail = (_tail + 1) % _capacity;
+    _count++;
+    return YES;
+}
+- (nullable id)dequeue {
+    if (_count == 0) return nil;
+    id obj = _slots[_head];
+    _slots[_head] = [NSNull null];                 // 放掉強參考
+    _head = (_head + 1) % _capacity;
+    _count--;
+    return obj;
+}
+@end
+```
+
+10.1 的 `LBRingBuffer` 是它的變體：滿了不拒絕而是覆寫最舊的值，用來存最近 N 幀的時間。
+
+### 生產者 / 消費者
+
+<Term en="producer / consumer" tw="生產者 / 消費者" cn="生产者 / 消费者" jp="生産者 / 消費者" />是佇列最經典的多執行緒應用：一邊不停放（網路回來的資料、使用者的操作），另一邊不停拿（寫進資料庫、同步到伺服器），兩邊速度不同，佇列當緩衝。多執行緒下兩個問題：佇列本身要保護（兩邊同時改 `head` / `tail`），消費者沒東西時要等（不是空轉）。GCD 的組合拳：串列佇列保護狀態、semaphore 當「有幾個東西可拿」的計數器。
+
+```objc
+dispatch_queue_t guard = dispatch_queue_create("com.littlebook.pc", DISPATCH_QUEUE_SERIAL);
+dispatch_semaphore_t items = dispatch_semaphore_create(0);
+NSMutableArray *buffer = [NSMutableArray array];
+
+// 生產者
+dispatch_async(global, ^{
+    for (int i = 0; i < 5; i++) {
+        dispatch_sync(guard, ^{ [buffer addObject:@(i)]; });
+        dispatch_semaphore_signal(items);                    // 多一個可拿
+    }
+});
+// 消費者
+dispatch_async(global, ^{
+    for (int i = 0; i < 5; i++) {
+        dispatch_semaphore_wait(items, DISPATCH_TIME_FOREVER);   // 沒東西就睡
+        __block id obj;
+        dispatch_sync(guard, ^{ obj = buffer.firstObject; [buffer removeObjectAtIndex:0]; });
+        NSLog(@"消費 %@", obj);
+    }
+});
+```
+
+Kotlin 的 `Channel`、Java 的 `BlockingQueue` 把這兩件事包成一個物件；ObjC 要自己組。其實不用自己組的版本就是：**生產者 `dispatch_async` 到一個串列佇列，消費邏輯寫在 block 裡**，串列佇列本身就是有保護、會等待的 FIFO。`LBSyncQueue` 走的就是這條路。
+
+### LBSyncQueue：離線待同步
+
+```objc
+// LBSyncQueue.h
+@interface LBSyncQueue : NSObject
+- (void)enqueueTask:(void (^)(dispatch_block_t done))task;   // 任務完成時呼叫 done
+- (void)flushWithCompletion:(dispatch_block_t)completion;     // 全部完成後回主佇列
+@property (nonatomic, readonly) NSUInteger pendingCount;
+@end
+
+// LBSyncQueue.m（核心）
+@implementation LBSyncQueue {
+    dispatch_queue_t _state;              // 串列：只保護 _pending
+    dispatch_queue_t _work;               // 串列：任務一個接一個執行，這就是 FIFO
+    dispatch_group_t _group;
+    NSMutableArray *_pending;
+}
+- (instancetype)init {
+    if (self = [super init]) {
+        _state   = dispatch_queue_create("com.littlebook.sync.state", DISPATCH_QUEUE_SERIAL);
+        _work    = dispatch_queue_create("com.littlebook.sync.work", DISPATCH_QUEUE_SERIAL);
+        _group   = dispatch_group_create();
+        _pending = [NSMutableArray array];
+    }
+    return self;
+}
+- (void)enqueueTask:(void (^)(dispatch_block_t))task {
+    dispatch_group_enter(_group);
+    dispatch_sync(_state, ^{ [self->_pending addObject:task]; });
+    dispatch_async(_work, ^{
+        dispatch_semaphore_t wait = dispatch_semaphore_create(0);
+        task(^{ dispatch_semaphore_signal(wait); });          // 任務非同步完成時 signal
+        dispatch_semaphore_wait(wait, DISPATCH_TIME_FOREVER);  // 在 _work 上等它，下一個才能開始
+        dispatch_sync(self->_state, ^{ [self->_pending removeObjectAtIndex:0]; });
+        dispatch_group_leave(self->_group);
+    });
+}
+- (void)flushWithCompletion:(dispatch_block_t)completion {
+    dispatch_group_notify(_group, dispatch_get_main_queue(), completion);
+}
+- (NSUInteger)pendingCount {
+    __block NSUInteger n;
+    dispatch_sync(_state, ^{ n = self->_pending.count; });
+    return n;
+}
+@end
+```
+
+三個設計點：任務的 `done` 是非同步回呼，但我們要 FIFO（前一個同步完才做下一個），所以在 `_work` 串列佇列上用 semaphore 等它，這裡在背景執行緒等是安全的；狀態（`_pending`）另外用一條 `_state` 串列佇列保護，不跟 `_work` 共用，否則 `pendingCount` 會被正在等待的任務卡住；`flushWithCompletion:` 不做任何事，只是 `dispatch_group_notify`，因為 `enter` / `leave` 已經在 `enqueueTask:` 裡配好對了。`pendingCount` 用 `dispatch_sync` 讀是 7.5 的主題。注意 `task` 的 `done` 若被呼叫兩次會讓 semaphore 多一，可以用一個 `__block BOOL called` 旗標擋掉第二次，練習題會問。
+
+### 完整範例（可貼進 Scratch）
+
+```objc
+#import <Foundation/Foundation.h>
+
+int main(void) {
+    @autoreleasepool {
+        NSOperationQueue *queue = [[NSOperationQueue alloc] init];
+        queue.maxConcurrentOperationCount = 1;             // 串列，輸出才可預測
+
+        NSBlockOperation *parse = [NSBlockOperation blockOperationWithBlock:^{ NSLog(@"parse"); }];
+        NSBlockOperation *save  = [NSBlockOperation blockOperationWithBlock:^{ NSLog(@"save"); }];
+        NSBlockOperation *skip  = [[NSBlockOperation alloc] init];
+        __weak NSBlockOperation *weakSkip = skip;
+        [skip addExecutionBlock:^{
+            if (weakSkip.isCancelled) { NSLog(@"skip 已取消"); return; }
+            NSLog(@"skip 執行了");
+        }];
+        [save addDependency:parse];
+
+        [queue addOperations:@[save, skip, parse] waitUntilFinished:NO];   // 加入順序：save skip parse
+        [skip cancel];                                     // 還沒跑到就被取消
+        [queue waitUntilAllOperationsAreFinished];        // 命令列程式：等全部完成（別在主執行緒的 App 裡這樣做）
+        NSLog(@"全部完成 finished=%d cancelled=%d", skip.isFinished, skip.isCancelled);
+    }
+    return 0;
+}
+// 預期輸出：
+// parse
+// save
+// 全部完成 finished=1 cancelled=1
+```
+
+`save` 雖然最先加入，但要等 `parse`；`skip` 被取消後佇列直接把它標成 finished、連 block 都不執行，所以「skip 已取消」那行也不會印。把 `[skip cancel]` 移到 `addOperations:` 之前，結果一樣：取消一個還沒入列的 operation 同樣有效。
+
+<Tip title="面試常問：佇列能做什麼">
+BFS（廣度優先搜尋）靠佇列：起點入列，每次出列一個節點、把沒看過的鄰居入列，出列順序就是依距離的層序。8.4 的分類樹「層序走訪」就是它。「滑動視窗最大值」用<Term en="deque" tw="雙端佇列" cn="双端队列" jp="両端キュー" />（兩端都能進出）維持一個遞減的索引序列，O(n) 解掉看起來要 O(nk) 的題。兩題都收在本章「想多練？」。
+</Tip>
+
+<Pitfall title="cancel 了，任務還在跑">
+<Fragment slot="bad">
+```objc
+NSBlockOperation *op = [NSBlockOperation blockOperationWithBlock:^{
+    for (NSString *row in rows) [self importRow:row];    // 10 萬筆，沒看旗子
+}];
+[queue addOperation:op];
+[op cancel];              // 旗子升了，迴圈照跑到底
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+NSBlockOperation *op = [[NSBlockOperation alloc] init];
+__weak NSBlockOperation *weakOp = op;
+[op addExecutionBlock:^{
+    for (NSString *row in rows) {
+        if (weakOp.isCancelled) return;
+        [self importRow:row];
+    }
+}];
+```
+</Fragment>
+`cancel` 不會中斷任何東西。還沒開始的會被跳過，已經開始的要自己檢查 `isCancelled`。長迴圈每圈檢查一次，網路回呼回來後先檢查再處理。
+</Pitfall>
+
+<Pitfall title="上游被取消，下游照樣開始">
+`[save addDependency:parse]` 之後 `[parse cancel]`，`parse` 直接進入 finished，`save` 的相依性滿足、開始執行，但 `parse.rows` 是 nil。相依性只保證順序，不傳遞取消。下游要自己檢查：`for (NSOperation *dep in self.dependencies) if (dep.isCancelled) { [self cancel]; return; }`，或是把「取消上游」寫成「取消整個佇列」。
+</Pitfall>
+
+<Pitfall title="用 removeObjectAtIndex:0 當 dequeue 處理大量資料">
+每次 dequeue 把後面全部往前搬一格，10 萬筆的匯入佇列會變成 O(n²)。幾百筆無所謂；進度條型的大量資料改用頭指標、`LBLinkedList` 或環狀佇列。這也是 5.5「兩個堆疊做佇列」會出現在面試的原因：面試官在看你知不知道 `removeObjectAtIndex:0` 的代價。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException', reason: '*** -[NSOperationQueue addOperation:]: operation is already enqueued on a queue'
+*** First throw call stack:
+(
+    2   Foundation        -[NSOperationQueue addOperation:] + 412
+    3   LittleBook        -[LBSyncCoordinator retryFailed] + 96
+)`}>
+一個 `NSOperation` 物件只能加進佇列一次，執行完也不能重加（會是 `operation is finished and cannot be enqueued`）。這段程式想「重試失敗的任務」，直接把同一個 operation 再 `addOperation:`。operation 是一次性的任務物件，不是可重用的函式：重試要建一個新的 operation（通常把建立邏輯抽成一個方法或 factory block）。這也是 7.2 說的 Foundation 例外都是程式錯誤的例子：它在告訴你對 operation 生命週期的理解錯了，不是要你 `@try` 它。
+</Crash>
+
+## 小結
+
+- `NSOperation` 把任務包成物件，換到三樣 GCD 沒有的能力：**取消**（合作式，要自己檢查 `isCancelled`）、**相依性**（`addDependency:`，只保證順序不傳遞取消）、**限制同時數量**（`maxConcurrentOperationCount`，1 = 串列）。
+- 沒有取消與相依需求就用 GCD；要管理任務生命週期就用 `NSOperation`。一個 operation 只能加進佇列一次。
+- 佇列是 FIFO。`removeObjectAtIndex:0` 是 O(n)；頭指標、鏈結串列、環狀佇列都是 O(1)。環狀佇列用 `head` / `tail` 取餘數繞圈、另存 `count` 分辨空滿。
+- 生產者 / 消費者 = 保護佇列（串列 dispatch queue）+ 等待（semaphore）；最簡單的實作是直接把消費邏輯 `dispatch_async` 到串列佇列。
+- `LBSyncQueue`：串列佇列保證 FIFO、`dispatch_group` 的 `enter` / `leave` 在入列時配對、`flush` 只是 `notify` 回主佇列。

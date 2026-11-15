@@ -1,0 +1,53 @@
+id: m10-10-4-code-1
+chapter: "10.4"
+type: code
+title: 用 barrier 寫出讀寫鎖
+mobile: false
+minutes: 10
+prompt: "`_queue` 是 `DISPATCH_QUEUE_CONCURRENT` 的佇列。實作 `transactions`（同步讀，回傳 `_items` 的不可變拷貝）、`addTransaction:`（非同步 barrier 寫）與 `performBatchImport:`（非同步 barrier 批次寫）。"
+starter: |
+  @implementation LBLedger {
+      dispatch_queue_t _queue;    // dispatch_queue_create("tw.littlebook.ledger", DISPATCH_QUEUE_CONCURRENT)
+      NSMutableArray<LBTransaction *> *_items;
+  }
+  - (NSArray<LBTransaction *> *)transactions {
+
+  }
+  - (void)addTransaction:(LBTransaction *)tx {
+
+  }
+  - (void)performBatchImport:(NSArray<LBTransaction *> *)batch {
+
+  }
+  @end
+checks:
+  - selector_equals: "transactions"
+  - selector_equals: "addTransaction:"
+  - selector_equals: "performBatchImport:"
+  - must_match: 'dispatch_sync\s*\(\s*_queue'
+    message: 讀用 dispatch_sync(_queue, ...)
+  - must_match: '__block\s+NSArray'
+    message: 讀出的結果要用 __block 變數帶出 block
+  - must_match: '\[\s*_items\s+copy\s*\]'
+    message: 回傳 [_items copy]，不要把可變陣列交出去
+  - must_match: 'dispatch_barrier_async\s*\(\s*_queue[^;]*addObject\s*:'
+    message: "addTransaction: 用 dispatch_barrier_async 寫入"
+  - must_match: 'dispatch_barrier_async\s*\(\s*_queue[^;]*addObjectsFromArray\s*:'
+    message: "performBatchImport: 用 dispatch_barrier_async + addObjectsFromArray:"
+  - must_not_match: 'dispatch_barrier_async\s*\(\s*dispatch_get_global_queue'
+    message: barrier 只對自建的並行佇列有效
+  - "brackets_balanced: true"
+solution: |
+  - (NSArray<LBTransaction *> *)transactions {
+      __block NSArray *copy;
+      dispatch_sync(_queue, ^{ copy = [_items copy]; });
+      return copy;
+  }
+  - (void)addTransaction:(LBTransaction *)tx {
+      dispatch_barrier_async(_queue, ^{ [_items addObject:tx]; });
+  }
+  - (void)performBatchImport:(NSArray<LBTransaction *> *)batch {
+      dispatch_barrier_async(_queue, ^{ [_items addObjectsFromArray:batch]; });
+  }
+solution_note: 讀並行、寫獨占。回傳拷貝是為了讓呼叫端拿到的快照不會被之後的 barrier 寫入改到。想「寫完立刻讀得到」就把寫改成 dispatch_barrier_sync。
+hints: ["讀：sync + __block 帶出拷貝。", "寫：barrier_async。", "批次寫也是 barrier，一次 addObjectsFromArray:。"]

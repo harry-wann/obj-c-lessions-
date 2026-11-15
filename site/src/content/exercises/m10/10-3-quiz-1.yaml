@@ -1,0 +1,17 @@
+id: m10-10-3-quiz-1
+chapter: "10.3"
+section: quiz
+type: quiz
+title: 為什麼要分批
+minutes: 1
+prompt: 匯入 100,000 筆時，為什麼每 500 筆一批更新列表，而不是每筆一次或全部匯完再 reloadData？
+options:
+  - 每筆一次是 100,000 次 table view 更新；全部匯完再更新則使用者盯著空畫面十幾秒；分批兼顧回饋與單次主執行緒工作量
+  - "performBatchUpdates: 一次最多只能插 500 列"
+  - 分批可以省記憶體
+  - UITableView 規定每次更新間隔至少 100 ms
+answer: 0
+explain: 批次大小是在「更新次數」與「單次主執行緒工作 < 8 ms」之間取平衡；500 是經驗值。
+hints: ["兩個極端各有什麼問題？", "記憶體是靠什麼壓的？不是分批。"]
+feedback:
+  "2": 記憶體峰值靠串流讀與 @autoreleasepool，批次大小影響不大。

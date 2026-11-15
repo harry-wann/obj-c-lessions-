@@ -1,0 +1,14 @@
+id: m11-11-7-advanced-1
+chapter: "11.7"
+type: flash
+tier: advanced
+title: 進階：絞殺者模式替換淘汰 API
+minutes: 3
+front: "專案有 20 處 `UIAlertView`。怎麼用三個以上的小 PR 安全換成 `UIAlertController`，每個 PR 都能獨立 revert？"
+back: |
+  絞殺者模式（strangler fig）三步：
+  1. 包一層：新增 LBAlert 類別，介面已是 block（+confirm:inVC:onConfirm:），內部仍用 UIAlertView。不改任何行為，一個 PR。
+  2. 改呼叫端：20 處 UIAlertView 改成 [LBAlert confirm:...]，clickedButtonAtIndex: 的索引翻成 block。純機械，可拆 2–4 個 PR，每個都不改行為。
+  3. 換內部：LBAlert 內部改 UIAlertController。只有一個檔案，一個 PR，一次測完；iPad 的 popover 來源也在這裡處理。
+
+  好處：步驟 2 的每個 PR diff 都只是「舊呼叫 → 新呼叫」，審查者十秒看完；步驟 3 改行為但範圍只有一個檔案。任何一步出問題 revert 不牽動別人。NSURLConnection → NSURLSession（11.2 xcode 題）用同一招。

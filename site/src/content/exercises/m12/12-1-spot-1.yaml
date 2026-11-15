@@ -1,0 +1,28 @@
+id: m12-12-1-spot-1
+chapter: "12.1"
+type: spot
+title: 這個標頭會害 Swift 端 crash
+minutes: 3
+prompt: 這份標頭在 Swift 端用 `ledger.transaction(withIdentifier:).note` 會 crash。點出有問題的行並選原因。
+code: |
+  NS_ASSUME_NONNULL_BEGIN
+  @interface LBLedger : NSObject
+  @property (nonatomic, copy, readonly) NSArray<LBTransaction *> *transactions;
+  - (void)addTransaction:(LBTransaction *)transaction;
+  - (LBTransaction *)transactionWithIdentifier:(NSString *)identifier;   // 找不到回 nil
+  - (BOOL)removeTransactionWithIdentifier:(NSString *)identifier;
+  @end
+  NS_ASSUME_NONNULL_END
+bug_lines: [5]
+reasons:
+  - 方法會回 nil 卻在 NS_ASSUME_NONNULL 區塊內沒標 nullable；Swift 端是非 Optional，拿到 nil 之後行為未定義
+  - NS_ASSUME_NONNULL_BEGIN 應該放在 @interface 裡面
+  - readonly 屬性不能用輕量泛型
+  - 回傳值應該用 instancetype
+answer_reason: 0
+fix: |
+  - (nullable LBTransaction *)transactionWithIdentifier:(NSString *)identifier;
+solution_note: ASSUME 區塊把一切標成 nonnull，是「承諾」而不是「檢查」。實作會回 nil 的方法必須明寫 `nullable`，Swift 端才會變成 `LBTransaction?` 並逼呼叫端處理。
+hints: ["註解說了什麼？", "nonnull 承諾了，但實作守約了嗎？"]
+feedback:
+  "1": "ASSUME 包整個標頭是正確用法。"

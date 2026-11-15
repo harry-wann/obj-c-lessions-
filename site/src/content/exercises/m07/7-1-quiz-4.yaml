@@ -1,0 +1,17 @@
+id: m07-7-1-quiz-4
+chapter: "7.1"
+section: quiz
+type: quiz
+title: NS_ERROR_ENUM 多做了什麼
+minutes: 1
+prompt: "`typedef NS_ERROR_ENUM(LBErrorDomain, LBErrorCode) { ... }` 跟普通的 `NS_ENUM(NSInteger, LBErrorCode)` 差在哪？"
+options:
+  - 它會自動在失敗時 raise NSException
+  - 它把這組錯誤碼跟 LBErrorDomain 綁在一起，匯入 Swift 後變成可以 catch 的錯誤型別
+  - 它讓 code 從 0 開始自動編號
+  - 它會自動產生 localizedDescription
+answer: 1
+explain: 純 ObjC 看不出差別，但 Swift 匯入時會產生 `LBErrorCode.malformedJSON` 這樣可以直接 catch 的型別，12.1 混編會用到。
+hints: ["純 ObjC 裡兩者行為一樣嗎？", "多出來的 domain 參數是給誰看的？"]
+feedback:
+  "0": NSError 跟例外是兩套機制，7.2 會說明為什麼不混用。

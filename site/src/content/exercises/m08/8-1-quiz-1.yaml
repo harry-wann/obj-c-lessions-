@@ -1,0 +1,18 @@
+id: m08-8-1-quiz-1
+chapter: "8.1"
+section: quiz
+type: quiz
+title: UIApplicationMain 做了什麼
+minutes: 1
+prompt: "`main.m` 裡 `return UIApplicationMain(argc, argv, nil, appDelegateClassName);` 之後的程式碼什麼時候會跑？"
+options:
+  - App 啟動完成、第一個畫面出現後
+  - 使用者按 Home 鍵切到背景時
+  - 永遠不會：UIApplicationMain 進入 run loop 不回傳，程序結束時直接被殺
+  - 每次 run loop 轉一圈都會回來一次
+answer: 2
+explain: UIApplicationMain 建立 UIApplication 與 AppDelegate、讀 Info.plist、進入 run loop，從此不回傳；return 那一行只是形式。
+hints: ["main 函式只會被呼叫一次，App 卻可以跑好幾天。", "run loop 是無窮迴圈。"]
+feedback:
+  "0": "啟動完成是 application:didFinishLaunchingWithOptions: 被呼叫，UIApplicationMain 仍在裡面跑。"
+  "3": run loop 在 UIApplicationMain 裡面轉，不會跳出來。

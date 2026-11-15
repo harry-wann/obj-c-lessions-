@@ -1,0 +1,39 @@
+id: m09-9-5-code-1
+chapter: "9.5"
+type: code
+title: 寫一條 NSFetchRequest
+mobile: false
+minutes: 8
+prompt: "實作 `- (NSArray<CDTransaction *> *)expensesAbove:(NSDecimalNumber *)min inContext:(NSManagedObjectContext *)ctx`：用 `[CDTransaction fetchRequest]` 建請求，`NSPredicate predicateWithFormat:` 條件為 `kind == 0 AND amount > %@`（用 `%@` 帶 min，不要 `stringWithFormat:` 拼字串），依 `date` 倒序排序，`executeFetchRequest:error:` 失敗時回空陣列。"
+starter: |
+  - (NSArray<CDTransaction *> *)expensesAbove:(NSDecimalNumber *)min
+                                    inContext:(NSManagedObjectContext *)ctx {
+
+  }
+checks:
+  - selector_equals: "expensesAbove:inContext:"
+  - must_match: 'fetchRequest\s*\]|fetchRequestWithEntityName\s*:'
+    message: "用 [CDTransaction fetchRequest] 或 fetchRequestWithEntityName: 建請求"
+  - must_match: 'predicateWithFormat\s*:\s*@"[^"]*kind\s*==\s*0[^"]*amount\s*>\s*%@"\s*,\s*min'
+    message: "predicate 寫 kind == 0 AND amount > %@，用 %@ 帶 min"
+  - must_not_match: 'stringWithFormat\s*:[^;]*predicate'
+    message: "不要用 stringWithFormat: 拼 predicate"
+  - must_match: 'sortDescriptorWithKey\s*:\s*@"date"\s+ascending\s*:\s*NO'
+    message: 依 date 倒序
+  - must_match: 'executeFetchRequest\s*:\s*\w+\s+error\s*:'
+    message: "用 executeFetchRequest:error: 執行"
+  - must_match: '\?:\s*@\[\]|if\s*\(\s*!\s*\w+\s*\)\s*return\s+@\[\]'
+    message: 失敗時回空陣列
+  - "brackets_balanced: true"
+solution: |
+  - (NSArray<CDTransaction *> *)expensesAbove:(NSDecimalNumber *)min
+                                    inContext:(NSManagedObjectContext *)ctx {
+      NSFetchRequest<CDTransaction *> *req = [CDTransaction fetchRequest];
+      req.predicate = [NSPredicate predicateWithFormat:@"kind == 0 AND amount > %@", min];
+      req.sortDescriptors = @[[NSSortDescriptor sortDescriptorWithKey:@"date" ascending:NO]];
+      NSError *error = nil;
+      NSArray<CDTransaction *> *rows = [ctx executeFetchRequest:req error:&error];
+      return rows ?: @[];
+  }
+solution_note: "`%@` 帶物件、`%K` 帶 key path、`%d` 帶整數；用格式參數而不是拼字串，才有型別檢查、也沒有注入問題。executeFetchRequest: 回 nil 是失敗、回空陣列是沒資料。"
+hints: ["三行設定：predicate、sortDescriptors、execute。", "predicateWithFormat: 的 %@ 跟 NSLog 一樣是可變參數。", "nil 合併運算子 ?: 一行處理失敗。"]

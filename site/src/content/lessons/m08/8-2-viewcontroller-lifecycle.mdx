@@ -1,0 +1,230 @@
+---
+title: UIViewController 生命週期
+module: 8
+chapter: "8.2"
+order: 2
+minutes: 35
+prereq: ["8.1", "5.7"]
+objectives:
+  - "依序背出 loadView → viewDidLoad → viewWillAppear: → viewDidLayoutSubviews → viewDidAppear: → viewWillDisappear: → viewDidDisappear:，並說出各自呼叫幾次"
+  - 判斷一段設定該放在哪個回呼：一次性設定、讀 frame、註冊 / 移除觀察者
+  - 對照 Android Activity / Fragment 與 React 元件生命週期，說出對應關係與差異
+summary: "VC 生命週期各回呼的順序與次數、一次性設定放 viewDidLoad、frame 在 viewDidLayoutSubviews 才正確、觀察者成對放 viewWillAppear: / viewWillDisappear:、didReceiveMemoryWarning；對照 Android onCreate / onResume 與 React useEffect。"
+terms:
+  - { en: view controller, tw: 視圖控制器, cn: 视图控制器, jp: ビューコントローラ }
+  - { en: lifecycle, tw: 生命週期, cn: 生命周期, jp: ライフサイクル }
+  - { en: lazy loading, tw: 延遲載入, cn: 懒加载, jp: 遅延ロード }
+  - { en: layout pass, tw: 版面配置回合, cn: 布局过程, jp: レイアウトパス }
+  - { en: memory warning, tw: 記憶體警告, cn: 内存警告, jp: メモリ警告 }
+appProgress: "LBTransactionListViewController 在 viewDidLoad 建表格、viewWillAppear: 註冊帳本通知、viewWillDisappear: 移除；空狀態的 backgroundView 在 viewDidLayoutSubviews 置中。"
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// UIKit Swift：方法一樣，只是 override 關鍵字
+override func viewDidLoad() { super.viewDidLoad(); setupTable() }
+override func viewWillAppear(_ animated: Bool) {
+    super.viewWillAppear(animated); startObserving()
+}
+// SwiftUI：沒有生命週期方法，只有兩個事件
+List(items) { ... }
+    .onAppear { startObserving() }
+    .onDisappear { stopObserving() }
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+class ListFragment : Fragment() {
+    override fun onCreateView(...) = inflater.inflate(R.layout.list, c, false)  // ≈ loadView
+    override fun onViewCreated(v: View, s: Bundle?) { setupTable() }       // ≈ viewDidLoad
+    override fun onStart() { super.onStart(); startObserving() }            // ≈ viewWillAppear:
+    override fun onResume() { super.onResume() }                            // ≈ viewDidAppear:
+    override fun onStop() { super.onStop(); stopObserving() }               // ≈ viewDidDisappear:
+    override fun onDestroyView() { super.onDestroyView() }                  // iOS 沒有這一步
+}
+```
+</Fragment>
+<Fragment slot="java">
+```java
+public class ListActivity extends AppCompatActivity {
+    @Override protected void onCreate(Bundle s) { super.onCreate(s); setupTable(); }
+    @Override protected void onStart()  { super.onStart();  startObserving(); }
+    @Override protected void onStop()   { super.onStop();   stopObserving(); }
+    @Override protected void onDestroy(){ super.onDestroy(); }            // ≈ dealloc
+}
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+function List() {
+  useEffect(() => {              // ≈ viewWillAppear: 的註冊
+    const off = ledger.subscribe(refresh);
+    return () => off();          // 清理函式 ≈ viewWillDisappear: 的移除
+  }, []);
+  useLayoutEffect(() => {        // ≈ viewDidLayoutSubviews：DOM 量好了才讀尺寸
+    measure(ref.current!.getBoundingClientRect());
+  });
+  return <ul>...</ul>;
+}
+```
+</Fragment>
+Android 工程師看這一章會覺得親切：`onCreate` ↔ `viewDidLoad`、`onStart` / `onResume` ↔ `viewWillAppear:` / `viewDidAppear:`、`onStop` ↔ `viewDidDisappear:`，連「成對註冊 / 移除」的習慣都一樣。差別有兩個：iOS 沒有 `onDestroyView`，view 一旦載入就跟 VC 活到一起（記憶體警告時也不再釋放 view）；iOS 的 `viewDidLoad` 只跑一次，但 Fragment 的 `onCreateView` 在返回堆疊來回時會重跑。React 的 `useEffect` 清理函式就是 `viewWillDisappear:` 的精神。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 回呼順序與次數
+
+```objc
+// LBTransactionListViewController.m（骨架；完整版在 8.4）
+- (instancetype)initWithLedger:(LBLedger *)ledger undoStack:(LBUndoStack *)undo {
+    if (self = [super initWithStyle:UITableViewStyleInsetGrouped]) {
+        _ledger = ledger;
+        _undoStack = undo;
+        // 這裡不能碰 self.view：會提早觸發 loadView
+    }
+    return self;
+}
+
+- (void)viewDidLoad {                       // 一次
+    [super viewDidLoad];
+    self.title = @"帳本";
+    [self.tableView registerClass:[LBTransactionCell class]
+           forCellReuseIdentifier:@"LBTransactionCell"];
+    [self reloadSections];
+}
+
+- (void)viewWillAppear:(BOOL)animated {     // 每次進畫面
+    [super viewWillAppear:animated];
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(ledgerDidChange:)
+                                               name:LBLedgerDidChangeNotification
+                                             object:self.ledger];
+    [self.tableView reloadData];           // 離開期間資料可能變了
+}
+
+- (void)viewDidLayoutSubviews {             // 每次版面重算，可能很多次
+    [super viewDidLayoutSubviews];
+    self.emptyView.frame = self.tableView.bounds;   // 這裡的 frame 才是真的
+}
+
+- (void)viewDidAppear:(BOOL)animated {      // 每次進畫面，動畫結束後
+    [super viewDidAppear:animated];
+    // 開始播動畫、聚焦輸入框、記錄畫面曝光
+}
+
+- (void)viewWillDisappear:(BOOL)animated {  // 每次離開
+    [super viewWillDisappear:animated];
+    [NSNotificationCenter.defaultCenter removeObserver:self
+                                                  name:LBLedgerDidChangeNotification
+                                                object:self.ledger];
+}
+
+- (void)dealloc {
+    // iOS 9 以後通知中心會自動幫 dealloc 的觀察者解除註冊；
+    // KVO（6.4）仍要手動 removeObserver
+}
+```
+
+完整順序：`init` → `loadView` → `viewDidLoad` → `viewWillAppear:` → `viewWillLayoutSubviews` → `viewDidLayoutSubviews` → `viewDidAppear:` → …（使用中版面變動會反覆跑兩個 layout 回呼）… → `viewWillDisappear:` → `viewDidDisappear:` → `dealloc`。被 push 到下一頁再回來，`viewDidLoad` 不會再跑，`viewWillAppear:` 那一組會。
+
+### 哪裡做什麼
+
+| 要做的事 | 放哪裡 | 為什麼 |
+|---|---|---|
+| 建子視圖、加約束、註冊 cell、設標題 | `viewDidLoad` | 只做一次、view 已經存在 |
+| 用程式碼建 `self.view` 本身 | `loadView`（**不**呼叫 super） | 只有不用 Storyboard 又想換掉預設 view 時才覆寫 |
+| 讀 `view.bounds`、算圓角、設 `contentInset` | `viewDidLayoutSubviews` | `viewDidLoad` 時的 frame 是 Storyboard 或預設尺寸，不是裝置的 |
+| 註冊通知、開始監聽鍵盤、`reloadData` | `viewWillAppear:` | 每次回來都要重新同步 |
+| 移除通知、停計時器 | `viewWillDisappear:` | 跟上面成對；放 `dealloc` 會累積 |
+| 動畫、`becomeFirstResponder`、埋點 | `viewDidAppear:` | 畫面真的在螢幕上了 |
+| 釋放快取 | `didReceiveMemoryWarning` | 系統記憶體吃緊；小帳本的 `LBLRUCache` 在這裡 `removeAllObjects` |
+
+`self.view` 是<Term en="lazy loading" tw="延遲載入" cn="懒加载" jp="遅延ロード" />：第一次有人讀這個屬性才呼叫 `loadView`，接著馬上 `viewDidLoad`。所以在 `init` 裡寫 `self.view.backgroundColor = ...` 會讓整個 view 在畫面還沒要顯示時就建立，Storyboard 的 outlet 也可能還是 nil。要檢查「view 有沒有載入」用 `self.isViewLoaded`，不要用 `self.view != nil`（讀取本身就會觸發載入）。
+
+### 容器與子 VC
+
+`UINavigationController`、`UITabBarController` 是容器，它們自己也是 VC，子 VC 的 appear / disappear 由容器轉送。自己做容器時要成對呼叫 `addChildViewController:` + `didMoveToParentViewController:`，不然子 VC 的 `viewWillAppear:` 永遠不會被叫到，這是舊專案「為什麼這頁的通知沒註冊」的常見謎底。8.5 會再用到。
+
+### 設計稿對照
+
+對應設計稿 **01 帳本 · 交易列表** 與 **02 帳本 · 空狀態**（https://www.figma.com/design/4d6HGy38x11n2uOfkzOBzj ）。本章只用到空狀態的版面：`tableView.backgroundView` 裡一個垂直 `UIStackView`，間距 12，置中；內容由上而下是 64 pt 的 SF Symbol `tray`（secondaryLabel 色）、標題「還沒有任何交易」（headline）、說明文字（subheadline、secondaryLabel）、「新增交易」填滿按鈕（高 50、圓角 12）。`backgroundView` 的大小由表格決定，所以置中的 frame 要在 `viewDidLayoutSubviews` 讀，`viewDidLoad` 時 `tableView.bounds` 還是 Xcode 預設的 `{0, 0, 393, 852}` 之類的值。
+
+<Tip title="怎麼親眼看順序">
+在每個回呼第一行加 `NSLog(@"%s", __PRETTY_FUNCTION__);`，⌘R 後 push 到編輯頁再 back，看主控台。你會看到 `viewDidLayoutSubviews` 跑了好幾次、`viewDidLoad` 只有一次、回來時從 `viewWillAppear:` 重跑。這一分鐘的實驗比背表格有效。
+</Tip>
+
+<Pitfall title="在 viewDidLoad 讀 frame">
+<Fragment slot="bad">
+```objc
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    CGFloat w = self.view.bounds.size.width;     // 模擬器上剛好對，換裝置就錯
+    self.emptyView.frame = CGRectMake(0, 0, w, 300);
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    self.emptyView.frame = self.tableView.bounds;
+}
+// 或者乾脆用 Auto Layout（8.3），完全不碰 frame
+```
+</Fragment>
+`viewDidLoad` 時 view 還沒加進視窗，`bounds` 是預設值或 Storyboard 畫布的尺寸。旋轉、分割畫面、Dynamic Type 變動都會再跑 `viewDidLayoutSubviews`，frame 相關的計算放那裡；但它會跑很多次，別在裡面建立新物件或加約束。
+</Pitfall>
+
+<Pitfall title="viewWillAppear: 註冊、dealloc 才移除">
+<Fragment slot="bad">
+```objc
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(reload:)
+        name:LBLedgerDidChangeNotification object:nil];
+}
+- (void)dealloc {
+    [NSNotificationCenter.defaultCenter removeObserver:self];
+}
+// push 到編輯頁回來三次 → 註冊了四次 → 一次變動 reload 四次
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (void)viewWillAppear:(BOOL)animated { [super viewWillAppear:animated]; [self startObserving]; }
+- (void)viewWillDisappear:(BOOL)animated { [super viewWillDisappear:animated]; [self stopObserving]; }
+// 或者只註冊一次：放 viewDidLoad，dealloc 移除
+```
+</Fragment>
+規則很簡單：**在哪一對回呼註冊，就在同一對的另一半移除**。`viewDidLoad` ↔ `dealloc`、`viewWillAppear:` ↔ `viewWillDisappear:`。混搭就會累積。block 版的 `addObserverForName:` 更危險，回傳的 token 要存起來才能移除，而且 block 捕獲 `self` 會循環（5.5）。
+</Pitfall>
+
+<Pitfall title="init 裡碰 self.view">
+`self.view` 一讀就觸發 `loadView` + `viewDidLoad`。在 `init` 或 `initWithLedger:` 裡設定 `self.view.backgroundColor`，等於在 VC 還沒被 push 時就把整個 view 階層建起來，Storyboard 的 outlet 也可能還沒連好。`init` 只存依賴（ledger、undoStack），UI 一律等 `viewDidLoad`。判斷有沒有載入要用 `isViewLoaded`。
+</Pitfall>
+
+<Crash message={`Thread 1: EXC_BAD_ACCESS (code=2, address=0x16f603ff0)
+#0  -[UIViewController loadViewIfRequired]
+#1  -[UIViewController view]
+#2  -[LBTransactionListViewController loadView] at LBTransactionListViewController.m:31
+#3  -[UIViewController loadViewIfRequired]
+#4  -[UIViewController view]
+#5  -[LBTransactionListViewController loadView] at LBTransactionListViewController.m:31
+... (重複數千行)`}>
+`EXC_BAD_ACCESS (code=2)` 加上一長串重複的呼叫堆疊，是堆疊溢位（stack overflow），不是記憶體懸空。這裡的循環是 `loadView` → `self.view` → `loadViewIfRequired` → `loadView`。原因：覆寫 `loadView` 時裡面寫了 `self.view.backgroundColor = ...` 或 `[self.view addSubview:]`，但 `self.view` 還沒指定，讀它又會呼叫 `loadView`。修法：`loadView` 裡只准 `self.view = [[UIView alloc] init];`（或你的自訂 view），其他設定搬到 `viewDidLoad`。沒有特別理由就不要覆寫 `loadView`。
+</Crash>
+
+## 小結
+
+- 順序：`loadView` → `viewDidLoad`（一次）→ `viewWillAppear:` → layout 回呼（多次）→ `viewDidAppear:` → `viewWillDisappear:` → `viewDidDisappear:` → `dealloc`。
+- 一次性設定放 `viewDidLoad`；frame 相關放 `viewDidLayoutSubviews`；觀察者在 `viewWillAppear:` / `viewWillDisappear:` 成對，或 `viewDidLoad` / `dealloc` 成對，不混搭。
+- `self.view` 是延遲載入，`init` 裡不要碰；判斷用 `isViewLoaded`。
+- `didReceiveMemoryWarning` 清快取，不再釋放 view。
+- Android：`onCreate` ↔ `viewDidLoad`、`onStart` / `onStop` ↔ `viewWillAppear:` / `viewDidDisappear:`；React：`useEffect` 回傳的清理函式 ↔ `viewWillDisappear:`。

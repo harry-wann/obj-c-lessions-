@@ -1,0 +1,19 @@
+id: m12-12-1-quiz-4
+chapter: "12.1"
+section: quiz
+type: quiz
+title: completion handler 自動變 async 的條件
+minutes: 1
+prompt: 哪個 ObjC 方法 Swift 5.5+ 會自動產生 `async` 版本？
+options:
+  - "- (void)fetchRatesWithCallback:(void (^)(NSDictionary *rates))callback;"
+  - "- (void)fetchRatesWithCompletion:(void (^)(NSDictionary * _Nullable rates, NSError * _Nullable error))completion;"
+  - "- (BOOL)fetchRatesWithCompletion:(void (^)(NSDictionary *rates))completion;"
+  - "- (void)fetchRatesWithCompletion:(BOOL (^)(NSDictionary *rates))completion;"
+answer: 1
+explain: 三個條件：方法回傳 void、最後一個參數是回傳 void 的 block、參數名以 completion / completionHandler / withCompletion 等結尾。block 裡的 `NSError * _Nullable` 會變成 `throws`，`rates` 變成非 Optional 回傳值。
+hints: ["參數名字也算條件。", "方法與 block 的回傳型別各有限制。"]
+feedback:
+  "0": 名字叫 callback 不會觸發，要用 NS_SWIFT_ASYNC 手動標。
+  "2": 方法有回傳值就不轉。
+  "3": block 本身有回傳值就不轉。

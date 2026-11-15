@@ -1,0 +1,18 @@
+id: m06-6-2-quiz-1
+chapter: "6.2"
+section: quiz
+type: quiz
+title: 方括號編譯成什麼
+minutes: 1
+prompt: "`[ledger addTransaction:tx];` 編譯之後實際上是哪個 C 函式呼叫？"
+options:
+  - "ledger->addTransaction(tx)"
+  - "objc_msgSend(ledger, @selector(addTransaction:), tx)"
+  - "objc_msgSend(@selector(addTransaction:), ledger, tx)"
+  - "[ledger class]->methods[\"addTransaction:\"](tx)"
+answer: 1
+explain: 所有方括號都變成 `objc_msgSend(收件人, selector, 參數...)`。前兩個參數就是方法裡的隱藏參數 `self` 與 `_cmd`。
+hints: ["方法裡的 self 跟 _cmd 從哪裡來？", "收件人在前、selector 在後。"]
+feedback:
+  "0": 這是 C++ 虛擬函式的樣子，ObjC 沒有在編譯期決定跳到哪。
+  "2": 順序反了：第一個參數是收件人，也就是 self。

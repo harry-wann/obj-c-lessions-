@@ -1,0 +1,38 @@
+id: m06-6-2-crash-2
+chapter: "6.2"
+type: crash
+title: 自訂的 doesNotRecognizeSelector
+minutes: 3
+log: |
+  *** Terminating app due to uncaught exception 'LBUnhandledMessage',
+  reason: 'LBRemoteProxy 收到無法轉送的訊息 -syncNow，目標 LBSyncService 為 nil'
+  *** First throw call stack:
+  (
+    2   LittleBook       -[LBRemoteProxy doesNotRecognizeSelector:] + 212
+    3   CoreFoundation   ___forwarding___ + 1324
+    4   CoreFoundation   _CF_forwarding_prep_0 + 120
+    5   LittleBook       -[LBSettingsViewController syncTapped:] + 96
+  )
+  // LBRemoteProxy.m
+  // - (id)forwardingTargetForSelector:(SEL)sel { return _service; }   // _service 可能是 nil
+  // - (void)doesNotRecognizeSelector:(SEL)sel {
+  //     [NSException raise:@"LBUnhandledMessage" format:@"... %@ ...", NSStringFromSelector(sel)];
+  // }
+options:
+  - "doesNotRecognizeSelector: 不能覆寫，覆寫就會 crash"
+  - "forwardingTargetForSelector: 回傳 nil 時 runtime 繼續走到 forwardInvocation:，沒實作就進 doesNotRecognizeSelector:；這個類別把它覆寫成丟自訂例外，訊息比預設清楚，但沒有解決 _service 為 nil 的問題"
+  - 例外名稱必須是 NSInvalidArgumentException，否則 runtime 無法處理
+  - "LBSettingsViewController 不應該呼叫 syncNow"
+answer: 1
+fix: |
+  // 呼叫端：送之前確認代理有能力處理
+  if ([proxy respondsToSelector:@selector(syncNow)]) [proxy syncNow];
+  // 或在 LBRemoteProxy 覆寫 respondsToSelector: 反映 _service 的狀態：
+  - (BOOL)respondsToSelector:(SEL)sel {
+      return [super respondsToSelector:sel] || [_service respondsToSelector:sel];
+  }
+solution_note: "`doesNotRecognizeSelector:` 是普通方法，可以覆寫；這個例子把它當成「加更多診斷資訊」的地方，是合理用法（訊息直接告訴你 _service 是 nil）。不合理的是覆寫成吞掉例外。轉送類別記得同時覆寫 `respondsToSelector:`，呼叫端才能先問。"
+hints: ["forwardingTargetForSelector: 回 nil 之後流程往哪走？", "這個 crash 的訊息比預設的好讀，為什麼？"]
+feedback:
+  "0": 它就是個普通方法，覆寫完全合法；本題正是靠覆寫才得到好讀的訊息。
+  "2": 例外名稱任意，runtime 只是呼叫這個方法，丟什麼由你決定。

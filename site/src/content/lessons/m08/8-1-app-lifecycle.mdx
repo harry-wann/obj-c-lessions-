@@ -1,0 +1,273 @@
+---
+title: App 生命週期
+module: 8
+chapter: "8.1"
+order: 1
+minutes: 30
+prereq: ["5.2", "5.7"]
+objectives:
+  - 說出從 main.m 到第一個畫面出現之間，UIApplicationMain、AppDelegate、SceneDelegate 各做什麼
+  - 不用 Storyboard，從 Info.plist 到 UIWindow 全部用程式碼把 App 啟動起來
+  - 分辨前景 / 背景 / 非活躍三種狀態，知道哪個回呼該存檔、哪個該暫停工作
+summary: "main.m → UIApplicationMain → AppDelegate / SceneDelegate 分工、Info.plist 的 UIApplicationSceneManifest、刪掉 Main storyboard 設定自建 UIWindow、前景 / 背景狀態回呼；對照 Android Application / Activity 與 React 的 createRoot。"
+terms:
+  - { en: app delegate, tw: 應用程式委派（AppDelegate）, cn: 应用委托, jp: アプリデリゲート }
+  - { en: scene, tw: 場景（scene）, cn: 场景, jp: シーン }
+  - { en: window, tw: 視窗（UIWindow）, cn: 窗口, jp: ウィンドウ }
+  - { en: root view controller, tw: 根視圖控制器, cn: 根视图控制器, jp: ルートビューコントローラ }
+  - { en: foreground / background, tw: 前景 / 背景, cn: 前台 / 后台, jp: フォアグラウンド / バックグラウンド }
+appProgress: SceneDelegate 以程式碼建立 UITabBarController（帳本 / 統計 / 設定），每個分頁包一層 UINavigationController；App 啟動後看到三個分頁。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// SwiftUI：宣告式，入口是一個 struct，畫面樹寫在 body 裡
+@main
+struct LittleBookApp: App {
+    var body: some Scene {
+        WindowGroup { RootTabView() }
+    }
+}
+// UIKit + Swift：跟 ObjC 一模一樣，只是 @main 取代了 main.swift
+@main class AppDelegate: UIResponder, UIApplicationDelegate { ... }
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// Android：Application 是整個程序，Activity 是一個畫面入口
+class LittleBookApp : Application() {
+    override fun onCreate() { super.onCreate() /* 全域初始化 */ }
+}
+class MainActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(RootTabLayout(this))   // 不用 XML 也行
+    }
+}
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// AndroidManifest.xml 決定哪個 Activity 是 LAUNCHER，
+// 像 Info.plist 決定哪個類別是 SceneDelegate
+public class MainActivity extends AppCompatActivity {
+    @Override protected void onCreate(Bundle saved) {
+        super.onCreate(saved);
+        setContentView(new RootTabLayout(this));
+    }
+}
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// React：找到 DOM 節點、建立 root、掛上元件樹
+const root = ReactDOM.createRoot(document.getElementById('app')!);
+root.render(<RootTabs />);
+// 分頁可見性
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) saveDraft();
+});
+```
+</Fragment>
+每個平台都有一段「從作業系統拉起程序，到第一個畫面出現」的固定流程，而且你通常不會動它。SwiftUI 把這段藏進 `@main struct`，React 是 `createRoot` 那三行，Android 是 Manifest 指定的 `Activity`。Objective-C 的 UIKit 把每一步都攤在你眼前：`main.m`、`UIApplicationMain`、`AppDelegate`、`SceneDelegate`、`UIWindow`。好處是舊專案不管怎麼客製，你都找得到頭。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 從 main.m 到第一個畫面
+
+```objc
+// main.m
+@import UIKit;
+#import "AppDelegate.h"
+
+int main(int argc, char *argv[]) {
+    NSString *appDelegateClassName;
+    @autoreleasepool {
+        appDelegateClassName = NSStringFromClass([AppDelegate class]);
+    }
+    return UIApplicationMain(argc, argv, nil, appDelegateClassName);
+}
+```
+
+`UIApplicationMain` 做四件事：建立唯一的 `UIApplication` 實體、依名字建立你的 <Term en="app delegate" tw="應用程式委派" cn="应用委托" jp="アプリデリゲート" />、讀 `Info.plist` 決定要不要載 Storyboard、然後進入 run loop **永遠不回來**。`return` 那一行只是形式，App 被系統殺掉時整個程序直接結束。第三個參數是 `UIApplication` 子類別名稱，幾乎永遠是 `nil`。
+
+iOS 13 以後多了<Term en="scene" tw="場景" cn="场景" jp="シーン" />這一層，分工變成：
+
+| 誰 | 管什麼 | 常用回呼 |
+|---|---|---|
+| `AppDelegate` | 程序層級：啟動一次、推播註冊、背景抓取、決定場景設定 | `application:didFinishLaunchingWithOptions:`、`application:configurationForConnectingSceneSession:options:` |
+| `SceneDelegate` | 一個視窗：建 `UIWindow`、根 VC、前景 / 背景切換 | `scene:willConnectToSession:options:`、`sceneDidBecomeActive:`、`sceneDidEnterBackground:` |
+
+iPhone 上一支 App 只有一個場景，所以兩者看起來像在重複；iPad 多視窗時每個視窗一個 `SceneDelegate`，`AppDelegate` 仍然只有一個。接手 iOS 12 以前的專案會看到沒有 `SceneDelegate`、`window` 屬性長在 `AppDelegate` 上的寫法，概念一樣，只是少一層。
+
+### Info.plist：告訴系統誰是 SceneDelegate
+
+```xml
+<key>UIApplicationSceneManifest</key>
+<dict>
+    <key>UIApplicationSupportsMultipleScenes</key><false/>
+    <key>UISceneConfigurations</key>
+    <dict>
+        <key>UIWindowSceneSessionRoleApplication</key>
+        <array>
+            <dict>
+                <key>UISceneConfigurationName</key>
+                <string>Default Configuration</string>
+                <key>UISceneDelegateClassName</key>
+                <string>SceneDelegate</string>
+                <!-- 沒有 UISceneStoryboardFile：不用 Storyboard -->
+            </dict>
+        </array>
+    </dict>
+</dict>
+```
+
+Xcode 範本產生的專案多兩個鍵：`UIMainStoryboardFile`（iOS 12 以前）與場景設定裡的 `UISceneStoryboardFile`，值都是 `Main`。**要用程式碼啟動，就把這兩個鍵刪掉**，並把 target 的 General → Main Interface 清空。留著其中一個，系統就會去找 `Main.storyboard`，找不到就 crash（見本章崩潰現場）。小帳本的專案用 XcodeGen 產生，`project.yml` 的 `info.properties` 從一開始就沒有這兩個鍵。
+
+### SceneDelegate：自建 UIWindow
+
+```objc
+// SceneDelegate.m
+#import "SceneDelegate.h"
+#import "LBTransactionListViewController.h"
+#import "LBLedger.h"
+#import "LBUndoStack.h"
+
+@implementation SceneDelegate
+
+- (void)scene:(UIScene *)scene
+    willConnectToSession:(UISceneSession *)session
+                 options:(UISceneConnectionOptions *)connectionOptions {
+    UIWindowScene *windowScene = (UIWindowScene *)scene;
+
+    LBLedger *ledger = [LBLedger new];
+    LBUndoStack *undo = [LBUndoStack new];
+
+    UIViewController *list =
+        [[LBTransactionListViewController alloc] initWithLedger:ledger
+                                                      undoStack:undo];
+    UINavigationController *ledgerNav =
+        [[UINavigationController alloc] initWithRootViewController:list];
+    ledgerNav.tabBarItem =
+        [[UITabBarItem alloc] initWithTitle:@"帳本"
+                                      image:[UIImage systemImageNamed:@"list.bullet"]
+                                        tag:0];
+
+    UIViewController *stats = [UIViewController new];   // 12.1 換成 Swift 版
+    stats.title = @"統計";
+    UINavigationController *statsNav =
+        [[UINavigationController alloc] initWithRootViewController:stats];
+    statsNav.tabBarItem =
+        [[UITabBarItem alloc] initWithTitle:@"統計"
+                                      image:[UIImage systemImageNamed:@"chart.bar"]
+                                        tag:1];
+
+    UIViewController *settings = [UIViewController new];   // 9.2 / 11.3 換成設定頁
+    settings.title = @"設定";
+    UINavigationController *settingsNav =
+        [[UINavigationController alloc] initWithRootViewController:settings];
+    settingsNav.tabBarItem =
+        [[UITabBarItem alloc] initWithTitle:@"設定"
+                                      image:[UIImage systemImageNamed:@"gear"]
+                                        tag:2];
+
+    UITabBarController *tabs = [UITabBarController new];
+    tabs.viewControllers = @[ ledgerNav, statsNav, settingsNav ];
+
+    UIWindow *window = [[UIWindow alloc] initWithWindowScene:windowScene];
+    window.rootViewController = tabs;
+    self.window = window;              // 一定要存起來，不然 window 立刻釋放
+    [window makeKeyAndVisible];
+}
+```
+
+三行是關鍵：`initWithWindowScene:` 把視窗綁到場景、`rootViewController` 決定整棵畫面樹的根、`makeKeyAndVisible` 讓它顯示並接收事件。`self.window` 是 `strong` 屬性，<Term en="window" tw="視窗" cn="窗口" jp="ウィンドウ" />沒有人持有就會在方法結束時消失，螢幕一片黑但不會 crash，是新手最常卡的半小時。
+
+### 前景 / 背景狀態
+
+```objc
+- (void)sceneDidBecomeActive:(UIScene *)scene {
+    // 使用者看得到也摸得到：恢復計時器、重新整理匯率
+}
+- (void)sceneWillResignActive:(UIScene *)scene {
+    // 來電、拉下通知中心：畫面還在但不能互動；暫停動畫、遊戲
+}
+- (void)sceneDidEnterBackground:(UIScene *)scene {
+    // 使用者切走了：存檔。你大約只有幾秒鐘
+    // M09 之後：[self.persistence saveLedger:self.ledger completion:nil];
+}
+- (void)sceneWillEnterForeground:(UIScene *)scene {
+    // 要回來了，但還沒 active：準備畫面
+}
+```
+
+狀態一共五個：Not Running → Inactive → Active ⇄ Inactive → Background → Suspended。Suspended 沒有回呼，系統缺記憶體時直接殺掉，所以「切到背景就存檔」不是建議而是規則。對應 Android：`onResume` ≈ `sceneDidBecomeActive:`、`onPause` ≈ `sceneWillResignActive:`、`onStop` ≈ `sceneDidEnterBackground:`；差別是 Android 一個 Activity 一組，iOS 整個場景一組，各畫面自己的進出看 8.2 的 VC 生命週期。沒有 Scene 的舊專案用 `applicationDidEnterBackground:` 那一組，名字對得上。想在 VC 裡聽這些事件，用 5.7 教的通知：`UISceneDidEnterBackgroundNotification`（舊：`UIApplicationDidEnterBackgroundNotification`）。
+
+### 設計稿對照
+
+本章對應設計稿 **02 畫面 · 深色與導覽流程** 頁面的導覽流程圖（https://www.figma.com/design/4d6HGy38x11n2uOfkzOBzj ）：底部 TabBar 三個分頁「帳本 / 統計 / 設定」，SF Symbols 圖示 `list.bullet`、`chart.bar`、`gear`，TabBar 高 49 + Safe Area；每個分頁最上層是 Large Title 導覽列（高 96），標題 34 pt。這就是上面程式碼建立的三層結構：`UITabBarController` → 三個 `UINavigationController` → 各自的根 VC。
+
+<Steps title="把範本專案改成程式碼啟動">
+1. 刪除 `Main.storyboard`（Move to Trash）。
+2. Target → General → Deployment Info → Main Interface 清空。
+3. 開 `Info.plist`，刪除 `Main storyboard file base name`；展開 Application Scene Manifest → Scene Configuration → Application Session Role → Item 0，刪除 `Storyboard Name`。
+4. 在 `SceneDelegate.m` 的 `scene:willConnectToSession:options:` 自建 `UIWindow`，照上面的程式碼。
+5. ⌘R。黑畫面就是漏了 `self.window = window;`，crash 就是 plist 還留著 `Main`。
+</Steps>
+
+<Pitfall title="plist 刪了一個鍵、漏了另一個">
+範本專案有兩處指到 Storyboard：頂層的 `UIMainStoryboardFile` 與場景設定裡的 `UISceneStoryboardFile`。只刪頂層那個，iOS 13 以上的裝置還是走場景設定去找 `Main.storyboard`。兩個都刪，再把 General → Main Interface 清空。反過來，模組 11 的設定頁要用 `Settings.storyboard`，但那是另外用 `instantiateViewControllerWithIdentifier:` 載入，不走 plist。
+</Pitfall>
+
+<Pitfall title="window 沒存成屬性，螢幕一片黑">
+<Fragment slot="bad">
+```objc
+UIWindow *window = [[UIWindow alloc] initWithWindowScene:windowScene];
+window.rootViewController = tabs;
+[window makeKeyAndVisible];        // 方法結束 window 就被釋放
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+UIWindow *window = [[UIWindow alloc] initWithWindowScene:windowScene];
+window.rootViewController = tabs;
+self.window = window;              // SceneDelegate 持有它
+[window makeKeyAndVisible];
+```
+</Fragment>
+`UIWindow` 跟其他 view 不一樣，沒有父視圖持有它。ARC 在方法結尾放掉最後一個強參考，視窗消失、沒有錯誤訊息。範本的 `SceneDelegate.h` 已經宣告了 `@property (strong) UIWindow *window;`，記得用。
+</Pitfall>
+
+<Pitfall title="didFinishLaunching 做太多事，被看門狗殺掉">
+啟動時主執行緒卡超過約 20 秒，系統直接結束程序，crash log 的例外代碼是 `0x8badf00d`（ate bad food）。常見元兇：在 `application:didFinishLaunchingWithOptions:` 同步讀大檔、同步打網路、把 10 萬筆資料排序。啟動只做「建立畫面需要的最少東西」，其他丟到背景佇列（模組 7），畫面先顯示空狀態或載入中。小帳本在 M09 才加持久化，載入會走 `loadLedgerWithError:` 的背景版本。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: 'Could not find a storyboard named 'Main' in bundle NSBundle
+</Users/you/Library/Developer/CoreSimulator/Devices/.../LittleBook.app> (loaded)'
+*** First throw call stack:
+(
+  0  CoreFoundation   __exceptionPreprocess + 242
+  1  libobjc.A.dylib  objc_exception_throw + 48
+  2  UIKitCore        -[UIStoryboard name] + 0
+  3  UIKitCore        -[UIApplication _loadMainStoryboardFileNamed:bundle:] + 76
+  ...
+)`}>
+看兩個關鍵字：`Could not find a storyboard named 'Main'` 說系統在找 Storyboard，呼叫堆疊的 `_loadMainStoryboardFileNamed:` 說是啟動流程在找，不是你的程式碼。原因只有一個：`Info.plist` 裡還有 `UIMainStoryboardFile` 或 `UISceneStoryboardFile` 指著 `Main`，而檔案已經刪掉。修法：兩個鍵都刪、Main Interface 清空、Clean Build Folder（⇧⌘K）再跑；舊的 plist 有時會留在 DerivedData 裡。反過來的情況「plist 乾淨但畫面全黑」，是 `window` 沒存起來或忘了 `makeKeyAndVisible`。
+</Crash>
+
+## 小結
+
+- `main.m` → `UIApplicationMain` → 建立 `AppDelegate` → 讀 `Info.plist` → `SceneDelegate` 建 `UIWindow`。`UIApplicationMain` 永遠不回傳。
+- `AppDelegate` 管程序層級的事（啟動、推播、場景設定），`SceneDelegate` 管一個視窗（根 VC、前景 / 背景）。舊專案沒有 Scene，`window` 長在 `AppDelegate` 上。
+- 程式碼啟動：刪 `Main.storyboard`、刪 plist 的兩個 Storyboard 鍵、清空 Main Interface、`initWithWindowScene:` → `rootViewController` → `self.window = window` → `makeKeyAndVisible`。
+- 五個狀態：Not Running、Inactive、Active、Background、Suspended；`sceneDidEnterBackground:` 存檔，Suspended 沒有回呼。
+- 對照 Android：`Application` ≈ `AppDelegate`、`Activity` 的 `onResume` / `onPause` / `onStop` ≈ 場景的 active / resign / background。

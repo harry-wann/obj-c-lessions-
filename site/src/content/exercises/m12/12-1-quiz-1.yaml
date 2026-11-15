@@ -1,0 +1,21 @@
+id: m12-12-1-quiz-1
+chapter: "12.1"
+section: quiz
+type: quiz
+title: 哪些 Swift 特性 ObjC 看不到
+minutes: 2
+prompt: 以下哪些 Swift 宣告就算放在 NSObject 子類別裡、加了 `@objc`，ObjC 端也看不到？（可複選）
+multi: true
+options:
+  - "struct Money { var cents: Int }"
+  - "enum Kind: Int { case expense, income }"
+  - "enum Result { case ok(LBLedger), fail(Error) }"
+  - "var limit: Int?"
+  - "var note: String?"
+  - "func breakdown() -> [(String, NSDecimalNumber)]"
+answer: [0, 2, 3, 5]
+explain: ObjC runtime 只能表達 NSObject 子類別、C 標量、Int 原始值的 enum、區塊與指標。struct、關聯值 enum、值型別 Optional（`Int?`）、tuple 都沒有對應；`String?` 會變成 `NSString * _Nullable`，`Int` 原始值的 enum 會變 `NS_ENUM`。
+hints: ["問自己：ObjC 有沒有一個型別可以放這個東西？", "Optional 的差別在裡面是值型別還是物件。"]
+feedback:
+  "1": Int 原始值的 enum 加 @objc 會變成 NS_ENUM，ObjC 看得到。
+  "4": String? 對應 NSString * _Nullable，ObjC 看得到；Int? 才沒有對應（NSInteger 沒有 nil）。

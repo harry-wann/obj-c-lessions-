@@ -1,0 +1,17 @@
+id: m10-10-3-quiz-3
+chapter: "10.3"
+section: quiz
+type: quiz
+title: cancel 之後發生什麼
+minutes: 1
+prompt: "呼叫 `[operation cancel]` 之後，正在跑的 NSBlockOperation 會怎樣？"
+options:
+  - 只是 isCancelled 變 YES；block 繼續跑，直到你的程式自己檢查 isCancelled 並停下
+  - 立刻中斷 block，像 Thread.interrupt 一樣丟例外
+  - 執行緒被殺掉
+  - block 跑完後自動回滾已匯入的資料
+answer: 0
+explain: NSOperation 的取消是合作式的：它只設旗標，檢查點由你放。每批檢查一次是好的粒度。
+hints: ["cancel 做的事只有一件。", "Swift 的 Task.checkCancellation 是誰在呼叫？"]
+feedback:
+  "1": ObjC 沒有這種機制；連 Swift 的 Task 取消也是合作式的。

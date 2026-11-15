@@ -1,0 +1,19 @@
+id: m09-9-4-quiz-2
+chapter: "9.4"
+section: quiz
+type: quiz
+title: 金額與日期該怎麼進 JSON
+minutes: 2
+prompt: "`LBTransaction` 的 `amount`（`NSDecimalNumber`）與 `date`（`NSDate`）在 `dictionaryRepresentation` 裡該用什麼表示？"
+options:
+  - "amount 用 `@(amount.doubleValue)`，date 用 `[NSDateFormatter new]` 加 `yyyy-MM-dd HH:mm`"
+  - "amount 用 `amount.stringValue`，date 用 `NSISO8601DateFormatter`（帶時區）或 `@(date.timeIntervalSince1970)`"
+  - 兩個都直接放進字典，NSJSONSerialization 會自己轉
+  - "amount 用 `stringValue`，date 用 `date.description`"
+answer: 1
+explain: 金額走 double 會有二進位誤差；日期不帶時區換個地方讀就位移。字串金額與 ISO 8601（尾巴有 Z）或時間戳都無歧義。
+hints: ["0.1 + 0.2 用 double 等於多少？", "台灣寫的 06:13 在東京讀回來是幾點？"]
+feedback:
+  "0": double 有精度問題；沒時區的格式用裝置當下時區解讀，換時區全部位移。
+  "2": NSJSONSerialization 遇到 NSDate 直接丟 NSInvalidArgumentException；NSDecimalNumber 會被當 NSNumber 寫成數字，精度不保證。
+  "3": description 的格式沒有保證，不同系統版本可能不同，而且解析回來很麻煩。

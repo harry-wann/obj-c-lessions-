@@ -1,0 +1,29 @@
+id: m11-11-7-fill-1
+chapter: "11.7"
+type: fill
+title: 補 nullability 標注
+minutes: 2
+prompt: 補完 LBLedger.h 的 nullability：整檔包起來、找不到會回 nil 的方法個別標注、error 雙重指標寫完整。
+code: |
+  ___1___
+
+  @interface LBLedger : NSObject
+  @property (nonatomic, copy, readonly) NSArray<LBTransaction *> *transactions;
+  - (___2___ LBTransaction *)transactionWithIdentifier:(NSString *)identifier;
+  - (void)addTransaction:(LBTransaction *)transaction;
+  - (BOOL)removeTransactionWithIdentifier:(NSString *)identifier
+                                    error:(NSError * ___3___ * ___3___)error;
+  @end
+
+  ___4___
+blanks:
+  "1": { accept: ["NS_ASSUME_NONNULL_BEGIN"], chips: ["NS_ASSUME_NONNULL_BEGIN", "NS_ASSUME_NULLABLE_BEGIN", "NS_NONNULL_BEGIN", "NS_ASSUME_NONNULL_END"] }
+  "2": { accept: ["nullable"], chips: ["nullable", "nonnull", "_Nullable", "null_unspecified"] }
+  "3": { accept: ["_Nullable"], chips: ["_Nullable", "nullable", "_Nonnull", "__nullable"] }
+  "4": { accept: ["NS_ASSUME_NONNULL_END"], chips: ["NS_ASSUME_NONNULL_END", "NS_ASSUME_NONNULL_BEGIN", "NS_END", "NS_NONNULL_END"] }
+hints: ["巨集成對，BEGIN 在最上面。", "回傳型別前面的關鍵字用不帶底線的版本。", "指標的指標要用帶底線的 _Nullable，每一層都要標。"]
+feedback:
+  "2=nonnull": "找不到時會回 nil，標 nonnull 是說謊；Swift 端會 crash。"
+  "2=_Nullable": "回傳型別前（括號內開頭）用 nullable；_Nullable 是放在型別後面的寫法。"
+  "3=nullable": "雙重指標的每一層要用 _Nullable 放在 * 後面。"
+solution_note: "原則：整檔 `NS_ASSUME_NONNULL_BEGIN / END` 包起來，只有真的會 nil 的地方標 `nullable`。`NSError **` 要寫成 `NSError * _Nullable * _Nullable`。M12 的 testNullabilityAnnotationsPresent 會檢查這個巨集。"

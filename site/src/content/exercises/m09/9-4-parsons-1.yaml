@@ -1,0 +1,23 @@
+id: m09-9-4-parsons-1
+chapter: "9.4"
+type: parsons
+title: 排出「背景寫、主佇列回報」
+minutes: 3
+prompt: "把 saveLedger:completion: 的程式排成正確順序。有三行是干擾行。"
+lines:
+  - "- (void)saveLedger:(LBLedger *)ledger completion:(void (^)(NSError * _Nullable))completion {"
+  - "    NSArray<LBTransaction *> *snapshot = ledger.transactions;"
+  - "    dispatch_async(self.ioQueue, ^{"
+  - "        NSError *error = nil;"
+  - "        [self writeTransactions:snapshot error:&error];"
+  - "        dispatch_async(dispatch_get_main_queue(), ^{"
+  - "            if (completion) completion(error);"
+  - "        });"
+  - "    });"
+  - "}"
+distractors:
+  - "    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{"
+  - "        NSArray<LBTransaction *> *snapshot = ledger.transactions;"
+  - "        completion(error);"
+solution_note: 快照要在**主執行緒、進背景之前**拿（背景碰 ledger 是資料競爭）；寫入走自己的串列 ioQueue（全域並行佇列會讓兩次存檔互相覆蓋）；回呼切回主佇列並判 nil。
+hints: ["第二行就要拿快照，進 block 之前。", "寫檔用串列佇列，不用全域並行佇列。", "回呼前判 completion 是不是 nil。"]

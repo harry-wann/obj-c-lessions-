@@ -1,0 +1,42 @@
+id: m09-9-5-spot-1
+chapter: "9.5"
+type: spot
+title: 在錯的佇列碰 context
+minutes: 3
+prompt: 這段報表程式在開了 ConcurrencyDebug 後 crash。點選有問題的行並選出原因。
+code: |
+  - (void)buildReport {
+      NSFetchRequest *req = [CDTransaction fetchRequest];
+      dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+          NSArray *rows = [self.container.viewContext executeFetchRequest:req error:nil];
+          NSDecimalNumber *total = [rows valueForKeyPath:@"@sum.amount"];
+          dispatch_async(dispatch_get_main_queue(), ^{
+              self.totalLabel.text = total.stringValue;
+          });
+      });
+  }
+bug_lines: [3, 4]
+reasons:
+  - "viewContext 只能在主佇列用；這裡在全域佇列上呼叫它的 executeFetchRequest: 就是違規。要背景查詢就 newBackgroundContext 加 performBlock:，或直接在主佇列查"
+  - "@sum 不能用在 NSDecimalNumber 上"
+  - fetchRequest 應該在 block 裡建立
+  - totalLabel 應該在背景佇列更新
+answer_reason: 0
+fix: |
+  - (void)buildReport {
+      NSFetchRequest *req = [CDTransaction fetchRequest];
+      NSManagedObjectContext *bg = [self.container newBackgroundContext];
+      [bg performBlock:^{
+          NSArray *rows = [bg executeFetchRequest:req error:nil];
+          NSDecimalNumber *total = [rows valueForKeyPath:@"@sum.amount"];   // 純量結果可以帶走
+          dispatch_async(dispatch_get_main_queue(), ^{
+              self.totalLabel.text = total.stringValue;
+          });
+      }];
+  }
+solution_note: 這裡帶回主佇列的是 NSDecimalNumber 不是 managed object，所以可以直接傳；如果要帶物件就傳 objectID。沒開 ConcurrencyDebug 時這段程式大多數時候「看起來能跑」，這才是它危險的地方。
+hints: ["viewContext 綁哪個佇列？", "block 在哪個佇列上執行？"]
+feedback:
+  "1": "@sum 對 NSDecimalNumber 可以用，會回 NSDecimalNumber。"
+  "2": fetch request 本身不綁佇列，在哪建都行。
+  "3": UI 一定在主佇列更新，這行是對的。

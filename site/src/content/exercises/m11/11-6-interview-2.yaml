@@ -1,0 +1,19 @@
+id: m11-11-6-interview-2
+chapter: "11.6"
+type: flash
+tier: interview
+title: 面試題：xcworkspace 與 xcodeproj 的差別
+minutes: 2
+front: "面試官：.xcodeproj 跟 .xcworkspace 差在哪？為什麼 pod install 之後一定要開 workspace？"
+back: |
+  .xcodeproj：一個專案，裡面有 target、build settings、檔案參考。
+  .xcworkspace：一個容器，可以包多個 .xcodeproj，讓它們共用一個 build 目錄並互相看得到 target（隱含相依）。
+
+  pod install 做的事：
+  1. 產生 Pods/Pods.xcodeproj，每個 pod 一個 target，編成靜態庫（或 framework）。
+  2. 產生 LittleBook.xcworkspace，把你的 .xcodeproj 跟 Pods.xcodeproj 包在一起。
+  3. 在你的 target 加 Pods-LittleBook.{debug,release}.xcconfig，寫入 HEADER_SEARCH_PATHS、OTHER_LDFLAGS（含 -ObjC）、FRAMEWORK_SEARCH_PATHS。
+  4. 加兩個 build phase：[CP] Check Pods Manifest.lock、[CP] Embed Pods Frameworks。
+
+  只開 .xcodeproj：看不到 Pods.xcodeproj，libPods-LittleBook.a 不會被建出來，所以 #import <Masonry/Masonry.h> file not found、ld: library not found。
+  追問：「Podfile.lock 要進版控嗎？」要。「Pods/ 呢？」團隊決定，但要一致。「pod install 跟 pod update？」install 讀 lock、update 忽略 lock。

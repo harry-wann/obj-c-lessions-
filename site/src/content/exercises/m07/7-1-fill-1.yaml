@@ -1,0 +1,29 @@
+id: m07-7-1-fill-1
+chapter: "7.1"
+type: fill
+title: NSError 方法簽名與呼叫端
+minutes: 3
+prompt: 補完一個標準的 NSError 方法宣告，以及呼叫端的寫法。
+code: |
+  // LBLedger.h
+  - (BOOL)removeTransactionWithIdentifier:(NSUUID *)identifier
+                                    error:(___1___)error;
+
+  // 呼叫端
+  NSError *error = nil;
+  BOOL ok = [ledger removeTransactionWithIdentifier:tx.identifier error:___2___];
+  if (___3___) {
+      NSLog(@"移除失敗：%@", error.localizedDescription);
+      return;
+  }
+blanks:
+  "1": { accept: ["NSError **", "NSError * _Nullable *", "NSError *__autoreleasing *", "NSError * _Nullable * _Nullable"], chips: ["NSError **", "NSError *", "NSError", "id"] }
+  "2": { accept: ["&error"], chips: ["&error", "error", "*error", "nil"] }
+  "3": { accept: ["!ok", "ok == NO", "!ok", "NO == ok"], chips: ["!ok", "error", "error != nil", "ok"] }
+hints: ["方法要能「寫進呼叫端的變數」，參數得是指標的指標。", "把變數的位址傳進去用哪個運算子？", "判斷失敗看的是回傳值還是 error？"]
+feedback:
+  "1=NSError *": 這樣方法只能收到一個指標的拷貝，沒辦法把錯誤寫回呼叫端的變數。
+  "2=error": 傳 error 本身是傳 nil 進去，方法端拿到 NULL 什麼都寫不進來。
+  "3=error": 成功時 error 的內容未定義，要用回傳值 ok 判斷。
+  "3=error != nil": 同上，先判回傳值再讀 error。
+solution_note: "簽名是 `(NSError **)error`，呼叫端傳 `&error`，判斷用回傳值 `!ok`。這三個位置每一個都是面試常考。"

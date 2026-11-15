@@ -1,0 +1,28 @@
+id: m09-9-4-xcode-1
+chapter: "9.4"
+type: xcode
+title: LBPersistence：JSON 檔存取整本帳
+mobile: false
+minutes: 40
+prompt: 實作 LBPersistence，把整本帳存成 directoryURL 底下的 ledger.json，原子寫入、背景執行、讀回來逐欄防禦，四個測試轉綠。關掉 App 再開資料還在。
+starter: xcode/M09-starter
+steps:
+  - "LBPersistence.h 依 TESTS.md 宣告：`initWithDirectoryURL:`、`saveLedger:error:`、`loadLedgerWithError:`、`saveLedger:completion:`、readonly `fileURL`。`fileURL` = directoryURL 接 `ledger.json`。"
+  - "init 時 `createDirectoryAtURL:withIntermediateDirectories:YES` 確保目錄存在；另建一個串列 `dispatch_queue_t ioQueue`。"
+  - "`saveLedger:error:`：把 `ledger.transactions` 每筆 `dictionaryRepresentation` 收進陣列，包成 `@{ @\"version\": @1, @\"transactions\": items }`，`NSJSONSerialization dataWithJSONObject:`，再 `writeToURL:options:NSDataWritingAtomic error:`。"
+  - "`loadLedgerWithError:`：`dataWithContentsOfURL:options:error:` 失敗且 code 是 `NSFileReadNoSuchFileError` → 回 `[LBLedger new]` 並把 `*error` 設回 nil；其他失敗回 nil。解析後 root 與 transactions 都 `isKindOfClass:` 檢查；單筆 `initWithDictionary:error:` 回 nil 就跳過；category 用 identifier 從 `+[LBCategory defaultTree]` 查回。"
+  - "`saveLedger:completion:`：主執行緒先取 `ledger.transactions` 快照，`dispatch_async(ioQueue)` 寫，`dispatch_async(main)` 回呼。"
+  - "LBPersistenceTests 的 setUp 用 `NSTemporaryDirectory()` 接 UUID 子目錄建 LBPersistence，tearDown 刪目錄。⌘U 跑四個測試。"
+  - "AppDelegate：啟動時 `loadLedgerWithError:` 建 ledger；ledger 有變動（6.x 的 KVO 或 delegate）就 `saveLedger:completion:`。模擬器上新增一筆、停止、再跑一次，交易還在。"
+tests:
+  - LBPersistenceTests/testRoundTripJSON
+  - LBPersistenceTests/testWritesAtomicallyToDirectory
+  - LBPersistenceTests/testCorruptFileReturnsError
+  - LBPersistenceTests/testMissingFileReturnsEmptyLedger
+acceptance:
+  - "testRoundTripJSON：存三筆（含一筆有分類、一筆 note 含中文與 emoji）再讀回，數量、identifier、amount（NSDecimalNumber isEqual:）、date（秒級相等）、category identifier 全部一致。"
+  - "testWritesAtomicallyToDirectory：save 後目錄裡只有 ledger.json，沒有殘留的暫存檔；fileURL 存在。"
+  - "testCorruptFileReturnsError：先寫入 `{ not json` 再 load，回 nil 且 error 不為 nil（domain NSCocoaErrorDomain）。"
+  - "testMissingFileReturnsEmptyLedger：全新目錄 load 回非 nil 的空帳本（transactions.count == 0），error 為 nil。"
+  - 模擬器：新增交易、停止 App、再執行，列表還有那筆；Documents 底下看得到 ledger.json 且內容可讀。
+solution_note: 四個測試對應四條規則：往返不失真（金額字串、日期 ISO 8601）；原子寫入沒有半個檔；壞檔回 error 不回空帳本；不存在回空帳本不回 error。背景版本不另外測，因為它只是把 error 版包進佇列。

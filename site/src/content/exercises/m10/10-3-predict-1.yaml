@@ -1,0 +1,28 @@
+id: m10-10-3-predict-1
+chapter: "10.3"
+type: predict
+title: 預測輸出：節流的回報次數
+minutes: 2
+prompt: 模擬 25 次回報、每次間隔 20 ms、節流門檻 100 ms，最後一次強制。印出實際送出的次數。
+code: |
+  __block NSUInteger sent = 0;
+  __block CFTimeInterval last = -1;
+  void (^report)(BOOL) = ^(BOOL force) {
+      CFTimeInterval now = CACurrentMediaTime();
+      if (!force && last >= 0 && now - last < 0.1) return;
+      last = now;
+      sent++;
+  };
+  for (int i = 0; i < 25; i++) {
+      usleep(20 * 1000);          // 20 ms
+      report(i == 24);
+  }
+  NSLog(@"%lu", (unsigned long)sent);
+options: ["25", "5", "6", "1"]
+accept: ["6", "5"]
+feedback:
+  "25": 門檻 100 ms，20 ms 一次的呼叫大多會被擋掉。
+  "1": 第一次 last 是 -1 所以會送；之後每累積 100 ms 送一次。
+solution_note: "第 1 次（last 為 -1）送出；之後每 5 次（100 ms）送一次：第 6、11、16、21 次；第 25 次 force 送出。共 6 次。usleep 不精準時可能剛好 5 次，所以兩個答案都接受；重點是遠小於 25。"
+hints: ["第一次會送嗎？", "之後每幾次呼叫累積到 100 ms？", "最後一次 force。"]
+note: 時間相關的測試在真實程式裡要注入時鐘才能精準，這題只看量級。

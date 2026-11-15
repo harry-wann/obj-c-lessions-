@@ -1,0 +1,18 @@
+id: m12-12-1-quiz-2
+chapter: "12.1"
+section: quiz
+type: quiz
+title: 沒標 nullability 在 Swift 端變什麼
+minutes: 1
+prompt: "`LBCategory.h` 沒有 `NS_ASSUME_NONNULL`，宣告 `@property (nonatomic, weak) LBCategory *parent;`。Swift 端看到的型別是？"
+options:
+  - "LBCategory（非 Optional）"
+  - "LBCategory?（Optional）"
+  - "LBCategory!（隱式解包 Optional）"
+  - 編譯錯誤，要求補 nullability
+answer: 2
+explain: "沒標的指標 Swift 不知道會不會 nil，匯入成隱式解包 `!`：用起來像非 Optional，碰到 nil 就 `Fatal error: Unexpectedly found nil while implicitly unwrapping an Optional value`。根分類的 parent 一定是 nil，這就是地雷。"
+hints: ["Kotlin 的平台型別 String! 是什麼意思？", "編譯器不知道的事，它會選「相信你」還是「保護你」？"]
+feedback:
+  "1": 要在 ObjC 端標 nullable 才會變 Optional。沒標時 Swift 不會替你保守。
+  "3": 只會有 warning（開 -Wnullability-completeness 時），不是錯誤。

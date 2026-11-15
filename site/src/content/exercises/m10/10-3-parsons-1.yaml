@@ -1,0 +1,26 @@
+id: m10-10-3-parsons-1
+chapter: "10.3"
+type: parsons
+title: 排出匯入一批的正確步驟
+minutes: 3
+prompt: 把背景解析迴圈裡「處理一行、滿一批就送出」的步驟排成正確順序（有干擾行）。
+lines:
+  - "while (fgets(line, sizeof line, fp)) {"
+  - "    @autoreleasepool {"
+  - "        LBTransaction *tx = [LBTransaction transactionWithCSVLine:"
+  - "                                 [NSString stringWithUTF8String:line]];"
+  - "        if (tx) [batch addObject:tx];"
+  - "        if (batch.count >= batchSize) {"
+  - "            [self.ledger performBatchImport:[batch copy]];"
+  - "            [self reportProgress:done += batch.count total:total force:NO];"
+  - "            [batch removeAllObjects];"
+  - "        }"
+  - "    }"
+  - "    if (op.isCancelled) break;"
+  - "}"
+distractors:
+  - "    NSArray *lines = [content componentsSeparatedByString:@\"\\n\"];"
+  - "    dispatch_async(dispatch_get_main_queue(), ^{ [self.tableView reloadData]; });"
+  - "    [batch removeAllObjects];  // 每行都清"
+solution_note: 順序的重點：pool 包住每行的暫時物件；先加進 batch 再判斷是否滿；送出（barrier 寫入）→ 回報（節流）→ 清空；取消檢查放在每行 pool 之外、迴圈結尾。干擾行：整檔切字串違反串流原則；每批 reloadData 應改為 performBatchUpdates:（由 ledger 的變動通知觸發）；每行清空 batch 會讓批次永遠只有一筆。
+hints: ["fgets 一行 → 包 pool → 轉成 tx → 加進 batch。", "滿了才送出、回報、清空。", "取消檢查在每行結束。"]

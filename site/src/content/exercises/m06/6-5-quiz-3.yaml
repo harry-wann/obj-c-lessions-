@@ -1,0 +1,18 @@
+id: m06-6-5-quiz-3
+chapter: "6.5"
+section: quiz
+type: quiz
+title: 關聯物件的策略
+minutes: 1
+prompt: "在 `LBCategory (Color)` 分類裡用關聯物件存一個 `NSString *colorHex`，語意要跟 `@property (copy)` 一樣。`objc_setAssociatedObject` 的 policy 該選？"
+options:
+  - OBJC_ASSOCIATION_ASSIGN
+  - OBJC_ASSOCIATION_RETAIN_NONATOMIC
+  - OBJC_ASSOCIATION_COPY_NONATOMIC
+  - OBJC_ASSOCIATION_WEAK
+answer: 2
+explain: policy 對應屬性修飾詞：RETAIN ↔ strong、COPY ↔ copy、ASSIGN ↔ assign（不是 weak，釋放後不會歸零）。沒有 WEAK 這個選項，要弱參考得包一層持有 weak 屬性的小物件。
+hints: ["NSString 屬性慣例用哪個修飾詞？", "有沒有 weak 版本？"]
+feedback:
+  "0": ASSIGN 不 retain 也不歸零，存物件會變懸空指標。
+  "3": 關聯物件沒有 weak 策略；這個常數不存在。

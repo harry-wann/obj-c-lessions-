@@ -1,0 +1,13 @@
+id: m12-12-6-interview-9
+chapter: "12.6"
+type: flash
+tier: interview
+title: "面試速記：+load 與 +initialize"
+minutes: 2
+front: |
+  `+load` 和 `+initialize` 什麼時候被呼叫？各適合做什麼？
+back: |
+  +load：程式載入該 image 時，在 main 之前執行；每個類別與每個分類各呼叫一次（分類的 load 不覆寫類別的），父類別先於子類別，不管類別有沒有被用到。適合 swizzling 註冊，但會拖慢啟動。
+  +initialize：類別第一次收到任何訊息前懶執行，由 runtime 保證執行緒安全只跑一次。子類別沒實作時會呼叫父類別的，所以父類別的 +initialize 可能跑多次，要寫 if (self == [LBLedger class])。
+  +initialize 適合初始化靜態資料（formatter、預設值）；不要在裡面做會送訊息給其他尚未初始化類別的事，可能死結。
+  加分延伸：+load 時 autorelease pool 還沒建好、其他類別可能還沒載入，只做最小的事；Swift 沒有 +load，用 +initialize 或啟動時明確呼叫。

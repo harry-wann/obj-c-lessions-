@@ -1,0 +1,25 @@
+id: m12-12-4-xcode-1
+chapter: "12.4"
+type: xcode
+title: 把偵錯工具全部開一遍
+mobile: false
+minutes: 30
+prompt: 在 M12-starter 設定 Exception Breakpoint 與 Zombie Objects，用 ASan 跑一次測試，Analyze 零警告，開 -Werror 仍可建置。
+starter: xcode/M12-starter
+steps:
+  - "⌘8 → + → Exception Breakpoint（Objective-C、On Throw），右鍵 Move Breakpoint To → User。再加一個符號斷點 `-[NSArray objectAtIndex:]`，Module 填 `LittleBook`，試著觸發一次看它停下來後停用。"
+  - "Edit Scheme → Run → Diagnostics 勾 Zombie Objects；⌘R 操作列表的刪除與復原，確認沒有 `message sent to deallocated instance`。"
+  - "Edit Scheme → Test → Diagnostics 勾 Address Sanitizer（先取消 Zombie），⌘U 跑全套，看 `LBRingBuffer`、`LBImportService` 有沒有報告；再換 Thread Sanitizer 跑 `LBLedgerConcurrencyTests` 與 `LBLockBenchmarkTests`。"
+  - "⇧⌘B Analyze，把所有藍色警告修到零；Build Settings 開 Analyze During Build。"
+  - "Build Settings：Other Warning Flags 填 `-Wall -Wextra -Wimplicit-retain-self -Wnullable-to-nonnull-conversion -Wundeclared-selector`，Treat Warnings as Errors 設 YES；Pods 專案在 Podfile 的 post_install 把 `GCC_TREAT_WARNINGS_AS_ERRORS` 設 NO。修到 ⌘B 成功。"
+  - "找一份 12.4 課文的 crash log 格式，用 `dwarfdump --uuid` 與 `atos` 對自己的 Debug 建置練一次符號化。"
+tests:
+  - LBLedgerConcurrencyTests/testConcurrentReadsAndWritesDoNotCrash
+  - LBRingBufferTests/testOverwritesOldest
+acceptance:
+  - "Exception Breakpoint 在 User 層級存在；故意寫一行 `@[][1]` 執行時停在那一行而不是 main"
+  - 開 Zombie Objects 操作所有畫面沒有 deallocated instance 訊息
+  - ASan 與 TSan 下全套測試各跑一次沒有報告
+  - "Product → Analyze 零警告"
+  - "-Wall -Wextra 加 Treat Warnings as Errors 可建置"
+solution_note: 這一題改的是 scheme 與 Build Settings，不是程式碼；但 -Werror 幾乎一定會逼你回去修十幾處舊 warning，那才是重點。ASan 與 Zombie 不能同時開，記得切換。

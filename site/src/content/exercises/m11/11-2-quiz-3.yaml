@@ -1,0 +1,20 @@
+id: m11-11-2-quiz-3
+chapter: "11.2"
+section: quiz
+type: quiz
+title: "UIAlertView 與 performSelectorInBackground: 的替代品"
+minutes: 2
+prompt: 把舊 API 配上正確的替代品。（可複選正確配對）
+multi: true
+options:
+  - "UIAlertView / UIActionSheet → UIAlertController，每個按鈕一個 UIAlertAction block"
+  - "performSelectorInBackground:withObject: → dispatch_async 到 global queue"
+  - "NSAutoreleasePool 物件 → @autoreleasepool 區塊"
+  - "performSelector:withObject:afterDelay: → dispatch_after，功能完全相同"
+  - "UIActionSheet → UIMenuController"
+answer: [0, 1, 2]
+explain: "前三個是正確配對。`afterDelay:` 改 `dispatch_after` 會失去「可取消」（`cancelPreviousPerformRequestsWithTarget:`）與「綁在 run loop」的能力，不是完全相同。`UIMenuController` 是文字選取選單，跟 action sheet 無關。"
+hints: ["每個舊 API 有什麼「隱含能力」？新的有沒有？", "UIMenuController 是哪種 UI？"]
+feedback:
+  "3": "dispatch_after 不能取消；要保留取消能力用 NSTimer 或 dispatch_block_cancel。"
+  "4": "UIMenuController 是長按文字跳出來的「複製 / 貼上」選單。"

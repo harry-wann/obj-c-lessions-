@@ -1,0 +1,18 @@
+id: m06-6-6-quiz-2
+chapter: "6.6"
+section: quiz
+type: quiz
+title: afterDelay 為什麼沒跑
+minutes: 1
+prompt: "`dispatch_async(dispatch_get_global_queue(0, 0), ^{ [self performSelector:@selector(save) withObject:nil afterDelay:1]; });` 之後 `save` 從未執行，也沒有錯誤。為什麼？"
+options:
+  - "performSelector:afterDelay: 不能在 block 裡呼叫"
+  - "afterDelay 把訊息排進當前執行緒的 run loop，GCD 的工作執行緒沒有 run loop，所以永遠不會處理"
+  - self 在 block 裡變成 nil
+  - 延遲時間必須大於 1 秒
+answer: 1
+explain: 主執行緒永遠在跑 run loop 所以平常不會注意到這個依賴。背景要延遲用 `dispatch_after`，或切回主佇列再呼叫。NSTimer 同理。
+hints: ["afterDelay 把訊息排到哪裡去了？", "GCD 的執行緒有 run loop 嗎？"]
+feedback:
+  "2": block 捕獲了 self 並 retain，不會變 nil。
+  "0": 語法上完全可以，問題在執行緒。

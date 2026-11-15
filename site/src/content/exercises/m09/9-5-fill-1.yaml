@@ -1,0 +1,30 @@
+id: m09-9-5-fill-1
+chapter: "9.5"
+type: fill
+title: 背景 context 的正確用法
+minutes: 3
+prompt: 補完「背景 context 匯入、主佇列取回」的樣板。
+code: |
+  NSManagedObjectContext *bg = [container ___1___];
+  [bg ___2___:^{
+      CDTransaction *tx = [[CDTransaction alloc] initWithContext:bg];
+      tx.note = @"匯入";
+      NSError *error = nil;
+      [bg ___3___:&error];
+      NSManagedObjectID *oid = tx.___4___;
+      dispatch_async(dispatch_get_main_queue(), ^{
+          CDTransaction *mine = [container.viewContext objectWithID:oid];
+          NSLog(@"%@", mine.note);
+      });
+  }];
+blanks:
+  "1": { accept: ["newBackgroundContext"], chips: ["newBackgroundContext", "viewContext", "backgroundContext", "newContext"] }
+  "2": { accept: ["performBlock"], chips: ["performBlock", "dispatch_async", "performBlockAndWait", "execute"] }
+  "3": { accept: ["save"], chips: ["save", "commit", "flush", "persist"] }
+  "4": { accept: ["objectID"], chips: ["objectID", "identifier", "self", "copy"] }
+hints: ["背景工作要有自己的 context。", "進 context 的佇列用它自己的方法，不是 GCD。", "跨 context 只能傳什麼？"]
+feedback:
+  "1=viewContext": viewContext 綁主佇列，在背景碰它就是違規。
+  "2=dispatch_async": 要用 context 自己的 performBlock:，它才知道在哪個佇列上執行。
+  "4=self": 把 bg 的物件直接傳給主佇列的 viewContext 用是違規；傳 objectID。
+solution_note: "`newBackgroundContext` → `performBlock:` → `save:` → 帶 `objectID` 回主佇列 → `objectWithID:`。四步缺一不可。"

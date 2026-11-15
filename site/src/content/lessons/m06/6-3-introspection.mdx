@@ -1,0 +1,276 @@
+---
+title: 內省（introspection）
+module: 6
+chapter: "6.3"
+order: 3
+minutes: 30
+prereq: ["6.1", "5.1"]
+objectives:
+  - "分辨 `isKindOfClass:` 與 `isMemberOfClass:`，並知道類別叢集為什麼讓後者幾乎沒用"
+  - "在 JSON 解析與 delegate 呼叫前用 `isKindOfClass:` / `respondsToSelector:` / `conformsToProtocol:` 防禦"
+  - "用 `NSClassFromString` + `isSubclassOfClass:` + `respondsToSelector:` 寫一個依字串建立物件的路由"
+summary: "isKindOfClass / isMemberOfClass / respondsToSelector / conformsToProtocol / class / superclass / isSubclassOfClass 的用法與差別；類別叢集與 NSNull 的陷阱；JSON 防禦與 LBRouter 字串路由。"
+terms:
+  - { en: introspection, tw: 內省, cn: 内省, jp: イントロスペクション }
+  - { en: class cluster, tw: 類別叢集, cn: 类簇, jp: クラスクラスタ }
+  - { en: duck typing, tw: 鴨子型別, cn: 鸭子类型, jp: ダックタイピング }
+  - { en: type check, tw: 型別檢查, cn: 类型检查, jp: 型チェック }
+appProgress: LBRouter 能用字串建立任何 ViewController，而且拒絕不是 UIViewController 的類別；三個 LBRouterTests 轉綠。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+if let tx = thing as? Transaction { ... }          // 轉型失敗給 nil
+if thing is Transaction { ... }                     // 含子類別
+type(of: thing) == Transaction.self                 // 精確比對類別
+if let d = delegate, d.responds(to: #selector(...)) // 只有 @objc 協定可以
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+if (thing is Transaction) { thing.amount }          // 智慧轉型，含子類別
+thing::class == Transaction::class                  // 精確比對
+(thing as? Transaction)?.amount                     // 安全轉型
+```
+</Fragment>
+<Fragment slot="java">
+```java
+if (thing instanceof Transaction tx) { tx.amount(); }   // 含子類別
+thing.getClass() == Transaction.class                   // 精確比對
+Transaction.class.isAssignableFrom(cls)                 // 類別層級的判斷
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+if (thing instanceof Transaction) { ... }           // 沿 prototype 鏈
+if (typeof thing.total === "function") { ... }      // 鴨子型別：會叫就是鴨子
+if ("amount" in thing) { ... }                      // 有這個鍵就用
+```
+</Fragment>
+Swift / Kotlin / Java 的 `is` / `instanceof` 對應 `isKindOfClass:`，都包含子類別。TypeScript 的 `typeof thing.total === "function"` 就是 Objective-C 的 `respondsToSelector:`：不問你是誰，只問你會不會這招。Objective-C 兩種都有，而且因為所有外部資料都以 `id` 進來，這些檢查用得比其他語言頻繁得多。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 五個問句
+
+<Term en="introspection" tw="內省" cn="内省" jp="イントロスペクション" />就是「問一個物件關於它自己的事」。`NSObject` 提供的問句：
+
+| 問句 | 問什麼 | 典型用途 |
+|---|---|---|
+| `[obj isKindOfClass:cls]` | 是 `cls` 或其子類別的實體？ | **幾乎所有型別判斷** |
+| `[obj isMemberOfClass:cls]` | 恰好是 `cls` 的實體（不含子類別）？ | 很少；類別叢集下常給錯答案 |
+| `[obj respondsToSelector:sel]` | 能處理這個 selector？ | optional 協定方法、字串 selector 送出前 |
+| `[obj conformsToProtocol:@protocol(P)]` | 類別宣告了遵守 `P`？ | 檢查 delegate 類型 |
+| `[cls isSubclassOfClass:other]` | 類別層級：`cls` 是 `other` 的子類別？ | 拿到 `Class` 還沒建立實體時 |
+
+再加三個「查資料」的：`[obj class]` 回類別物件、`[obj superclass]` 回父類別、`[cls instancesRespondToSelector:sel]` 在沒有實體時問「這個類別的實體會不會」。
+
+```objc
+LBTransaction *tx = ...;
+[tx isKindOfClass:[NSObject class]];           // YES：所有東西都是 NSObject 子類別
+[tx isMemberOfClass:[NSObject class]];         // NO：它是 LBTransaction，不是「恰好 NSObject」
+[tx respondsToSelector:@selector(amount)];     // YES
+[tx conformsToProtocol:@protocol(NSCopying)];  // YES（LBTransaction 宣告了）
+[[tx class] isSubclassOfClass:[NSObject class]]; // YES
+```
+
+### 類別叢集：`isMemberOfClass:` 為什麼不可靠
+
+```objc
+NSString *s = @"午餐";
+NSLog(@"%@", [s class]);                            // __NSCFConstantString
+NSLog(@"%d", [s isMemberOfClass:[NSString class]]); // 0
+NSLog(@"%d", [s isKindOfClass:[NSString class]]);   // 1
+NSLog(@"%d", [s class] == [NSString class]);        // 0
+```
+
+`NSString`、`NSArray`、`NSDictionary`、`NSNumber` 都是<Term en="class cluster" tw="類別叢集" cn="类簇" jp="クラスクラスタ" />：公開的類別是抽象門面，`alloc` / `init` 回傳的是依內容挑選的私有子類別（`__NSCFString`、`__NSArrayI`、`__NSCFNumber`…）。所以「`[s class] == [NSString class]`」永遠是假的，`isMemberOfClass:` 也一樣。只有 `isKindOfClass:` 會沿著繼承鏈往上問，找到 `NSString` 回 `YES`。**判斷型別一律用 `isKindOfClass:`**。這也解釋了為什麼 `NSMutableString` 是 `NSString` 的子類別，於是 `[mutable isKindOfClass:[NSString class]]` 是 `YES`：你不能用這個方法判斷「它是不是不可變」，2.4 講的 `copy` 才是正解。
+
+### 真實場景一：JSON 防禦
+
+```objc
++ (nullable instancetype)transactionWithJSON:(id)json {
+    if (![json isKindOfClass:[NSDictionary class]]) return nil;
+    NSDictionary *dict = json;
+
+    id amount = dict[@"amount"];
+    id note = dict[@"note"];
+    if (![amount isKindOfClass:[NSString class]] &&
+        ![amount isKindOfClass:[NSNumber class]]) return nil;
+    if (note != nil && note != [NSNull null] &&
+        ![note isKindOfClass:[NSString class]]) return nil;
+
+    NSDecimalNumber *value =
+        [NSDecimalNumber decimalNumberWithString:[amount description]];
+    NSString *safeNote = [note isKindOfClass:[NSString class]] ? note : @"";
+    return [self expenseWithAmount:value note:safeNote];
+}
+```
+
+`NSJSONSerialization` 回傳的每一層都是 `id`，伺服器改個欄位型別、把 `null` 送過來（變成 `NSNull` 而不是 `nil`），你的 App 就 crash。規則：**每一個從 JSON 取出的值，用之前先 `isKindOfClass:`**，而且在模型邊界做一次就好，不要讓 `id` 流進 UI 層。模組 7 與 9 會把這個方法變成 `initWithDictionary:error:`。
+
+### 真實場景二：optional 協定方法
+
+```objc
+if ([self.delegate respondsToSelector:@selector(ledgerDidReset:)]) {
+    [self.delegate ledgerDidReset:self];
+}
+```
+
+5.2 寫過。`@optional` 方法不保證 delegate 有實作，`respondsToSelector:` 是 Objective-C 版的<Term en="duck typing" tw="鴨子型別" cn="鸭子类型" jp="ダックタイピング" />：不管你宣告了什麼，會回應才送。`delegate` 是 `nil` 時 `respondsToSelector:` 回 `NO`，順便省掉判空。
+
+### 真實場景三：字串路由（本章 Xcode 題）
+
+舊專案的 URL scheme 常長這樣：`littlebook://open?page=LBStatsViewController`。字串進來，要建出畫面：
+
+```objc
+@implementation LBRouter
+
+static NSMutableDictionary<NSString *, NSString *> *LBAliases(void) {
+    static NSMutableDictionary *aliases;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ aliases = [NSMutableDictionary dictionary]; });
+    return aliases;
+}
+
++ (void)registerAlias:(NSString *)alias forClassName:(NSString *)className {
+    LBAliases()[alias] = className;
+}
+
++ (nullable UIViewController *)viewControllerForName:(NSString *)name {
+    NSString *className = LBAliases()[name] ?: name;
+    Class cls = NSClassFromString(className);
+    if (cls == Nil) return nil;                                   // 查無此類別
+    if (![cls isSubclassOfClass:[UIViewController class]]) return nil;  // 不是畫面
+    if ([cls instancesRespondToSelector:@selector(initWithLedger:)]) {
+        return [[cls alloc] initWithLedger:LBAppLedger()];
+    }
+    return [[cls alloc] init];
+}
+@end
+```
+
+三道關卡對應三個測試：`NSClassFromString` 查不到回 `nil`（`testUnknownRouteReturnsNil`）、`isSubclassOfClass:` 擋掉 `NSString` 這種不是畫面的類別（`testRouteRejectsNonViewControllerClass`，否則 `[[NSString alloc] init]` 會成功建出一個字串然後在 push 時 crash）、`instancesRespondToSelector:` 決定走哪個初始化器（`testRouteCreatesViewControllerByName`）。注意這裡用的是類別層級的 `isSubclassOfClass:` 與 `instancesRespondToSelector:`，因為物件還沒建立。
+
+### 完整範例（可貼進 Scratch）
+
+```objc
+#import <Foundation/Foundation.h>
+
+@protocol LBExportable <NSObject>
+- (NSString *)exportLine;
+@optional
+- (NSString *)exportHeader;
+@end
+
+@interface LBTransaction : NSObject <LBExportable>
+@property (nonatomic, copy) NSString *note;
+@end
+@implementation LBTransaction
+- (NSString *)exportLine { return [NSString stringWithFormat:@"tx,%@", _note]; }
+@end
+
+@interface LBRefund : LBTransaction
+@end
+@implementation LBRefund
+- (NSString *)exportHeader { return @"type,note"; }
+@end
+
+int main(void) {
+    @autoreleasepool {
+        LBRefund *refund = [LBRefund new];
+        refund.note = @"退款";
+        NSArray *bag = @[ refund, @"字串", @99, [NSNull null], [LBTransaction new] ];
+
+        for (id thing in bag) {
+            if (![thing conformsToProtocol:@protocol(LBExportable)]) {
+                NSLog(@"跳過 %@", [thing class]);
+                continue;
+            }
+            if ([thing respondsToSelector:@selector(exportHeader)]) {
+                NSLog(@"%@", [thing exportHeader]);
+            }
+            NSLog(@"%@", [thing exportLine]);
+        }
+
+        NSLog(@"%d %d", [refund isKindOfClass:[LBTransaction class]],
+                        [refund isMemberOfClass:[LBTransaction class]]);
+        NSLog(@"%@ → %@", [refund class], [refund superclass]);
+
+        Class cls = NSClassFromString(@"LBRefund");
+        NSLog(@"%d %d", [cls isSubclassOfClass:[LBTransaction class]],
+                        [cls instancesRespondToSelector:@selector(exportHeader)]);
+    }
+    return 0;
+}
+// 預期輸出：
+// type,note
+// tx,退款
+// 跳過 __NSCFConstantString
+// 跳過 __NSCFNumber
+// 跳過 NSNull
+// tx,(null)
+// 1 0
+// LBRefund → LBTransaction
+// 1 1
+```
+
+<Tip title="先問類別，還是先問會不會？">
+拿到不確定的 `id`：要用它的**資料**（讀屬性、放進有型別的變數）用 `isKindOfClass:`；要**叫它做事**而且不在乎它是誰（delegate、plugin、轉送目標）用 `respondsToSelector:`；要確認它**承諾了一整組行為**用 `conformsToProtocol:`。`conformsToProtocol:` 只看宣告，不保證 optional 方法有實作，所以 optional 的還是要再 `respondsToSelector:` 一次。
+</Tip>
+
+<Pitfall title="JSON 的 null 不是 nil，是 NSNull 物件">
+<Fragment slot="bad">
+```objc
+NSString *note = json[@"note"];       // 伺服器回 "note": null
+if (note) label.text = note;          // NSNull 不是 nil，進去了
+// -[NSNull length]: unrecognized selector
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+id raw = json[@"note"];
+NSString *note = [raw isKindOfClass:[NSString class]] ? raw : nil;
+```
+</Fragment>
+`NSArray` / `NSDictionary` 不能放 `nil`，所以 JSON 的 `null` 會變成單例 `[NSNull null]`。它是個真的物件，`if (x)` 擋不住。`isKindOfClass:[NSString class]` 一次解決型別錯誤與 `NSNull` 兩個問題，比 `x != [NSNull null]` 更完整。
+</Pitfall>
+
+<Pitfall title="respondsToSelector: 問錯對象：實體與類別方法">
+`[LBLedger respondsToSelector:@selector(addTransaction:)]` 回 `NO`。對類別物件問 `respondsToSelector:`，問的是**類別方法**（`+` 開頭的）。要在沒有實體時問實體方法，用 `[LBLedger instancesRespondToSelector:@selector(addTransaction:)]`。路由、工廠這種「手上只有 `Class`」的程式碼常踩到。
+</Pitfall>
+
+<Pitfall title="用 [obj class] == 比對類別">
+`if ([view class] == [UIButton class])` 對 `UIButton` 的子類別（很多 UI 套件都繼承它）回 `NO`，對 Foundation 類別叢集永遠 `NO`。除了「我確定不要子類別」這種罕見需求，一律 `isKindOfClass:`。順帶一提，6.4 的 KVO 會在執行期偷換物件的類別，`[obj class]` 被刻意改成回傳原類別，所以它連「這個物件現在的真正類別」都不一定說實話；真要看用 `object_getClass(obj)`。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: '-[NSNull length]: unrecognized selector sent to instance 0x1f4a2b3c0'
+*** First throw call stack:
+(
+	0   CoreFoundation   __exceptionPreprocess + 242
+	1   libobjc.A.dylib  objc_exception_throw + 48
+	2   CoreFoundation   -[NSObject(NSObject) doesNotRecognizeSelector:] + 132
+	3   CoreFoundation   ___forwarding___ + 1324
+	4   CoreFoundation   _CF_forwarding_prep_0 + 120
+	5   UIKitCore        -[UILabel _setText:] + 96
+	6   LittleBook       -[LBTransactionCell configureWithTransaction:] + 212
+	7   LittleBook       -[LBTransactionListViewController tableView:cellForRowAtIndexPath:] + 388
+)`}>
+類別 `NSNull`、selector `length`：有人把 JSON 的 `null` 當字串塞進 `UILabel`。位址 `0x1f4a2b3c0` 每次都一樣，因為 `NSNull` 是單例。堆疊裡 `-[UILabel _setText:]` 是 UIKit 在對你給的字串做事，再往下第一個自己的 frame `-[LBTransactionCell configureWithTransaction:]` 是賦值的地方，但真正的錯在更上游：模型層讓 `NSNull` 通過了。修法在 `transactionWithJSON:` 那一層加 `isKindOfClass:`，而不是在 cell 裡到處判 `NSNull`。這種 crash 線上才會出現（測試環境的假資料從來不給 `null`），是 JSON 防禦最有說服力的理由。
+</Crash>
+
+## 小結
+
+- 型別判斷用 `isKindOfClass:`（含子類別）；`isMemberOfClass:` 與 `[obj class] ==` 在類別叢集與子類別面前都會給錯答案。
+- `respondsToSelector:` 是鴨子型別：optional 協定方法、字串 selector 送出前必問；對類別物件問的是類別方法，實體方法用 `instancesRespondToSelector:`。
+- `conformsToProtocol:` 只看宣告；手上只有 `Class` 時用 `isSubclassOfClass:`。
+- JSON 每個值取出來都先 `isKindOfClass:`，`null` 會變 `NSNull` 物件而不是 `nil`。
+- 字串路由三道關：`NSClassFromString` 非 `Nil` → `isSubclassOfClass:` → `instancesRespondToSelector:` 選初始化器。

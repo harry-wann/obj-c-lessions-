@@ -20,7 +20,7 @@ checks:
   - must_match: '@optional[^@]*stringForTotal'
     message: "stringForTotal: 要放在 @optional 之後"
   - must_not_match: '#import\s*"LBTransaction\.h"'
-    message: 標頭檔之間用前置宣告，不要 #import LBTransaction.h
+    message: "標頭檔之間用前置宣告，不要 #import LBTransaction.h"
   - must_match: '@end'
 solution: |
   @class LBTransaction;

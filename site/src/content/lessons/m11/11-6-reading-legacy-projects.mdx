@@ -1,0 +1,236 @@
+---
+title: 舊專案的結構與讀法
+module: 11
+chapter: "11.6"
+order: 6
+minutes: 45
+prereq: ["11.5", "6.3", "3.4"]
+objectives:
+  - 用「第一天 SOP」在半天內畫出一個陌生舊專案的資料流與畫面流
+  - 讀懂巨型 ViewController、Singleton 資料流、NSNotification 串起來的流程、大量 category 的副作用
+  - 修掉 Build Settings 常見坑：-ObjC、Header Search Paths、多 target / scheme、Code Signing
+summary: "巨型 VC 怎麼拆讀、Singleton 滿天飛的資料流、靠 NSNotification 串起來的流程怎麼追、大量 category 的副作用、.pch、巨集常數、xcconfig；Build Settings 常見坑：Other Linker Flags -ObjC、Header Search Paths、多 target / scheme、Code Signing；第一天讀專案的 SOP。"
+terms:
+  - { en: massive view controller, tw: 巨型視圖控制器, cn: 巨型视图控制器, jp: 巨大ビューコントローラ }
+  - { en: singleton, tw: 單例, cn: 单例, jp: シングルトン }
+  - { en: prefix header (.pch), tw: 前置標頭檔, cn: 预编译头文件, jp: プレフィックスヘッダ }
+  - { en: xcconfig, tw: 建置設定檔, cn: 配置文件, jp: ビルド設定ファイル }
+  - { en: linker flag, tw: 連結器旗標, cn: 链接器标志, jp: リンカフラグ }
+  - { en: scheme, tw: 建置方案（scheme）, cn: 方案, jp: スキーム }
+appProgress: LittleBook-Legacy 的埋雷 3–6 修完，LegacyAudit.plist 六個勾全打；LBLegacyAuditTests/testLegacyChecklistComplete 轉綠。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// Swift 專案裡的 legacy ObjC：橋接標頭就是「舊世界的入口清單」
+// LittleBook-Bridging-Header.h 列了什麼，Swift 就看得到什麼。
+// 讀法：先讀橋接標頭 → 再讀被列出的那幾個 .h → 畫出相依方向。
+// AppDelegate.swift 裡還會看到舊的 Singleton：
+let ledger = LBLedgerManager.shared().ledger   // 全域可變狀態從這裡流出去
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// Android 舊專案第一天：先看 AndroidManifest.xml（有哪些 Activity、入口是誰）
+// → build.gradle（相依、flavor ≈ Xcode 的 target / scheme）
+// → Application 子類別（全域 Singleton 都在這裡初始化）
+class App : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        Prefs.init(this); Api.init(this); Analytics.init(this)   // 跟 AppDelegate 一模一樣
+    }
+}
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// Java 舊專案的 God Activity：3000 行、所有 onClick 都在裡面
+public class MainActivity extends Activity implements
+        View.OnClickListener, AdapterView.OnItemClickListener,
+        LocationListener, SensorEventListener { /* ... */ }
+// 跟 ObjC 的 Massive View Controller 是同一種病：VC 同時當 delegate、data source、網路回呼
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// TS 專案裡的 legacy JS：全域 window.app、jQuery 事件匯流排 ≈ NSNotificationCenter
+window.app = { ledger: [], settings: {} };            // ≈ Singleton
+$(document).trigger("ledger:changed", [tx]);          // ≈ postNotificationName:
+$(document).on("ledger:changed", (e, tx) => render()); // ≈ addObserver:
+// 追流程的方法一樣：grep 字串 "ledger:changed"
+```
+</Fragment>
+每個平台的舊專案長得都一樣：一個入口檔初始化一堆 Singleton、幾個幾千行的畫面類別、一套字串事件匯流排把它們串起來。讀法也一樣：**從入口開始，順著字串找**。不同的只是檔名：`AppDelegate.m` / `Application.kt` / `main.ts`。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 第一天讀專案的 SOP
+
+<Steps title="接手舊 ObjC 專案的第一天（半天內完成）">
+<ol>
+<li><strong>先讓它跑起來</strong>。README → <code>pod install</code> → 開 <code>.xcworkspace</code> → 選對 scheme → ⌘R 到模擬器。跑不起來的每一個錯誤都記下來，這是你第一份 PR 的材料。</li>
+<li><strong>看 Build Settings 與 target</strong>。幾個 target？哪些是 App、哪些是 extension / 測試？Deployment Target 多少？有沒有 <code>.xcconfig</code>？<code>Other Linker Flags</code> 有沒有 <code>-ObjC</code>？Compile Sources 裡哪些檔有 <code>-fno-objc-arc</code>？記在一張表。</li>
+<li><strong>讀 AppDelegate.m</strong>。<code>didFinishLaunchingWithOptions:</code> 初始化了哪些 Singleton、根 VC 是誰、有沒有 URL scheme / 推播入口。</li>
+<li><strong>讀 .pch 與巨集</strong>。<code>Prefix.pch</code> 裡 import 了什麼就是全專案隱含可見的東西；<code>#define</code> 的常數、<code>DLog</code> 類的 log 巨集、環境切換巨集（<code>#ifdef STAGING</code>）全部列出來。</li>
+<li><strong>畫畫面流</strong>。打開每個 storyboard 縮到最小看全貌；程式碼建的畫面 ⌘⇧F 搜 <code>pushViewController</code> 與 <code>presentViewController</code>。</li>
+<li><strong>畫資料流</strong>。⌘⇧F 搜 <code>sharedInstance</code> / <code>shared</code> / <code>defaultManager</code> 找出所有 Singleton；再搜 <code>postNotificationName:</code> 列出所有通知名，每個名字搜一次 <code>addObserver</code> 看誰在聽。</li>
+<li><strong>找最大的檔案</strong>。終端機 <code>find . -name "*.m" | xargs wc -l | sort -n | tail</code>，最大那三個 VC 就是未來半年你會一直回來的地方。</li>
+<li><strong>跑測試</strong>。⌘U。沒有測試或全紅，記下來，這決定 11.7 的策略。</li>
+<li>把 1–8 整理成一頁 <code>docs/ONBOARDING.md</code> 交出去。下一個接手的人會感謝你。</li>
+</ol>
+</Steps>
+
+### 巨型 ViewController 怎麼拆讀
+
+<Term en="massive view controller" tw="巨型視圖控制器" cn="巨型视图控制器" jp="巨大ビューコントローラ" />（2000 行以上的 VC）不要從頭讀。用 Xcode 的 **jump bar**（編輯器頂端的麵包屑，⌃6）列出所有方法，按來源分四堆：
+
+1. **生命週期**：`viewDidLoad`、`viewWillAppear:`、`dealloc`——先讀，這是進出口。
+2. **UIKit delegate / data source**：`tableView:...`、`textFieldDidEndEditing:`——這些是「畫面怎麼顯示」。
+3. **自己的業務方法**：`saveTransaction`、`reloadFromServer`——這些是「資料怎麼變」。
+4. **通知與 KVO 回呼**：`ledgerDidChange:`、`observeValueForKeyPath:...`——這些是「別人怎麼影響我」。
+
+用 `#pragma mark - ` 把這四堆在檔案裡分段（舊專案多半已經有，沒有就是你的第一個無風險 PR）。讀完 1 和 4 就知道這個 VC 跟外界的所有接點；2 和 3 等要改的時候再讀。
+
+### Singleton 滿天飛的資料流
+
+```objc
+// 舊專案的典型 Singleton
+@implementation LBLegacyLedgerManager
++ (instancetype)sharedManager {
+    static LBLegacyLedgerManager *shared = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{ shared = [[self alloc] init]; });
+    return shared;
+}
+@end
+// 到處都是：[[LBLegacyLedgerManager sharedManager] ledger]
+```
+
+<Term en="singleton" tw="單例" cn="单例" jp="シングルトン" /> 本身不是錯，問題是**任何地方都能讀寫它**，所以資料流看不出來。追法：對每個 Singleton 的可變屬性用 ⌘⇧F 搜 setter 呼叫（`.ledger =`、`setLedger:`），寫的地方通常只有兩三處，那就是真正的資料來源。11.7 遷移時第一步就是把 `sharedManager` 改成由 AppDelegate 建一份再用 init 注入（8.x 的 `initWithLedger:` 就是這個模式）。
+
+### 靠 NSNotification 串起來的流程
+
+6.3 教過通知的正確用法；舊專案的問題是**用通知當函式呼叫**：A 發 `@"LBTransactionSaved"`，B 收到後發 `@"LBLedgerNeedsReload"`，C 收到後更新 UI，三個檔案之間沒有任何編譯期連結。追法：
+
+```bash
+# 列出所有通知名
+grep -rhoE 'postNotificationName:@"[^"]+"' --include=*.m . | sort | uniq -c
+# 針對一個名字找誰在聽
+grep -rn 'LBTransactionSaved' --include=*.m .
+```
+
+把結果畫成「誰發 → 誰聽」的箭頭圖。常見發現：有通知沒人聽（可以刪）、有觀察者沒人發（死碼）、在 `viewDidLoad` 註冊但沒在 `dealloc` 移除（iOS 9 之前會 crash，之後是洩漏觀察者）。
+
+### 大量 category 的副作用
+
+舊專案會有 `NSString+LBUtils.h`、`UIView+Frame.h`、`UIColor+LBTheme.h` 等幾十個 category，而且多半在 `.pch` 裡全部 import，所以每個檔案都「隱含」看得到。三個副作用：
+
+1. **同名方法互相蓋掉**：兩個 pod 各自對 `NSString` 加了 `-trim`，哪一個生效看連結順序，而且無警告。檢查方法：Build Settings 開 `-Wobjc-protocol-method-implementation` 沒用，要靠**前綴**（`lb_trimmed`），這就是為什麼本課程所有 category 方法都有 `lb_`。
+2. **沒有 `-ObjC` 時在靜態庫裡消失**：見下方 Pitfall 與 Crash。
+3. **假裝是屬性的 category**：category 可以宣告 `@property` 但不能自動合成 ivar，舊碼靠 `objc_setAssociatedObject` 撐著（3.x）。看到 category 裡有 `@dynamic` 或 associated object，記得它有 runtime 成本且不會跟著 `copy`。
+
+### .pch、巨集常數、xcconfig
+
+<Term en="prefix header (.pch)" tw="前置標頭檔" cn="预编译头文件" jp="プレフィックスヘッダ" />由 Build Settings 的 `Prefix Header` 指定，內容隱含 import 到每個檔案。新 Xcode 專案預設不產生它，但舊專案一定有。危險處：你在某個檔案看到 `LBColorPrimary` 卻找不到定義，它就在 `.pch` 的 `#define` 裡；刪 `.pch` 任何一行會讓幾十個檔案編譯失敗。
+
+```objc
+// LittleBook-Prefix.pch（典型內容）
+#ifdef __OBJC__
+    #import <UIKit/UIKit.h>
+    #import <Foundation/Foundation.h>
+    #import "NSString+LBUtils.h"           // 全專案隱含可見
+    #define LBColorPrimary [UIColor colorWithRed:0.2 green:0.5 blue:0.9 alpha:1]
+    #ifdef DEBUG
+        #define DLog(fmt, ...) NSLog((@"%s " fmt), __PRETTY_FUNCTION__, ##__VA_ARGS__)
+    #else
+        #define DLog(...)
+    #endif
+#endif
+```
+
+巨集常數（`#define kAPIBase @"https://..."`）沒有型別、不能加斷點、改一處全專案重編。遷移方向是 `static NSString * const` / `extern`（1.x），或 `.xcconfig`。<Term en="xcconfig" tw="建置設定檔" cn="配置文件" jp="ビルド設定ファイル" /> 是純文字的 Build Settings，一行一個 `KEY = value`，可被 target 的 Configuration 選用。CocoaPods 自己就靠它（`Pods-LittleBook.debug.xcconfig`）；如果專案自己也有 xcconfig，要用 `#include "Pods/..."` 把 Pods 的那份包進來，否則 pod 的 header search path 會被你的設定蓋掉。
+
+### Build Settings 常見坑
+
+| 設定 | 坑 | 怎麼看 |
+|---|---|---|
+| `Other Linker Flags` | 少 `-ObjC`：靜態庫的 category 執行期找不到 | 本章 Crash |
+| `Header Search Paths` / `User Header Search Paths` | 寫死絕對路徑（`/Users/someone/...`）、少 `$(inherited)` 蓋掉 Pods 的 | 搜 `/Users/`；每個路徑類設定第一行都該是 `$(inherited)` |
+| 多 target / <Term en="scheme" tw="建置方案（scheme）" cn="方案" jp="スキーム" /> | Lite / Pro 兩個 target 共用檔案但 Target Membership 漏勾；scheme 選錯 target 跑的是另一個 App | File inspector 看 Target Membership；Product → Scheme → Manage Schemes |
+| `Preprocessor Macros` | Debug 有 `DEBUG=1` Release 沒有，`#ifdef DEBUG` 的碼只在一邊跑；還有 target 專屬巨集 | 兩個 Configuration 各看一次 |
+| Code Signing | 舊專案手動簽、Provisioning Profile 已過期、Team 是離職者的 | 先改 Automatically manage signing、Bundle ID 改成自己的，能跑模擬器就好 |
+| `Architectures` / `Valid Architectures` | 寫死 `armv7`、`VALID_ARCHS` 已被 Xcode 12 棄用 | 刪掉 `VALID_ARCHS`，用 `EXCLUDED_ARCHS` |
+| `Always Search User Paths` | 設 YES 讓 `#import <X/X.h>` 也搜 user path，掩蓋了錯誤的 import | 設 NO 後看哪些 import 壞掉 |
+
+### -ObjC 旗標：為什麼 category 會消失
+
+<Term en="linker flag" tw="連結器旗標" cn="链接器标志" jp="リンカフラグ" /> `-ObjC` 是面試必考。連結靜態庫（`.a`）時，連結器預設**只拉進有被參考到符號的 object file**。一個 `.m` 檔如果只定義 category（`NSString+LBUtils.m`），裡面沒有任何「類別」符號會被你的程式參考——你呼叫 `[str lb_trimmed]` 是送訊息，不是參考符號——所以整個 object file 被丟掉，執行期找不到方法。`-ObjC` 告訴連結器：凡是含 ObjC 類別或 category 的 object file 全部拉進來。
+
+更強的兩個：`-all_load`（所有 object file 全拉，不管有沒有 ObjC）、`-force_load <path>`（只對指定的 `.a` 全拉）。CocoaPods 的 xcconfig 會自動加 `-ObjC`；手動拖進來的 `.a` 要自己加。動態 framework 沒有這個問題，因為整個 framework 是一個單位。
+
+<Tip title="第一個 PR 要「零風險」">
+加 `#pragma mark`、補 `$(inherited)`、把 `Podfile.lock` 從 `.gitignore` 拿出來、寫 `ONBOARDING.md`——這些不改行為，但讓你走過一次 review 流程、認識誰會審你的 code、確認 CI 怎麼跑。第二週再碰埋雷。
+</Tip>
+
+<Pitfall title="Header Search Paths 少了 $(inherited)">
+<Fragment slot="bad">
+```text
+HEADER_SEARCH_PATHS = "$(SRCROOT)/Vendor/include"
+→ pod install 後 Masonry/Masonry.h file not found
+   （Pods 的 xcconfig 設定被這一行整個蓋掉）
+```
+</Fragment>
+<Fragment slot="good">
+```text
+HEADER_SEARCH_PATHS = $(inherited) "$(SRCROOT)/Vendor/include"
+```
+</Fragment>
+`pod install` 結尾會印警告 `[!] The LittleBook target overrides the HEADER_SEARCH_PATHS build setting`。所有路徑類與旗標類設定（`OTHER_LDFLAGS`、`FRAMEWORK_SEARCH_PATHS`、`GCC_PREPROCESSOR_DEFINITIONS`）都適用同一條規則。
+</Pitfall>
+
+<Pitfall title="Debug 跟 Release 跑的是不同程式">
+<Fragment slot="bad">
+```objc
+#ifdef DEBUG
+    [LBAnalytics setEnabled:NO];
+#endif
+// Release 才送 analytics；而 Release 的 Preprocessor Macros 另外定義了 STAGING=1
+// 於是 Archive 出來的測試版送到正式伺服器
+```
+</Fragment>
+<Fragment slot="good">
+```text
+用 xcconfig 把 Debug / Staging / Release 三個 Configuration 的差異寫在同一處，
+每個 Configuration 一個檔案，#include 共用的 Base.xcconfig；
+程式碼裡只讀 Info.plist 的 LBAPIBaseURL，不用 #ifdef 分流。
+```
+</Fragment>
+Build Settings 面板一次只顯示一個 Configuration 的值，點開三角形才看得到每個 Configuration。接手專案時每個會影響行為的巨集都要展開看一次。
+</Pitfall>
+
+<Pitfall title="xcworkspace 裡有兩個 project，改錯邊">
+`pod install` 後 workspace 裡有你的 `LittleBook.xcodeproj` 與 `Pods.xcodeproj`。你在 Pods 那邊的檔案按 ⌘S 存了修改，下一次 `pod install` 全部還原。要改第三方庫：fork 它、在 Podfile 用 `:git =>` 或 `:path =>` 指向你的版本。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: '-[__NSCFString lb_trimmed]: unrecognized selector sent to instance 0x600000d4c2a0'`}>
+`unrecognized selector`（2.x）通常是打錯方法名，但這裡 `lb_trimmed` 明明在 `NSString+LBUtils.h` 裡宣告了、`.m` 也實作了、編譯連結都過。關鍵線索：**這個 category 住在一個靜態庫裡**（`LBLegacyKit.a` 或沒加 `use_frameworks!` 的 pod），而且 `-[__NSCFString ...]` 說明接收者是真的 `NSString`，不是打錯物件。
+
+原因：連結器丟掉了只含 category 的 object file（見上文），`lb_trimmed` 的實作根本不在執行檔裡。修法：主 App target 的 Build Settings → `Other Linker Flags` 加 `-ObjC`（CocoaPods 專案確認 `$(inherited)` 還在）。如果用 `-ObjC` 之後還是找不到，表示該靜態庫**只有** category 沒有任何類別——某些舊版連結器對這種情況連 `-ObjC` 都無效，改用 `-force_load $(SRCROOT)/Vendor/LBLegacyKit.a`。這就是 LittleBook-Legacy 的埋雷 5。
+</Crash>
+
+## 小結
+
+- 第一天 SOP：跑起來 → Build Settings 與 target 表 → AppDelegate → `.pch` 與巨集 → 畫面流 → 資料流（Singleton、通知）→ 最大的檔案 → 測試 → 寫 ONBOARDING.md。
+- 巨型 VC 用 jump bar 分四堆（生命週期 / UIKit 回呼 / 業務 / 通知），先讀進出口；Singleton 追 setter；通知用 grep 畫「誰發誰聽」。
+- category 要前綴；沒 `-ObjC` 時靜態庫裡只含 category 的檔案會被連結器丟掉，執行期 `unrecognized selector`。
+- `.pch` 是隱含 import 的來源；巨集常數遷到 `static const` 或 xcconfig；路徑類設定第一行永遠 `$(inherited)`。
+- 第一個 PR 零風險：`#pragma mark`、`$(inherited)`、lock 檔進版控、文件。

@@ -1,0 +1,18 @@
+id: m06-6-5-quiz-2
+chapter: "6.5"
+section: quiz
+type: quiz
+title: 交換之後名字對調
+minutes: 1
+prompt: "用 `method_exchangeImplementations` 交換了 `viewDidAppear:` 與 `lb_viewDidAppear:`。在 `lb_viewDidAppear:` 的實作裡要呼叫原本的 viewDidAppear: 行為，應該寫？"
+options:
+  - "[super viewDidAppear:animated];"
+  - "[self viewDidAppear:animated];"
+  - "[self lb_viewDidAppear:animated];"
+  - "objc_msgSend(self, @selector(viewDidAppear:));"
+answer: 2
+explain: 交換後 selector 與 IMP 的對應對調了：`viewDidAppear:` 指向你的程式碼，原本的 IMP 掛在 `lb_viewDidAppear:` 底下。寫 `[self viewDidAppear:]` 會跳回自己，無限遞迴到堆疊溢位。
+hints: ["交換之後，哪個名字對應到原本的 IMP？", "看起來像遞迴的那個才是對的。"]
+feedback:
+  "1": 這會呼叫到自己（已經被交換成 lb_ 的實作），無限遞迴。
+  "0": "super 的 viewDidAppear: 是父類別的實作，不是這個類別原本的那份，而且 UIViewController 分類裡的 super 是 UIResponder。"

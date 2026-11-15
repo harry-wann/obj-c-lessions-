@@ -1,0 +1,13 @@
+id: m12-12-6-interview-5
+chapter: "12.6"
+type: flash
+tier: interview
+title: 面試速記：分類 vs 類別延伸
+minutes: 2
+front: |
+  分類（category）與類別延伸（class extension）有什麼差別？分類可以加屬性嗎？
+back: |
+  分類：對任何類別（包含沒原始碼的系統類別）加方法，寫在獨立的 .h / .m，執行期合併進類別；不能加實體變數，所以 @property 只會有宣告沒有儲存。
+  類別延伸：寫法是 @interface X ()，只能放在該類別自己的 .m 裡，可以加 ivar 與屬性，編譯器會自動合成；用途是私有成員。
+  分類想要「屬性」要靠關聯物件 objc_setAssociatedObject 存值；分類方法命名加前綴 lb_ 避免跟原類別或其他分類撞名（撞名時哪個生效未定義）。
+  加分延伸：Swift 的 extension 對應分類，一樣不能加儲存屬性；分類覆寫原類別方法會有 warning，要用子類別或 swizzling。

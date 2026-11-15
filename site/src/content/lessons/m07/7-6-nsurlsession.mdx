@@ -1,0 +1,337 @@
+---
+title: "NSURLSession 網路請求"
+module: 7
+chapter: "7.6"
+order: 6
+minutes: 40
+prereq: ["7.5", "7.1"]
+objectives:
+  - "用 NSURLSession 發出 data task、記得 resume、在回呼裡依序判 error → HTTP 狀態碼 → data，最後切回主佇列"
+  - "說出 sharedSession 與自訂 configuration 的差別，知道怎麼用 NSURLProtocol 在測試裡攔截請求、不打網路"
+  - "看懂 ATS 的錯誤訊息，知道 http 例外設定要加在哪、不該加什麼"
+summary: "sharedSession vs 自訂 configuration、dataTaskWithURL:completionHandler: 要 resume、回呼在背景執行緒、HTTP 狀態碼要自己判、取消、ATS 與 http 例外設定、NSURLProtocol stub；對照 Swift async URLSession、Kotlin OkHttp + coroutines、Java HttpClient、TS fetch。"
+terms:
+  - { en: session, tw: 會話（session）, cn: 会话, jp: セッション }
+  - { en: data task, tw: 資料任務, cn: 数据任务, jp: データタスク }
+  - { en: completion handler, tw: 完成處理器（completion）, cn: 完成回调, jp: 完了ハンドラ }
+  - { en: App Transport Security (ATS), tw: ATS, cn: ATS, jp: ATS }
+  - { en: status code, tw: 狀態碼, cn: 状态码, jp: ステータスコード }
+  - { en: stub, tw: 替身（stub）, cn: 桩, jp: スタブ }
+appProgress: "LBRateService 用 NSURLSession 抓匯率 JSON，回呼切回主佇列；LBStubURLProtocol 讓測試不打網路，testCompletionCalledOnMainQueue 轉綠。"
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// Swift 5.5+：同一個 URLSession，async 版
+let (data, response) = try await URLSession.shared.data(from: url)
+guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+    throw RateError.httpStatus
+}
+let rates = try JSONDecoder().decode(Rates.self, from: data)
+label.text = rates.description          // 若在 @MainActor 裡，已經在主執行緒
+// 回呼版（跟 ObjC 一模一樣）：
+URLSession.shared.dataTask(with: url) { data, response, error in ... }.resume()
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// OkHttp + coroutines
+suspend fun fetchRates(): Rates = withContext(Dispatchers.IO) {
+    val response = client.newCall(Request.Builder().url(url).build()).execute()
+    if (!response.isSuccessful) throw HttpException(response.code)   // 狀態碼自己判
+    json.decodeFromString(response.body!!.string())
+}
+viewModelScope.launch { label.text = fetchRates().toString() }       // 回到 Main
+// Retrofit 把這些包成介面 + suspend fun；Android 9+ 預設禁 cleartext http（≈ ATS）
+```
+</Fragment>
+<Fragment slot="java">
+```java
+HttpClient client = HttpClient.newHttpClient();
+HttpRequest request = HttpRequest.newBuilder(URI.create(url)).GET().build();
+client.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+      .thenAccept(response -> {                       // 在 executor 的執行緒上
+          if (response.statusCode() / 100 != 2) throw new RuntimeException("HTTP " + response.statusCode());
+          var rates = mapper.readValue(response.body(), Rates.class);
+          SwingUtilities.invokeLater(() -> label.setText(rates.toString()));
+      });
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+const controller = new AbortController();
+const res = await fetch(url, { signal: controller.signal });
+if (!res.ok) throw new Error(`HTTP ${res.status}`);   // fetch 不會因 404 reject，要自己判
+const rates = await res.json();
+label.textContent = String(rates);                     // 單執行緒，本來就在「主執行緒」
+controller.abort();                                    // 取消
+```
+</Fragment>
+四種語言的 HTTP 請求都有同一條檢查鏈：**連線層錯誤 → HTTP 狀態碼 → 解析內容**。TS 的 `fetch` 跟 ObjC 最像：404 不算錯誤、要看 `res.ok`。差別在回來之後：TS 本來就在唯一的執行緒上，Swift `async` 與 Kotlin coroutines 會自動回到 main，Java 跟 ObjC 要自己把 UI 更新送回主執行緒。`NSURLSession` 的回呼版 API 與 Swift 的 `dataTask(with:completionHandler:)` 一字不差，Swift 工程師只要記得 ObjC 沒有 `async` 版。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 一次完整的請求
+
+```objc
+NSURL *url = [NSURL URLWithString:@"https://api.example.com/rates?base=TWD"];
+NSURLSessionDataTask *task =
+    [[NSURLSession sharedSession] dataTaskWithURL:url
+                                completionHandler:^(NSData * _Nullable data,
+                                                    NSURLResponse * _Nullable response,
+                                                    NSError * _Nullable error) {
+    // 這裡在背景執行緒
+    if (error) {                                               // 1. 連線層：沒網路、逾時、被取消
+        [self finishWithError:error];
+        return;
+    }
+    NSHTTPURLResponse *http = (NSHTTPURLResponse *)response;
+    if (http.statusCode < 200 || http.statusCode >= 300) {     // 2. HTTP 層：404、500 不算 error
+        [self finishWithError:[self httpErrorWithStatus:http.statusCode]];
+        return;
+    }
+    NSError *parseError = nil;                                 // 3. 內容層：7.7
+    NSDictionary *rates = [LBRateService ratesFromJSONData:data error:&parseError];
+    dispatch_async(dispatch_get_main_queue(), ^{               // 4. 回主佇列
+        completion(rates, parseError);
+    });
+}];
+[task resume];                                                 // 5. 忘了這行什麼都不會發生
+```
+
+<Term en="session" tw="會話（session）" cn="会话" jp="セッション" />是一組請求共用的環境（快取、cookie、逾時、額外標頭），<Term en="data task" tw="資料任務" cn="数据任务" jp="データタスク" />是其中一次請求。task 建立出來是**暫停**狀態，要 `resume` 才開始，這是本章第一個陷阱。<Term en="completion handler" tw="完成處理器（completion）" cn="完成回调" jp="完了ハンドラ" />三個參數要照順序看：
+
+1. `error` 非 nil：連線層失敗，`NSURLErrorDomain`，常見 code `-1009`（沒網路，`NSURLErrorNotConnectedToInternet`）、`-1001`（逾時）、`-999`（被 `cancel`，`NSURLErrorCancelled`）。這時 `data` 是 nil。
+2. `error` 是 nil 不代表成功：伺服器回 404、500，對 `NSURLSession` 來說是「成功收到回應」。要把 `response` 轉成 `NSHTTPURLResponse` 自己看 <Term en="status code" tw="狀態碼" cn="状态码" jp="ステータスコード" />。這跟 TS `fetch` 一樣、跟 axios 不一樣。
+3. 兩關都過才解析 `data`。
+
+回呼預設在 session 的 delegate queue 上，是一條**背景**串列佇列，所以碰 UI 之前要 `dispatch_async(main)`。小帳本的做法是把切換寫在 service 裡面（`LBRateService` 保證回呼在主佇列），呼叫端就不用每次自己切。
+
+### sharedSession vs 自訂 configuration
+
+```objc
+NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
+config.timeoutIntervalForRequest = 15;                                   // 預設 60 秒太久
+config.HTTPAdditionalHeaders = @{ @"Accept": @"application/json" };
+config.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
+NSURLSession *session = [NSURLSession sessionWithConfiguration:config];
+```
+
+`[NSURLSession sharedSession]` 是全域單例，沒有 delegate、不能改設定，拿來丟幾個簡單請求很方便。要調逾時、加共用標頭、用 delegate 看進度、或是**在測試裡換掉網路層**，就自己建一個。三種 configuration：`defaultSessionConfiguration`（磁碟快取與 cookie 都有）、`ephemeralSessionConfiguration`（全在記憶體，關掉就沒，隱私瀏覽那種）、`backgroundSessionConfigurationWithIdentifier:`（App 被殺掉也繼續下載，由系統代管，寫法完全不同，不在本課範圍）。
+
+`LBRateService` 用注入的方式拿 session：`initWithSession:baseURL:`。生產環境傳 `sharedSession` 或自訂的；測試傳一個掛了 stub 的。這是 ObjC 做依賴注入最常見的樣子，不需要任何框架。
+
+### 取消
+
+```objc
+self.currentTask = task;
+[task resume];
+...
+[self.currentTask cancel];      // 回呼仍會被呼叫，error.code == NSURLErrorCancelled
+```
+
+`cancel` 之後回呼**還是會來**，帶著 `NSURLErrorDomain` / `-999`。所以回呼裡要把這個 code 當成「使用者主動取消」處理：不跳錯誤框、不 log 成失敗。搜尋列每打一個字發一次請求、下一次先 `cancel` 上一次，是最常見的用法，10.x 的 `LBSearchController` 會寫完整版。
+
+### ATS：預設只准 https
+
+<Term en="App Transport Security (ATS)" tw="ATS" cn="ATS" jp="ATS" />是 iOS 9 起的規則：預設所有連線都要 TLS 1.2 以上的 https，純 http 直接被擋，回呼拿到 `NSURLErrorDomain` code `-1022`。公司內網測試機只有 http 時，在 `Info.plist` 加例外，而且**只對那個網域**：
+
+```xml
+<key>NSAppTransportSecurity</key>
+<dict>
+    <key>NSExceptionDomains</key>
+    <dict>
+        <key>dev.internal.example.com</key>
+        <dict>
+            <key>NSExceptionAllowsInsecureHTTPLoads</key><true/>
+        </dict>
+    </dict>
+</dict>
+```
+
+`NSAllowsArbitraryLoads = YES` 是全開，送審時要寫理由，而且 2017 年起 Apple 會退件。看到有人為了一個測試端點把它打開，請改成 `NSExceptionDomains`。
+
+### 測試不打網路：NSURLProtocol stub
+
+`NSURLProtocol` 是 URL 載入系統的擴充點：你註冊一個子類別，它就有機會攔下每個請求、自己決定回什麼。拿來當<Term en="stub" tw="替身（stub）" cn="桩" jp="スタブ" />，測試就不碰網路、不受伺服器狀態影響、也能製造 500 與壞 JSON：
+
+```objc
+// LBStubURLProtocol.h / .m（測試 target）
+@interface LBStubURLProtocol : NSURLProtocol
++ (void)stubURL:(NSURL *)url statusCode:(NSInteger)status data:(NSData *)data;
+@end
+
+@implementation LBStubURLProtocol
+static NSMutableDictionary<NSURL *, NSDictionary *> *stubs;
++ (void)stubURL:(NSURL *)url statusCode:(NSInteger)status data:(NSData *)data {
+    if (!stubs) stubs = [NSMutableDictionary dictionary];
+    stubs[url] = @{ @"status": @(status), @"data": data };
+}
++ (BOOL)canInitWithRequest:(NSURLRequest *)request { return stubs[request.URL] != nil; }
++ (NSURLRequest *)canonicalRequestForRequest:(NSURLRequest *)request { return request; }
+- (void)startLoading {
+    NSDictionary *stub = stubs[self.request.URL];
+    NSHTTPURLResponse *response = [[NSHTTPURLResponse alloc] initWithURL:self.request.URL
+                                                              statusCode:[stub[@"status"] integerValue]
+                                                             HTTPVersion:@"HTTP/1.1"
+                                                            headerFields:@{ @"Content-Type": @"application/json" }];
+    [self.client URLProtocol:self didReceiveResponse:response cacheStoragePolicy:NSURLCacheStorageNotAllowed];
+    [self.client URLProtocol:self didLoadData:stub[@"data"]];
+    [self.client URLProtocolDidFinishLoading:self];
+}
+- (void)stopLoading {}
+@end
+
+// 測試裡：
+NSURLSessionConfiguration *config = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+config.protocolClasses = @[[LBStubURLProtocol class]];        // 掛上 stub
+NSURLSession *session = [NSURLSession sessionWithConfiguration:config];
+LBRateService *service = [[LBRateService alloc] initWithSession:session baseURL:baseURL];
+```
+
+重點在 `config.protocolClasses`：只對這個 session 生效，不會污染 `sharedSession`。這也是為什麼 `LBRateService` 要能注入 session。非同步的測試要用 `XCTestExpectation`：建立 expectation、回呼裡 `fulfill`、最後 `waitForExpectations:timeout:`；要驗「回呼在主佇列」就在回呼裡 `XCTAssertTrue([NSThread isMainThread])`。
+
+### 完整範例（可貼進 Scratch）
+
+命令列程式沒有伺服器可打，但 `NSURLSession` 支援 `data:` URL，可以把 JSON 用 base64 寫在 URL 裡測整條流程（直接寫 `{` 與 `"` 的話 `URLWithString:` 在舊系統會回 nil）：
+
+```objc
+#import <Foundation/Foundation.h>
+
+static void fetch(NSURLSession *session, NSString *urlString, dispatch_block_t done) {
+    NSURL *url = [NSURL URLWithString:urlString];
+    NSURLSessionDataTask *task = [session dataTaskWithURL:url
+                                        completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        NSLog(@"回呼在主執行緒？%d", [NSThread isMainThread]);
+        if (error) {
+            NSLog(@"連線錯誤 %ld：%@", (long)error.code, error.localizedDescription);
+        } else {
+            NSString *body = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+            NSLog(@"收到 %lu bytes：%@", (unsigned long)data.length, body);
+        }
+        dispatch_async(dispatch_get_main_queue(), done);       // 回主佇列
+    }];
+    [task resume];
+}
+
+int main(void) {
+    NSURLSessionConfiguration *config = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+    config.timeoutIntervalForRequest = 5;
+    NSURLSession *session = [NSURLSession sessionWithConfiguration:config];
+
+    fetch(session, @"data:application/json;base64,eyJiYXNlIjoiVFdEIiwicmF0ZXMiOnsiVVNEIjowLjAzMX19", ^{
+        fetch(session, @"data:text/plain,", ^{
+            NSURLSessionDataTask *t = [session dataTaskWithURL:[NSURL URLWithString:@"https://example.com"]
+                                             completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+                NSLog(@"取消後的回呼：code=%ld", (long)e.code);
+                exit(0);
+            }];
+            [t resume];
+            [t cancel];                                            // 立刻取消
+        });
+    });
+    dispatch_main();
+    return 0;
+}
+// 預期輸出：
+// 回呼在主執行緒？0
+// 收到 36 bytes：{"base":"TWD","rates":{"USD":0.031}}
+// 回呼在主執行緒？0
+// 收到 0 bytes：
+// 取消後的回呼：code=-999
+```
+
+三個回呼都印 `0`：`NSURLSession` 的回呼不在主執行緒。巢狀三層就看得出 callback pyramid 的樣子，這正是 `dispatch_group`（7.3）與 Swift `async` 要解的問題。
+
+<Steps title="在 Xcode 看一次請求的細節">
+<ol>
+<li>回呼第一行下斷點，停住後在 lldb 輸入 <code>po response</code>：看得到 <code>Status Code</code> 與全部回應標頭。</li>
+<li><code>po [[NSString alloc] initWithData:data encoding:4]</code>（4 = UTF-8）把 body 印成字串。</li>
+<li>Debug Navigator 看現在停在哪條佇列：名字是 <code>com.apple.NSURLSession-delegate</code>，不是 main。</li>
+<li>要看整個 App 的流量，Xcode 15+ 用 Instruments 的 Network 範本，或在 Scheme → Arguments 加環境變數 <code>CFNETWORK_DIAGNOSTICS=1</code>（log 會很多）。</li>
+</ol>
+</Steps>
+
+<Pitfall title="忘記 resume">
+<Fragment slot="bad">
+```objc
+[[NSURLSession sharedSession] dataTaskWithURL:url completionHandler:^(...) {
+    ...
+}];
+// 什麼都沒發生、沒有錯誤、沒有 log
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithURL:url completionHandler:^(...) {
+    ...
+}];
+[task resume];
+```
+</Fragment>
+task 建立時是 suspended 狀態。這是最常見也最難查的一個：沒有任何訊息，就是「網路壞了？」然後花半小時看 Charles。習慣寫法是在建立的同一個方法裡最後一行 `[task resume]`，或把 `resume` 寫在 service 的 helper 裡讓呼叫端不可能忘。
+</Pitfall>
+
+<Pitfall title="回呼裡直接更新 UI">
+<Fragment slot="bad">
+```objc
+completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+    self.rateLabel.text = @"更新中…";         // 背景執行緒
+    [self.tableView reloadData];
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+    NSDictionary *rates = [LBRateService ratesFromJSONData:data error:NULL];   // 解析留在背景
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self.rates = rates;
+        [self.tableView reloadData];
+    });
+}
+```
+</Fragment>
+`NSURLSession` 的回呼在 delegate queue（背景）上，Main Thread Checker 會抓到（7.5 的 crash 現場）。另一個做法是建 session 時 `sessionWithConfiguration:delegate:delegateQueue:[NSOperationQueue mainQueue]`，所有回呼都進主佇列，但解析也會跑在主執行緒上，資料大時卡畫面，小帳本不採用。
+</Pitfall>
+
+<Pitfall title="只判 error，不看狀態碼">
+<Fragment slot="bad">
+```objc
+if (error) { ... return; }
+NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];  // 404 的 HTML 頁面也會進來
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+if (error) { ... return; }
+NSInteger status = ((NSHTTPURLResponse *)response).statusCode;
+if (status < 200 || status >= 300) {
+    NSError *httpError = [NSError errorWithDomain:LBErrorDomain code:LBErrorCodeHTTPStatus
+                                         userInfo:@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:@"HTTP %ld", (long)status] }];
+    ... return;
+}
+```
+</Fragment>
+伺服器回 404 / 500 時 `error` 是 nil、`data` 是錯誤頁面的 HTML，直接丟進 `NSJSONSerialization` 得到 `LBErrorCodeMalformedJSON`，錯誤訊息完全誤導。把狀態碼放進 `userInfo` 的自訂 key，之後查 log 才知道是哪種 HTTP 錯。
+</Pitfall>
+
+<Crash message={`Task <A3F2...>.<1> finished with error [-1022] Error Domain=NSURLErrorDomain Code=-1022 "The resource could not be loaded because the App Transport Security policy requires the use of a secure connection." UserInfo={NSLocalizedDescription=..., NSErrorFailingURLStringKey=http://dev.internal.example.com/rates, NSUnderlyingError=0x600003d1c4b0 {Error Domain=kCFErrorDomainCFNetwork Code=-1022 "(null)"}}`}>
+不是 crash，但在 Console 看到這一段就知道是 ATS 擋下了 http。三個線索：`Code=-1022`（`NSURLErrorAppTransportSecurityRequiresSecureConnection`）、訊息裡的 `App Transport Security`、`NSErrorFailingURLStringKey` 告訴你是哪個 URL。注意這個 error 會透過回呼的 `error` 參數交給你，走的是 7.1 說的 `NSURLErrorDomain`，你的程式碼若把所有 `error` 都顯示成「網路連線失敗」，使用者永遠不知道是設定問題。修法：伺服器改 https（正解）；做不到就在 `Info.plist` 的 `NSExceptionDomains` 加**那一個網域**的 `NSExceptionAllowsInsecureHTTPLoads`，不要開 `NSAllowsArbitraryLoads`。模擬器與實機行為一致，不用懷疑是模擬器問題。
+</Crash>
+
+## 小結
+
+- 一次請求：建 task → `resume` → 回呼裡依序判 **`error`（連線層）→ `statusCode`（HTTP 層，404 / 500 不算 error）→ 解析 `data`** → `dispatch_async(main)` 更新 UI。
+- 回呼在背景串列佇列上；小帳本把切回主佇列的責任放在 service 裡。
+- `sharedSession` 拿來丟簡單請求；要調逾時、加標頭、注入 stub 就自建 `NSURLSessionConfiguration`。`protocolClasses` 只影響那個 session。
+- `cancel` 之後回呼仍會來，`error.code == NSURLErrorCancelled (-999)`，不要當成失敗顯示。
+- ATS 預設只准 https；例外用 `NSExceptionDomains` 指定網域，不開 `NSAllowsArbitraryLoads`。測試用 `NSURLProtocol` 子類別當 stub，不打網路。

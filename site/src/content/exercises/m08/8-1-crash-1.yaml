@@ -1,0 +1,33 @@
+id: m08-8-1-crash-1
+chapter: "8.1"
+type: crash
+title: 刪了 Storyboard 卻 crash
+minutes: 2
+log: |
+  *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+  reason: 'Could not find a storyboard named 'Main' in bundle NSBundle
+  </Users/you/Library/Developer/CoreSimulator/Devices/.../LittleBook.app> (loaded)'
+  *** First throw call stack:
+  (
+    2  UIKitCore  -[UIStoryboard name]
+    3  UIKitCore  -[UIApplication _loadMainStoryboardFileNamed:bundle:]
+    4  UIKitCore  -[UIApplication _runWithMainScene:transitionContext:completion:]
+  )
+options:
+  - "Info.plist 還留著 UIMainStoryboardFile 或 UISceneStoryboardFile = Main，系統啟動時去找已經刪掉的檔案"
+  - SceneDelegate 沒有建立 UIWindow
+  - Main.storyboard 沒有加進 target 的 Copy Bundle Resources
+  - AppDelegate 的 configurationForConnectingSceneSession 回傳 nil
+answer: 0
+fix: |
+  <!-- Info.plist：刪掉這兩個鍵 -->
+  <key>UIMainStoryboardFile</key><string>Main</string>
+  <!-- 以及 UISceneConfigurations → … → -->
+  <key>UISceneStoryboardFile</key><string>Main</string>
+  <!-- 並把 Target → General → Main Interface 清空，⇧⌘K 清快取 -->
+solution_note: "呼叫堆疊的 _loadMainStoryboardFileNamed: 說明是啟動流程依 plist 設定去載 Storyboard。程式碼啟動要兩個鍵都刪。選項 2 是「真的想用 Storyboard」時的修法，這裡我們是故意刪掉它。"
+feedback:
+  "1": 沒建 window 是黑畫面不是 crash，而且堆疊裡沒有你的 SceneDelegate。
+  "2": 如果你要用 Storyboard 這是對的修法，但我們的目標是不用它。
+  "3": 回 nil 會是另一條訊息，而且堆疊裡找的是 storyboard 名字。
+hints: ["呼叫堆疊裡誰在找 storyboard？", "你刪了檔案，但誰還記得它？"]

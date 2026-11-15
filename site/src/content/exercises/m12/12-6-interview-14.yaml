@@ -1,0 +1,14 @@
+id: m12-12-6-interview-14
+chapter: "12.6"
+type: flash
+tier: interview
+title: 面試速記：GCD 死結
+minutes: 2
+front: |
+  這段為什麼死結？`dispatch_sync(dispatch_get_main_queue(), ^{ ... });` 寫在 viewDidLoad 裡。還有哪些 GCD 死結？
+back: |
+  viewDidLoad 已經在主佇列（串列）上執行；dispatch_sync 要等 block 在同一個佇列執行完才回傳，但佇列得先等 viewDidLoad 結束才能跑下一個 block，兩邊互等。
+  通則：在串列佇列上對同一條佇列 dispatch_sync 必死；巢狀的 A sync 到 B、B 再 sync 回 A 也一樣。
+  修法：改 dispatch_async；或用 dispatch_queue_set_specific / dispatch_get_specific 判斷是否已在目標佇列上，是就直接執行 block。
+  dispatch_sync 到並行佇列不會死結，但會卡住呼叫的執行緒；信號量 wait 在主執行緒等一個會回主執行緒的回呼也是同類死結。
+  加分延伸：dispatch_barrier_sync 在自己的佇列上一樣死結；NSLock 非可重入，同一執行緒 lock 兩次也是死結，要用 NSRecursiveLock。

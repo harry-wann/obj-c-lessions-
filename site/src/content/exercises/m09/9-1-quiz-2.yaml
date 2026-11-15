@@ -1,0 +1,20 @@
+id: m09-9-1-quiz-2
+chapter: "9.1"
+section: quiz
+type: quiz
+title: 哪些東西適合放 Caches
+minutes: 2
+prompt: 以下哪些適合放 `Library/Caches/`？（可複選）
+multi: true
+options:
+  - 從匯率 API 抓回來的最近一次匯率表
+  - 使用者編輯中、還沒存檔的交易草稿
+  - 分類圖示的縮圖
+  - 使用者匯入的原始 CSV（匯入後還會再用）
+  - 列表畫面用到的、由交易算出來的月份統計快取
+answer: [0, 2, 4]
+explain: Caches 放「可以重新算、重新下載」的東西：匯率可以再抓、縮圖可以再產生、統計可以再算。草稿與使用者匯入的檔弄丟就沒了，放 Documents。
+hints: ["每一項問一次：被系統清掉後能不能重新生出來？", "「使用者產生」的東西幾乎都不該放 Caches。"]
+feedback:
+  "1": 草稿是使用者的勞動成果，被清掉就沒了；放 Documents，或存成一個 plist 在 Application Support。
+  "3": 使用者匯入的檔不一定還留在原處；要是之後還會用，就放 Documents，不想備份可加 NSURLIsExcludedFromBackupKey。

@@ -1,0 +1,53 @@
+id: m12-12-2-code-1
+chapter: "12.2"
+type: code
+title: 寫一層 @objc 包裝給 ObjC 用
+mobile: false
+minutes: 10
+prompt: "`StatsViewModel.categoryBreakdown()` 回傳 `[(name: String, total: NSDecimalNumber)]`，ObjC 看不到 tuple。寫一個 `@objc final class StatsBreakdownItem: NSObject`（`name`、`total` 兩個 `@objc let`），並在 `extension StatsViewModel` 裡加 `@objc func breakdownItems() -> [StatsBreakdownItem]`，用 `map` 轉換。"
+starter: |
+  // StatsBreakdownItem.swift
+  import Foundation
+
+  // 1. 給 ObjC 看的殼
+
+
+  // 2. 包裝層
+  extension StatsViewModel {
+
+  }
+checks:
+  - must_match: '@objc\s+final\s+class\s+StatsBreakdownItem\s*:\s*NSObject|@objc\s+class\s+StatsBreakdownItem\s*:\s*NSObject|@objcMembers\s+final\s+class\s+StatsBreakdownItem\s*:\s*NSObject'
+    message: "StatsBreakdownItem 要是 @objc 的 NSObject 子類別"
+  - must_match: '(@objc\s+)?let\s+name\s*:\s*String'
+    message: name 是 String 常數
+  - must_match: '(@objc\s+)?let\s+total\s*:\s*NSDecimalNumber'
+    message: total 是 NSDecimalNumber 常數
+  - must_match: '@objc\s+func\s+breakdownItems\s*\(\s*\)\s*->\s*\[\s*StatsBreakdownItem\s*\]'
+    message: "extension 裡要有 @objc func breakdownItems() -> [StatsBreakdownItem]"
+  - must_match: 'categoryBreakdown\s*\(\s*\)\s*\.map'
+    message: 用 categoryBreakdown().map 轉換
+  - must_not_match: '@objc[^\n]*categoryBreakdown'
+    message: 不要對回傳 tuple 的 categoryBreakdown 加 @objc，那會編譯錯誤
+  - "brackets_balanced: true"
+solution: |
+  // StatsBreakdownItem.swift
+  import Foundation
+
+  @objc final class StatsBreakdownItem: NSObject {
+      @objc let name: String
+      @objc let total: NSDecimalNumber
+      init(name: String, total: NSDecimalNumber) {
+          self.name = name
+          self.total = total
+          super.init()
+      }
+  }
+
+  extension StatsViewModel {
+      @objc func breakdownItems() -> [StatsBreakdownItem] {
+          categoryBreakdown().map { StatsBreakdownItem(name: $0.name, total: $0.total) }
+      }
+  }
+solution_note: Swift 內部照 Swift 寫（tuple 很自然），邊界上另闢一個 ObjC 吃得下的入口。`let` 在 ObjC 端是 `readonly` 屬性；`[StatsBreakdownItem]` 變成 `NSArray<StatsBreakdownItem *> *`。
+hints: ["殼的條件：NSObject 子類別、@objc、欄位型別 ObjC 看得到。", "extension 裡的方法也要自己標 @objc。", "map 的 closure 把 tuple 的兩個欄位餵給初始化器。"]

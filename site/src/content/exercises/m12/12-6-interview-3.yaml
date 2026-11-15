@@ -1,0 +1,13 @@
+id: m12-12-6-interview-3
+chapter: "12.6"
+type: flash
+tier: interview
+title: 面試速記：weak 是怎麼實作的
+minutes: 2
+front: |
+  `__weak` 變數在物件釋放後會自動變 nil。runtime 是怎麼做到的？
+back: |
+  runtime 維護一張全域的弱參考表（weak table，在 SideTable 裡）：key 是物件位址，value 是所有指向它的 __weak 變數的位址清單。
+  對 __weak 變數賦值時呼叫 objc_storeWeak，把變數位址登記進去；物件 dealloc 時 runtime 查表，把清單裡每個變數寫成 nil。
+  讀取 __weak 變數會 objc_loadWeakRetained：先 retain 確保這一刻物件還活著，再放進 autorelease pool，所以迴圈裡大量讀 weak 有成本，進 block 先升 strongSelf。
+  加分延伸：unsafe_unretained / assign 不登記表，物件釋放後變懸空指標，這就是 Zombie 能抓到的那種 crash。

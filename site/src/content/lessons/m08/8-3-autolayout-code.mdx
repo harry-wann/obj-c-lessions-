@@ -1,0 +1,268 @@
+---
+title: 視圖與 Auto Layout（程式碼）
+module: 8
+chapter: "8.3"
+order: 3
+minutes: 45
+prereq: ["8.2"]
+objectives:
+  - "用 anchor API 與 activateConstraints: 寫出一個 cell 的完整版面，包含 Safe Area 與 layoutMarginsGuide"
+  - 用 UIStackView 排垂直 / 水平內容，並用抗壓 / 抗拉優先度決定兩個 label 誰讓誰
+  - 讀懂「Unable to simultaneously satisfy constraints」列出的約束，找出 NSAutoresizingMaskLayoutConstraint 這類罪魁禍首
+summary: "UIView 階層與 addSubview:、translatesAutoresizingMaskIntoConstraints = NO、anchor API、NSLayoutConstraint activateConstraints:、UIStackView、Safe Area、內容抗壓 / 抗拉優先度、讀懂約束衝突訊息；對照 SwiftUI HStack、Android ConstraintLayout、CSS flexbox。"
+terms:
+  - { en: constraint, tw: 約束, cn: 约束, jp: 制約 }
+  - { en: anchor, tw: 錨點（anchor）, cn: 锚点, jp: アンカー }
+  - { en: intrinsic content size, tw: 內容固有尺寸, cn: 固有内容大小, jp: 固有コンテンツサイズ }
+  - { en: content hugging priority, tw: 內容抗拉優先度, cn: 内容抗拉伸优先级, jp: Content Hugging 優先度 }
+  - { en: compression resistance priority, tw: 內容抗壓優先度, cn: 抗压缩优先级, jp: 圧縮耐性優先度 }
+  - { en: safe area, tw: 安全區域（Safe Area）, cn: 安全区域, jp: セーフエリア }
+appProgress: LBTransactionCell 用程式碼 Auto Layout 排出圖示 / 標題 / 副標 / 金額四個元件，列高 64；LBMonthHeaderView 排出月份與收支合計。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// SwiftUI：宣告式，排版靠容器
+HStack(spacing: 12) {
+    Image(systemName: vm.symbolName).frame(width: 36, height: 36)
+    VStack(alignment: .leading, spacing: 2) {
+        Text(vm.title); Text(vm.subtitle).font(.footnote)
+    }
+    Spacer()
+    Text(vm.amountText).monospacedDigit().layoutPriority(1)
+}.padding(.horizontal, 16)
+// UIKit Swift：跟 ObjC 同一套 anchor API
+icon.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16)
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// Android ConstraintLayout（程式碼版）：同樣是「A 的邊 = B 的邊 + 常數」
+ConstraintSet().apply {
+    clone(root)
+    connect(icon.id, START, PARENT_ID, START, dp(16))
+    connect(icon.id, TOP, PARENT_ID, TOP); connect(icon.id, BOTTOM, PARENT_ID, BOTTOM)
+    constrainWidth(icon.id, dp(36)); constrainHeight(icon.id, dp(36))
+    connect(title.id, START, icon.id, END, dp(12))
+    connect(amount.id, END, PARENT_ID, END, dp(16))
+    applyTo(root)
+}
+// Compose 則是 Row / Column，跟 SwiftUI 一樣宣告式
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// Android XML 版 ConstraintLayout：屬性名就是約束
+// <ImageView android:id="@+id/icon"
+//     android:layout_width="36dp" android:layout_height="36dp"
+//     app:layout_constraintStart_toStartOf="parent"
+//     android:layout_marginStart="16dp"
+//     app:layout_constraintTop_toTopOf="parent"
+//     app:layout_constraintBottom_toBottomOf="parent"/>
+// 權重 / 鏈 ↔ UIStackView 的 distribution
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// CSS flexbox：HStack 就是 display:flex
+const row: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', height: 64,
+};
+// 「誰先被截斷」在 CSS 是 flex-shrink / min-width，
+// 在 Auto Layout 是 compression resistance priority
+<div style={row}>
+  <Icon style={{ width: 36, height: 36 }} />
+  <div style={{ flex: 1, minWidth: 0 }}><b>{vm.title}</b><small>{vm.subtitle}</small></div>
+  <span style={{ flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{vm.amountText}</span>
+</div>
+```
+</Fragment>
+Auto Layout 的核心一句話：**每條約束都是一條線性等式** `A.屬性 = B.屬性 × 倍率 + 常數`，求解器找出一組同時滿足所有等式的 frame。Android 的 ConstraintLayout 是同一個模型，連名字都一樣；CSS flexbox 與 SwiftUI 的 `HStack` 則是「容器幫你排」的宣告式，Auto Layout 的對應物是 `UIStackView`。寫 UIKit 時腦袋要從「我描述結果」切回「我給出條件」。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 視圖階層與 addSubview:
+
+`UIView` 是一棵樹：`UIWindow` → 根 VC 的 `view` → 子視圖 → ……。`addSubview:` 把一個 view 加到尾端（畫在最上面），`insertSubview:belowSubview:` 控制順序，`removeFromSuperview` 拿掉。view 持有 subview（strong），subview 的 `superview` 是 weak，跟 4.3 的樹一樣。**約束只能寫在「兩個 view 有共同祖先」之後**，所以順序永遠是先 `addSubview:` 再加約束。
+
+### anchor API 與 activateConstraints:
+
+```objc
+// LBTransactionCell.m
+#import "LBTransactionCell.h"
+#import "LBTransactionViewModel.h"
+
+@implementation LBTransactionCell {
+    UIImageView *_iconView;
+    UILabel *_titleLabel;
+    UILabel *_subtitleLabel;
+    UILabel *_amountLabel;
+}
+
+- (instancetype)initWithStyle:(UITableViewCellStyle)style
+              reuseIdentifier:(NSString *)reuseIdentifier {
+    if (self = [super initWithStyle:style reuseIdentifier:reuseIdentifier]) {
+        [self setupViews];
+    }
+    return self;
+}
+
+- (void)setupViews {
+    _iconView = [UIImageView new];
+    _iconView.contentMode = UIViewContentModeCenter;
+    _iconView.layer.cornerRadius = 18;          // 36 / 2，圓形
+    _iconView.backgroundColor = UIColor.secondarySystemFillColor;
+
+    _titleLabel = [UILabel new];
+    _titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+
+    _subtitleLabel = [UILabel new];
+    _subtitleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
+    _subtitleLabel.textColor = UIColor.secondaryLabelColor;
+
+    _amountLabel = [UILabel new];
+    _amountLabel.font = [UIFont monospacedDigitSystemFontOfSize:17
+                                                         weight:UIFontWeightSemibold];
+    _amountLabel.textAlignment = NSTextAlignmentRight;
+
+    UIStackView *textStack =
+        [[UIStackView alloc] initWithArrangedSubviews:@[ _titleLabel, _subtitleLabel ]];
+    textStack.axis = UILayoutConstraintAxisVertical;
+    textStack.spacing = 2;
+
+    for (UIView *v in @[ _iconView, textStack, _amountLabel ]) {
+        v.translatesAutoresizingMaskIntoConstraints = NO;   // 1. 先關掉
+        [self.contentView addSubview:v];                    // 2. 再加進階層
+    }
+
+    UILayoutGuide *m = self.contentView.layoutMarginsGuide;  // 左右各 16
+    [NSLayoutConstraint activateConstraints:@[            // 3. 最後啟用約束
+        [_iconView.leadingAnchor constraintEqualToAnchor:m.leadingAnchor],
+        [_iconView.centerYAnchor constraintEqualToAnchor:self.contentView.centerYAnchor],
+        [_iconView.widthAnchor constraintEqualToConstant:36],
+        [_iconView.heightAnchor constraintEqualToConstant:36],
+
+        [textStack.leadingAnchor constraintEqualToAnchor:_iconView.trailingAnchor
+                                                constant:12],
+        [textStack.centerYAnchor constraintEqualToAnchor:self.contentView.centerYAnchor],
+
+        [_amountLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:textStack.trailingAnchor
+                                                                constant:8],
+        [_amountLabel.trailingAnchor constraintEqualToAnchor:m.trailingAnchor],
+        [_amountLabel.centerYAnchor constraintEqualToAnchor:self.contentView.centerYAnchor],
+
+        [self.contentView.heightAnchor constraintGreaterThanOrEqualToConstant:64],
+    ]];
+
+    // 4. 誰讓誰：金額不准被壓縮、也不准被拉長；標題可以被截斷
+    [_amountLabel setContentCompressionResistancePriority:UILayoutPriorityRequired
+                                                  forAxis:UILayoutConstraintAxisHorizontal];
+    [_amountLabel setContentHuggingPriority:UILayoutPriorityRequired
+                                    forAxis:UILayoutConstraintAxisHorizontal];
+    _titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+}
+
+- (void)configureWithViewModel:(LBTransactionViewModel *)vm {
+    _iconView.image = [UIImage systemImageNamed:vm.symbolName];
+    _titleLabel.text = vm.title;
+    _subtitleLabel.text = vm.subtitle;
+    _amountLabel.text = vm.amountText;
+    _amountLabel.textColor = vm.isExpense ? UIColor.systemRedColor
+                                          : UIColor.systemGreenColor;
+}
+@end
+```
+
+三個固定步驟：`translatesAutoresizingMaskIntoConstraints = NO` → `addSubview:` → `activateConstraints:`。第一步是歷史包袱：iOS 6 以前用 autoresizing mask 排版，為了相容，程式碼建立的 view 預設會把自己的 frame 轉成一組約束（`NSAutoresizingMaskLayoutConstraint`），跟你寫的約束打架。Storyboard 拉的 view 已經幫你關掉，程式碼建立的要自己關。
+
+<Term en="anchor" tw="錨點" cn="锚点" jp="アンカー" /> API 有型別檢查：`leadingAnchor` 只能對 X 軸的 anchor，`topAnchor` 對 `widthAnchor` 編譯器直接報錯。老專案會看到 `constraintWithItem:attribute:relatedBy:toItem:attribute:multiplier:constant:` 七參數版本與 VFL 字串 `@"H:|-16-[icon(36)]-12-[title]"`，意思一樣，anchor 版可讀性好得多。約束建好要 `active = YES` 才生效，`activateConstraints:` 一次啟用一批，而且會自動把約束加到正確的共同祖先上。
+
+### Safe Area 與 layoutMarginsGuide
+
+- `view.safeAreaLayoutGuide`：扣掉狀態列、導覽列、Home 指示器之後的區域。整頁內容的頂 / 底對它，不對 `view.topAnchor`，否則第一列會被導覽列遮住。
+- `view.layoutMarginsGuide`：左右預設 16（大螢幕 20），`contentView` 的 margin 就是設計稿的 16 pt 邊距來源。
+- `readableContentGuide`：文字段落用，iPad 上不會拉成一行 1000 pt。
+
+### UIStackView 與優先度
+
+`UIStackView` 不畫東西，只負責把 `arrangedSubviews` 沿著 `axis` 排好，`spacing` 是間距，`distribution` 決定怎麼分空間（`fill` 預設、`fillEqually` 等分），`alignment` 決定垂直方向對齊。`isHidden = YES` 的子視圖會自動讓出空間，這點用 frame 排版要寫一堆程式碼。
+
+label、button、imageView 有<Term en="intrinsic content size" tw="內容固有尺寸" cn="固有内容大小" jp="固有コンテンツサイズ" />：不給寬高約束也知道自己多大。兩個 label 擠在一行、空間不夠時，求解器看<Term en="compression resistance priority" tw="內容抗壓優先度" cn="抗压缩优先级" jp="圧縮耐性優先度" />（預設 750）：低的被截斷。空間太多時看<Term en="content hugging priority" tw="內容抗拉優先度" cn="内容抗拉伸优先级" jp="Content Hugging 優先度" />（預設 250）：低的被拉長。上面把金額兩項都設成 Required（1000），標題保持預設，結果就是「金額永遠完整、標題該截就截」，正是設計稿要的。
+
+### 讀懂「Unable to simultaneously satisfy constraints」
+
+這是警告不是 crash，App 繼續跑，但畫面會不對：求解器找不到同時滿足所有約束的解，**隨便砍掉一條**繼續。訊息長這樣：
+
+```
+Unable to simultaneously satisfy constraints.
+    Probably at least one of the constraints in the following list is one you don't want.
+(
+    "<NSLayoutConstraint:0x600002a1 UIImageView:0x7fa3.leading == UILayoutGuide:0x6000.'UIViewLayoutMarginsGuide'.leading>",
+    "<NSLayoutConstraint:0x600002a2 UIImageView:0x7fa3.width == 36>",
+    "<NSAutoresizingMaskLayoutConstraint:0x600002b0 h=--& v=--& UIImageView:0x7fa3.minX == 0>",
+    "<NSAutoresizingMaskLayoutConstraint:0x600002b1 h=--& v=--& UIImageView:0x7fa3.width == 0>"
+)
+Will attempt to recover by breaking constraint
+<NSLayoutConstraint:0x600002a2 UIImageView:0x7fa3.width == 36>
+```
+
+讀法三步：(1) 看清單裡有沒有 `NSAutoresizingMaskLayoutConstraint`，有就是忘了關 `translatesAutoresizingMaskIntoConstraints`，九成的衝突是這個；(2) 沒有的話找互相矛盾的兩條，常見是 `height == 64` 跟 `top`、`bottom` 同時釘死、或 cell 高度跟 `UIView-Encapsulated-Layout-Height`（表格給 cell 的固定高度）差 0.5 pt；(3) `Will attempt to recover by breaking constraint` 那條**不是罪魁禍首**，是求解器選擇犧牲的那條，修的是清單裡多出來的那條。物件位址 `0x7fa3` 可以在 debugger 用 `po 0x7fa3` 看是哪個 view；給 view 設 `accessibilityIdentifier` 之後訊息會直接印名字。
+
+### 設計稿對照
+
+對應設計稿 **00 設計規範與元件** 的「交易 cell」與「月份 header」元件（https://www.figma.com/design/4d6HGy38x11n2uOfkzOBzj ）。交易 cell：列高 64；左邊 36 × 36 圓形圖示（圓角 18，`secondarySystemFill` 底、分類系統色圖示）；圖示與文字間距 12；標題 17 pt body、副標 13 pt footnote 用 `secondaryLabel`，兩者垂直間距 2；右邊金額 17 pt semibold 等寬數字、支出 `systemRed`、收入 `systemGreen`；左右邊距 16 由 `layoutMarginsGuide` 提供。月份 header：高 44，左「2026 年 11 月」headline，右「−12,340 / +50,000」footnote 兩色。所有顏色用系統色，所以 **02 深色** 頁面的四張畫面不用改一行程式。
+
+<Pitfall title="忘了 translatesAutoresizingMaskIntoConstraints = NO">
+<Fragment slot="bad">
+```objc
+UILabel *label = [UILabel new];
+[self.view addSubview:label];
+[NSLayoutConstraint activateConstraints:@[
+    [label.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],
+    [label.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:16],
+]];
+// 主控台：Unable to simultaneously satisfy constraints ... NSAutoresizingMaskLayoutConstraint
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+UILabel *label = [UILabel new];
+label.translatesAutoresizingMaskIntoConstraints = NO;
+[self.view addSubview:label];
+[NSLayoutConstraint activateConstraints:@[ ... ]];
+```
+</Fragment>
+程式碼建立的每一個 view 都要關。團隊常寫一個 helper：`- (void)lb_addAutoLayoutSubview:(UIView *)v` 把兩步包在一起，或用 5.3 的分類 `UIView+LBLayout`。
+</Pitfall>
+
+<Pitfall title="兩個 label 擠一行，沒說誰讓誰">
+標題跟金額在同一列、標題很長時，兩個 label 的抗壓優先度都是 750，求解器隨便挑一個截斷，常常截到金額變成「-1,2…」。明確設定：金額 `setContentCompressionResistancePriority:UILayoutPriorityRequired`，標題保持預設或降到 `UILayoutPriorityDefaultLow`。空間太多時相反，看 hugging：金額設 Required 它就不會被拉寬到把標題推走。
+</Pitfall>
+
+<Pitfall title="在 layoutSubviews 或 viewDidLayoutSubviews 裡加約束">
+這兩個方法每次版面重算都跑，在裡面 `activateConstraints:` 等於每次多加一組一樣的約束，幾秒後主控台洗出幾百行衝突、捲動變慢。約束建立一次放 `viewDidLoad` / `init`；要動態改的，把那條約束存成屬性，之後只改 `constant`：`_heightConstraint.constant = 120;`，再 `[self.view layoutIfNeeded]` 放進動畫 block 就有動畫。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSGenericException',
+reason: 'Unable to activate constraint with anchors
+<NSLayoutXAxisAnchor:0x600001b8 "UIImageView:0x7fa3.leading"> and
+<NSLayoutXAxisAnchor:0x600001b9 "UITableViewCellContentView:0x7fa4.leading">
+because they have no common ancestor.  Does the constraint or its anchors
+reference items in different view hierarchies?  That's illegal.'`}>
+這一條才是 crash。`no common ancestor` 說兩個 anchor 所屬的 view 不在同一棵樹上：最常見是**先寫約束、後 `addSubview:`**，或是把 subview 加到 `self` 而不是 cell 的 `contentView`，然後約束卻對 `contentView` 寫。修法：所有 `addSubview:` 放在 `activateConstraints:` 之前；cell 一律加進 `self.contentView`。同一家族的另一條訊息 `The view hierarchy is not prepared for the constraint` 是舊 API `addConstraint:` 的版本，原因相同。
+</Crash>
+
+## 小結
+
+- 每條約束是一條線性等式；三步驟：`translatesAutoresizingMaskIntoConstraints = NO` → `addSubview:` → `activateConstraints:`。
+- anchor API 有型別檢查；舊專案的七參數版與 VFL 字串意思一樣。
+- 頂 / 底對 `safeAreaLayoutGuide`，左右用 `layoutMarginsGuide`（16 pt）。
+- `UIStackView` 是 UIKit 的 flexbox；空間不夠看抗壓（750）、太多看抗拉（250），金額設 Required。
+- 衝突訊息先找 `NSAutoresizingMaskLayoutConstraint`，`breaking constraint` 那條是被犧牲的，不是元兇；`no common ancestor` 是約束寫在 `addSubview:` 之前。

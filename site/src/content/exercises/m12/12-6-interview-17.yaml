@@ -1,0 +1,14 @@
+id: m12-12-6-interview-17
+chapter: "12.6"
+type: flash
+tier: interview
+title: "面試速記：-ObjC 連結旗標"
+minutes: 2
+front: |
+  Other Linker Flags 裡的 `-ObjC` 是做什麼的？什麼症狀代表少了它？`-all_load` 又是什麼？
+back: |
+  靜態庫（.a）連結時，連結器只拉進「有符號被引用」的 .o 檔；一個 .o 裡只有分類時，沒有任何類別符號被引用，它就不會被連進來。
+  症狀：編譯連結都過，執行期呼叫分類方法時 unrecognized selector sent to instance，而且只在用靜態庫時發生，直接把原始碼加進專案就好。
+  -ObjC 告訴連結器：所有含 ObjC 類別或分類的 .o 都要載入，不管有沒有被引用。
+  -all_load 更粗暴，載入所有 .o（包含純 C 的），可能造成 duplicate symbol；-force_load 指定某一個 .a 全載，是比較精準的版本。
+  加分延伸：這是 CocoaPods 靜態連結時 Pods target 自動加 -ObjC 的原因；模組 11 舊專案的雷之一。

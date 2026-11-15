@@ -1,0 +1,24 @@
+id: m11-11-7-crash-1
+chapter: "11.7"
+type: crash
+title: 讀 crash：Swift 端隱含解包 nil
+minutes: 2
+log: |
+  Fatal error: Unexpectedly found nil while implicitly unwrapping an Optional value
+  StatsViewController.swift:42
+options:
+  - "ObjC 標頭沒標 nullability，Swift 把回傳值匯入成 LBTransaction!；ObjC 回 nil 時隱含解包 crash。修法在 ObjC 端標 nullable，Swift 端就會被逼寫 guard let"
+  - "Swift 端忘了 import"
+  - "LBTransaction 沒有繼承 NSObject"
+  - "要在 Swift 端加 try?"
+answer: 0
+fix: |
+  // LBLedger.h
+  - (nullable LBTransaction *)transactionWithIdentifier:(NSString *)identifier;
+  // 重編後 Swift 端那行變成編譯錯誤，改成：
+  // guard let tx = ledger.transaction(withIdentifier: id) else { return }
+solution_note: "「implicitly unwrapping」四個字就是線索：`!` 型別只會來自沒標注的 ObjC API。這是「先補 nullability 再改 Swift」順序不能反的原因。"
+hints: ["哪種 Swift 型別會「隱含解包」？它從哪來？", "修在哪一端才能讓編譯器幫你？"]
+feedback:
+  "3": "try? 處理的是 throws，不是 Optional 解包。"
+  "2": "沒繼承 NSObject 根本匯不進 Swift，不會跑到這行。"

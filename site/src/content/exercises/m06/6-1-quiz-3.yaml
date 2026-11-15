@@ -1,0 +1,14 @@
+id: m06-6-1-quiz-3
+chapter: "6.1"
+section: quiz
+type: quiz
+title: Class 是什麼
+minutes: 1
+prompt: "`Class cls = NSClassFromString(@\"LBLedgr\");`（打錯字）之後 `cls` 的值是？"
+options: ["nil", "Nil", "[NSObject class]", "拋出 NSInvalidArgumentException"]
+answer: 1
+explain: 找不到類別回傳 `Nil`（大寫 N），是專給 `Class` 用的空值；跟 `nil` 其實是同一個 0，只是語意上區分。對它送訊息一樣安全地回 0。
+hints: ["Class 的空值跟 id 的空值怎麼寫？", "NSClassFromString 不會丟例外。"]
+feedback:
+  "0": 值是 0 沒錯，但慣例寫法是 Nil；判斷時寫 `cls == Nil` 或 `!cls`。
+  "3": 它只是回傳空值，不會丟例外；真正 crash 會在你拿空值 alloc 之後對 nil 的回傳值做事時。

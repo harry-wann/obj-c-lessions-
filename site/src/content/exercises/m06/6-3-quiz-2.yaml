@@ -1,0 +1,19 @@
+id: m06-6-3-quiz-2
+chapter: "6.3"
+section: quiz
+type: quiz
+title: 對類別物件問 respondsToSelector
+minutes: 1
+prompt: "`Class cls = NSClassFromString(@\"LBLedger\");` 要在建立實體之前確認「LBLedger 的實體會回應 addTransaction:」，正確寫法是？"
+options:
+  - "[cls respondsToSelector:@selector(addTransaction:)]"
+  - "[cls instancesRespondToSelector:@selector(addTransaction:)]"
+  - "[cls conformsToProtocol:@selector(addTransaction:)]"
+  - "[[cls class] respondsToSelector:@selector(addTransaction:)]"
+answer: 1
+explain: 對類別物件呼叫 `respondsToSelector:` 問的是類別方法（+ 開頭）。要問實體方法但手上只有 Class，用 `instancesRespondToSelector:`。
+hints: ["類別物件自己會回應的是哪種方法？", "方法名裡有 instances 的那個。"]
+feedback:
+  "0": 這是在問類別方法 +addTransaction:，會回 NO。
+  "2": "conformsToProtocol: 收的是 Protocol，不是 SEL。"
+  "3": "[cls class] 還是 cls，問的仍是類別方法。"

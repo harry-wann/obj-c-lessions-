@@ -1,0 +1,169 @@
+---
+title: 上工檢查表與面試題
+module: 12
+chapter: "12.6"
+order: 6
+minutes: 60
+prereq: ["12.5"]
+objectives:
+  - 照一套 SOP 在第一週讀懂一個陌生的 ObjC 專案：從 AppDelegate、Podfile、Storyboard 找入口，畫出類別關係圖
+  - 對照「進入工作前的最後檢查」逐項自評，知道哪幾項還要回頭補
+  - 用 3 行說清楚 20 題最常見的 ObjC 面試題，並能各加一句延伸
+summary: "第一週讀陌生專案的 SOP（Podfile → AppDelegate → 入口 VC → 畫類別關係 → 跑測試 → 讀 crash）；上工前自評清單；20 題面試題速答（記憶體、block、分類 vs 延伸、runtime、atomic、KVO、+load、copy、訊息轉送、nil、isEqual / hash、GCD 死結、dispatch_once、NSError、-ObjC、nullability、cell、鎖、MRC、crash log）。"
+terms:
+  - { en: onboarding, tw: 上工 / 到職, cn: 入职, jp: オンボーディング }
+  - { en: code reading, tw: 讀碼, cn: 读码, jp: コードリーディング }
+  - { en: dependency manager, tw: 套件管理工具, cn: 依赖管理工具, jp: 依存管理ツール }
+  - { en: entry point, tw: 入口, cn: 入口, jp: エントリポイント }
+appProgress: 小帳本完成：列表、新增 / 編輯、分類樹、復原、匯率、統計（Swift）、設定、持久化、測試全綠。這一章沒有新程式碼，有的是你能帶去新公司的 SOP。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// 讀陌生 Swift 專案的起點
+// Package.swift / Podfile → 相依；@main 或 AppDelegate / SceneDelegate → 入口；
+// Info.plist 的 UIApplicationSceneManifest → 第一個畫面；Xcode ⌃⌘J 跳定義、⌃1 看呼叫者
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// Android：settings.gradle / build.gradle → 模組與相依；AndroidManifest.xml 的 LAUNCHER intent → 入口 Activity
+// Application 子類別 → 全域初始化（= AppDelegate didFinishLaunching）
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// 後端：pom.xml / build.gradle → 相依；@SpringBootApplication 的 main → 入口；
+// application.yml → 設定；Controller 層 → 路由表（= 畫面清單）
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// package.json 的 "main" / scripts → 入口與怎麼跑；tsconfig → 嚴格度；
+// src/index.ts 或 App.tsx → 根元件；路由表（react-router）→ 畫面清單
+```
+</Fragment>
+不管哪個平台，讀陌生專案的順序一樣：**相依清單 → 程式入口 → 第一個畫面 → 畫面之間怎麼跳 → 資料從哪來**。ObjC 專案的對應物是 `Podfile`、`AppDelegate.m`、`Main.storyboard`（或 `window.rootViewController` 的賦值）、segue / push 呼叫、`Model` 資料夾。差別只在工具：Xcode 的 Jump to Definition（⌃⌘J）與 Callers（⌃1 → Callers）在 ObjC 上因為動態派送偶爾會漏，要搭配全文搜尋 selector 名稱。
+</Compare>
+
+## 第一週怎麼讀一個陌生 ObjC 專案
+
+目標不是看懂每一行，是在**30 分鐘內畫出主要畫面與類別關係**，一週內能獨立修一個小 bug。以下是 SOP。
+
+<Steps title="Day 1：建得起來">
+<ol>
+<li>看 <code>README</code> 與 <code>.xcode-version</code> / <code>.ruby-version</code>，裝對版本的 Xcode 與 CocoaPods（<code>bundle exec pod install</code> 比 <code>pod install</code> 可靠，因為用 <code>Gemfile.lock</code> 鎖版本）。</li>
+<li>開 <code>.xcworkspace</code>（不是 <code>.xcodeproj</code>，有 Pods 的專案開錯會少一半東西）。</li>
+<li>⌘B 建置、⌘U 跑測試，記下紅燈數量與 warning 數量，這是你的基準線。建不起來先問人，別自己硬改專案設定。</li>
+<li>Edit Scheme 加 Exception Breakpoint（12.4），開 Zombie Objects。</li>
+</ol>
+</Steps>
+
+<Steps title="Day 1–2：找入口、畫地圖">
+<ol>
+<li><strong><code>Podfile</code> 與 <code>Podfile.lock</code></strong>：每個 pod 查一句話的用途（網路 AFNetworking？排版 Masonry？資料庫 Realm / FMDB？）。這份清單告訴你專案的「方言」。看 <code>Podfile.lock</code> 的版本有多舊，舊版本代表那塊程式碼很久沒人動。</li>
+<li><strong><code>AppDelegate.m</code></strong>：<code>application:didFinishLaunchingWithOptions:</code> 是整個 App 的 <code>main</code>。這裡會看到：第三方 SDK 初始化、<code>window.rootViewController</code> 的賦值（或 Storyboard 名稱）、推播註冊、URL scheme 處理。有 <code>SceneDelegate</code> 就再看它的 <code>scene:willConnectToSession:options:</code>。</li>
+<li><strong>入口 VC</strong>：從 <code>rootViewController</code> 往下找：<code>UITabBarController</code> 的 <code>viewControllers</code>、<code>UINavigationController</code> 的 root。Storyboard 專案就開 <code>Main.storyboard</code> 看箭頭起點。</li>
+<li><strong>畫畫面流程圖</strong>：一張紙，每個 VC 一個框，<code>pushViewController:</code> / <code>presentViewController:</code> / segue identifier 畫箭頭。全文搜尋 <code>performSegueWithIdentifier:</code> 與 <code>pushViewController:</code> 就能列出所有跳轉。</li>
+<li><strong>畫類別關係</strong>：找 <code>Model</code> / <code>Service</code> / <code>Manager</code> 資料夾，每個類別一個框，<code>@property</code> 的型別畫成線，<code>delegate</code> 用虛線。單例（<code>+shared</code>）另外標，它們是全域狀態的來源。</li>
+<li><strong>找資料流</strong>：網路層在哪（搜 <code>NSURLSession</code> / <code>AFHTTPSessionManager</code>）、持久化在哪（搜 <code>NSUserDefaults</code> / <code>NSKeyedArchiver</code> / <code>sqlite</code> / <code>NSManagedObjectContext</code>）、畫面怎麼拿到資料（delegate、通知、KVO、block、或是直接存取單例）。</li>
+</ol>
+</Steps>
+
+<Steps title="Day 3–5：動手">
+<ol>
+<li>挑一個最小的 bug 單或 UI 微調，從畫面往回追到程式碼：在 Xcode 用 Debug View Hierarchy 點到那個 view，看它的 class，搜那個 class。</li>
+<li>改之前先寫一個會失敗的測試（12.3），改完轉綠；沒測試基礎建設的專案，至少用 lldb 驗證過。</li>
+<li>讀 git log：<code>git log --oneline -- 路徑</code> 看那個檔案誰常改、改什麼；<code>git blame</code> 看奇怪寫法的 commit 訊息，常常有「為什麼」。</li>
+<li>發第一個 PR 時照專案現有的風格，不要順手重構；風格意見留給 <code>.clang-format</code> 討論。</li>
+<li>把這一週畫的圖與疑問整理成一頁筆記放進 wiki，下一個新人會感謝你，你也會在三個月後感謝自己。</li>
+</ol>
+</Steps>
+
+### 讀碼時 ObjC 特有的雷
+
+- **分類散落各處**：`UIViewController+LBTracking.m` 可能在每個 VC 的 `viewDidAppear:` 做了事，搜 `@implementation UIViewController (` 列出所有分類。模組 6 的 swizzling 也躲在這裡，搜 `method_exchangeImplementations`。
+- **`performSelector:` 與字串拼出來的 selector**：Jump to Definition 找不到呼叫者，要全文搜方法名的字串片段。
+- **`NSNotificationCenter`**：搜 `postNotificationName:` 跟 `addObserver:` 配對，通知名常數在 `Constants.h` 之類的檔案。
+- **`.pch` 前置編譯標頭**：舊專案用它全域 import 一堆東西並定義巨集，很多「這個符號哪來的」答案在這裡。
+- **MRC 檔案**：Build Phases → Compile Sources 看有沒有 `-fno-objc-arc` 旗標的檔案，那些檔案的 `retain` / `release` 是故意的（模組 11）。
+- **xib / Storyboard 裡的連線**：`IBOutlet` 為 nil、`IBAction` 沒反應，先看 Interface Builder 的 Connections Inspector 而不是程式碼。
+
+## 進入工作前的最後檢查
+
+對照 docs/05 的清單逐項自評，答不出來的回對應章節：
+
+| 檢查項 | 回哪一章 |
+|---|---|
+| 不看文件寫出：類別宣告、指定初始化器、`copy` 屬性、協定、分類、block typedef、weakSelf 樣板、GCD 回主執行緒、`NSError **` 方法、串列佇列 + barrier | 2.x、5.4–5.5、7.1–7.3 |
+| 30 秒內說出 `unrecognized selector` / `EXC_BAD_ACCESS` / `index beyond bounds` / `not key value coding-compliant` / `mutated while being enumerated` / `0x8badf00d` 的可能原因 | 各章崩潰現場、12.4 |
+| 解釋 ARC、delegate 為什麼 weak、`atomic` 不是執行緒安全、分類 vs 延伸、`+load` vs `+initialize`、cell 裡不能建 formatter、`-ObjC` 旗標 | 下面的 20 題 |
+| 讀 MRC 檔案標出 retain / release 配對並轉 ARC | 11.x |
+| Swift 檔呼叫 ObjC 類別並說出 nullability 的影響 | 12.1 |
+| 陌生專案 30 分鐘畫出畫面與類別關係 | 本章 SOP |
+| Time Profiler 與 Animation Hitches 找掉幀 | 10.x |
+
+## 20 題面試題速答
+
+每題 3 行內答完，括號裡是加分延伸。完整版速記卡在下方「想多練？」。
+
+1. **ARC 怎麼運作？** 編譯器在編譯期依擁有權規則插入 `retain` / `release` / `autorelease`，不是垃圾回收，沒有執行期掃描。物件參考計數歸零立刻 `dealloc`。（延伸：ARC 無法解決循環參考，所以才需要 `weak`。）
+2. **循環參考怎麼產生、怎麼修？** 兩個物件互相強持有，或物件持有 block、block 捕獲物件。修法：一邊改 `weak`（delegate、parent）、block 用 `weakSelf` / `strongSelf`。（延伸：`NSTimer` 的 target 也是強參考，用 block 版 API 或 `invalidate`。）
+3. **`weak` 怎麼實作？** runtime 維護一張弱參考表（side table），key 是物件位址、value 是所有指向它的 `weak` 變數位址；物件 `dealloc` 時把它們全部設成 nil。（延伸：讀 `weak` 變數時會 retain + autorelease 一次，所以迴圈裡大量讀 weak 有成本。）
+4. **block 捕獲變數的規則？** 基本型別與指標按值拷貝、`const`；`__block` 變數搬進共享的盒子，可讀寫；捕獲的物件被 retain。（延伸：global / stack / malloc 三種 block，ARC 下賦值給 strong 自動 copy。）
+5. **分類與類別延伸的差別？** 分類（category）可以對任何類別加方法，不能加實體變數，有自己的 `.h`；類別延伸（`@interface X ()`）只能寫在自己的 `.m`，可以加屬性與 ivar，用來放私有成員。（延伸：分類加屬性要靠關聯物件。）
+6. **`[obj foo]` 執行時發生什麼？** 編譯成 `objc_msgSend(obj, @selector(foo))`；順著 `isa` 找類別，查方法快取、再查方法列表、再往父類別找；找不到進入訊息轉送。（延伸：快取用雜湊表，命中後只是一次間接呼叫。）
+7. **`atomic` 是不是執行緒安全？** 不是。它只保證 getter / setter 本身不會讀到半寫入的值；`count++` 這種讀改寫、或對取出的 `NSMutableArray` 操作都不保護。（延伸：所以大家都寫 `nonatomic`，執行緒安全靠佇列或鎖。）
+8. **KVO 的原理？** 第一次對物件加觀察者時，runtime 動態產生子類別 `NSKVONotifying_X`，把 `isa` 換過去，覆寫 setter 在前後呼叫 `willChange` / `didChange`。（延伸：直接改 ivar 不會觸發，要手動呼叫那兩個方法；`class` 方法被覆寫成回傳原類別。）
+9. **`+load` 與 `+initialize` 的差別？** `+load` 在 image 載入時執行，每個類別與分類各一次、父類別先，不需要類別被使用；`+initialize` 在類別第一次收到訊息前懶執行，子類別沒實作會呼叫到父類別的，所以要判斷 `self == [X class]`。（延伸：swizzling 放 `+load`，但會拖慢啟動。）
+10. **`NSString` 屬性為什麼用 `copy`？** 傳進來的可能是 `NSMutableString`，用 `strong` 的話外面改了你的屬性也跟著變；`copy` 拿到不可變快照。（延伸：對不可變物件 `copy` 只是 retain，沒有額外成本；block 屬性也用 `copy`。）
+11. **訊息轉送的三個階段？** `resolveInstanceMethod:` 動態加方法；`forwardingTargetForSelector:` 換一個物件接手；`methodSignatureForSelector:` + `forwardInvocation:` 完整轉送；都沒處理就 `doesNotRecognizeSelector:` 丟例外。（延伸：`NSProxy`、`NSUndoManager` 的 `prepareWithInvocationTarget:` 都靠這個。）
+12. **對 nil 送訊息會怎樣？** 什麼都不發生，回傳 0 / nil / NO / 全零 struct。好處是少寫很多 nil 檢查，壞處是錯誤默默傳到很遠的地方。（延伸：回傳 struct 很大時結果未定義的舊問題在 64 位元已解決；Swift 端 nil 不再安全。）
+13. **`isEqual:` 與 `hash` 的合約？** `isEqual:` 回 YES 的兩個物件 `hash` 必須相等，反之不必。覆寫一個就要覆寫另一個，否則放進 `NSSet` / 當字典 key 會找不到。（延伸：`hash` 用不可變欄位算，可變欄位一改物件就在集合裡迷路。）
+14. **這段 GCD 為什麼死結？** 在串列佇列（或主佇列）上執行的程式碼對同一個佇列 `dispatch_sync`：外面等裡面完成，裡面等外面讓出佇列。修法改 `async`，或先用 `dispatch_queue_set_specific` 判斷是否已在佇列上。（延伸：`dispatch_sync` 到並行佇列不會死結，但等待的執行緒仍被佔住。）
+15. **`dispatch_once` 怎麼用在單例？** `static dispatch_once_t token; dispatch_once(&token, ^{ shared = [[self alloc] init]; });`，執行緒安全、只跑一次。（延伸：Swift 的 `static let` 內建同樣語意；`dispatch_once` 在 Swift 不可用。）
+16. **`NSError **` 方法的慣例？** 回傳 `BOOL` 或 nullable 物件表示成敗，錯誤透過 out 參數帶出；**只能用回傳值判斷成敗**，不能看 `error` 是否為 nil；`error` 參數可能是 NULL 要先判斷。（延伸：Swift 匯入成 `throws`。）
+17. **`-ObjC` 連結旗標做什麼？** 靜態庫裡只有分類的 `.o` 不會被連結器拉進來（沒有符號被引用），執行期 `unrecognized selector`；`-ObjC` 強制載入所有含 ObjC 程式碼的 `.o`。（延伸：`-all_load` / `-force_load` 是更粗與更細的版本。）
+18. **ObjC 標頭沒標 nullability 對 Swift 端的影響？** 全部變成隱式解包 Optional（`!`），用起來像非 Optional，碰到 nil 就 `Fatal error: Unexpectedly found nil`。修法 `NS_ASSUME_NONNULL_BEGIN` 加逐一 `nullable`。（延伸：`nonnull` 只是承諾，ObjC 端回 nil 不會被攔。）
+19. **cell 怎麼不掉幀？** `cellForRowAtIndexPath:` 裡不做計算、不建 formatter、不同步讀圖；資料預先算成 view model 字串並快取；圖片非同步載入並在回呼時檢查 cell 是否已重用；`prepareForReuse` 重設狀態。（延伸：Auto Layout 複雜就預算高度；用 Time Profiler 與 Animation Hitches 量。）
+20. **鎖怎麼選？** 短臨界區、無爭用：`os_unfair_lock`；需要可重入或條件變數：`NSRecursiveLock` / `NSCondition`；大多數情況最清楚的是串列佇列或並行佇列 + barrier（讀並行寫獨佔）；`@synchronized` 最慢但最方便。（延伸：`OSSpinLock` 已棄用，有優先權反轉問題。）
+
+剩下兩題在速記卡：**MRC 擁有權規則**（`alloc` / `new` / `copy` / `mutableCopy` 開頭的方法回傳的物件你擁有，用完 `release`；其他方法回傳的不擁有，要留著就 `retain`；`dealloc` 釋放所有 ivar 後呼叫 `[super dealloc]`）與**怎麼讀 crash log**（12.4 的 SOP）。
+
+<Tip title="面試答題的節奏">
+三句話：是什麼、為什麼、怎麼修（或怎麼用）。答完停下來讓面試官追問，不要一口氣把延伸全部倒出來。被追問到不會的地方，說「我知道的到這裡，接下來我會這樣查」比硬編好。
+</Tip>
+
+<Pitfall title="第一週就重構">
+看到 3000 行的 `AppDelegate.m`、到處都是的單例、`#pragma mark` 也沒有的 `.m`，手會很癢。忍住：你還不知道哪些奇怪寫法是有原因的（支援舊 iOS、繞過某個 pod 的 bug、產品需求）。第一個月只做兩種改動：修 bug 單、加測試。重構提案等你畫完整張類別圖、能說出每個單例為什麼存在之後再提。
+</Pitfall>
+
+<Pitfall title="開 .xcodeproj 而不是 .xcworkspace">
+有 CocoaPods 的專案開 `.xcodeproj` 會建置失敗，錯誤訊息是 `'AFNetworking/AFNetworking.h' file not found` 或連結器找不到 `libPods`。另一個版本是 `pod install` 沒跑或版本不對：`The sandbox is not in sync with the Podfile.lock`。SOP 第一步寫「開 workspace、跑 `bundle exec pod install`」就是為了這個。
+</Pitfall>
+
+<Pitfall title="只靠 Jump to Definition 追程式">
+ObjC 的 `performSelector:`、`NSClassFromString`、字串拼出的 selector、分類、swizzling、通知、KVO、Storyboard segue 全都是 Xcode 索引追不到的連線。畫類別圖時每一種都要用全文搜尋補一輪：`@selector(`、`NSSelectorFromString`、`postNotificationName:`、`addObserver:forKeyPath:`、`method_exchangeImplementations`、`performSegueWithIdentifier:`。
+</Pitfall>
+
+<Crash message={`dyld[4123]: Library not loaded: @rpath/Masonry.framework/Masonry
+  Referenced from: /private/var/containers/Bundle/Application/.../LittleBook.app/LittleBook
+  Reason: tried: '/usr/lib/swift/Masonry.framework/Masonry' (no such file) ...
+Termination Reason: DYLD 1 Library missing`}>
+App 一啟動就死在 `dyld`（動態連結器），連 `main` 都沒跑到：執行檔宣告自己需要 `Masonry.framework`，但 bundle 裡沒有。第一週常見的原因：`Podfile` 有 `use_frameworks!` 但 Embed Pods Frameworks 的 build phase 被人從 target 移掉、改了 `Podfile` 之後沒重跑 `pod install`、或是手動加了 framework 卻沒在 General → Frameworks 設成 Embed & Sign。對照 `Podfile.lock` 與 Pods 專案裡實際有的 target，重跑 `pod install`，確認 `[CP] Embed Pods Frameworks` phase 在。這類 crash 在 Debug 用模擬器時常不會發生（dyld 搜尋路徑不同），裝到真機才爆，所以驗收一定要有真機。
+</Crash>
+
+## 小結
+
+- 讀陌生專案順序：相依清單（`Podfile.lock`）→ 入口（`AppDelegate`）→ 第一個畫面（`rootViewController` / Storyboard）→ 跳轉（segue / push）→ 資料流（網路、持久化、單例）。
+- 第一天先建得起來、跑測試記基準線、開 Exception Breakpoint 與 Zombie；第一個月只修 bug 與加測試，不重構。
+- ObjC 的隱形連線（selector 字串、分類、swizzling、通知、KVO、segue）要用全文搜尋補，Jump to Definition 不夠。
+- 面試答題三句話：是什麼、為什麼、怎麼修；20 題速記卡在章末反覆翻到不用看背面。
+- 小帳本做完了。接下來真正的作業是：打開你新公司的專案，照 SOP 走一遍。

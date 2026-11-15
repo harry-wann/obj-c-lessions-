@@ -1,0 +1,37 @@
+id: m09-9-2-fill-1
+chapter: "9.2"
+type: fill
+title: LBSettings 的屬性包裝
+minutes: 3
+prompt: 補完 LBSettings 用 NSUserDefaults 實作 `currencyCode` 與 `showsCents` 的程式碼。
+code: |
+  - (instancetype)initWithUserDefaults:(NSUserDefaults *)defaults {
+      if (self = [super init]) {
+          _defaults = defaults;
+          [_defaults ___1___:@{ LBKeyCurrency: @"TWD", LBKeyCents: @YES }];
+      }
+      return self;
+  }
+  - (NSString *)currencyCode {
+      return [_defaults ___2___:LBKeyCurrency];
+  }
+  - (void)setCurrencyCode:(NSString *)code {
+      [_defaults setObject:code forKey:LBKeyCurrency];
+  }
+  - (BOOL)showsCents {
+      return [_defaults ___3___:LBKeyCents];
+  }
+  - (void)setShowsCents:(BOOL)v {
+      [_defaults ___4___:v forKey:LBKeyCents];
+  }
+blanks:
+  "1": { accept: ["registerDefaults"], chips: ["registerDefaults", "setObject", "synchronize", "setDefaults"] }
+  "2": { accept: ["stringForKey"], chips: ["stringForKey", "objectForKey", "valueForKey", "stringValue"] }
+  "3": { accept: ["boolForKey"], chips: ["boolForKey", "objectForKey", "integerForKey", "BOOLForKey"] }
+  "4": { accept: ["setBool"], chips: ["setBool", "setObject", "setInteger", "setValue"] }
+hints: ["預設值用哪個方法一次登記？", "讀字串用型別化的 getter。", "BOOL 有專用的 setter / getter。"]
+feedback:
+  "1=setObject": "setObject: 會真的寫進 plist 並蓋掉使用者設過的值；預設值要用 registerDefaults:。"
+  "2=objectForKey": "可以，但 stringForKey: 多了型別檢查：存的不是字串會回 nil 而不是回別的東西讓後面 crash。"
+  "4=setObject": "要先包成 @(v) 才行；setBool:forKey: 直接吃 BOOL。"
+solution_note: "這兩個屬性沒有 ivar，getter / setter 都手寫，2.4 的規則：兩個都寫編譯器就不合成。registerDefaults: 放在初始化裡每次啟動都跑。"

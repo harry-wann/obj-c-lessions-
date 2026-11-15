@@ -1,0 +1,214 @@
+---
+title: 偵錯：lldb、斷點、Sanitizer 與 crash log
+module: 12
+chapter: "12.4"
+order: 4
+minutes: 45
+prereq: ["12.3", "4.5"]
+objectives:
+  - 在 lldb 用 po / p / expr / bt / frame variable 看狀態、改狀態、繼續執行
+  - 設條件斷點、符號斷點與 Exception Breakpoint，讓 crash 停在丟例外的那一行而不是 main
+  - 開 Zombie Objects、Address / Thread Sanitizer 與靜態分析抓記憶體問題；拿到 crash log 能用 dSYM 與 atos 符號化並定位
+summary: "lldb 五個常用指令；條件斷點、符號斷點 -[NSArray objectAtIndex:]、Exception Breakpoint（一定要開）；Zombie Objects 抓 over-release；ASan / TSan；Product → Analyze；crash log 結構、dSYM 與 atos 符號化、從 log 到定位的 SOP。"
+terms:
+  - { en: breakpoint, tw: 斷點, cn: 断点, jp: ブレークポイント }
+  - { en: symbolic breakpoint, tw: 符號斷點, cn: 符号断点, jp: シンボリックブレークポイント }
+  - { en: zombie object, tw: 殭屍物件, cn: 僵尸对象, jp: ゾンビオブジェクト }
+  - { en: sanitizer, tw: 消毒器（sanitizer）, cn: 消毒器, jp: サニタイザ }
+  - { en: symbolicate, tw: 符號化, cn: 符号化, jp: シンボリケート }
+  - { en: dSYM, tw: 偵錯符號檔（dSYM）, cn: 符号文件, jp: デバッグシンボル }
+appProgress: 專案 scheme 開啟 Exception Breakpoint 與 Zombie Objects；Analyze 零警告；一份 crash log 從符號化到修掉。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// Swift 在 lldb 裡：p 走 Swift 表達式求值，po 呼叫 debugDescription
+// (lldb) p ledger.transactions.count
+// (lldb) po ledger
+// Swift 的 crash 多半是 fatalError / 強制解包，訊息直接寫在 log 第一行
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// Android：Logcat 的 stack trace 本來就有行號；Release 經 R8 混淆後要用 mapping.txt retrace
+// Exception breakpoint：Run → View Breakpoints → Java Exception Breakpoints，勾 "Any exception"
+// StrictMode / LeakCanary 對應 Zombie / Instruments Leaks
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// JVM：jstack 看執行緒、jdb / IDE Evaluate Expression 等於 lldb 的 expr
+// NullPointerException 自帶 "Cannot invoke ... because x is null"（JDK 14+）
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// 瀏覽器：Sources → Pause on exceptions（= Exception Breakpoint）
+// 壓縮過的 bundle 靠 source map 還原行號（= dSYM 符號化）
+// console.dir(obj) ≈ po obj；debugger; 敘述 ≈ 在那行下斷點
+```
+</Fragment>
+每個平台都有同一組工具的不同名字：**停在丟例外的瞬間**（Exception Breakpoint / Pause on exceptions / Java Exception Breakpoints），**把位址還原成函式名與行號**（dSYM + atos / source map / mapping.txt retrace），**在停住時求值**（`expr` / Evaluate Expression / console）。ObjC 多一樣別人沒有的東西：殭屍物件（Zombie Objects），因為只有手動參考計數的世界才有 over-release。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### lldb 五個指令
+
+App 在斷點停住時，Xcode 下方 console 就是 lldb。背這五個：
+
+```bash
+(lldb) po self.ledger
+<LBLedger: 0x600002d1c3c0> 3 transactions, total -340
+# po = print object：呼叫 -description（或 -debugDescription）
+
+(lldb) p self.ledger.transactions.count
+(NSUInteger) $0 = 3
+# p = 印標量或結構，用 lldb 的格式；物件只會印位址
+
+(lldb) expr self.ledger.transactions[0].note = @"改成這樣"
+(lldb) expr (void)[self.tableView reloadData]
+# expr 可以執行任何 ObjC 敘述改狀態；回傳 void 的方法要加 (void) 轉型，lldb 才知道怎麼處理
+
+(lldb) bt
+* thread #1, queue = 'com.apple.main-thread', stop reason = breakpoint 2.1
+  * frame #0: 0x0000000102a3c1f4 LittleBook`-[LBLedger addTransaction:](self=0x600002d1c3c0, _cmd="addTransaction:", transaction=0x6000021a0e40) at LBLedger.m:48:5
+    frame #1: 0x0000000102a41b20 LittleBook`-[LBTransactionEditorViewController save:] at LBTransactionEditorViewController.m:132:9
+    frame #2: 0x00000001b2f4e0c8 UIKitCore`-[UIApplication sendAction:to:from:forEvent:] + 100
+# bt = backtrace，誰叫了誰；frame select 1 可以切到上一層看它的變數
+
+(lldb) frame variable
+(LBLedger *) self = 0x600002d1c3c0
+(SEL) _cmd = "addTransaction:"
+(LBTransaction *) transaction = 0x6000021a0e40
+# frame variable（簡寫 fr v）列出目前 frame 所有區域變數，不會執行任何程式碼，比 po 安全
+```
+
+`po` 的輸出來自 `-description`，所以模組 2 說「每個 model 類別覆寫 `description`」在這裡回本。碰到 `po` 印不出東西（`error: Couldn't materialize`）通常是最佳化等級太高的 Release 建置，或變數已經離開作用域，改用 `frame variable` 或 `p` 讀暫存器。
+
+### 斷點：條件、符號、例外
+
+**條件斷點**：在斷點上右鍵 → Edit Breakpoint，Condition 填 ObjC 表達式，只在滿足時停；Action 可以選 Log Message 或 Debugger Command 並勾「Automatically continue」，就變成不用改程式碼的 `NSLog`。迴圈跑 500 筆只想看第 237 筆的時候用。
+
+**符號斷點**：Breakpoint Navigator（⌘8）左下 + → Symbolic Breakpoint，Symbol 填 `-[NSArray objectAtIndex:]` 或 `-[UIViewController viewDidLoad]`，所有呼叫這個方法的地方都會停，連 UIKit 內部的也停。找「到底是誰在呼叫這個 API」很好用，也可以用 Module 欄位限制只停在自己的模組。`+[NSException raise:format:]` 是另一個常用的。
+
+**Exception Breakpoint**：這是整章最重要的一條設定。ObjC 的例外（`NSRangeException`、`NSInvalidArgumentException`…）丟出後會一路往上冒到 `main` 才被 `UIApplicationMain` 攔下、印 `*** Terminating app due to uncaught exception` 然後 `abort()`。沒開 Exception Breakpoint 時，Xcode 停在 `main.m` 的 `return UIApplicationMain(...)` 那行，堆疊裡只有系統框架，你看不到自己的哪一行有問題。開了之後，偵錯器在 `objc_exception_throw` 的瞬間停住，`bt` 第一個屬於你的 frame 就是罪魁禍首。
+
+<Steps title="開 Exception Breakpoint（每個專案都做一次）">
+<ol>
+<li>⌘8 開 Breakpoint Navigator，左下角 + → Exception Breakpoint。</li>
+<li>Exception 選 Objective-C（All 會連 C++ 例外一起停，有些框架內部正常使用 C++ 例外，會停到很煩）。</li>
+<li>Break 選 On Throw。</li>
+<li>右鍵斷點 → Move Breakpoint To → User，之後所有專案都生效。</li>
+<li>選擇性加 Action：Debugger Command 填 <code>po $arg1</code>，停下來同時印出例外物件（Apple Silicon 模擬器與真機都適用）。</li>
+</ol>
+</Steps>
+
+### Zombie Objects：抓 over-release
+
+ARC 專案裡 `EXC_BAD_ACCESS` 大多來自三件事：對已釋放物件送訊息（模組 11 的 MRC 舊檔、`assign` 的 delegate、`__unsafe_unretained`）、C 指標越界、堆疊上的 block 存起來用。第一種用<Term en="zombie object" tw="殭屍物件" cn="僵尸对象" jp="ゾンビオブジェクト" />抓：Edit Scheme → Run → Diagnostics → 勾 Zombie Objects。開了之後物件釋放時記憶體不會真的回收，而是把 `isa` 換成 `_NSZombie_原類別`，之後任何訊息送到它身上會立刻停下來並印：
+
+```bash
+*** -[LBLegacyTransaction note]: message sent to deallocated instance 0x7f9e3a40c8d0
+```
+
+原本隨機 crash 在不相關的地方，現在變成確定性地告訴你哪個類別的哪個物件、被誰送了什麼訊息。只在 Debug 用，開著會一直漏記憶體。
+
+### Address Sanitizer 與 Thread Sanitizer
+
+同一個 Diagnostics 頁面有兩個<Term en="sanitizer" tw="消毒器" cn="消毒器" jp="サニタイザ" />：
+
+- **Address Sanitizer（ASan）**：編譯器在每次記憶體存取前插入檢查，抓堆積越界、使用已釋放記憶體、堆疊越界，報告會畫出那塊記憶體的配置與釋放堆疊。`LBRingBuffer` 的 C 陣列越界、`memcpy` 長度算錯用它一秒抓到。執行速度慢兩三倍，不能和 Zombie 同時開。
+- **Thread Sanitizer（TSan）**：抓資料競爭（兩個執行緒沒同步地讀寫同一塊記憶體）。模組 7 與 10 的並行程式、`nonatomic` 屬性跨執行緒讀寫，TSan 會把兩邊的堆疊並列印出來。只能在模擬器與 64 位元裝置跑，慢五到十倍。
+
+習慣是：每週至少開一次 ASan 跑完整套測試，動到並行程式碼時開 TSan 跑一次。
+
+### 靜態分析：Product → Analyze
+
+⇧⌘B 不執行程式，直接分析原始碼找「可能的」問題：ObjC 物件洩漏（MRC 檔案）、未初始化變數、空指標解參考、`NSError **` 拿到錯誤但沒檢查回傳值、呼叫結果沒有用到。報告以藍色箭頭畫出路徑：「這條分支 x 是 nil → 這裡解參考」。小帳本的驗收條件是 Analyze 零警告，Build Settings 裡「Analyze During Build」開著就每次建置都跑。分析器偶爾誤報，確認是誤報就重寫成它看得懂的樣子，不要關掉檢查。
+
+### 讀 crash log 與符號化
+
+使用者回報 crash 時你拿到的是 `.ips` 或 `.crash` 檔（Xcode → Window → Devices and Simulators → View Device Logs，或 Organizer → Crashes 看 App Store 版）。結構：
+
+```
+Incident Identifier: 2B3E...
+Hardware Model:      iPhone15,2
+Process:             LittleBook [4123]
+Version:             1.4.2 (87)
+OS Version:          iPhone OS 17.5 (21F79)
+
+Exception Type:  EXC_CRASH (SIGABRT)
+Exception Codes: 0x0000000000000000, 0x0000000000000000
+Termination Reason: SIGNAL 6 Abort trap: 6
+Triggered by Thread:  0
+
+Last Exception Backtrace:
+0   CoreFoundation   0x00000001a5e2c8d4 __exceptionPreprocess + 164
+1   libobjc.A.dylib  0x00000001a0f3e0d8 objc_exception_throw + 60
+2   CoreFoundation   0x00000001a5ef8ab4 -[__NSArrayI objectAtIndexedSubscript:] + 0
+3   LittleBook       0x0000000102a3c1f4 0x102a30000 + 49652
+4   LittleBook       0x0000000102a41b20 0x102a30000 + 72480
+5   UIKitCore        0x00000001a8c4e0c8 -[UITableView _selectRowAtIndexPath:...] + 1064
+```
+
+讀法：先看 `Exception Type` 與 `Termination Reason`（`SIGABRT` 多半是未捕捉例外或 `abort()`；`EXC_BAD_ACCESS` / `SIGSEGV` 是壞指標；`0x8badf00d` 是看門狗 timeout，主執行緒卡住太久）。有 `Last Exception Backtrace` 就先看它，沒有就看 `Triggered by Thread` 那條執行緒。然後往下找**第一個屬於你的 binary 的 frame**（這裡是第 3 行 `LittleBook`），上面的系統 frame 告訴你「什麼 API 丟的」（陣列下標越界），你的 frame 告訴你「在哪裡」。
+
+第 3、4 行只有位址沒有函式名，因為使用者裝置上沒有符號；要用建置當時產生的<Term en="dSYM" tw="偵錯符號檔" cn="符号文件" jp="デバッグシンボル" />還原，這個動作叫<Term en="symbolicate" tw="符號化" cn="符号化" jp="シンボリケート" />：
+
+```bash
+# 1. 確認 dSYM 的 UUID 跟 crash log 裡 Binary Images 區段列的 LittleBook UUID 一致
+$ dwarfdump --uuid LittleBook.app.dSYM
+UUID: 7D2B4F1A-3C5E-4B8A-9F0E-1D2C3B4A5F60 (arm64) LittleBook.app.dSYM/Contents/Resources/DWARF/LittleBook
+
+# 2. atos：-l 給 binary 載入位址（frame 裡 "0x102a30000 + 49652" 的前半），後面接要還原的位址
+$ atos -arch arm64 -o LittleBook.app.dSYM/Contents/Resources/DWARF/LittleBook \
+       -l 0x102a30000 0x0000000102a3c1f4 0x0000000102a41b20
+-[LBTransactionListViewController transactionAtIndexPath:] (in LittleBook) (LBTransactionListViewController.m:214)
+-[LBTransactionListViewController tableView:didSelectRowAtIndexPath:] (in LittleBook) (LBTransactionListViewController.m:198)
+```
+
+拿到行號之後，`LBTransactionListViewController.m:214` 是 `self.sections[indexPath.section].transactions[indexPath.row]`：刪除最後一列時 section 已經移除但 table view 還留著舊 indexPath。把 crash log 拖進 Xcode Organizer 或 Devices 視窗，只要 Xcode 找得到對應 dSYM（Spotlight 索引）就會自動符號化，`atos` 是它找不到時的手動版本。App Store 版記得在 Archive 時勾 Upload Symbols，否則 Organizer 的 Crashes 頁只有位址。
+
+<Tip title="從 crash log 到定位的 SOP">
+1. 看 `Exception Type` / `Termination Reason` 分類：例外、壞指標、看門狗、記憶體不足（Jetsam）。
+2. 看 `Last Exception Backtrace`，沒有就看 `Triggered by Thread`。
+3. 找第一個屬於自己 binary 的 frame；上面的系統 frame 說明是哪個 API 丟的。
+4. 沒符號就比對 UUID、用 dSYM 符號化。
+5. 開那一行，對照使用者操作重現；重現不了就加 Exception Breakpoint 用相近路徑跑，或對那個 API 下符號斷點。
+6. 修完補一個會重現這個 crash 的測試（12.3），再關單。
+</Tip>
+
+<Pitfall title="沒開 Exception Breakpoint，crash 停在 main">
+Xcode 停在 `main.m`、console 印 `*** Terminating app due to uncaught exception`、堆疊全是 `UIApplicationMain` 與 CoreFoundation，很多人就開始在 console 訊息裡猜。開了 Exception Breakpoint 之後同一個 crash 會停在你自己的 `.m` 檔的某一行，`bt` 直接看到呼叫鏈。這個設定是 per-user、跨專案的，裝好 Xcode 第一件事就是加它。
+</Pitfall>
+
+<Pitfall title="Release 建置 crash 但 Debug 不會">
+最常見三個原因：Release 的最佳化讓未初始化的區域變數剛好不再是 0；`NSAssert` 在 Release 被 `NS_BLOCK_ASSERTIONS` 拿掉，原本靠斷言擋下的 nil 流到後面；Debug 開著 Zombie 把 over-release 藏起來了。對策是在 Edit Scheme 把 Run 的 Build Configuration 暫時切成 Release 重現，並且記得切回來。
+</Pitfall>
+
+<Pitfall title="dSYM 的 UUID 對不上">
+符號化出來的函式名完全不合理（例如 crash 在 `-[LBSettings currencyCode]` 但使用者根本沒開設定頁），幾乎都是用了別次建置的 dSYM。每次建置的 UUID 都不同，crash log 的 `Binary Images` 區段和 `dwarfdump --uuid` 必須一字不差。CI 要把每個上架版本的 dSYM 歸檔，Bitcode 時代 App Store 會重編，dSYM 要從 App Store Connect 下載。
+</Pitfall>
+
+<Crash message={`Thread 1: EXC_BAD_ACCESS (code=1, address=0x10)
+#0  objc_msgSend
+#1  -[LBTransactionCell configureWithViewModel:]
+#2  -[LBTransactionListViewController tableView:cellForRowAtIndexPath:]`}>
+`objc_msgSend` 是第 0 層、位址很小（`0x10`、`0x18` 這種），是對一個**壞指標**送訊息：它不是 nil（nil 什麼事都不會發生），而是指向已經釋放、被別人重用的記憶體，runtime 從它的 `isa` 讀方法快取時讀到垃圾。這類 crash 在 ARC 下的典型來源是 `assign` / `unsafe_unretained` 的委派或 `LBTransactionViewModel` 快取裡存了弱參考以外的裸指標。做法：開 Zombie Objects 重跑，訊息會變成 `message sent to deallocated instance`，直接說出是哪個類別；再開 ASan 看那塊記憶體在哪裡被釋放。修完後把那個屬性改成 `weak` 或 `strong`，並補上測試。
+</Crash>
+
+## 小結
+
+- lldb：`po` 看物件（靠 `description`）、`p` 看標量、`expr` 改狀態、`bt` 看呼叫鏈、`frame variable` 安全地列區域變數。
+- 條件斷點取代臨時 `NSLog`；符號斷點找「誰呼叫了這個 API」；Exception Breakpoint 讓 crash 停在丟例外的那一行，每台機器都要開。
+- Zombie Objects 把 over-release 變成確定性的訊息；ASan 抓越界與 use-after-free；TSan 抓資料競爭；Analyze 在編譯期抓洩漏與 nil 解參考。
+- crash log 先看 Exception Type → Last Exception Backtrace → 第一個自己的 frame；沒符號就比對 UUID 用 dSYM + `atos` 還原。
+- 修完 crash 一定補一個會重現它的測試。

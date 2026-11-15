@@ -1,0 +1,21 @@
+id: m07-7-1-parsons-1
+chapter: "7.1"
+type: parsons
+title: 排出包裝底層錯誤的方法
+minutes: 3
+prompt: 排出一個解析方法的失敗分支：底層 JSON 錯誤要被包進自己的 NSError。有兩行是干擾行。
+lines:
+  - "NSError *jsonError = nil;"
+  - "id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonError];"
+  - "if (obj == nil) {"
+  - "    if (error) {"
+  - "        *error = [NSError errorWithDomain:LBErrorDomain code:LBErrorCodeMalformedJSON"
+  - "                                 userInfo:@{ NSLocalizedDescriptionKey: @\"不是有效的 JSON\", NSUnderlyingErrorKey: jsonError }];"
+  - "    }"
+  - "    return nil;"
+  - "}"
+distractors:
+  - "if (jsonError) {"
+  - "@throw [NSException exceptionWithName:@\"LBParseError\" reason:nil userInfo:nil];"
+solution_note: 判斷用回傳值 `obj == nil` 不用 `if (jsonError)`；填 error 前 `if (error)`；原始錯誤放 `NSUnderlyingErrorKey`；資料格式錯是可預期失敗，不用例外。
+hints: ["先呼叫底層 API，再判它的回傳值。", "填 error 之前要檢查什麼？", "原始錯誤放哪個 key？"]

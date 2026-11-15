@@ -1,0 +1,271 @@
+---
+title: Storyboard 實作
+module: 11
+chapter: "11.3"
+order: 3
+minutes: 45
+prereq: ["8.7", "9.3"]
+objectives:
+  - 用 static cells 做出設定頁，IBOutlet / IBAction 連對，並讀懂斷線後的 crash
+  - "寫出 prepareForSegue:sender: 樣板，正確拿到包在 UINavigationController 裡的目的地"
+  - 看懂 .storyboard 的 XML 合併衝突，知道怎麼拆檔避免
+summary: "設定頁改 Storyboard：static cells、IBOutlet / IBAction、segue 與 prepareForSegue:sender:、performSegueWithIdentifier:、unwind segue、instantiateViewControllerWithIdentifier:、Storyboard Reference 拆檔；.storyboard 是 XML，合併衝突怎麼看、一人一個 storyboard。"
+terms:
+  - { en: storyboard, tw: Storyboard, cn: 故事板, jp: ストーリーボード }
+  - { en: outlet, tw: 連線出口（IBOutlet）, cn: 输出口, jp: アウトレット }
+  - { en: segue, tw: 轉場（segue）, cn: 转场, jp: セグエ }
+  - { en: unwind segue, tw: 回退轉場, cn: 反向转场, jp: アンワインドセグエ }
+  - { en: static cells, tw: 靜態儲存格, cn: 静态单元格, jp: 静的セル }
+  - { en: storyboard reference, tw: Storyboard 參考, cn: 故事板引用, jp: ストーリーボードリファレンス }
+appProgress: 設定頁改走 Settings.storyboard（static cells + segue 到效能面板）；LBSettingsStoryboardTests 兩個測試轉綠。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// Swift 專案裡的 Storyboard 寫法一模一樣，只是多了 @IBSegueAction 可以帶參數建 VC
+override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
+    guard segue.identifier == "showPerformance",
+          let nav = segue.destination as? UINavigationController,
+          let perf = nav.topViewController as? LBPerformanceViewController
+    else { return }
+    perf.monitor = LBFPSMonitor.shared()
+}
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// Android：XML layout + findViewById（舊）→ ViewBinding（新）
+// 舊：id 打錯只在執行期爆 NullPointerException
+val label = findViewById<TextView>(R.id.currency_label)
+// 新：binding 類別由 XML 產生，id 打錯編譯就失敗
+val binding = FragmentSettingsBinding.inflate(inflater)
+binding.currencyLabel.text = "TWD"
+// 畫面間跳轉：Navigation Component 的 nav_graph.xml ≈ segue
+findNavController().navigate(R.id.action_settings_to_performance)
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// Java Android：Intent 跳頁 + putExtra 傳資料 ≈ segue + prepareForSegue
+Intent i = new Intent(this, PerformanceActivity.class);
+i.putExtra("monitor", monitorId);
+startActivity(i);
+// 接收端在 onCreate 用 getIntent().getExtras() 拿
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// React Router：路由表 ≈ storyboard 上的 segue 圖
+<Route path="/settings/performance" element={<Performance />} />
+navigate("/settings/performance", { state: { monitor } });
+// 路由字串打錯 → 404，一樣是執行期才知道
+```
+</Fragment>
+Storyboard 把「畫面長相」和「畫面之間怎麼跳」畫在一張圖上，程式碼透過**字串 identifier** 跟這張圖對接。它的優缺點跟 Android 的 XML layout 一模一樣：拉起來快、看得到全貌，但 id 打錯字只在執行期爆、兩個人同時改會合併衝突。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 什麼時候用 Storyboard
+
+本課程主線兩種都用：列表與編輯頁用程式碼（8.x），設定頁用 Storyboard。理由是設定頁的典型特徵——**固定幾行、固定順序、每行長得不一樣**——正是 <Term en="static cells" tw="靜態儲存格" cn="静态单元格" jp="静的セル" /> 的強項：不用寫 `numberOfRowsInSection:` 和 `cellForRowAtIndexPath:`，直接在畫布上擺好三行，拉 outlet 連到程式碼。
+
+### 建立 Settings.storyboard 與 static cells
+
+<Steps title="設定頁改 Storyboard">
+<ol>
+<li>File → New → File → User Interface → Storyboard，命名 <code>Settings.storyboard</code>，確認加進 <code>LittleBook</code> target。</li>
+<li>從 Library（⇧⌘L）拖一個 <strong>Table View Controller</strong> 到畫布。選它，Identity inspector → Class 填 <code>LBSettingsViewController</code>；Storyboard ID 填 <code>Settings</code>，勾 Use Storyboard ID。</li>
+<li>選畫布上的 Table View，Attributes inspector → Content 改成 <strong>Static Cells</strong>，Style 改 Grouped，Sections 設 2。</li>
+<li>第一個 section 留三個 cell：幣別、顯示小數、外觀。每個 cell Style 選 Right Detail；「顯示小數」那個改成 Custom，拖一個 Switch 進去。</li>
+<li>第二個 section 一個 cell，標題「效能面板」，Accessory 選 Disclosure Indicator。</li>
+<li>打開 Assistant editor（⌃⌥⌘↩），從幣別 cell 的 detail label 按住 Control 拖到 <code>LBSettingsViewController.m</code> 的類別延伸裡，Connection 選 Outlet，名稱 <code>currencyLabel</code>。同樣接 <code>centsSwitch</code>（Switch）與 <code>appearanceLabel</code>。</li>
+<li>Switch 再拖一次，Connection 選 <strong>Action</strong>，名稱 <code>centsSwitchChanged:</code>，Event 是 Value Changed。</li>
+<li>從「效能面板」cell 按住 Control 拖到畫布空白處放開選 <strong>Show</strong>，會自動生出一個新的 View Controller；把它的 Class 設成 <code>LBPerformanceViewController</code>。點選兩個場景之間的箭頭，Attributes inspector → Identifier 填 <code>showPerformance</code>。</li>
+<li>選 <code>LBSettingsViewController</code> 場景，Editor → Embed In → Navigation Controller。</li>
+<li>把 <code>LBSettingsViewController</code> 原本程式碼建 UI 的部分刪掉，⌘U 跑 <code>LBSettingsStoryboardTests</code>。</li>
+</ol>
+</Steps>
+
+連線在程式碼這一端長這樣：
+
+```objc
+// LBSettingsViewController.m
+@interface LBSettingsViewController ()
+@property (nonatomic, weak) IBOutlet UILabel *currencyLabel;
+@property (nonatomic, weak) IBOutlet UISwitch *centsSwitch;
+@property (nonatomic, weak) IBOutlet UILabel *appearanceLabel;
+@end
+
+@implementation LBSettingsViewController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    // outlet 在 viewDidLoad 之後才保證有值；init 階段全是 nil
+    self.currencyLabel.text = [LBSettings shared].currencyCode;
+    self.centsSwitch.on = [LBSettings shared].showsCents;
+}
+
+- (IBAction)centsSwitchChanged:(UISwitch *)sender {
+    [LBSettings shared].showsCents = sender.isOn;
+}
+@end
+```
+
+`IBOutlet` 用 `weak` 是慣例：view 階層已經強持有這些子 view，outlet 只是一個方便拿到它們的指標。`IBOutlet` 與 `IBAction` 對編譯器來說是空巨集，純粹給 Interface Builder 看的標記。
+
+### 測試怎麼載入 Storyboard
+
+```objc
+// LBSettingsStoryboardTests.m
+- (void)testStoryboardInstantiatesSettingsViewController {
+    UIStoryboard *sb = [UIStoryboard storyboardWithName:@"Settings"
+                                                 bundle:[NSBundle bundleForClass:[LBSettingsViewController class]]];
+    UIViewController *vc = [sb instantiateViewControllerWithIdentifier:@"Settings"];
+    XCTAssertTrue([vc isKindOfClass:[LBSettingsViewController class]]);
+}
+
+- (void)testOutletsConnectedAfterLoadView {
+    LBSettingsViewController *vc = /* 同上 */;
+    [vc loadViewIfNeeded];                 // 觸發 viewDidLoad，outlet 才有值
+    XCTAssertNotNil(vc.currencyLabel);
+    XCTAssertNotNil(vc.centsSwitch);
+    XCTAssertNotNil(vc.appearanceLabel);
+}
+```
+
+`instantiateViewControllerWithIdentifier:` 用的是你在步驟 2 填的 **Storyboard ID**，不是 Class 名；兩者可以不同，打錯任何一個字都是執行期 crash（見本章 Crash 與練習題）。
+
+### segue 與 prepareForSegue:sender:
+
+點 cell 觸發 <Term en="segue" tw="轉場（segue）" cn="转场" jp="セグエ" /> 是自動的；要**把資料帶過去**就在 `prepareForSegue:sender:` 做，這是你會抄一百次的樣板：
+
+```objc
+- (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
+    if ([segue.identifier isEqualToString:@"showPerformance"]) {
+        LBPerformanceViewController *perf = segue.destinationViewController;
+        perf.monitor = [LBFPSMonitor shared];
+    }
+}
+```
+
+如果目的地被包在 `UINavigationController` 裡（例如 Present Modally 一個帶導覽列的頁面），`destinationViewController` 是那個 navigation controller，要再往下拿 `topViewController`——這是 docs/02 列出的經典陷阱，見下面 Pitfall。
+
+程式碼觸發 segue 用 `performSegueWithIdentifier:sender:`，常見於「先做驗證再跳頁」：
+
+```objc
+- (void)tableView:(UITableView *)tableView
+        didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    if (indexPath.section == 1) {
+        [self performSegueWithIdentifier:@"showPerformance" sender:self];
+    }
+}
+```
+
+### unwind segue：回到上一頁並帶資料
+
+往回跳不用再拉一條 segue。在**目的地**（要回去的那頁）宣告一個帶 `IBAction` 的方法，參數型別是 `UIStoryboardSegue *`：
+
+```objc
+// LBSettingsViewController.m（要回到的頁面）
+- (IBAction)unwindFromPerformance:(UIStoryboardSegue *)segue {
+    LBPerformanceViewController *perf = segue.sourceViewController;
+    NSLog(@"回來了，fps = %.1f", perf.monitor.fps);
+}
+```
+
+然後在效能頁的畫布上，從按鈕按住 Control 拖到場景上方的 **Exit** 圖示，選 `unwindFromPerformance:`。<Term en="unwind segue" tw="回退轉場" cn="反向转场" jp="アンワインドセグエ" /> 會沿導覽堆疊往回找第一個實作了這個方法的 VC，所以跨好幾層也能一次回到設定頁。
+
+### Storyboard Reference：拆大檔
+
+一個 `Main.storyboard` 塞 30 個場景是 2014 年專案的常態，開檔要十秒、合併必衝突。拆法：框選一群場景，Editor → **Refactor to Storyboard...**，命名 `Settings.storyboard`。Xcode 會把它們搬走，原位置留一個 <Term en="storyboard reference" tw="Storyboard 參考" cn="故事板引用" jp="ストーリーボードリファレンス" />，segue 照常接。原則是**一個功能流程一個 storyboard，一個人同時只改一個**。
+
+### .storyboard 是 XML
+
+Storyboard 檔案是 XML，git diff 看得到。一條 outlet 長這樣：
+
+```xml
+<connections>
+    <outlet property="currencyLabel" destination="Kq3-7f-2Xa" id="dRs-Ty-9bN"/>
+    <segue destination="n8G-pK-wQ1" kind="show" identifier="showPerformance" id="..."/>
+</connections>
+```
+
+合併衝突通常落在三種地方：(1) 同一個 `<connections>` 區塊兩邊都加了東西；(2) `<rect>` / `<constraints>` 的座標數字，因為兩個人用不同尺寸的 Xcode 視窗開過；(3) 檔頭的 `<document toolsVersion=...>`，兩個人 Xcode 版本不同。第 3 種直接取任何一邊；第 2 種取任何一邊再用 IB 重排；第 1 種**兩邊都保留**，再開 IB 檢查每條連線旁有沒有黃色三角形（斷線警告）。衝突太大時，寧可放棄一邊、重拉，比手改 XML 可靠。
+
+<Tip title="Storyboard 裡的字串，全部集中到一處">
+`@"Settings"`、`@"showPerformance"` 這類字串散在程式碼各處，改名就是災難。慣例是放成常數：`static NSString * const LBSegueShowPerformance = @"showPerformance";`，並在 `prepareForSegue:` 用 `NSAssert` 擋住沒處理到的 identifier。字串還是字串，但至少只打一次。
+</Tip>
+
+<Pitfall title="destinationViewController 是 UINavigationController">
+<Fragment slot="bad">
+```objc
+// segue 是 Present Modally，目的地 embed 在 Navigation Controller 裡
+LBTransactionEditorViewController *editor = segue.destinationViewController;
+editor.ledger = self.ledger;   // 編譯過；執行期：
+// -[UINavigationController setLedger:]: unrecognized selector
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+UIViewController *dest = segue.destinationViewController;
+if ([dest isKindOfClass:[UINavigationController class]]) {
+    dest = [(UINavigationController *)dest topViewController];
+}
+LBTransactionEditorViewController *editor = (id)dest;
+editor.ledger = self.ledger;
+```
+</Fragment>
+`destinationViewController` 回傳 `id`，所以賦值給任何指標型別都不會有警告，錯誤要等到送訊息才爆。看到 `unrecognized selector` 且接收者是 `UINavigationController`，九成就是這個。
+</Pitfall>
+
+<Pitfall title="outlet 在 init 階段還是 nil">
+<Fragment slot="bad">
+```objc
+- (instancetype)initWithCoder:(NSCoder *)coder {
+    if (self = [super initWithCoder:coder]) {
+        self.currencyLabel.text = @"TWD";   // outlet 尚未連接，對 nil 送訊息，無聲無息
+    }
+    return self;
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.currencyLabel.text = [LBSettings shared].currencyCode;
+}
+```
+</Fragment>
+Storyboard 建立 VC 走的是 `initWithCoder:`（不是你習慣的 `initWithLedger:`），而且 view 與 outlet 要到第一次存取 `view` 時才載入。要注入相依性（ledger、monitor）有兩條路：`prepareForSegue:` 由上一頁塞進屬性，或 iOS 13 的 `instantiateViewControllerWithIdentifier:creator:` 在 block 裡呼叫自訂 init。
+</Pitfall>
+
+<Pitfall title="改了屬性名，storyboard 裡的 outlet 沒跟著改">
+用 Xcode 的 Refactor → Rename 改 `IBOutlet` 屬性名會連 storyboard 一起改；手動改名不會。結果是 storyboard 還記得舊名字，執行期載入時嘗試對 VC 設一個不存在的 key → `NSUnknownKeyException`（見 Crash）。斷線後 IB 連線旁會出現黃色三角形，commit 前掃一眼 storyboard 的 Connections inspector 是便宜的保險。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSUnknownKeyException',
+reason: '[<LBSettingsViewController 0x7fa3b9c0e5a0> setValue:forUndefinedKey:]:
+this class is not key value coding-compliant for the key currencyLable.'`}>
+讀法：載入 storyboard 時，UIKit 用 KVC 把每條 outlet 「set」到 VC 上；key `currencyLable` 在 `LBSettingsViewController` 身上找不到對應的屬性或 ivar，所以丟 `NSUnknownKeyException`。注意拼字：`Lable` 是 storyboard 裡殘留的舊名字（或當初就打錯），程式碼早已是 `currencyLabel`。
+
+修法：打開 `Settings.storyboard`，選 `LBSettingsViewController` 場景，Connections inspector（最右邊的箭頭圖示）找到有黃色三角形的那條，按 × 刪掉，從 label 重新 Control-拖到正確的屬性。本章 Xcode 任務會請你故意弄斷一條、看到這個 crash、再接回。
+
+另外兩則同家族的訊息：`has no segue with identifier 'showPerformance'`（segue 的 Identifier 欄沒填或打錯）與 `doesn't contain a view controller with identifier 'Editor'`（Storyboard ID 沒填或打錯），都在練習題裡。
+</Crash>
+
+## 小結
+
+- 設定頁這種「固定幾行、每行不同」的畫面用 static cells 最省；列表與編輯頁維持程式碼。
+- `IBOutlet` 用 `weak`，`viewDidLoad` 之後才有值；注入相依性靠 `prepareForSegue:` 或 `instantiateViewControllerWithIdentifier:creator:`。
+- `prepareForSegue:sender:` 先比 `identifier`，再轉型 `destinationViewController`；包在 `UINavigationController` 裡要取 `topViewController`。
+- unwind segue 從目的地往回拖到 Exit；Storyboard Reference 把大檔拆成一個流程一檔、一人一檔。
+- `.storyboard` 是 XML：`<connections>` 衝突兩邊都留再進 IB 檢查黃色三角形；座標與 toolsVersion 衝突取任一邊。

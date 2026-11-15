@@ -1,0 +1,22 @@
+id: m12-12-6-fill-1
+chapter: "12.6"
+section: quiz
+type: fill
+title: 讀碼時 ObjC 的隱形連線要搜什麼
+minutes: 2
+prompt: Jump to Definition 追不到的連線，各要全文搜什麼關鍵字？
+code: |
+  swizzling   → 搜 ___1___
+  通知的發送  → 搜 ___2___
+  KVO 的註冊  → 搜 ___3___
+  Storyboard 跳轉 → 搜 ___4___
+blanks:
+  "1": { accept: ["method_exchangeImplementations"], chips: ["method_exchangeImplementations", "class_addMethod", "objc_msgSend", "NSSelectorFromString"] }
+  "2": { accept: ["postNotificationName:", "postNotificationName"], chips: ["postNotificationName:", "addObserver:selector:name:object:", "NSNotification", "notify"] }
+  "3": { accept: ["addObserver:forKeyPath:", "addObserver:forKeyPath:options:context:"], chips: ["addObserver:forKeyPath:", "observeValueForKeyPath:", "willChangeValueForKey:", "setValue:forKey:"] }
+  "4": { accept: ["performSegueWithIdentifier:", "performSegueWithIdentifier"], chips: ["performSegueWithIdentifier:", "prepareForSegue:", "pushViewController:", "instantiateViewControllerWithIdentifier:"] }
+hints: ["swizzling 的核心 runtime 函式。", "找「誰發出」而不是「誰接收」才能從結果追回原因。", "segue 的觸發端。"]
+feedback:
+  "2=addObserver:selector:name:object:": 那是接收端；要找是誰觸發的，搜發送端。
+  "3=observeValueForKeyPath:": 那是回呼；要找是誰在觀察誰，搜註冊的那一行。
+solution_note: 每種隱形連線都有「觸發端」與「接收端」兩個關鍵字，畫圖時要兩邊都搜一次配對起來。

@@ -1,0 +1,38 @@
+id: m10-10-4-spot-2
+chapter: "10.4"
+type: spot
+title: 加了鎖之後開始 crash
+minutes: 3
+prompt: 把 NSRecursiveLock 換成 os_unfair_lock 後 App 一呼叫 removeAll 就中止。點出問題行並選出原因。
+code: |
+  - (void)removeTransactionWithIdentifier:(NSString *)identifier {
+      os_unfair_lock_lock(&_lock);
+      [_items removeObject:_byId[identifier]];
+      [_byId removeObjectForKey:identifier];
+      os_unfair_lock_unlock(&_lock);
+  }
+  - (void)removeAll {
+      os_unfair_lock_lock(&_lock);
+      for (NSString *key in _byId.allKeys) {
+          [self removeTransactionWithIdentifier:key];
+      }
+      os_unfair_lock_unlock(&_lock);
+  }
+bug_lines: [10]
+reasons:
+  - removeAll 持有鎖時呼叫同樣加鎖的 removeTransactionWithIdentifier:，os_unfair_lock 不可遞迴，libplatform 偵測到後中止程式
+  - allKeys 不能在迴圈裡用
+  - 迴圈中修改 _byId 會 crash
+  - unlock 應該放在迴圈裡
+answer_reason: 0
+fix: |
+  - (void)removeAll {
+      os_unfair_lock_lock(&_lock);
+      [_items removeAllObjects];      // 鎖內只碰 ivar
+      [_byId removeAllObjects];
+      os_unfair_lock_unlock(&_lock);
+  }
+solution_note: 原本用 NSRecursiveLock 時這段能跑，是因為遞迴鎖會計數。換成 os_unfair_lock 後同一條執行緒第二次 lock 直接 abort。原則：鎖內不呼叫自己的公開方法；需要共用邏輯就抽一個「假設已持有鎖」的私有方法。
+hints: ["removeAll 第一行拿了什麼？", "removeTransactionWithIdentifier: 第一行又拿了什麼？"]
+feedback:
+  "2": allKeys 回傳的是拷貝，迴圈裡改 _byId 是安全的。

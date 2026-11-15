@@ -1,0 +1,18 @@
+id: m08-8-2-quiz-1
+chapter: "8.2"
+section: quiz
+type: quiz
+title: 哪個回呼只跑一次
+minutes: 1
+prompt: 列表頁 push 到編輯頁再返回，重複三次。下列哪個方法在列表 VC 上只被呼叫過一次？
+options:
+  - "viewWillAppear:"
+  - viewDidLoad
+  - viewDidLayoutSubviews
+  - "viewDidAppear:"
+answer: 1
+explain: view 一旦載入就跟 VC 活到一起，viewDidLoad 只在第一次載入時呼叫；appear / disappear 那一組每次進出都跑，layout 回呼更是跑很多次。
+hints: ["view 載入幾次？", "回來時從哪個回呼重跑？"]
+feedback:
+  "0": 每次回到列表都會呼叫，離開期間資料可能變了就是靠它同步。
+  "2": 這個最多，每次版面重算都跑。

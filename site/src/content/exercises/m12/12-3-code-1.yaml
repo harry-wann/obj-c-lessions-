@@ -1,0 +1,43 @@
+id: m12-12-3-code-1
+chapter: "12.3"
+type: code
+title: 寫一個 XCTestExpectation 非同步測試
+mobile: false
+minutes: 8
+prompt: "為 `LBPersistence` 的 `- (void)saveLedger:(LBLedger *)ledger completion:(void (^)(NSError * _Nullable))completion;`（背景寫檔、主佇列回呼）寫測試 `testAsyncSaveCallsBackOnMainQueueWithoutError`：建 expectation、在 completion 裡斷言在主執行緒且 error 為 nil、fulfill、等 2 秒內完成。"
+starter: |
+  - (void)testAsyncSaveCallsBackOnMainQueueWithoutError {
+      LBLedger *ledger = [LBLedger new];
+
+  }
+checks:
+  - must_match: 'XCTestExpectation\s*\*\s*\w+\s*=\s*\[\s*self\s+expectationWithDescription\s*:'
+    message: "用 [self expectationWithDescription:] 建立 expectation"
+  - must_match: 'saveLedger\s*:\s*ledger\s+completion\s*:\s*\^'
+    message: "呼叫 saveLedger:completion: 並傳 block"
+  - must_match: 'XCTAssertTrue\s*\(\s*\[\s*NSThread\s+isMainThread\s*\]|XCTAssertTrue\s*\(\s*NSThread\.isMainThread'
+    message: 斷言回呼在主執行緒
+  - must_match: 'XCTAssertNil\s*\(\s*error'
+    message: 斷言 error 為 nil
+  - must_match: '\[\s*\w+\s+fulfill\s*\]'
+    message: 回呼裡要 fulfill
+  - must_match: 'waitForExpectations\s*:\s*@\[\s*\w+\s*\]\s*timeout\s*:\s*2'
+    message: "waitForExpectations:@[...] timeout:2"
+  - must_not_match: 'sleep\s*\(|dispatch_semaphore'
+    message: 不要用 sleep 或 semaphore 等待，用 expectation
+  - "brackets_balanced: true"
+solution: |
+  - (void)testAsyncSaveCallsBackOnMainQueueWithoutError {
+      LBLedger *ledger = [LBLedger new];
+      XCTestExpectation *saved = [self expectationWithDescription:@"ledger saved"];
+
+      [self.persistence saveLedger:ledger completion:^(NSError * _Nullable error) {
+          XCTAssertTrue([NSThread isMainThread]);
+          XCTAssertNil(error);
+          [saved fulfill];
+      }];
+
+      [self waitForExpectations:@[saved] timeout:2.0];
+  }
+solution_note: "斷言寫在 block 裡沒問題，XCTest 會把失敗歸到這個測試。沒有 expectation 的話，測試方法會在背景寫檔完成前結束，block 裡的斷言永遠不會執行，測試永遠是綠的。"
+hints: ["三步：建立 expectation、回呼裡 fulfill、最後 wait。", "主執行緒的判斷用 NSThread。", "timeout 給 2.0。"]

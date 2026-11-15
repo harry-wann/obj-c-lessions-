@@ -1,0 +1,14 @@
+id: m12-12-6-interview-4
+chapter: "12.6"
+type: flash
+tier: interview
+title: 面試速記：block 捕獲變數
+minutes: 2
+front: |
+  block 捕獲外部變數的規則是什麼？`__block` 做了什麼？block 有幾種？
+back: |
+  基本型別與指標按值拷貝，進 block 後是 const，外面之後怎麼改 block 看不到；這跟 Swift / JS 閉包捕獲變數本身不同。
+  __block 把變數搬進一個 block 與外層共用的結構，兩邊讀寫同一份，可以在 block 裡賦值。
+  捕獲物件拷貝的是指標並 retain 該物件，block 活著物件就活著，捕獲 self 就是循環參考的起點。
+  三種 block：global（無捕獲）、stack（剛寫出來）、malloc（copy 後）；ARC 下賦值給 strong / copy 屬性、傳進 NSArray 都會自動 copy 到堆積。
+  加分延伸：block 裡用 _ivar 等於 self->_ivar，一樣捕獲 self；開 -Wimplicit-retain-self 能抓到。

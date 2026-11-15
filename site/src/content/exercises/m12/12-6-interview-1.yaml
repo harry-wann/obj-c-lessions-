@@ -1,0 +1,13 @@
+id: m12-12-6-interview-1
+chapter: "12.6"
+type: flash
+tier: interview
+title: 面試速記：ARC 怎麼運作
+minutes: 2
+front: |
+  請解釋 ARC 是怎麼運作的。它跟垃圾回收有什麼不同？
+back: |
+  ARC 是編譯期的機制：編譯器依擁有權規則，在每個強參考的賦值、離開作用域處自動插入 retain / release / autorelease，執行期沒有任何掃描器在跑。
+  物件的參考計數歸零時立刻呼叫 dealloc 並釋放記憶體，時間點是確定的，不像 GC 由收集器決定。
+  代價是 ARC 看不出「循環」：兩個物件互相強持有，計數永遠不歸零，要靠開發者用 weak 斷開。
+  加分延伸：ARC 做了很多最佳化（objc_retainAutoreleasedReturnValue 跳過 autorelease pool），所以不用為了效能寫 MRC。

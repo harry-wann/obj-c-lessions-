@@ -1,0 +1,18 @@
+id: m06-6-1-quiz-1
+chapter: "6.1"
+section: quiz
+type: quiz
+title: 編譯器對 id 還檢查什麼
+minutes: 1
+prompt: "`id thing = [bag firstObject]; [thing fly];` 整個專案沒有任何類別宣告過 `-fly`。編譯器會怎麼反應？"
+options:
+  - 編譯錯誤，id 不能送未宣告的訊息
+  - "警告 `instance method '-fly' not found`，仍可編譯，執行時若物件不回應就 crash"
+  - 完全沒反應，id 可以送任何訊息
+  - "編譯器會自動插入 respondsToSelector: 檢查"
+answer: 1
+explain: 對 `id` 送訊息，編譯器只檢查「有沒有任何已知類別宣告過這個 selector」。沒人宣告過是警告不是錯誤；有人宣告過就安靜通過，真正的檢查在執行期。
+hints: ["id 是動態型別，但編譯器並沒有完全放手。", "區分「警告」與「錯誤」。"]
+feedback:
+  "0": 這是靜態型別指標才有的檢查。id 只會得到警告。
+  "2": 完全沒宣告過的 selector 會有警告，只是預設不是錯誤。

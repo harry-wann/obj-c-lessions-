@@ -1,0 +1,31 @@
+id: m06-6-6-crash-1
+chapter: "6.6"
+type: crash
+title: Storyboard 的 action 少了冒號
+minutes: 2
+log: |
+  *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+  reason: '-[LBTransactionEditorViewController save]: unrecognized selector sent to instance 0x7f9e3c40a2b0'
+  *** First throw call stack:
+  (
+    2   CoreFoundation   -[NSObject(NSObject) doesNotRecognizeSelector:] + 132
+    3   CoreFoundation   ___forwarding___ + 1324
+    5   UIKitCore        -[UIApplication sendAction:to:from:forEvent:] + 96
+    6   UIKitCore        -[UIControl sendAction:to:forEvent:] + 110
+    8   UIKitCore        -[UIControl touchesEnded:withEvent:] + 627
+  )
+  // 程式碼裡的方法：- (IBAction)saveTapped:(UIButton *)sender
+options:
+  - "UIControl 不能在 touchesEnded: 裡送 action"
+  - "Storyboard 的按鈕連到了一個叫 save 的 action；程式碼的方法已改名為 saveTapped:，IB 存的字串 selector 沒跟著變，事件來時 sendAction 送出 save 找不到"
+  - "saveTapped: 的參數型別應該是 id"
+  - ViewController 已經被釋放
+answer: 1
+fix: |
+  // 在 Storyboard 的 Connections Inspector 斷掉 save 連線，重新拖到 saveTapped:；
+  // 之後改 IBAction 名稱一律用 Xcode 的 Rename 重構，會同步改 IB 檔案。
+solution_note: "堆疊裡只有 UIKit 的 `sendAction:to:from:forEvent:`、沒有任何自己的 frame，就是 target-action 在送 selector。類別是你的 ViewController、selector 是 IB 存的舊名字。程式碼建立的 addTarget: 用 @selector() 不會有這問題，改名時編譯器會抓。"
+hints: ["堆疊裡 sendAction:to:from:forEvent: 是誰在做什麼？", "selector save 跟程式碼裡的 saveTapped: 哪裡來的不一致？"]
+feedback:
+  "2": 參數型別不影響 selector；selector 只有名字與冒號。
+  "3": 釋放後會是 EXC_BAD_ACCESS 或 zombie 訊息，不是 unrecognized selector，而且 log 印出了活著的實體位址。

@@ -1,0 +1,39 @@
+id: m08-8-3-spot-1
+chapter: "8.3"
+type: spot
+title: "約束寫在 addSubview: 之前"
+minutes: 2
+prompt: 這段 cell 初始化程式碼一跑就 crash。點出有問題的行並選出原因。
+code: |
+  - (void)setupViews {
+      _amountLabel = [UILabel new];
+      _amountLabel.translatesAutoresizingMaskIntoConstraints = NO;
+      [NSLayoutConstraint activateConstraints:@[
+          [_amountLabel.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor constant:-16],
+          [_amountLabel.centerYAnchor constraintEqualToAnchor:self.contentView.centerYAnchor],
+      ]];
+      [self addSubview:_amountLabel];
+  }
+bug_lines: [4, 8]
+reasons:
+  - "activateConstraints: 時 label 還沒加進階層，跟 contentView 沒有共同祖先；而且加進去時加到 self 而不是 contentView"
+  - "constant 不能是負數，要寫 16"
+  - translatesAutoresizingMaskIntoConstraints 應該設 YES
+  - centerYAnchor 要改成 topAnchor 加 bottomAnchor
+answer_reason: 0
+fix: |
+  - (void)setupViews {
+      _amountLabel = [UILabel new];
+      _amountLabel.translatesAutoresizingMaskIntoConstraints = NO;
+      [self.contentView addSubview:_amountLabel];
+      [NSLayoutConstraint activateConstraints:@[
+          [_amountLabel.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor constant:-16],
+          [_amountLabel.centerYAnchor constraintEqualToAnchor:self.contentView.centerYAnchor],
+      ]];
+  }
+solution_note: "順序永遠是 addSubview: 再 activate；cell 的子視圖一律加到 contentView，不然滑動刪除時 contentView 位移、label 不會跟著動。"
+hints: ["約束兩端的 view 現在在同一棵樹上嗎？", "cell 的子視圖該加到誰身上？"]
+feedback:
+  "1": trailing 對 trailing 用負的 constant 是正確寫法（往左縮 16）。
+  "2": 設 YES 會多出 autoresizing 約束跟你的打架。
+  "3": centerY 單獨一條沒問題，label 有 intrinsic 高度。

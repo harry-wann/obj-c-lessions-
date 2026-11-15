@@ -1,0 +1,18 @@
+id: m11-11-2-quiz-1
+chapter: "11.2"
+section: quiz
+type: quiz
+title: NSURLConnection 的替代品
+minutes: 1
+prompt: "舊專案用 `NSURLConnection` 搭四個 delegate 方法做網路請求。現代的替代品是？"
+options:
+  - "AFNetworking，Apple 沒有內建替代"
+  - "NSURLSession 的 data task，completion handler 一次拿到整個回應"
+  - "NSStream 搭 run loop"
+  - "dispatch_io"
+answer: 1
+explain: "`NSURLSession`（iOS 7 起，`NSURLConnection` iOS 9 棄用）。delegate 累積 `NSMutableData` 的四個方法變成一個 completion block；注意 completion 預設在背景佇列。"
+hints: ["Apple 自家的 Foundation 裡就有。", "7.x 的 LBRateService 用的是什麼？"]
+feedback:
+  "0": "AFNetworking 3.x 自己也是包 NSURLSession；Apple 內建的就是 NSURLSession。"
+  "2": "NSStream 是更底層的 socket 串流，不是 HTTP 請求的替代。"

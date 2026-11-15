@@ -1,0 +1,19 @@
+id: m11-11-6-fill-1
+chapter: "11.6"
+type: fill
+title: 修 category 找不到的連結設定
+minutes: 1
+prompt: 靜態庫裡的 category 執行期找不到。補完要改的 Build Setting。
+code: |
+  // Build Settings → Linking → ___1___
+  // 值：___2___ ___3___
+blanks:
+  "1": { accept: ["Other Linker Flags", "OTHER_LDFLAGS"], chips: ["Other Linker Flags", "Header Search Paths", "Other C Flags", "Preprocessor Macros"] }
+  "2": { accept: ["$(inherited)"], chips: ["$(inherited)", "$(SRCROOT)", "-all_load", "-lstdc++"] }
+  "3": { accept: ["-ObjC"], chips: ["-ObjC", "-fobjc-arc", "-lObjC", "-framework Foundation"] }
+hints: ["這是連結器的事，不是編譯器。", "第一個值永遠是什麼，才不會蓋掉 Pods 的設定？", "旗標大小寫敏感。"]
+feedback:
+  "1=Other C Flags": "那是給編譯器的；category 消失發生在連結階段。"
+  "3=-fobjc-arc": "那是開 ARC 的編譯旗標。"
+  "3=-lObjC": "-l 是連結某個函式庫，沒有叫 ObjC 的函式庫。"
+solution_note: "`$(inherited) -ObjC`。如果靜態庫裡**只有** category 沒有任何類別，某些情況連 -ObjC 都不夠，要 `-force_load <path/to/lib.a>`。"

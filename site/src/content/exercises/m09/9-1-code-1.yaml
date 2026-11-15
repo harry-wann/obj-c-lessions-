@@ -1,0 +1,41 @@
+id: m09-9-1-code-1
+chapter: "9.1"
+type: code
+title: 寫出 LBPersistence 的預設目錄
+mobile: false
+minutes: 8
+prompt: "實作類別方法 `+ (NSURL *)defaultDirectoryURL`：回傳 Documents 底下的 `LittleBook` 子目錄 URL，並確保該目錄存在（用 `NSFileManager` 建立，`withIntermediateDirectories:YES`）。不准出現寫死的絕對路徑。"
+starter: |
+  @implementation LBPersistence (Paths)
+  + (NSURL *)defaultDirectoryURL {
+
+  }
+  @end
+checks:
+  - must_match: 'URLsForDirectory\s*:\s*NSDocumentDirectory|NSSearchPathForDirectoriesInDomains\s*\(\s*NSDocumentDirectory'
+    message: "要在執行期查 Documents 目錄（URLsForDirectory:inDomains: 或 NSSearchPathForDirectoriesInDomains）"
+  - must_match: 'NSUserDomainMask'
+    message: domain 要用 NSUserDomainMask
+  - must_match: 'URLByAppendingPathComponent\s*:\s*@"LittleBook"'
+    message: 要接上 LittleBook 子目錄
+  - must_match: 'createDirectoryAtURL\s*:[^;]*withIntermediateDirectories\s*:\s*YES'
+    message: 要用 createDirectoryAtURL:withIntermediateDirectories:YES 建目錄
+  - must_not_match: '@"/(Users|var|private)'
+    message: 不准寫死絕對路徑
+  - must_match: 'return\s+\w+\s*;'
+    message: 要回傳目錄 URL
+  - "brackets_balanced: true"
+solution: |
+  + (NSURL *)defaultDirectoryURL {
+      NSFileManager *fm = [NSFileManager defaultManager];
+      NSURL *docs = [fm URLsForDirectory:NSDocumentDirectory
+                               inDomains:NSUserDomainMask].firstObject;
+      NSURL *dir = [docs URLByAppendingPathComponent:@"LittleBook" isDirectory:YES];
+      [fm createDirectoryAtURL:dir
+   withIntermediateDirectories:YES
+                    attributes:nil
+                         error:nil];
+      return dir;
+  }
+solution_note: 每次呼叫都 `createDirectoryAtURL:`，已存在時回 YES 不算錯，省掉「先檢查再建立」的競態。測試會改用 `initWithDirectoryURL:` 傳 tmp，所以這個方法只在 App 端用。
+hints: ["Documents 用 URLsForDirectory:inDomains: 拿，取 firstObject。", "URLByAppendingPathComponent:isDirectory: 拼子目錄。", "createDirectoryAtURL: 給 withIntermediateDirectories:YES。"]

@@ -1,0 +1,45 @@
+id: m06-6-4-fill-1
+chapter: "6.4"
+section: quiz
+type: fill
+title: KVO 註冊與移除成對
+minutes: 3
+prompt: 補完一組正確的 KVO：靜態 context、註冊、回呼比對、移除。
+code: |
+  static void *LBTotalContext = &LBTotalContext;
+
+  - (instancetype)initWithLedger:(LBLedger *)ledger {
+      if (self = [super init]) {
+          _ledger = ledger;
+          [_ledger ___1___:self
+                forKeyPath:@"total"
+                   options:NSKeyValueObservingOptionNew
+                   context:___2___];
+      }
+      return self;
+  }
+
+  - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object
+                          change:(NSDictionary *)change context:(void *)context {
+      if (context == ___3___) {
+          [self refreshWithTotal:change[NSKeyValueChangeNewKey]];
+      } else {
+          [___4___ observeValueForKeyPath:keyPath ofObject:object change:change context:context];
+      }
+  }
+
+  - (void)___5___ {
+      [_ledger removeObserver:self forKeyPath:@"total" context:LBTotalContext];
+  }
+blanks:
+  "1": { accept: ["addObserver"], chips: ["addObserver", "observe", "registerObserver", "addObserverForKeyPath"] }
+  "2": { accept: ["LBTotalContext"], chips: ["LBTotalContext", "NULL", "self", "@\"total\""] }
+  "3": { accept: ["LBTotalContext"], chips: ["LBTotalContext", "NULL", "self", "keyPath"] }
+  "4": { accept: ["super"], chips: ["super", "self", "object", "_ledger"] }
+  "5": { accept: ["dealloc"], chips: ["dealloc", "viewDidUnload", "removeObservers", "finalize"] }
+hints: ["註冊與移除是鏡像：addObserver:forKeyPath:options:context: 對 removeObserver:forKeyPath:context:。", "context 兩邊要是同一個位址。", "不是自己的通知交給誰？"]
+feedback:
+  "2=NULL": 傳 NULL 就沒辦法分辨父類別的觀察，慣例用靜態變數位址。
+  "4=self": 交給 self 會變成無限遞迴，不是自己的通知要交給 super。
+  "5=viewDidUnload": iOS 6 之後不會呼叫了；觀察者自己的 dealloc 才是對稱的移除點。
+solution_note: 四件事：`addObserver:` 與 `removeObserver:` 成對、`context` 用靜態變數位址且兩邊相同、回呼比對 context 不是自己的交給 `super`、在 `dealloc` 移除。

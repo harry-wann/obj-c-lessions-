@@ -1,0 +1,18 @@
+id: m06-6-6-quiz-3
+chapter: "6.6"
+section: quiz
+type: quiz
+title: ARC 的 performSelector 警告
+minutes: 1
+prompt: "`[target performSelector:action];` 出現警告 `PerformSelector may cause a leak because its selector is unknown`。這個警告在說什麼？"
+options:
+  - 這個 selector 不存在，執行時會 crash
+  - "ARC 靠方法名稱判斷回傳值是否要由呼叫端釋放；selector 在變數裡編譯期看不到名字，ARC 無法決定要不要 release 回傳值"
+  - "performSelector: 會 retain target 不釋放"
+  - 必須改用 NSInvocation 才能消除
+answer: 1
+explain: 確定 selector 回傳 void 或不需要你負責的物件時，用 `#pragma clang diagnostic push / ignored \"-Warc-performSelector-leaks\" / pop` 包住那一行；或用 `methodForSelector:` 拿 IMP 轉成明確型別的函式指標呼叫。
+hints: ["ARC 怎麼知道 alloc / new / copy 開頭的方法回傳的物件要 release？", "selector 存在變數裡時編譯器看得到名字嗎？"]
+feedback:
+  "0": 警告跟 selector 存不存在無關，純粹是 ARC 不知道回傳值的擁有權。
+  "2": 只有 afterDelay 版本會 retain target 到執行為止，跟這個警告無關。

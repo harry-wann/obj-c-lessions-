@@ -1,0 +1,364 @@
+---
+title: 鎖與同步原語
+module: 10
+chapter: "10.4"
+order: 4
+minutes: 50
+prereq: ["10.3", "7.3", "7.5"]
+objectives:
+  - 依情境選對鎖：@synchronized、NSLock / NSRecursiveLock / NSCondition、os_unfair_lock、pthread_rwlock、串列佇列 + barrier、semaphore
+  - 預測佇列與鎖交錯下的執行順序，指出死結與 os_unfair_lock 遞迴的位置
+  - 用 benchmark 數字解釋四種鎖的差異，說出鎖的粒度、優先權反轉與 atomic 的真正保證
+summary: "@synchronized、NSLock / NSRecursiveLock / NSCondition、os_unfair_lock（不可遞迴）、pthread_rwlock_t、並行佇列 + dispatch_barrier_async 讀寫鎖、dispatch_semaphore；四種鎖 benchmark；鎖的粒度；死結、優先權反轉與 QoS；atomic 只保證單次存取。"
+terms:
+  - { en: mutex, tw: 互斥鎖, cn: 互斥锁, jp: ミューテックス }
+  - { en: recursive lock, tw: 遞迴鎖, cn: 递归锁, jp: 再帰ロック }
+  - { en: read-write lock, tw: 讀寫鎖, cn: 读写锁, jp: 読み書きロック }
+  - { en: barrier, tw: 屏障（barrier）, cn: 栅栏, jp: バリア }
+  - { en: semaphore, tw: 號誌（semaphore）, cn: 信号量, jp: セマフォ }
+  - { en: deadlock, tw: 死結, cn: 死锁, jp: デッドロック }
+  - { en: priority inversion, tw: 優先權反轉, cn: 优先级反转, jp: 優先度逆転 }
+  - { en: lock granularity, tw: 鎖的粒度, cn: 锁粒度, jp: ロック粒度 }
+appProgress: LBLedger 改為並行佇列 + barrier 讀寫鎖；LBLockBenchmark 比較四種鎖；1,000 次並行讀寫無 crash，兩個測試轉綠。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+actor Ledger {                       // 語言級的「串列佇列保護狀態」
+    private var items: [Transaction] = []
+    func add(_ t: Transaction) { items.append(t) }     // 自動互斥
+    var count: Int { items.count }
+}
+await ledger.add(t)                  // 等同 dispatch_async 到它的佇列
+// 需要鎖時：NSLock / os_unfair_lock 一樣可用；Swift 5.9 有 OSAllocatedUnfairLock
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+val mutex = Mutex()                              // ↔ NSLock（但可掛起）
+suspend fun add(t: Tx) = mutex.withLock { items.add(t) }
+val sem = Semaphore(permits = 4)                 // ↔ dispatch_semaphore
+sem.withPermit { fetch() }
+// 單執行緒確保：withContext(singleThreadDispatcher) ↔ 串列佇列
+```
+</Fragment>
+<Fragment slot="java">
+```java
+private final ReadWriteLock rw = new ReentrantReadWriteLock();   // ↔ pthread_rwlock / barrier
+public int count() { rw.readLock().lock(); try { return items.size(); } finally { rw.readLock().unlock(); } }
+public void add(Tx t) { rw.writeLock().lock(); try { items.add(t); } finally { rw.writeLock().unlock(); } }
+synchronized void bump() { n++; }               // ↔ @synchronized(self)
+// ReentrantLock 可遞迴 ↔ NSRecursiveLock；volatile 沒有 ObjC 對應，用佇列
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// 單執行緒事件迴圈：沒有鎖，因為沒有搶占
+let count = 0;
+await Promise.all(items.map(async (i) => { count++; }));   // 安全
+// Web Worker 之間共享 SharedArrayBuffer 時才需要：
+Atomics.add(view, 0, 1);               // ↔ atomic 計數
+Atomics.wait(view, 1, 0);              // ↔ semaphore wait
+```
+</Fragment>
+Java 開發者對這一章最有感：`synchronized`、`ReentrantLock`、`ReentrantReadWriteLock` 各有 ObjC 對應。Kotlin 的 `Mutex` 與 `Semaphore` 是協程版，概念相同。Swift 的 `actor` 把「一條串列佇列保護一組狀態」做成語言特性，ObjC 要自己用 `dispatch_queue` 搭出來。TS 開發者則要先接受一件事：這裡的程式碼**真的會**被兩條執行緒同時執行，`count++` 不再是安全的。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 一張表選鎖
+
+| 工具 | 可遞迴 | 速度 | 適合 |
+|---|---|---|---|
+| `@synchronized(obj)` | 是 | 最慢 | 寫起來最短、偶爾進入的臨界區 |
+| `NSLock` | 否 | 中 | 一般互斥，需要 `tryLock` / 逾時 |
+| `NSRecursiveLock` | 是 | 中 | 方法會互相呼叫、都要加鎖 |
+| `NSCondition` | 否 | 中 | 等待某條件成立（生產者 / 消費者） |
+| `os_unfair_lock` | **否，當場 crash** | 最快 | 極短臨界區、高頻呼叫 |
+| `pthread_rwlock_t` | 否 | 快 | 讀多寫少、同步讀 |
+| 並行佇列 + barrier | n/a | 快（非同步） | 讀多寫少、可接受非同步寫 |
+| `dispatch_semaphore` | n/a | 快 | 限流、等待非同步完成 |
+
+### 互斥鎖三兄弟
+
+```objc
+// @synchronized：編譯器幫你包 try/finally，例外也會解鎖
+- (void)addTransaction:(LBTransaction *)tx {
+    @synchronized (self) { [_items addObject:tx]; }
+}
+
+// NSLock：手動 lock / unlock，忘了 unlock 就永遠卡住
+- (void)addTransaction:(LBTransaction *)tx {
+    [_lock lock];
+    [_items addObject:tx];
+    [_lock unlock];
+}
+
+// os_unfair_lock：C 結構，最快，不可遞迴
+@implementation LBCounter { os_unfair_lock _lock; NSInteger _n; }
+- (instancetype)init {
+    if (self = [super init]) _lock = OS_UNFAIR_LOCK_INIT;
+    return self;
+}
+- (void)increment {
+    os_unfair_lock_lock(&_lock);
+    _n++;
+    os_unfair_lock_unlock(&_lock);
+}
+@end
+```
+
+`@synchronized(obj)` 用 `obj` 的位址當 key 到一張全域雜湊表找鎖，所以慢；它會對 `obj` 做 retain，而且 `obj` 是 nil 時整段靜默變成不加鎖。`NSRecursiveLock` 讓同一條執行緒重複 `lock` 不會卡住（計數），`unlock` 次數要對應。`os_unfair_lock` 「不公平」是指不保證先等的先拿到，但它會把等待者的優先權借給持有者，解決優先權反轉。
+
+### NSCondition：等條件成立
+
+```objc
+// 消費者：等到有東西才拿
+[_cond lock];
+while (_queue.count == 0) [_cond wait];     // 釋放鎖、睡覺；被喚醒後重新拿鎖
+id item = _queue.firstObject;
+[_queue removeObjectAtIndex:0];
+[_cond unlock];
+
+// 生產者
+[_cond lock];
+[_queue addObject:item];
+[_cond signal];                              // 叫醒一個等待者
+[_cond unlock];
+```
+
+`while` 不能寫成 `if`：`wait` 回來後條件不一定成立（別的消費者可能搶先拿走），要重新檢查。GCD 時代這個模式多半換成串列佇列或 semaphore，但舊專案裡常見。
+
+### 讀寫鎖：pthread_rwlock 與 barrier
+
+帳本是典型的「讀多寫少」：列表捲動一直讀，使用者偶爾新增。互斥鎖讓讀跟讀也互相等，浪費。<Term en="read-write lock" tw="讀寫鎖" cn="读写锁" jp="読み書きロック" />讓多個讀者同時進、寫者獨占：
+
+```objc
+// 方法一：pthread_rwlock_t（同步，讀寫都會等）
+pthread_rwlock_t _rw;   // init: pthread_rwlock_init(&_rw, NULL)
+- (NSArray *)transactions {
+    pthread_rwlock_rdlock(&_rw);
+    NSArray *copy = [_items copy];
+    pthread_rwlock_unlock(&_rw);
+    return copy;
+}
+- (void)addTransaction:(LBTransaction *)tx {
+    pthread_rwlock_wrlock(&_rw);
+    [_items addObject:tx];
+    pthread_rwlock_unlock(&_rw);
+}
+
+// 方法二：並行佇列 + barrier（小帳本採用）
+dispatch_queue_t _queue;  // dispatch_queue_create("tw.littlebook.ledger",
+                          //                       DISPATCH_QUEUE_CONCURRENT)
+- (NSArray *)transactions {
+    __block NSArray *copy;
+    dispatch_sync(_queue, ^{ copy = [_items copy]; });   // 讀：並行
+    return copy;
+}
+- (void)addTransaction:(LBTransaction *)tx {
+    dispatch_barrier_async(_queue, ^{ [_items addObject:tx]; });  // 寫：獨占
+}
+- (void)performBatchImport:(NSArray<LBTransaction *> *)batch {
+    dispatch_barrier_async(_queue, ^{ [_items addObjectsFromArray:batch]; });
+}
+```
+
+<Term en="barrier" tw="屏障（barrier）" cn="栅栏" jp="バリア" />block 送進並行佇列時，佇列會等它前面的 block 全部跑完、單獨跑它、再放行後面的。效果就是「讀並行、寫獨占」，而且寫是非同步的，呼叫端不用等。代價：`transactions` 讀到的是「目前已完成的寫入」，剛 `addTransaction:` 完立刻讀可能還看不到（因為 barrier 排在佇列裡）。要立刻看到就用 `dispatch_barrier_sync`。注意 barrier **只對自己建立的並行佇列有效**，送到全域佇列會退化成普通 `dispatch_async`。
+
+`LBLedgerConcurrencyTests/testBarrierWritesAreSerialized` 開 8 條執行緒各寫 125 筆、同時讀 1,000 次，最後筆數必須剛好 1,000 且無 crash。
+
+### semaphore：計數的門
+
+```objc
+dispatch_semaphore_t sema = dispatch_semaphore_create(2);   // 兩張通行證
+dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);       // 拿一張，沒有就等
+// ... 最多兩個同時在這裡 ...
+dispatch_semaphore_signal(sema);                            // 還一張
+```
+
+初始值 0 的 semaphore 是「等一件非同步工作完成」：工作完成處 `signal`，等待處 `wait`。初始值 N 是限流（10.5）。永遠不要在主執行緒 `wait` 一個要回主執行緒才會 `signal` 的 semaphore，那是死結。
+
+### 四種鎖 benchmark（可貼進 Scratch）
+
+```objc
+#import <Foundation/Foundation.h>
+#import <QuartzCore/QuartzCore.h>
+#import <os/lock.h>
+
+static const NSUInteger kIterations = 200000, kThreads = 4;
+
+static double timeIt(void (^body)(void)) {
+    CFTimeInterval t0 = CACurrentMediaTime();
+    body();
+    return (CACurrentMediaTime() - t0) * 1000;
+}
+
+// 開 kThreads 條執行緒，每條跑 kIterations 次 work，等全部結束
+static void parallel(void (^work)(void)) {
+    dispatch_group_t g = dispatch_group_create();
+    dispatch_queue_t q = dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0);
+    for (NSUInteger t = 0; t < kThreads; t++) {
+        dispatch_group_async(g, q, ^{
+            for (NSUInteger i = 0; i < kIterations; i++) work();
+        });
+    }
+    dispatch_group_wait(g, DISPATCH_TIME_FOREVER);
+}
+
+int main(void) {
+    @autoreleasepool {
+        NSUInteger expected = kIterations * kThreads;
+        __block NSInteger n = 0;
+
+        // 1. @synchronized
+        NSObject *token = [NSObject new];
+        n = 0;
+        double ms1 = timeIt(^{ parallel(^{ @synchronized (token) { n++; } }); });
+        NSLog(@"@synchronized  %7.1f ms  n=%ld %@", ms1, (long)n,
+              n == expected ? @"✓" : @"✗");
+
+        // 2. NSLock
+        NSLock *lock = [NSLock new];
+        n = 0;
+        double ms2 = timeIt(^{ parallel(^{ [lock lock]; n++; [lock unlock]; }); });
+        NSLog(@"NSLock         %7.1f ms  n=%ld %@", ms2, (long)n,
+              n == expected ? @"✓" : @"✗");
+
+        // 3. os_unfair_lock
+        __block os_unfair_lock ul = OS_UNFAIR_LOCK_INIT;
+        n = 0;
+        double ms3 = timeIt(^{ parallel(^{
+            os_unfair_lock_lock(&ul); n++; os_unfair_lock_unlock(&ul);
+        }); });
+        NSLog(@"os_unfair_lock %7.1f ms  n=%ld %@", ms3, (long)n,
+              n == expected ? @"✓" : @"✗");
+
+        // 4. 串列佇列（非同步寫，最後 sync 等它排空）
+        dispatch_queue_t serial = dispatch_queue_create("bench.serial", NULL);
+        n = 0;
+        double ms4 = timeIt(^{
+            parallel(^{ dispatch_async(serial, ^{ n++; }); });
+            dispatch_sync(serial, ^{});          // 等佇列裡的都跑完
+        });
+        NSLog(@"serial queue   %7.1f ms  n=%ld %@", ms4, (long)n,
+              n == expected ? @"✓" : @"✗");
+
+        // 5. 沒有鎖（對照組）
+        n = 0;
+        timeIt(^{ parallel(^{ n++; }); });
+        NSLog(@"no lock        n=%ld %@（會少算）", (long)n,
+              n == expected ? @"✓" : @"✗");
+    }
+    return 0;
+}
+// 預期輸出（數字依機器差很多，順序大致如此）：
+// @synchronized    148.3 ms  n=800000 ✓
+// NSLock            71.9 ms  n=800000 ✓
+// os_unfair_lock    38.6 ms  n=800000 ✓
+// serial queue     312.0 ms  n=800000 ✓
+// no lock        n=517342 ✗（會少算）
+```
+
+怎麼讀：**`os_unfair_lock` 最快**，因為沒有物件、沒有雜湊表、沒有佇列排程；`@synchronized` 要查表加 retain；串列佇列最慢，因為每次 `n++` 都要配置一個 block 並排程，它的強項是「非同步、不阻塞呼叫端」，不是原始速度。無鎖版本少算三成，就是資料競爭的樣子。`LBLockBenchmark` 的介面 `runWithIterations:threads:` 回傳這四個秒數，測試只檢查四個計數器都等於 `n*t`。
+
+### 鎖的粒度
+
+鎖住的範圍叫<Term en="lock granularity" tw="鎖的粒度" cn="锁粒度" jp="ロック粒度" />。`@synchronized(self)` 鎖整個物件，所有方法互相等，連兩個不相干的屬性都要排隊；粒度太細則每個欄位一把鎖，容易忘記或順序錯誤造成死結。原則：**鎖內只放「必須不可分割」的那幾行**，格式化、建立物件、呼叫回呼都放鎖外。10.1 進階題的環狀緩衝區就是這個練習。
+
+### 死結：三種常見形狀
+
+```objc
+// 1. 串列佇列裡 sync 回自己
+dispatch_sync(serial, ^{
+    dispatch_sync(serial, ^{ });     // 等自己讓路：永遠不會
+});
+
+// 2. 主執行緒 sync 到會回主執行緒的工作
+dispatch_sync(bg, ^{
+    dispatch_sync(dispatch_get_main_queue(), ^{ });   // 主執行緒正在等 bg
+});
+
+// 3. 兩把鎖、兩種順序
+// 執行緒 A：[lockA lock]; [lockB lock];
+// 執行緒 B：[lockB lock]; [lockA lock];
+```
+
+修法分別是：改 `dispatch_async`，或用 `dispatch_get_specific` 判斷已經在佇列上就直接執行；永遠不在主執行緒對會回主執行緒的佇列 `sync`；多把鎖固定取得順序。10.1 的 watchdog crash 就是第 2 種。
+
+### 優先權反轉與 QoS
+
+高 QoS（`USER_INTERACTIVE`）的主執行緒等一把低 QoS（`BACKGROUND`）執行緒持有的鎖，低的那條可能被排程器晾著，高的跟著等，這叫<Term en="priority inversion" tw="優先權反轉" cn="优先级反转" jp="優先度逆転" />。系統對 `os_unfair_lock`、`pthread_mutex`、`dispatch_sync`、`NSLock` 會「借」優先權給持有者；對 `dispatch_semaphore`、`NSCondition`、`dispatch_group_wait` **不會**，因為它不知道誰會來 `signal`。所以限流用 semaphore 可以，但主執行緒 `dispatch_semaphore_wait` 等背景工作是雙重錯誤：可能死結，而且背景那條不會被升級。
+
+### atomic 再談
+
+`@property (atomic) NSMutableArray *items;` 保證的只有：`self.items` 這一次讀、`self.items = x` 這一次寫是完整的，不會讀到半個指標。它**不**保證 `[self.items addObject:]` 安全，因為 `addObject:` 是對陣列物件的操作，跟屬性存取無關；也不保證 `self.count++` 安全，因為那是讀、加、寫三步。想要「操作」安全就用本章的鎖或佇列，`atomic` 幾乎只在你完全不加其他保護時有一點點意義，所以大家都寫 `nonatomic`。
+
+<Pitfall title="同一條串列佇列裡 dispatch_sync 回自己">
+<Fragment slot="bad">
+```objc
+- (NSArray *)transactions {
+    __block NSArray *r;
+    dispatch_sync(_queue, ^{ r = [_items copy]; });
+    return r;
+}
+- (void)recalc {
+    dispatch_sync(_queue, ^{
+        NSArray *all = [self transactions];    // 在 _queue 上再 sync _queue
+    });
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (void)recalc {
+    dispatch_sync(_queue, ^{
+        NSArray *all = [_items copy];         // 已經在佇列上，直接讀 ivar
+    });
+}
+// 或用 dispatch_queue_set_specific / dispatch_get_specific 判斷是否已在佇列上
+```
+</Fragment>
+`dispatch_sync` 要等 block 執行完才回來，但 block 排在同一條串列佇列、要等目前這個 block 結束才能跑：互相等。debugger 停下來看會是兩個 frame 都在 `__DISPATCH_WAIT_FOR_QUEUE__`；Xcode 12 起 libdispatch 會直接 crash 並印 `BUG IN CLIENT OF LIBDISPATCH: dispatch_sync called on queue already owned by current thread`。
+</Pitfall>
+
+<Pitfall title="os_unfair_lock 遞迴加鎖">
+`-count` 加鎖、`-average` 加鎖又在裡面呼叫 `self.count`，第二次 `os_unfair_lock_lock` 由同一條執行緒進來。它不像 `NSRecursiveLock` 會計數，也不像 `NSLock` 單純卡住：libplatform 會偵測到持有者就是自己並中止程式，訊息 `BUG IN CLIENT OF LIBPLATFORM: os_unfair_lock is corrupt` 或 `Trying to recursively lock an os_unfair_lock`。修法：鎖內只碰 ivar、不呼叫自己的公開方法；真的需要遞迴就換 `NSRecursiveLock`，並接受它慢三倍。
+</Pitfall>
+
+<Pitfall title="@synchronized(self) 鎖整個物件">
+一個類別有 `items`、`cache`、`listeners` 三組不相干的狀態，全部 `@synchronized(self)`，等於一把全域鎖：讀 cache 的要等寫 items 的。而且外面任何人也可以 `@synchronized(ledger)`，你控制不了誰在跟你搶同一把鎖。每組狀態一把自己的 `NSLock` 或 `os_unfair_lock`，或者乾脆一條串列佇列。
+</Pitfall>
+
+<Pitfall title="以為 atomic 保護了 NSMutableArray">
+`@property (atomic, strong) NSMutableArray *items;` 然後多條執行緒 `[self.items addObject:x]`，隨機 crash 在 `__NSArrayM insertObject:atIndex:`。atomic 只保證指標存取完整，陣列內部的擴容與寫入沒有任何保護。要嘛加鎖，要嘛回傳不可變拷貝、修改走佇列。
+</Pitfall>
+
+<Crash message={`Thread 7 Crashed:: Dispatch queue: com.apple.root.user-initiated-qos
+0   CoreFoundation   -[__NSArrayM insertObject:atIndex:] + 1224
+1   CoreFoundation   -[__NSArrayM addObject:] + 32
+2   LittleBook       -[LBLedger addTransaction:] + 76
+3   LittleBook       __48-[LBImportService importCSVAtURL:batchSize:...]_block_invoke + 212
+
+Thread 0:: Dispatch queue: com.apple.main-thread
+2   LittleBook       -[LBLedger addTransaction:] + 76
+3   LittleBook       -[LBTransactionEditorViewController saveWithError:] + 140
+Exception Type:  EXC_BAD_ACCESS (SIGSEGV)
+Exception Codes: KERN_INVALID_ADDRESS at 0x0000000000000010`}>
+`__NSArrayM insertObject:atIndex:` 加 `EXC_BAD_ACCESS`，而且 crash report 裡**另一條執行緒**也停在同一個 `addTransaction:`，就是「兩條執行緒同時寫 NSMutableArray」的指紋。`NSMutableArray` 擴容時會重新配置內部緩衝區，另一條執行緒拿著舊位址寫進去，位址 `0x10` 這種小數字表示它解參考了一個被釋放後歸零的指標加偏移。它不是每次都 crash，所以常被當成「偶發」。修法就是本章：`addTransaction:` 走 barrier 或鎖。開 Thread Sanitizer（10.5）跑一次，crash 前就會指出這兩行。
+</Crash>
+
+## 小結
+
+- 選鎖：短而頻繁用 `os_unfair_lock`；需要遞迴用 `NSRecursiveLock`；讀多寫少用並行佇列 + `dispatch_barrier_async`（只對自建並行佇列有效）；等條件用 `NSCondition`；限流與等待用 semaphore。
+- benchmark：`os_unfair_lock` &lt; `NSLock` &lt; `@synchronized` &lt; 串列佇列（但串列佇列是非同步的，不阻塞呼叫端）；無鎖會少算。
+- 粒度：鎖內只放不可分割的幾行；`@synchronized(self)` 是一把全域鎖。
+- 死結三形狀：串列佇列 sync 回自己、主執行緒 sync 等回主執行緒的工作、兩把鎖順序不同。
+- 優先權反轉：鎖與 `dispatch_sync` 會借優先權，semaphore / condition / group 不會。`atomic` 只保證單次存取，不保護集合操作。

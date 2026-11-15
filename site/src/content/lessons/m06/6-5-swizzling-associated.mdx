@@ -1,0 +1,314 @@
+---
+title: Method Swizzling 與關聯物件
+module: 6
+chapter: "6.5"
+order: 5
+minutes: 45
+prereq: ["6.2", "5.3"]
+objectives:
+  - "寫出一段正確的 swizzling：放在 `+load`、包 `dispatch_once`、處理子類別沒實作的情況、在新實作裡呼叫原實作"
+  - "說出 `+load` 與 `+initialize` 的呼叫時機、次數、繼承行為，以及為什麼 swizzling 放前者"
+  - "用 `objc_setAssociatedObject` 幫分類加上可儲存的「屬性」，並選對記憶體策略"
+summary: "class_getInstanceMethod / method_exchangeImplementations / class_addMethod 三件組與正確的 swizzle 樣板；用途（全域埋點、修補 SDK）與風險（多個 SDK 互換、順序相依、無限遞迴）；+load vs +initialize；objc_setAssociatedObject 幫分類存狀態。"
+terms:
+  - { en: method swizzling, tw: 方法交換（swizzling）, cn: 方法交换, jp: メソッドスウィズリング }
+  - { en: associated object, tw: 關聯物件, cn: 关联对象, jp: 関連オブジェクト }
+  - { en: monkey patching, tw: 猴子補丁, cn: 猴子补丁, jp: モンキーパッチ }
+  - { en: load / initialize, tw: 載入 / 初始化（類別方法）, cn: 加载 / 初始化, jp: ロード / 初期化 }
+appProgress: 帳本 App 用一個 swizzle 記錄每個頁面出現的時間，分類（category）靠關聯物件記住自己的顯示色。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+extension UIViewController {
+    // 不能 override 已存在的方法；要換實作只能對 @objc dynamic 成員用 ObjC runtime
+    // 想「加屬性」也只能加計算屬性，沒地方存值
+    var pageName: String { String(describing: type(of: self)) }
+}
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+fun Ledger.pageName() = this::class.simpleName   // 擴充函式：靜態解析，不能改原方法
+// 要改既有方法的行為：javaagent + 位元組碼改寫（ByteBuddy、AspectJ），不是日常操作
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// 沒有語言層級的作法。AOP（Spring @Aspect）或 javaagent 在載入時改寫 bytecode。
+@Around("execution(* Ledger.total(..))")
+public Object log(ProceedingJoinPoint pjp) throws Throwable { return pjp.proceed(); }
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+const original = Ledger.prototype.total;          // monkey patching
+Ledger.prototype.total = function () {
+  console.log("total called");
+  return original.call(this);                     // 呼叫原實作
+};
+(ledger as any).pageName = "stats";               // 隨時可以掛新屬性
+```
+</Fragment>
+JavaScript 的<Term en="monkey patching" tw="猴子補丁" cn="猴子补丁" jp="モンキーパッチ" />就是本章：把原型上的函式換掉、記得呼叫原本的。Objective-C 的 swizzling 做同一件事，只是對象是類別的方法列表，而且 runtime 給了正式的 API。JS 隨手 `obj.newProp = x` 掛屬性的能力，Objective-C 用關聯物件補上。Swift 的 extension 既不能換掉既有方法、也沒地方存值，所以需要這些能力的 Swift 專案最後都保留了一段 ObjC。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 交換兩個方法的實作
+
+6.2 說過：類別的方法列表是 selector → IMP 的對應，`objc_msgSend` 查到 IMP 就跳。<Term en="method swizzling" tw="方法交換（swizzling）" cn="方法交换" jp="メソッドスウィズリング" />就是在執行期改這張表：
+
+```objc
+#import <objc/runtime.h>
+
+Method original = class_getInstanceMethod([LBLedger class], @selector(addTransaction:));
+Method swizzled = class_getInstanceMethod([LBLedger class], @selector(lb_addTransaction:));
+method_exchangeImplementations(original, swizzled);
+// 之後 [ledger addTransaction:tx] 執行的是 lb_addTransaction: 的程式碼，反之亦然
+```
+
+交換之後，`addTransaction:` 這個 selector 對應到你寫的 IMP，而原本的 IMP 掛在 `lb_addTransaction:` 底下。所以在新實作裡「呼叫原實作」要寫成呼叫**自己的名字**：
+
+```objc
+- (void)lb_addTransaction:(LBTransaction *)tx {
+    NSLog(@"[埋點] 新增 %@", tx.note);
+    [self lb_addTransaction:tx];     // 看起來像遞迴，實際跳到原本的 addTransaction:
+}
+```
+
+這行是整章最反直覺的地方：寫 `lb_addTransaction:` 才是呼叫原實作；寫 `addTransaction:` 會跳回自己，無限遞迴到堆疊溢位（本章崩潰現場）。
+
+### 正確的樣板：`+load`、`dispatch_once`、`class_addMethod`
+
+```objc
+@implementation UIViewController (LBTracking)
+
++ (void)load {
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        Class cls = [self class];
+        SEL originalSel = @selector(viewDidAppear:);
+        SEL swizzledSel = @selector(lb_viewDidAppear:);
+        Method original = class_getInstanceMethod(cls, originalSel);
+        Method swizzled = class_getInstanceMethod(cls, swizzledSel);
+
+        // 先嘗試「新增」：若 cls 自己沒有實作 originalSel（只繼承到），
+        // 這一步會把 swizzled 的 IMP 掛成 cls 自己的 originalSel
+        BOOL added = class_addMethod(cls, originalSel,
+                                     method_getImplementation(swizzled),
+                                     method_getTypeEncoding(swizzled));
+        if (added) {
+            // 再把父類別的原實作掛到 swizzledSel 底下，供呼叫
+            class_replaceMethod(cls, swizzledSel,
+                                method_getImplementation(original),
+                                method_getTypeEncoding(original));
+        } else {
+            method_exchangeImplementations(original, swizzled);
+        }
+    });
+}
+
+- (void)lb_viewDidAppear:(BOOL)animated {
+    [self lb_viewDidAppear:animated];                       // 原實作
+    NSLog(@"[頁面] %@ 出現", NSStringFromClass([self class]));
+}
+
+@end
+```
+
+三個細節各擋一種事故：
+
+- **`+load`**：類別被載入 runtime 時呼叫，比 `main` 還早，確保任何人第一次呼叫 `viewDidAppear:` 之前就換好。放在 `+initialize` 會有「第一次用到這個類別才換、之前的呼叫沒被攔到」以及下面會講的多次呼叫問題。
+- **`dispatch_once`**：`+load` 本身只會被呼叫一次，但有人會從其他地方手動呼叫 `[UIViewController load]`，或子類別的 `+load` 呼叫了 `[super load]`。交換兩次等於換回去，`dispatch_once` 保證只做一次。
+- **`class_addMethod` 先試**：如果你 swizzle 的類別自己沒實作這個方法、只是從父類別繼承來，`class_getInstanceMethod` 會回傳**父類別的** `Method`，直接 `method_exchangeImplementations` 會把父類別換掉，影響所有兄弟類別。先 `class_addMethod` 讓這個類別擁有自己的一份，失敗（代表它本來就有）才真的交換。
+
+### `+load` vs `+initialize`
+
+| | `+load` | `+initialize` |
+|---|---|---|
+| 何時 | 類別或分類被載入到 runtime 時，`main` 之前 | 這個類別**第一次收到訊息**之前（懶惰） |
+| 幾次 | 每個類別、**每個分類各一次**，分類的不會蓋掉類別的 | 每個類別一次，但子類別沒實作時會**再觸發父類別的** |
+| 順序 | 父類別先、子類別後；類別先、分類後；不同檔案間不保證 | 父類別先 |
+| 呼叫方式 | runtime 直接呼叫函式指標，不走訊息派送 | 一般訊息派送（所以分類會覆寫它） |
+| 要寫 `[super load]`？ | 不要 | 不要（runtime 自己會先呼叫父類別的） |
+| 安全嗎 | 其他類別可能還沒載入；不要碰 UIKit 狀態 | 執行緒安全（runtime 加鎖），可以用別的類別 |
+| 適合 | swizzling、登記到全域表 | 建立靜態資料、預設值、單例的昂貴初始化 |
+
+`+initialize` 的那條「會再觸發父類別的」值得多看一眼：`LBLedger` 有 `+initialize`，`LBSharedLedger : LBLedger` 沒有，第一次用 `LBSharedLedger` 時 runtime 沿繼承鏈找到 `LBLedger` 的 `+initialize` 又呼叫一次，此時 `self` 是 `LBSharedLedger`。所以 `+initialize` 裡一律：
+
+```objc
++ (void)initialize {
+    if (self != [LBLedger class]) return;    // 只為自己初始化一次
+    LBDefaultCategories = @[ ... ];
+}
+```
+
+### 用途與風險
+
+**該用的時候**：全域埋點（每個頁面出現時記錄，不想改一百個 ViewController）、修補你拿不到原始碼的 SDK 行為、暫時繞過系統 bug（附上 radar 編號與版本判斷）。共同點是：**橫切所有類別**、而且**沒有正常的擴充點**。
+
+**風險**：
+
+1. **多個 SDK 都 swizzle 同一個方法**。A 埋點、B 效能監測、C 崩潰回報全換了 `viewDidAppear:`，結果是誰先載入誰的在最外層，而載入順序取決於連結順序，換個 Xcode 版本就變。只要每一方都正確呼叫原實作，功能還在；一個沒呼叫，後面的全斷。
+2. **`_cmd` 不對**：交換後，原實作裡的 `_cmd` 變成 `lb_viewDidAppear:`。少數依賴 `_cmd` 的程式碼（例如用 `_cmd` 當關聯物件的 key）會壞。
+3. **型別編碼不符**：拿 `viewDidAppear:` 的 IMP 掛到參數不同的 selector 上，runtime 不會檢查，呼叫時讀到垃圾參數。
+4. **審查與可讀性**：讀原始碼的人看到 `viewDidAppear:` 完全想不到會印 log。所以 swizzle 一律集中在一個檔案、命名前綴（`lb_`）、檔頭寫清楚換了什麼。
+
+能用子類別、delegate、通知、`UIAppearance` 解決的，就不要 swizzle。
+
+### 關聯物件：幫分類加「屬性」
+
+5.3 說過分類不能加實體變數。`@property` 寫在分類裡只會宣告 getter / setter，沒地方存值。<Term en="associated object" tw="關聯物件" cn="关联对象" jp="関連オブジェクト" />讓 runtime 幫你在物件之外開一張表存：
+
+```objc
+#import <objc/runtime.h>
+
+@interface LBCategory (Color)
+@property (nonatomic, copy, nullable) NSString *colorHex;
+@end
+
+@implementation LBCategory (Color)
+static const void *LBColorHexKey = &LBColorHexKey;      // key 用靜態變數位址
+
+- (NSString *)colorHex {
+    return objc_getAssociatedObject(self, LBColorHexKey);
+}
+- (void)setColorHex:(NSString *)colorHex {
+    objc_setAssociatedObject(self, LBColorHexKey, colorHex,
+                             OBJC_ASSOCIATION_COPY_NONATOMIC);
+}
+@end
+```
+
+`objc_setAssociatedObject(物件, key, 值, 策略)`：key 是任意位址，慣例跟 KVO 的 `context` 一樣用靜態變數位址（有人用 `@selector(colorHex)` 當 key，也可以，selector 位址同樣唯一）。策略對應屬性修飾詞：`OBJC_ASSOCIATION_RETAIN_NONATOMIC` ↔ `strong`、`OBJC_ASSOCIATION_COPY_NONATOMIC` ↔ `copy`、`OBJC_ASSOCIATION_ASSIGN` ↔ `assign`（**不是 weak**，物件釋放後變懸空指標）。物件 `dealloc` 時 runtime 自動清掉所有關聯；傳 `nil` 當值等於移除。
+
+典型用途：幫 `UIAlertView` / `UIButton` 這種系統類別掛一個 block 當回呼、幫 `UIView` 記一個識別字串、本章 Xcode 題幫 `UIViewController` 記出現時間。
+
+### 完整範例（可貼進 Scratch）
+
+```objc
+#import <Foundation/Foundation.h>
+#import <objc/runtime.h>
+
+@interface LBLedger : NSObject
+- (void)addAmount:(NSString *)amount;
+@end
+@implementation LBLedger
++ (void)load       { NSLog(@"LBLedger +load"); }
++ (void)initialize { NSLog(@"LBLedger +initialize（self = %@）", self); }
+- (void)addAmount:(NSString *)amount { NSLog(@"加入 %@", amount); }
+@end
+
+@interface LBSharedLedger : LBLedger
+@end
+@implementation LBSharedLedger
+@end
+
+@interface LBLedger (Tracking)
+@property (nonatomic, copy) NSString *lastNote;
+@end
+@implementation LBLedger (Tracking)
+static const void *LBLastNoteKey = &LBLastNoteKey;
++ (void)load {
+    NSLog(@"LBLedger(Tracking) +load");
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        Method o = class_getInstanceMethod(self, @selector(addAmount:));
+        Method s = class_getInstanceMethod(self, @selector(lb_addAmount:));
+        method_exchangeImplementations(o, s);
+    });
+}
+- (void)lb_addAmount:(NSString *)amount {
+    NSLog(@"[埋點] 準備加入 %@", amount);
+    [self lb_addAmount:amount];                 // 原實作
+    self.lastNote = [@"最後一筆 " stringByAppendingString:amount];
+}
+- (NSString *)lastNote { return objc_getAssociatedObject(self, LBLastNoteKey); }
+- (void)setLastNote:(NSString *)n {
+    objc_setAssociatedObject(self, LBLastNoteKey, n, OBJC_ASSOCIATION_COPY_NONATOMIC);
+}
+@end
+
+int main(void) {
+    @autoreleasepool {
+        NSLog(@"main 開始");
+        LBSharedLedger *ledger = [LBSharedLedger new];
+        [ledger addAmount:@"120"];
+        NSLog(@"%@", ledger.lastNote);
+    }
+    return 0;
+}
+// 預期輸出：
+// LBLedger +load
+// LBLedger(Tracking) +load
+// main 開始
+// LBLedger +initialize（self = LBLedger）
+// LBLedger +initialize（self = LBSharedLedger）
+// [埋點] 準備加入 120
+// 加入 120
+// 最後一筆 120
+```
+
+兩個 `+load` 都在 `main` 之前跑，而且分類的沒有蓋掉類別的。`+initialize` 跑了兩次，第二次 `self` 是子類別：這就是要加 `if (self != [LBLedger class])` 的原因。swizzle 在第一則訊息之前就生效，所以 `addAmount:` 第一次呼叫就被攔到。
+
+<Tip title="Swift 專案裡還留著 ObjC 的原因之一">
+純 Swift 的方法不走 `objc_msgSend`，`class_getInstanceMethod` 找不到它們。要 swizzle 的目標必須是 `@objc dynamic`，UIKit 本身的方法都是 ObjC 所以沒問題，但你自己寫的 Swift 方法要先標記。很多埋點 / 監測 SDK 的核心至今仍是 Objective-C，正是因為這些能力。
+</Tip>
+
+<Pitfall title="在新實作裡呼叫原名稱，無限遞迴">
+<Fragment slot="bad">
+```objc
+- (void)lb_viewDidAppear:(BOOL)animated {
+    [self viewDidAppear:animated];     // 交換後這個 selector 指向自己
+    NSLog(@"頁面出現");
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (void)lb_viewDidAppear:(BOOL)animated {
+    [self lb_viewDidAppear:animated];  // 交換後這個名字才是原實作
+    NSLog(@"頁面出現");
+}
+```
+</Fragment>
+每次寫 swizzle 都在心裡複誦一次：「交換之後，名字對調了」。用 `method_setImplementation` 搭配存起來的原 IMP、用 C 函式指標直接呼叫，是另一種不會搞混的寫法，面試題會問。
+</Pitfall>
+
+<Pitfall title="swizzle 放在 +initialize 或任何會跑多次的地方">
+`+initialize` 會被子類別觸發多次（上面的輸出看得到），swizzle 放在裡面會被交換偶數次等於沒換、奇數次才有效，行為看子類別數量。放 `+load` 加 `dispatch_once`，沒有例外。
+</Pitfall>
+
+<Pitfall title="交換到父類別的實作">
+`LBStatsViewController` 沒有覆寫 `viewDidAppear:`，你對它 `class_getInstanceMethod` 拿到的是 `UIViewController` 的 `Method`，直接交換會讓**所有** ViewController 的 `viewDidAppear:` 變成你的實作，而你的實作裡假設 `self` 是 `LBStatsViewController`。用樣板裡的 `class_addMethod` 先試再交換，這個問題就不存在。
+</Pitfall>
+
+<Pitfall title="關聯物件用 ASSIGN 存物件">
+`OBJC_ASSOCIATION_ASSIGN` 不會 retain 也不會在物件釋放時歸零，等於 MRC 時代的 `assign`。拿它存一個 delegate 之類的物件，對方釋放後你讀到懸空指標，crash 隨機出現。要弱參考，包一層持有 `weak` 屬性的小物件再用 `RETAIN_NONATOMIC` 存那個小物件。
+</Pitfall>
+
+<Crash message={`Thread 1: EXC_BAD_ACCESS (code=2, address=0x16f603ff0)
+#0  -[UIViewController(LBTracking) lb_viewDidAppear:] + 24
+#1  -[UIViewController(LBTracking) lb_viewDidAppear:] + 40
+#2  -[UIViewController(LBTracking) lb_viewDidAppear:] + 40
+#3  -[UIViewController(LBTracking) lb_viewDidAppear:] + 40
+... （重複約 60,000 層）
+#65532 -[UIViewController(LBTracking) lb_viewDidAppear:] + 40
+#65533 -[UINavigationController viewDidAppear:] + 152`}>
+`code=2` 加上一個靠近堆疊區段邊界的位址、再加上幾萬層同一個方法：這是堆疊溢位，不是記憶體錯誤。方法名稱帶著分類名 `(LBTracking)`，告訴你是哪個 swizzle。原因就是上面第一個陷阱：新實作裡呼叫了 `viewDidAppear:`，交換後它指回自己。Xcode 在這種 crash 時常常只顯示一片 `lb_viewDidAppear:`，往最下面捲會看到真正的入口（`UINavigationController`）。修法：改呼叫 `lb_viewDidAppear:`。另一種來源是兩個 SDK 用了同一個 swizzled selector 名稱（都叫 `swizzled_viewDidAppear:`），交換兩次形成環；所以前綴要用自己的縮寫。
+</Crash>
+
+## 小結
+
+- swizzling = 在執行期改方法列表：`class_getInstanceMethod` 取 `Method`、`method_exchangeImplementations` 交換；交換後新實作裡**呼叫自己的名字**才是原實作。
+- 樣板：放 `+load`、包 `dispatch_once`、先 `class_addMethod` 再決定 `class_replaceMethod` 或交換，避免換到父類別。
+- `+load` 在 `main` 前、每類別每分類各一次、不走訊息派送；`+initialize` 懶惰、第一則訊息前、會被子類別再觸發，裡面要 `if (self != [LBLedger class]) return;`。
+- 用途是橫切全部類別且無正常擴充點（埋點、修補 SDK）；風險是多方互換順序相依、`_cmd` 改變、可讀性。能用子類別或 delegate 就不要 swizzle。
+- 關聯物件 `objc_setAssociatedObject(obj, key, value, policy)` 幫分類存值；key 用靜態變數位址，策略對應 `strong` / `copy` / `assign`，沒有 weak。

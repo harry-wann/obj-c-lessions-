@@ -3,7 +3,7 @@ chapter: "0.4"
 type: fill
 title: 選對 import 關鍵字
 minutes: 2
-prompt: 依照「.h 用 @class、.m 用 #import、系統框架用 @import」的原則填空。
+prompt: "依照「.h 用 @class、.m 用 #import、系統框架用 @import」的原則填空。"
 code: |
   // LBCategory.h
   ___1___ Foundation;

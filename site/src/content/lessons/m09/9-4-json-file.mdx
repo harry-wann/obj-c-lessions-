@@ -1,0 +1,317 @@
+---
+title: JSON 檔存檔
+module: 9
+chapter: "9.4"
+order: 4
+minutes: 45
+prereq: ["9.1", "9.3", "7.7", "7.3"]
+objectives:
+  - 寫出 model → 字典 → NSJSONSerialization → NSData → 原子寫檔的完整流程，以及反方向帶防禦的讀取
+  - 說明 NSDataWritingAtomic 防的是什麼、日期為什麼要帶時區或存成時間戳
+  - 在背景佇列寫檔、回到主佇列回報，並把「檔案不存在」當成空帳本而不是錯誤
+summary: "LBTransaction 轉字典（金額字串、日期 ISO 8601 帶時區）→ NSJSONSerialization → NSData → writeToURL:options:NSDataWritingAtomic；讀回來逐欄防禦；背景佇列寫、主佇列回呼；檔案不存在回空帳本。"
+terms:
+  - { en: atomic write, tw: 原子寫入, cn: 原子写入, jp: アトミック書き込み }
+  - { en: round trip, tw: 往返（round trip）, cn: 往返, jp: ラウンドトリップ }
+  - { en: ISO 8601, tw: ISO 8601 日期格式, cn: ISO 8601, jp: ISO 8601 }
+  - { en: time zone, tw: 時區, cn: 时区, jp: タイムゾーン }
+  - { en: corrupted file, tw: 損壞的檔案, cn: 损坏文件, jp: 破損ファイル }
+appProgress: LBPersistence 把整本帳存成 Documents/ledger.json，原子寫入、背景執行；關掉 App 再開資料還在；四個測試轉綠。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+struct Ledger: Codable { var transactions: [Transaction] }
+let encoder = JSONEncoder()
+encoder.dateEncodingStrategy = .iso8601
+let data = try encoder.encode(ledger)
+try data.write(to: url, options: .atomic)
+let back = try JSONDecoder().decode(Ledger.self, from: Data(contentsOf: url))
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+val json = Json.encodeToString(ledger)          // kotlinx.serialization
+File(context.filesDir, "ledger.json").writeText(json)
+// Android 的 AtomicFile 做同樣的「先寫暫存再改名」
+val back = Json.decodeFromString<Ledger>(file.readText())
+```
+</Fragment>
+<Fragment slot="java">
+```java
+ObjectMapper mapper = new ObjectMapper();      // Jackson
+mapper.writeValue(tmp.toFile(), ledger);
+Files.move(tmp, target, ATOMIC_MOVE, REPLACE_EXISTING);   // 手動原子寫入
+Ledger back = mapper.readValue(target.toFile(), Ledger.class);
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+const json = JSON.stringify(ledger);           // Date 會變成 ISO 字串
+await writeFile(tmp, json);
+await rename(tmp, target);                     // Node 沒有內建原子寫入
+const back = JSON.parse(await readFile(target, "utf8")) as Ledger;  // 無驗證
+```
+</Fragment>
+Swift 的 `JSONEncoder` 一行搞定 model 到 JSON，ObjC 沒有：本章你要自己寫 `dictionaryRepresentation` 把 `LBTransaction` 拆成字典，再交給 `NSJSONSerialization`。反方向跟 7.7 的 `rateWithJSON:` 一樣，一欄一欄防禦。「先寫暫存檔再改名」這件事 Swift 跟 ObjC 都用 `.atomic` / `NSDataWritingAtomic` 一個選項解決，Java 與 Node 要自己做。TS 的 `Date` 自動轉 ISO 字串看起來方便，但那正是本章「日期帶時區」陷阱的來源。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 整條管線
+
+```
+LBLedger ──dictionaryRepresentation──▶ NSDictionary / NSArray
+         ──NSJSONSerialization──────▶ NSData
+         ──writeToURL:options:──────▶ Documents/ledger.json
+```
+
+讀回來反過來走。`NSJSONSerialization` 只認得 7.7 說過的那幾種型別：`NSString`、`NSNumber`、`NSNull`、`NSArray`、`NSDictionary`（key 必須是字串）。所以 `NSDecimalNumber`、`NSDate`、`NSUUID` 都得先變成字串或數字，這就是 `dictionaryRepresentation` 的工作。
+
+### model → 字典：每個欄位選一個 JSON 友善的表示
+
+```objc
+// LBTransaction.m
+- (NSDictionary<NSString *, id> *)dictionaryRepresentation {
+    NSMutableDictionary *d = [NSMutableDictionary dictionary];
+    d[@"id"]     = _identifier.UUIDString;              // NSUUID → 字串
+    d[@"amount"] = _amount.stringValue;                 // 金額一律字串，不用 double
+    d[@"kind"]   = @(_kind);                            // 列舉 → 整數
+    d[@"date"]   = [LBTransaction.dateFormatter stringFromDate:_date];  // ISO 8601
+    d[@"note"]   = _note;
+    d[@"flags"]  = @(_flags);
+    d[@"category"] = _category.identifier;              // nil 就不會放進字典
+    return [d copy];
+}
+
++ (NSISO8601DateFormatter *)dateFormatter {
+    static NSISO8601DateFormatter *f;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        f = [NSISO8601DateFormatter new];
+        f.formatOptions = NSISO8601DateFormatWithInternetDateTime
+                        | NSISO8601DateFormatWithFractionalSeconds;
+    });
+    return f;
+}
+```
+
+三個關鍵選擇。**金額存字串**：`128.50` 變 double 是 `128.4999999…`，走一趟 JSON 後 `NSDecimalNumber` 讀到的是這個數，帳本總額慢慢偏掉；`stringValue` 寫出 `"128.5"`，讀回 `decimalNumberWithString:` 分毫不差。**日期存 ISO 8601 帶時區**：`NSISO8601DateFormatter` 預設輸出 `2023-11-14T22:13:20Z`，尾巴的 `Z` 表示 UTC，任何時區讀回來都是同一個瞬間。另一個同樣正確的選擇是 `@(_date.timeIntervalSince1970)` 存數字，人比較難讀但零歧義。**`NSMutableDictionary` 對 nil 友善**：`d[@"category"] = nil` 等於不設定（下標語法會轉成 `removeObjectForKey:`），所以 nullable 欄位直接賦值就好，不會像 `@{}` 字面值遇到 nil 直接 crash。
+
+### 字典 → model：防禦跟 7.7 一樣
+
+```objc
+- (nullable instancetype)initWithDictionary:(NSDictionary *)dict
+                                      error:(NSError **)error {
+    id rawAmount = dict[@"amount"];
+    id rawDate = dict[@"date"];
+    id rawId = dict[@"id"];
+    if (![rawAmount isKindOfClass:[NSString class]] ||
+        ![rawDate isKindOfClass:[NSString class]] ||
+        ![rawId isKindOfClass:[NSString class]]) {
+        if (error) *error = [NSError errorWithDomain:LBErrorDomain
+                                                code:LBErrorCodeUnexpectedType
+                                            userInfo:@{ NSLocalizedDescriptionKey:
+                                                        @"交易欄位型別錯誤" }];
+        return nil;
+    }
+    NSDecimalNumber *amount = [NSDecimalNumber decimalNumberWithString:rawAmount];
+    NSDate *date = [LBTransaction.dateFormatter dateFromString:rawDate];
+    NSUUID *identifier = [[NSUUID alloc] initWithUUIDString:rawId];
+    if ([amount isEqual:[NSDecimalNumber notANumber]] || !date || !identifier) {
+        if (error) *error = /* 同上，code 用 LBErrorCodeMalformedJSON */ nil;
+        return nil;
+    }
+    NSString *note = [dict[@"note"] isKindOfClass:[NSString class]] ? dict[@"note"] : @"";
+    NSInteger kind = [dict[@"kind"] isKindOfClass:[NSNumber class]]
+                   ? [dict[@"kind"] integerValue] : LBTransactionKindExpense;
+
+    self = [self initWithAmount:amount kind:kind date:date note:note category:nil];
+    if (self) _identifier = identifier;
+    return self;
+}
+```
+
+規則重述一次：**先 `isKindOfClass:` 再用**，`NSNull` 不是 `NSString` 所以自然被擋掉；必要欄位缺了回 nil 加 error，可選欄位給預設值；`decimalNumberWithString:` 吃到垃圾回 `notANumber` 而不是 nil，要另外判斷。`category` 這裡存的是分類 `identifier`，由 `LBPersistence` 讀完整本帳後再從 `+[LBCategory defaultTree]` 查回物件，model 本身不碰分類樹。
+
+### 寫檔：原子寫入
+
+```objc
+- (BOOL)saveLedger:(LBLedger *)ledger error:(NSError **)error {
+    NSMutableArray *items = [NSMutableArray array];
+    for (LBTransaction *tx in ledger.transactions) {
+        [items addObject:tx.dictionaryRepresentation];
+    }
+    NSDictionary *root = @{ @"version": @1, @"transactions": items };
+
+    NSData *data = [NSJSONSerialization dataWithJSONObject:root
+                                                   options:NSJSONWritingPrettyPrinted
+                                                     error:error];
+    if (!data) return NO;
+    return [data writeToURL:self.fileURL
+                    options:NSDataWritingAtomic
+                      error:error];
+}
+```
+
+<Term en="atomic write" tw="原子寫入" cn="原子写入" jp="アトミック書き込み" />解決的問題：直接覆寫 `ledger.json`，寫到一半 App 被殺（使用者上滑關掉、系統缺記憶體、電池沒電），磁碟上留下半個檔，下次啟動 JSON 解析失敗，整本帳沒了。`NSDataWritingAtomic` 讓系統先把資料寫進同目錄的暫存檔，寫完、同步到磁碟後再用 `rename` 一步換掉舊檔；`rename` 在檔案系統層是原子的，任何時間點看到的不是完整的舊檔就是完整的新檔。代價只是多一點磁碟操作，存使用者資料的檔**一律加**。順帶一提，`NSDataWritingAtomic` 的暫存檔在同一個目錄，所以目錄必須存在，9.1 的 `createDirectoryAtURL:` 要先做。
+
+### 讀檔：不存在不是錯
+
+```objc
+- (nullable LBLedger *)loadLedgerWithError:(NSError **)error {
+    NSData *data = [NSData dataWithContentsOfURL:self.fileURL options:0 error:error];
+    if (!data) {
+        if (error && (*error).code == NSFileReadNoSuchFileError) {
+            *error = nil;                     // 第一次啟動：空帳本，不是錯
+            return [LBLedger new];
+        }
+        return nil;
+    }
+    id root = [NSJSONSerialization JSONObjectWithData:data options:0 error:error];
+    if (![root isKindOfClass:[NSDictionary class]]) { /* 填 error */ return nil; }
+    NSArray *items = root[@"transactions"];
+    if (![items isKindOfClass:[NSArray class]]) { /* 填 error */ return nil; }
+
+    LBLedger *ledger = [LBLedger new];
+    for (id item in items) {
+        if (![item isKindOfClass:[NSDictionary class]]) continue;   // 跳過壞的一筆
+        LBTransaction *tx = [[LBTransaction alloc] initWithDictionary:item error:nil];
+        if (tx) [ledger addTransaction:tx];
+    }
+    return ledger;
+}
+```
+
+兩個決定。**檔案不存在回空帳本**：`NSFileReadNoSuchFileError`（code 260）是第一次啟動的正常狀況，回傳一個空 `LBLedger` 且不設 error，呼叫端不用特別處理。**檔案存在但壞了回 nil 加 error**：這跟「不存在」不同，不能靜靜地給一本空帳，否則使用者的資料在下一次存檔時就被空帳本覆蓋掉了；呼叫端應該提示並保留壞檔（改名成 `ledger.json.corrupt`）。單筆交易壞掉則跳過不影響其他筆，這是取捨：少一筆比整本讀不出來好。
+
+### 背景寫、主佇列回報
+
+```objc
+- (void)saveLedger:(LBLedger *)ledger completion:(void (^)(NSError * _Nullable))completion {
+    NSArray *snapshot = ledger.transactions;          // 主執行緒先拿不可變快照
+    dispatch_async(self.ioQueue, ^{                   // 串列佇列，寫入不互相打架
+        NSError *error = nil;
+        [self writeTransactions:snapshot error:&error];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (completion) completion(error);
+        });
+    });
+}
+```
+
+7.3 的規則：I/O 不在主執行緒做。幾千筆交易的 JSON 序列化加寫檔要幾十毫秒，放主執行緒就是一次掉幀。重點在第一行：**在主執行緒先取 `transactions` 快照**（它是 `copy` 屬性，回不可變陣列），背景只碰快照，不碰 `ledger`，不用加鎖。`ioQueue` 用串列佇列，連按兩次存檔也不會兩個寫入互相覆蓋。
+
+### 完整範例（可貼進 Scratch）
+
+```objc
+#import <Foundation/Foundation.h>
+
+int main(void) {
+    @autoreleasepool {
+        NSISO8601DateFormatter *iso = [NSISO8601DateFormatter new];
+        NSDate *date = [NSDate dateWithTimeIntervalSince1970:1700000000];
+        NSDecimalNumber *amount = [NSDecimalNumber decimalNumberWithString:@"128.50"];
+
+        // 1. model → 字典 → NSData
+        NSDictionary *tx = @{ @"id": [NSUUID UUID].UUIDString,
+                              @"amount": amount.stringValue,
+                              @"date": [iso stringFromDate:date],
+                              @"note": @"午餐" };
+        NSDictionary *root = @{ @"version": @1, @"transactions": @[tx] };
+        NSLog(@"valid: %d", [NSJSONSerialization isValidJSONObject:root]);
+
+        NSError *error = nil;
+        NSData *data = [NSJSONSerialization dataWithJSONObject:root
+                                                       options:NSJSONWritingSortedKeys
+                                                         error:&error];
+        NSLog(@"%@", [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
+
+        // 2. 原子寫入 tmp
+        NSURL *url = [[NSURL fileURLWithPath:NSTemporaryDirectory()]
+                      URLByAppendingPathComponent:@"ledger.json"];
+        BOOL ok = [data writeToURL:url options:NSDataWritingAtomic error:&error];
+        NSLog(@"write: %d", ok);
+
+        // 3. 讀回、防禦、還原型別
+        NSData *loaded = [NSData dataWithContentsOfURL:url options:0 error:&error];
+        id back = [NSJSONSerialization JSONObjectWithData:loaded options:0 error:&error];
+        NSDictionary *first = [back[@"transactions"] firstObject];
+        NSDecimalNumber *amountBack = [NSDecimalNumber decimalNumberWithString:first[@"amount"]];
+        NSDate *dateBack = [iso dateFromString:first[@"date"]];
+        NSLog(@"amount equal: %d, date equal: %d",
+              [amountBack isEqual:amount], [dateBack isEqualToDate:date]);
+
+        // 4. 壞檔：解析失敗走 error
+        [[@"{ not json" dataUsingEncoding:NSUTF8StringEncoding]
+            writeToURL:url options:NSDataWritingAtomic error:nil];
+        id bad = [NSJSONSerialization JSONObjectWithData:
+                  [NSData dataWithContentsOfURL:url] options:0 error:&error];
+        NSLog(@"bad: %@, code: %ld", bad, (long)error.code);
+
+        // 5. 不存在的檔：code 260
+        [[NSFileManager defaultManager] removeItemAtURL:url error:nil];
+        NSData *none = [NSData dataWithContentsOfURL:url options:0 error:&error];
+        NSLog(@"missing: %@, code: %ld", none, (long)error.code);
+    }
+    return 0;
+}
+// 預期輸出（UUID 每次不同）：
+// valid: 1
+// {"transactions":[{"amount":"128.5","date":"2023-11-14T22:13:20Z","id":"…","note":"午餐"}],"version":1}
+// write: 1
+// amount equal: 1, date equal: 1
+// bad: (null), code: 3840
+// missing: (null), code: 260
+```
+
+<Tip title="先問 isValidJSONObject:">
+`dataWithJSONObject:` 遇到不合法的物件（字典裡藏了 `NSDate`、`NSDecimalNumber` 以外的 `NSNumber` 子類別以外的東西、`NSUUID`）會丟 `NSInvalidArgumentException`，不是回 error。開發期在存檔前加一行 `NSAssert([NSJSONSerialization isValidJSONObject:root], @"...")`，第一次執行就會告訴你哪個欄位忘了轉。
+</Tip>
+
+<Pitfall title="日期存成不帶時區的字串">
+<Fragment slot="bad">
+```objc
+NSDateFormatter *f = [NSDateFormatter new];
+f.dateFormat = @"yyyy-MM-dd HH:mm";          // 沒有時區，用裝置當下的時區解讀
+d[@"date"] = [f stringFromDate:_date];       // "2023-11-15 06:13"
+// 出差到東京（UTC+9）開 App：讀回來早了一小時；全部交易一起位移
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+d[@"date"] = [[NSISO8601DateFormatter new] stringFromDate:_date];  // "2023-11-14T22:13:20Z"
+// 或存數字：d[@"date"] = @(_date.timeIntervalSince1970);
+```
+</Fragment>
+`NSDateFormatter` 沒設 `timeZone` 時用裝置當下時區。台灣寫出的 `06:13` 在日本讀回來是日本的 06:13，差一小時；換到 UTC 伺服器就差八小時，而且是**所有交易一起錯**。另一個陷阱：`NSDateFormatter` 沒設 `locale` 時會跟著使用者的日曆設定，佛曆、十二小時制都可能混進來。要給人看的日期用 `NSDateFormatter` 加 locale；**要存的日期用 `NSISO8601DateFormatter` 或時間戳**。
+</Pitfall>
+
+<Pitfall title="金額走 double">
+`d[@"amount"] = @(_amount.doubleValue)` 寫出 `128.5` 看起來沒事，`0.1 + 0.2` 類的金額寫出 `0.30000000000000004`，讀回 `NSDecimalNumber` 後精度就是這個數。帳本幾百筆加總之後末位對不上，會計最討厭這種錯。金額一律 `stringValue` 存、`decimalNumberWithString:` 讀。這也是 2.x 起整個課程金額都用 `NSDecimalNumber` 的原因。
+</Pitfall>
+
+<Pitfall title="在主執行緒同步寫大檔">
+`[data writeToURL:...]` 幾千筆交易要幾十毫秒，放在 `viewWillDisappear:` 或每次新增交易後直接呼叫就是明顯的卡頓，Instruments 的 Time Profiler 會看到主執行緒卡在 `writeToURL:`。走 `saveLedger:completion:` 的背景版本。反過來的錯是：在背景佇列直接讀 `ledger.transactions` 而主執行緒同時在 `addTransaction:`，這是 7.x 的資料競爭；先在主執行緒拿快照再丟背景。
+</Pitfall>
+
+<Crash message={`Error Domain=NSCocoaErrorDomain Code=3840
+"Unexpected character 'n' around line 1, column 3."
+UserInfo={NSDebugDescription=Unexpected character 'n' around line 1, column 3.,
+NSJSONSerializationErrorIndex=2}`}>
+`NSCocoaErrorDomain Code=3840` 是 `NSPropertyListReadCorruptError`，`NSJSONSerialization` 借用它表示「JSON 語法錯」。`NSDebugDescription` 說第 1 行第 3 欄遇到不該出現的字元，`NSJSONSerializationErrorIndex` 是在 `NSData` 裡的位元組位移。拿到它代表檔案存在但內容壞了：寫到一半被殺（沒用原子寫入）、其他程式改過、或根本不是你寫的檔。正確反應**不是**回一本空帳本然後下次存檔覆蓋它，而是回傳 error 讓上層決定：通知使用者、把壞檔改名保留（`ledger.json.corrupt`）、嘗試從備份還原。`LBPersistenceTests/testCorruptFileReturnsError` 測的就是這條路。這個 error 不會 crash，但 `JSONObjectWithData:` 回 nil 後你若不檢查就直接 `root[@"transactions"]`，對 nil 送訊息沒事，`for in nil` 也沒事，於是靜靜地得到空帳本，比 crash 還糟。
+</Crash>
+
+## 小結
+
+- 管線：`dictionaryRepresentation` → `NSJSONSerialization dataWithJSONObject:` → `writeToURL:options:NSDataWritingAtomic`；反向 `JSONObjectWithData:` → 逐欄 `isKindOfClass:` → `initWithDictionary:error:`。
+- JSON 只有字串、數字、布林、null、陣列、字典：**金額存字串**（`stringValue`）、**日期存 ISO 8601 帶時區或時間戳**、`NSUUID` 存 `UUIDString`。
+- `NSDataWritingAtomic` 先寫暫存檔再 `rename`，任何時刻磁碟上都是完整檔；存使用者資料一律加。
+- 檔案不存在（code 260）→ 空帳本、無 error；檔案壞了（code 3840）→ nil 加 error，不要靜靜給空帳本。
+- I/O 走背景串列佇列，主執行緒先拿不可變快照、完成後 `dispatch_async` 回主佇列回報。

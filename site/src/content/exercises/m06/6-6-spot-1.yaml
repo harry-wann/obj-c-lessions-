@@ -1,0 +1,31 @@
+id: m06-6-6-spot-1
+chapter: "6.6"
+type: spot
+title: performSelector 傳基本型別
+minutes: 2
+prompt: "這段動態呼叫會讓 setCount: 收到垃圾值。點出有問題的行並選原因。"
+code: |
+  - (void)applyCount:(NSInteger)count toTarget:(id)target {
+      SEL sel = @selector(setCount:);
+      if (![target respondsToSelector:sel]) return;
+      [target performSelector:sel withObject:@(count)];
+  }
+  // target 的方法：- (void)setCount:(NSInteger)count;
+bug_lines: [4]
+reasons:
+  - "withObject: 的參數是 id，傳進去的指標位元會原封不動放到 setCount: 的 NSInteger 參數位置，對方拿到的是 NSNumber 物件的位址而不是數字；基本型別要用 NSInvocation setArgument: 或直接呼叫"
+  - "respondsToSelector: 應該放在 performSelector: 之後"
+  - "@selector(setCount:) 要寫成 NSSelectorFromString"
+  - "performSelector: 一次只能傳 0 個參數"
+answer_reason: 0
+fix: |
+  NSMethodSignature *sig = [target methodSignatureForSelector:sel];
+  NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+  inv.target = target;
+  inv.selector = sel;
+  [inv setArgument:&count atIndex:2];
+  [inv invoke];
+solution_note: "`performSelector:withObject:` 只能傳物件，而且對方的參數也得是物件型別。`@(count)` 包成 NSNumber 沒有錯，錯的是對方收的是 NSInteger。NSInvocation 的 setArgument: 傳位址，什麼型別都行；參數索引從 2 開始。"
+hints: ["setCount: 的參數型別是什麼？withObject: 給了什麼？", "基本型別參數的動態呼叫用什麼？"]
+feedback:
+  "3": 最多兩個物件參數（withObject:withObject:），問題不在數量。

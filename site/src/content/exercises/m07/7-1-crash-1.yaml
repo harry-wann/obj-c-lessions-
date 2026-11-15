@@ -1,0 +1,26 @@
+id: m07-7-1-crash-1
+chapter: "7.1"
+type: crash
+title: address=0x0 的 EXC_BAD_ACCESS
+minutes: 3
+prompt: "呼叫端寫 `[LBRateParser rateFromJSONData:data error:NULL]`，程式在解析壞資料時 crash 如下。原因是？"
+log: |
+  Thread 3: EXC_BAD_ACCESS (code=1, address=0x0)
+  #0  +[LBRateParser rateFromJSONData:error:] at LBRateParser.m:18
+  #1  __56-[LBRateService fetchRatesForBase:completion:]_block_invoke at LBRateService.m:44
+  #2  __40-[__NSURLSessionLocal taskForClass:...]_block_invoke_3
+options:
+  - 方法端第 18 行 `*error = ...` 沒有先檢查 error 是否為 NULL，對 0 位址寫入
+  - 呼叫端不能傳 NULL，一定要傳一個 NSError 變數的位址
+  - NSJSONSerialization 在背景執行緒不是執行緒安全的
+  - 第 18 行對 nil 送訊息
+answer: 0
+fix: |
+  if (error) {
+      *error = [NSError errorWithDomain:LBErrorDomain code:LBErrorCodeMalformedJSON userInfo:...];
+  }
+solution_note: "`address=0x0` 是對空指標寫入的招牌。對 nil 送訊息會被 runtime 擋下，但 `*error` 是 C 層級的指標解參考，沒有人幫你擋。呼叫端傳 NULL 在 Cocoa 裡完全合法，責任在方法端。"
+hints: ["address=0x0 代表存取哪個位址？", "呼叫端傳 NULL 合法嗎？那誰該負責檢查？"]
+feedback:
+  "1": Cocoa 所有 NSError ** 的 API 都接受 NULL，是方法端要防。
+  "3": 對 nil 送訊息不會 EXC_BAD_ACCESS，會安靜地回 0 / nil。

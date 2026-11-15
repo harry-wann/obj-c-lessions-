@@ -1,0 +1,71 @@
+id: m10-10-5-advanced-1
+chapter: "10.5"
+type: code
+tier: advanced
+title: 進階：二元堆積排程背景任務
+mobile: false
+minutes: 15
+prompt: "完成最大堆積 `LBPriorityQueue` 的 `insert:` 與 `extractMax`。`_heap` 是 NSMutableArray，`_cmp` 是 NSComparator（回 NSOrderedAscending 表示 a < b）。索引 i 的父節點 (i-1)/2、子節點 2i+1 / 2i+2。insert 放尾端上浮；extractMax 取根、尾端移到根下沉。"
+starter: |
+  @implementation LBPriorityQueue {
+      NSMutableArray *_heap;
+      NSComparator _cmp;
+  }
+  - (void)swap:(NSUInteger)i with:(NSUInteger)j {
+      [_heap exchangeObjectAtIndex:i withObjectAtIndex:j];
+  }
+  - (void)insert:(id)obj {
+
+  }
+  - (nullable id)extractMax {
+
+  }
+  - (NSUInteger)count { return _heap.count; }
+  @end
+checks:
+  - selector_equals: "insert:"
+  - selector_equals: "extractMax"
+  - must_match: '\[\s*_heap\s+addObject\s*:'
+    message: "insert 先 addObject: 到尾端"
+  - must_match: '\(\s*\w+\s*-\s*1\s*\)\s*/\s*2'
+    message: 上浮時用 (i - 1) / 2 找父節點
+  - must_match: '2\s*\*\s*\w+\s*\+\s*1'
+    message: 下沉時用 2*i + 1 找左子節點
+  - must_match: '2\s*\*\s*\w+\s*\+\s*2'
+    message: 下沉時用 2*i + 2 找右子節點
+  - must_match: '\[\s*_heap\s+removeLastObject\s*\]'
+    message: extractMax 把尾端移到根後 removeLastObject
+  - must_match: '_cmp\s*\('
+    message: 比較要透過 _cmp
+  - must_match: 'swap\s*:'
+    message: "交換用 swap:with:"
+  - "brackets_balanced: true"
+solution: |
+  - (void)insert:(id)obj {
+      [_heap addObject:obj];
+      NSUInteger i = _heap.count - 1;
+      while (i > 0) {
+          NSUInteger p = (i - 1) / 2;
+          if (_cmp(_heap[p], _heap[i]) != NSOrderedAscending) break;
+          [self swap:i with:p];
+          i = p;
+      }
+  }
+  - (nullable id)extractMax {
+      if (_heap.count == 0) return nil;
+      id top = _heap.firstObject;
+      [self swap:0 with:_heap.count - 1];
+      [_heap removeLastObject];
+      NSUInteger i = 0, n = _heap.count;
+      while (YES) {
+          NSUInteger l = 2 * i + 1, r = 2 * i + 2, big = i;
+          if (l < n && _cmp(_heap[big], _heap[l]) == NSOrderedAscending) big = l;
+          if (r < n && _cmp(_heap[big], _heap[r]) == NSOrderedAscending) big = r;
+          if (big == i) break;
+          [self swap:i with:big];
+          i = big;
+      }
+      return top;
+  }
+solution_note: 兩個操作都是 O(log n)，陣列不用指標、快取友善。NSOperationQueue 的 queuePriority 只有五級，優先度是連續值或要動態調整時才自己寫。把比較反過來就是最小堆積。
+hints: ["insert：加到尾端，跟父節點比，比父大就交換，直到根。", "extractMax：記下根，尾端搬到根，刪尾端。", "下沉：跟左右子較大者比，比它小就交換。"]

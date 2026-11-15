@@ -1,0 +1,38 @@
+id: m10-10-3-spot-1
+chapter: "10.3"
+type: spot
+title: 匯入時 UI 比不回報還卡
+minutes: 3
+prompt: 匯入時進度條有動，但列表完全捲不動。點出有問題的行並選出原因。
+code: |
+  - (void)importLines:(NSArray<NSString *> *)lines {
+      NSUInteger total = lines.count, done = 0;
+      for (NSString *line in lines) {
+          @autoreleasepool {
+              LBTransaction *tx = [LBTransaction transactionWithCSVLine:line];
+              [self.pending addObject:tx];
+              done++;
+              dispatch_async(dispatch_get_main_queue(), ^{
+                  self.progressView.progress = (float)done / total;
+              });
+          }
+      }
+  }
+bug_lines: [8, 9, 10]
+reasons:
+  - 每筆都往主佇列排一個 block，100,000 個 block 塞住主佇列，觸控事件排在後面；應節流到每 100 ms 一次
+  - progress 要用 double 不能用 float
+  - "@autoreleasepool 不該包住 dispatch_async"
+  - done 需要 __block
+answer_reason: 0
+fix: |
+  if (CACurrentMediaTime() - _lastReport >= 0.1 || done == total) {
+      _lastReport = CACurrentMediaTime();
+      dispatch_async(dispatch_get_main_queue(), ^{
+          self.progressView.progress = (float)done / total;
+      });
+  }
+solution_note: 主佇列每個 block 都要 run loop 跑一圈，100,000 個排進去等於主執行緒被占用數秒。節流到每秒 10 次已經是肉眼上限。done 在 block 裡只有讀，不需要 __block。
+hints: ["主佇列裡有幾個 block 在排隊？", "進度條每秒更新幾次人眼才看得出來？"]
+feedback:
+  "3": block 裡只讀 done 不寫，值拷貝就夠。

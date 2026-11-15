@@ -1,0 +1,19 @@
+id: m09-9-5-quiz-1
+chapter: "9.5"
+section: quiz
+type: quiz
+title: Core Data 四件組對應
+minutes: 2
+prompt: 把 Core Data 的東西對到關聯式資料庫 / ORM 的概念，哪一組全對？
+options:
+  - ".xcdatamodeld = schema／NSManagedObject 子類別 = 一列（entity 類別）／NSManagedObjectContext = 工作區（save: 才落地）／NSFetchRequest = SELECT"
+  - ".xcdatamodeld = 一列／NSManagedObject = schema／NSManagedObjectContext = SELECT／NSFetchRequest = 工作區"
+  - ".xcdatamodeld = SQLite 檔／NSManagedObject = 資料表／NSManagedObjectContext = 連線／NSFetchRequest = index"
+  - 四個都是 SQL 語法的包裝，沒有對應
+answer: 0
+explain: 跟 Room / JPA 一樣：model 檔定義 entity，子類別是列，context 是改動暫存的工作區，fetch request 是查詞。NSPersistentContainer 把它們串起來。
+hints: ["想 Android Room：@Entity、Database、@Query 各對應哪個？", "改了 managed object 之後，什麼時候才寫進 SQLite？"]
+feedback:
+  "1": 全部錯位。
+  "2": .xcdatamodeld 是 schema 定義不是資料檔；SQLite 檔是 persistent store。
+  "3": Core Data 是物件圖框架，不是 SQL 包裝；它甚至可以不用 SQLite（記憶體內儲存體）。

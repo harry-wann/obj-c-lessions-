@@ -1,0 +1,17 @@
+id: m12-12-4-quiz-1
+chapter: "12.4"
+section: quiz
+type: quiz
+title: po 與 p 的差別
+minutes: 1
+prompt: 在 lldb 停住時，`po self.ledger` 與 `p self.ledger` 各印什麼？
+options:
+  - 兩個一樣，都印物件位址
+  - "po 呼叫 -description 印出可讀內容；p 印指標型別與位址"
+  - "p 呼叫 -description；po 只印位址"
+  - po 只能用在 Swift
+answer: 1
+explain: "`po` = print object，對物件呼叫 `-description`（有 `-debugDescription` 就用它）；`p` 用 lldb 的格式印值，對物件就只是 `(LBLedger *) $0 = 0x6000...`。所以 model 類別覆寫 `description` 在偵錯時直接回本。"
+hints: ["o 是 object 的意思。", "為什麼要覆寫 description？"]
+feedback:
+  "0": po 多做了一件事：對物件送 description 訊息。

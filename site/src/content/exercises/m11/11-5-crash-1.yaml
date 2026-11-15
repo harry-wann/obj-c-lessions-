@@ -1,0 +1,23 @@
+id: m11-11-5-crash-1
+chapter: "11.5"
+type: crash
+title: 讀 crash：sandbox is not in sync
+minutes: 1
+log: |
+  diff: /../Podfile.lock: No such file or directory
+  diff: /Manifest.lock: No such file or directory
+  error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.
+options:
+  - "repo 裡的 Podfile.lock 跟本機 Pods/Manifest.lock 不同（或 Pods/ 根本不存在）；跑 pod install"
+  - "CocoaPods 版本太舊，要 gem update cocoapods"
+  - "Podfile 語法錯誤"
+  - "要跑 pod update 拿最新版"
+answer: 0
+fix: |
+  pod install        # 不是 update
+  # 若 Pods/ 不存在（第一行 No such file），表示專案沒把 Pods/ 進版控，clone 後第一步永遠是 pod install
+solution_note: "這是建置階段 [CP] Check Pods Manifest.lock 腳本的輸出，比對兩個 lock 檔。pull 到別人改過的 Podfile.lock 後一定會遇到。"
+hints: ["哪個建置階段印的？它在比對什麼？", "install 還是 update？"]
+feedback:
+  "3": "update 會改 lock 檔並升級版本，不是修這個錯的方法。"
+  "1": "訊息雖然提到 update CocoaPods，但九成九是 pod install 就好。"

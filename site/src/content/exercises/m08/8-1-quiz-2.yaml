@@ -1,0 +1,20 @@
+id: m08-8-1-quiz-2
+chapter: "8.1"
+section: quiz
+type: quiz
+title: AppDelegate 還是 SceneDelegate
+minutes: 2
+prompt: 下列哪些事該放在 SceneDelegate 而不是 AppDelegate？（可複選）
+multi: true
+options:
+  - 建立 UIWindow 並設定 rootViewController
+  - 註冊遠端推播、取得 device token
+  - 使用者切到背景時存檔（sceneDidEnterBackground:）
+  - 回傳 UISceneConfiguration 決定用哪個 SceneDelegate 類別
+  - 處理「視窗從非活躍變回活躍」恢復動畫
+answer: [0, 2, 4]
+explain: SceneDelegate 管一個視窗的事（建 window、前景 / 背景切換）；AppDelegate 管程序層級（推播、場景設定）。iPhone 上只有一個場景所以看起來像重複，iPad 多視窗時就分開了。
+hints: ["問自己：這件事是「整個 App 一次」還是「每個視窗一次」？", "推播 token 一支 App 只有一個。"]
+feedback:
+  "1": 推播是程序層級，一支 App 一個 token，放 AppDelegate。
+  "3": configurationForConnectingSceneSession 是 AppDelegate 的方法，它決定要建哪種場景。

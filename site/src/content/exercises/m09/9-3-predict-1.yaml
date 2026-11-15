@@ -1,0 +1,24 @@
+id: m09-9-3-predict-1
+chapter: "9.3"
+type: predict
+title: 預測輸出：加欄位後讀舊檔
+minutes: 2
+prompt: "v1 的 LBBudget 只存 name；v2 加了 limit 並用下面的 initWithCoder: 讀。用 v1 封存的資料解封後印出什麼？"
+code: |
+  // v1 存檔時只有：[coder encodeObject:@"餐費" forKey:@"name"];
+  - (instancetype)initWithCoder:(NSCoder *)coder {
+      NSString *name = [coder decodeObjectOfClass:[NSString class] forKey:@"name"];
+      NSDecimalNumber *limit = [coder decodeObjectOfClass:[NSDecimalNumber class]
+                                                   forKey:@"limit"];
+      BOOL hasLimit = [coder containsValueForKey:@"limit"];
+      NSLog(@"%@ %@ %d", name, limit, hasLimit);
+      return [self initWithName:name limit:limit ?: [NSDecimalNumber zero]];
+  }
+options: ["餐費 (null) 0", "餐費 0 1", "crash：找不到 limit", "(null) (null) 0"]
+accept: ["餐費 (null) 0"]
+feedback:
+  "餐費 0 1": "containsValueForKey: 看的是封存資料裡有沒有這個 key，v1 沒存就是 NO，decode 回 nil 不是 0。"
+  "crash：找不到 limit": keyed 封存缺 key 不會 crash，物件回 nil、純量回 0；這正是版本遷移能做的原因。
+  "(null) (null) 0": name 在 v1 就有，讀得到。
+solution_note: keyed 封存缺 key 回 nil / 0 而不是壞掉，`containsValueForKey:` 可以分辨「沒存」跟「存了 0」。加欄位的遷移就是「讀不到給預設值」。
+hints: ["v1 的資料裡有 limit 這個 key 嗎？", "decodeObjectOfClass: 讀不到回什麼？"]

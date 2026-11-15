@@ -1,0 +1,19 @@
+id: m09-9-4-quiz-1
+chapter: "9.4"
+section: quiz
+type: quiz
+title: NSDataWritingAtomic 防的是什麼
+minutes: 1
+prompt: "`[data writeToURL:url options:NSDataWritingAtomic error:&e]` 的 atomic 選項解決什麼問題？"
+options:
+  - 讓寫入在背景執行緒進行，不卡 UI
+  - 先寫到同目錄的暫存檔再 rename 換掉舊檔，寫到一半被殺也不會留下半個檔
+  - 寫入時加鎖，防止兩個執行緒同時寫
+  - 寫入後自動備份一份舊檔
+answer: 1
+explain: 原子寫入是「任何時刻磁碟上不是完整的舊檔就是完整的新檔」。它跟執行緒、鎖、備份都無關；背景執行要自己 dispatch_async。
+hints: ["原子（atomic）在這裡是「不可分割」的意思。", "寫到一半電池沒電，檔案會是什麼狀態？"]
+feedback:
+  "0": 它仍然是同步呼叫，在哪個執行緒呼叫就在哪個執行緒寫。
+  "2": 兩個寫入互不覆蓋要靠串列佇列；atomic 只保證單次寫入的完整性。
+  "3": 舊檔被 rename 直接換掉，沒有備份。

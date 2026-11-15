@@ -1,0 +1,55 @@
+id: m12-12-6-code-1
+chapter: "12.6"
+type: code
+title: 不看文件寫出三個樣板
+mobile: false
+minutes: 8
+prompt: "上工前檢查第一條：不看文件寫出 (1) `copy` 的 NSString 屬性、(2) 回主執行緒更新 label 的 GCD 呼叫、(3) 存成屬性的 block 裡用 weakSelf / strongSelf。在 starter 的三個標記處各寫一段。"
+starter: |
+  // (1) 在 @interface 裡宣告一個叫 note 的 NSString 屬性
+
+  // (2) 背景佇列算完 total 後，回主執行緒設 self.totalLabel.text
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+      NSString *total = [self.ledger.total stringValue];
+
+  });
+
+  // (3) self.ledger.onChange 是 copy 屬性；在 block 裡呼叫 [self reload]
+
+checks:
+  - property_attrs: { name: note, attrs: ["copy", "nonatomic"] }
+    message: "(1) @property (nonatomic, copy) NSString *note;"
+  - must_match: 'dispatch_async\s*\(\s*dispatch_get_main_queue\s*\(\s*\)\s*,\s*\^'
+    message: "(2) 用 dispatch_async(dispatch_get_main_queue(), ^{ ... }) 回主執行緒"
+  - must_match: 'totalLabel\.text\s*=\s*total'
+    message: "(2) 在主佇列 block 裡設 totalLabel.text"
+  - must_match: '__weak\s+(typeof|__typeof__|__typeof)\s*\(\s*self\s*\)\s*weakSelf\s*=\s*self'
+    message: "(3) __weak typeof(self) weakSelf = self;"
+  - must_match: '__strong\s+(typeof|__typeof__|__typeof)\s*\(\s*weakSelf\s*\)\s*strongSelf\s*=\s*weakSelf'
+    message: "(3) block 裡 __strong typeof(weakSelf) strongSelf = weakSelf;"
+  - must_match: 'onChange\s*=\s*\^'
+    message: "(3) 賦值給 self.ledger.onChange"
+  - must_match: '\[\s*strongSelf\s+reload\s*\]'
+    message: "(3) 用 strongSelf 呼叫 reload"
+  - "brackets_balanced: true"
+solution: |
+  // (1)
+  @property (nonatomic, copy) NSString *note;
+
+  // (2)
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+      NSString *total = [self.ledger.total stringValue];
+      dispatch_async(dispatch_get_main_queue(), ^{
+          self.totalLabel.text = total;
+      });
+  });
+
+  // (3)
+  __weak typeof(self) weakSelf = self;
+  self.ledger.onChange = ^(LBLedger *ledger) {
+      __strong typeof(weakSelf) strongSelf = weakSelf;
+      if (!strongSelf) return;
+      [strongSelf reload];
+  };
+solution_note: "(2) 的 GCD block 由佇列暫時持有，用 `self` 沒問題；(3) 的 block 被 `self.ledger` 長期持有、而 `self` 持有 `ledger`，才需要 weakSelf。這兩個情境的差別就是面試題「什麼時候需要 weakSelf」的答案。"
+hints: ["copy 不是 strong。", "回主執行緒是 dispatch_async 到 main queue，不是 sync。", "外 weak、內 strong、判 strongSelf。"]

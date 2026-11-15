@@ -1,0 +1,47 @@
+id: m06-6-1-code-1
+chapter: "6.1"
+type: code
+title: 用字串建立類別並安全呼叫
+mobile: false
+minutes: 8
+prompt: "實作 `LBObjectFactory` 的類別方法 `objectOfClassNamed:thenPerform:`：用 `NSClassFromString` 找類別，找不到回 nil；用 `NSSelectorFromString` 把第二個字串轉成 selector；建立實體後，只有在 `respondsToSelector:` 為 YES 時才用 `performSelector:` 呼叫它，否則印出警告。回傳建立的物件。"
+starter: |
+  @implementation LBObjectFactory
+  + (nullable id)objectOfClassNamed:(NSString *)className
+                        thenPerform:(NSString *)selectorName {
+
+  }
+  @end
+checks:
+  - must_match: 'NSClassFromString\s*\(\s*className\s*\)'
+    message: 用 NSClassFromString 把字串變成 Class
+  - must_match: 'NSSelectorFromString\s*\(\s*selectorName\s*\)'
+    message: 用 NSSelectorFromString 把字串變成 SEL
+  - must_match: 'return\s+nil'
+    message: 找不到類別要回傳 nil
+  - must_match: 'respondsToSelector\s*:'
+    message: "呼叫前先 respondsToSelector:"
+  - must_match: 'performSelector\s*:'
+    message: "用 performSelector: 動態呼叫"
+  - must_match: '\[\s*\[?\s*cls\s+(alloc\]\s*init|new)'
+    message: 用找到的 Class 建立實體（[cls new] 或 [[cls alloc] init]）
+  - "brackets_balanced: true"
+solution: |
+  + (nullable id)objectOfClassNamed:(NSString *)className
+                        thenPerform:(NSString *)selectorName {
+      Class cls = NSClassFromString(className);
+      if (cls == Nil) return nil;
+      id object = [cls new];
+      SEL sel = NSSelectorFromString(selectorName);
+      if ([object respondsToSelector:sel]) {
+  #pragma clang diagnostic push
+  #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+          [object performSelector:sel];
+  #pragma clang diagnostic pop
+      } else {
+          NSLog(@"%@ 不回應 %@", className, selectorName);
+      }
+      return object;
+  }
+solution_note: 三件事各一行：字串→Class、字串→SEL、送之前先問。`performSelector:` 的 ARC 警告在 6.6 解釋，這裡用 pragma 包住。
+hints: ["先把兩個字串各轉成 Class 與 SEL。", "Class 找不到是 Nil，要先判斷再 new。", "送訊息前用 respondsToSelector: 守住。"]

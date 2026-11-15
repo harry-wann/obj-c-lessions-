@@ -1,0 +1,70 @@
+id: m06-6-4-code-1
+chapter: "6.4"
+type: code
+title: 寫出完整的 KVO 觀察者
+mobile: false
+minutes: 12
+prompt: "實作 `LBStatsObserver`：`initWithLedger:` 存下 ledger 並以靜態 context 註冊觀察 `total`（options 帶 New 與 Initial）；`observeValueForKeyPath:...` 比對 context，自己的就把 `change[NSKeyValueChangeNewKey]` 存進 `lastTotal`，不是自己的交給 super；`dealloc` 移除觀察。"
+starter: |
+  static void *LBTotalContext = &LBTotalContext;
+
+  @implementation LBStatsObserver {
+      LBLedger *_ledger;
+  }
+  - (instancetype)initWithLedger:(LBLedger *)ledger {
+
+  }
+  - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object
+                          change:(NSDictionary *)change context:(void *)context {
+
+  }
+  - (void)dealloc {
+
+  }
+  @end
+checks:
+  - must_match: 'addObserver\s*:\s*self\s+forKeyPath\s*:\s*@"total"'
+    message: "用 addObserver:forKeyPath: 註冊觀察 @\"total\""
+  - must_match: 'NSKeyValueObservingOptionNew'
+    message: options 要帶 New
+  - must_match: 'NSKeyValueObservingOptionInitial'
+    message: options 要帶 Initial
+  - must_match: 'context\s*:\s*LBTotalContext'
+    message: 註冊時 context 傳靜態變數位址
+  - must_match: 'context\s*==\s*LBTotalContext|LBTotalContext\s*==\s*context'
+    message: 回呼要比對 context
+  - must_match: 'NSKeyValueChangeNewKey'
+    message: 新值從 change[NSKeyValueChangeNewKey] 取
+  - must_match: 'super\s+observeValueForKeyPath\s*:'
+    message: 不是自己的通知交給 super
+  - must_match: 'removeObserver\s*:\s*self\s+forKeyPath\s*:\s*@"total"'
+    message: dealloc 要移除觀察
+  - "brackets_balanced: true"
+solution: |
+  static void *LBTotalContext = &LBTotalContext;
+
+  @implementation LBStatsObserver {
+      LBLedger *_ledger;
+  }
+  - (instancetype)initWithLedger:(LBLedger *)ledger {
+      if (self = [super init]) {
+          _ledger = ledger;
+          [_ledger addObserver:self forKeyPath:@"total"
+                       options:NSKeyValueObservingOptionNew | NSKeyValueObservingOptionInitial
+                       context:LBTotalContext];
+      }
+      return self;
+  }
+  - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object
+                          change:(NSDictionary *)change context:(void *)context {
+      if (context == LBTotalContext) {
+          self.lastTotal = change[NSKeyValueChangeNewKey];
+      } else {
+          [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
+      }
+  }
+  - (void)dealloc {
+      [_ledger removeObserver:self forKeyPath:@"total" context:LBTotalContext];
+  }
+solution_note: 這就是 Xcode 題裡 LBStatsObserver 的樣子。Initial 讓註冊當下就先收到一次，省掉手動初始化。
+hints: ["options 用 | 合併兩個旗標。", "回呼第一件事是比對 context。", "dealloc 的 removeObserver: 要帶同一個 context。"]

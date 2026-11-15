@@ -1,0 +1,239 @@
+---
+title: XIB 與自訂 cell
+module: 11
+chapter: "11.4"
+order: 4
+minutes: 35
+prereq: ["11.3", "8.3"]
+objectives:
+  - "用 XIB 做出 LBTransactionCell，registerNib: 註冊，與程式碼版本並存並用 #if 切換"
+  - 說清楚 File's Owner 是什麼、cell XIB 為什麼不用它
+  - 在 IB 拉 Auto Layout 約束，並用 IBDesignable / IBInspectable 讓自訂 view 在畫布上預覽
+summary: "registerNib:forCellReuseIdentifier:、XIB 的 File's Owner 與 cell XIB 不用它、在 IB 拉 Auto Layout、IBDesignable / IBInspectable、同一個 cell 的 XIB 版與程式碼版並存比較。"
+terms:
+  - { en: XIB / NIB, tw: XIB（介面檔）, cn: XIB 文件, jp: XIB ファイル }
+  - { en: File's Owner, tw: 檔案擁有者, cn: 文件所有者, jp: ファイルオーナー }
+  - { en: reuse identifier, tw: 重用識別字, cn: 复用标识符, jp: 再利用識別子 }
+  - { en: IBDesignable, tw: 可在 IB 預覽, cn: 可设计, jp: IB でプレビュー可能 }
+  - { en: IBInspectable, tw: 可在 IB 調整, cn: 可检视属性, jp: IB で編集可能 }
+  - { en: Auto Layout constraint, tw: 約束, cn: 约束, jp: 制約 }
+appProgress: LBTransactionCell 多了一個 XIB 版本，#if LB_USE_NIB_CELL 切換；LBTransactionCellNibTests/testNibLoadsCellWithOutlets 轉綠。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// Swift 專案裡接舊 ObjC pod 的 XIB cell：註冊方式相同
+tableView.register(UINib(nibName: "LBTransactionCell", bundle: nil),
+                   forCellReuseIdentifier: "LBTransactionCell")
+// 新 Swift 碼多半改走 UIHostingConfiguration / 程式碼約束，
+// 但 register(_:forCellReuseIdentifier:) 這一行永遠相同
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// Android：每個 item 一個 layout XML + ViewHolder；RecyclerView.Adapter 負責 inflate
+class TxViewHolder(val binding: ItemTransactionBinding)
+    : RecyclerView.ViewHolder(binding.root)
+override fun onCreateViewHolder(p: ViewGroup, t: Int) =
+    TxViewHolder(ItemTransactionBinding.inflate(LayoutInflater.from(p.context), p, false))
+// item_transaction.xml ≈ LBTransactionCell.xib；ViewBinding ≈ IBOutlet
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// Java Android：inflate + findViewById（ViewBinding 之前）
+View v = LayoutInflater.from(parent.getContext())
+             .inflate(R.layout.item_transaction, parent, false);
+TextView title = v.findViewById(R.id.title);   // id 打錯回 null，之後 NPE
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// Web：HTML <template> + cloneNode ≈ XIB 載入；React 元件 ≈ 程式碼版 cell
+const tpl = document.querySelector<HTMLTemplateElement>("#tx-cell")!;
+const node = tpl.content.cloneNode(true) as DocumentFragment;
+node.querySelector(".title")!.textContent = tx.note;
+```
+</Fragment>
+XIB 是「一個 view 一個檔」的介面檔，比 storyboard 小、比程式碼直觀。它對應 Android 的 item layout XML：Adapter 負責 inflate，`register` 一次之後 table view 自己 dequeue。8.3 的 `LBTransactionCell` 是程式碼版，這一章做一個 XIB 版放旁邊，兩個版本切換著看，你才知道各自的代價。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 建 XIB、連 outlet、拉約束
+
+<Steps title="LBTransactionCell 的 XIB 版本">
+<ol>
+<li>File → New → File → User Interface → <strong>Empty</strong>，命名 <code>LBTransactionCell.xib</code>（檔名跟類別同名是慣例，不是規定）。</li>
+<li>從 Library 拖一個 <strong>Table View Cell</strong> 到畫布（不是 View、不是 View Controller）。</li>
+<li>選 cell，Identity inspector → Class 填 <code>LBTransactionCell</code>；Attributes inspector → Identifier 填 <code>LBTransactionCell</code>（這是 reuse identifier）。</li>
+<li>左側 outline 點 <strong>File's Owner</strong>，確認它的 Class 是 <code>NSObject</code>，<strong>不要</strong>改成 cell 類別（原因見下）。</li>
+<li>拖兩個 Label（標題、副標）、一個 Label（金額）、一個 Image View（分類圖示）進 Content View。</li>
+<li>拉約束：選 Image View，點畫布右下角的 <strong>Add New Constraints</strong>（像 TIE 戰機的圖示），勾 leading 16、寬 28、高 28，再按住 Control 拖到 Content View 選 Center Vertically。標題 Label：leading 對 Image View trailing 12、top 10；副標：leading 對齊標題、top 對標題 bottom 4、bottom 10；金額：trailing 16、Center Vertically，並把 Content Hugging Horizontal 調到 251 讓標題先被壓縮。</li>
+<li>Assistant editor 打開 <code>LBTransactionCell.m</code>，從每個子 view 按住 Control 拖到 <code>@interface LBTransactionCell ()</code> 建 outlet：<code>titleLabel</code>、<code>subtitleLabel</code>、<code>amountLabel</code>、<code>iconView</code>。拖的時候<strong>來源是 cell 場景</strong>，不是 File's Owner。</li>
+<li>在 <code>LBTransactionListViewController</code> 的 <code>viewDidLoad</code> 改成 <code>registerNib:</code>（見下方程式碼），⌘U 跑 <code>LBTransactionCellNibTests/testNibLoadsCellWithOutlets</code>。</li>
+</ol>
+</Steps>
+
+```objc
+// LBTransactionListViewController.m
+- (void)viewDidLoad {
+    [super viewDidLoad];
+#if LB_USE_NIB_CELL
+    UINib *nib = [UINib nibWithNibName:@"LBTransactionCell"
+                                bundle:[NSBundle bundleForClass:[LBTransactionCell class]]];
+    [self.tableView registerNib:nib
+         forCellReuseIdentifier:@"LBTransactionCell"];
+#else
+    [self.tableView registerClass:[LBTransactionCell class]
+           forCellReuseIdentifier:@"LBTransactionCell"];
+#endif
+}
+// cellForRowAtIndexPath: 完全不用改：dequeue 會依註冊方式載 XIB 或呼叫 initWithStyle:
+```
+
+`LB_USE_NIB_CELL` 在 Build Settings → Preprocessor Macros 定義（或 `project.yml` 的 `GCC_PREPROCESSOR_DEFINITIONS`）。兩個版本的對外介面一致（`configureWithViewModel:`），只有子 view 的來源不同：程式碼版在 `initWithStyle:reuseIdentifier:` 建 view、XIB 版在 `awakeFromNib` 拿到已經連好的 outlet。
+
+```objc
+// LBTransactionCell.m：兩種初始化路徑共存
+- (instancetype)initWithStyle:(UITableViewCellStyle)style
+              reuseIdentifier:(NSString *)reuseIdentifier {
+    if (self = [super initWithStyle:style reuseIdentifier:reuseIdentifier]) {
+        [self buildSubviewsInCode];          // 程式碼版走這裡
+    }
+    return self;
+}
+
+- (void)awakeFromNib {
+    [super awakeFromNib];                    // XIB 版走這裡；outlet 已有值
+    self.amountLabel.font = [UIFont monospacedDigitSystemFontOfSize:17
+                                                             weight:UIFontWeightSemibold];
+}
+
+- (void)prepareForReuse {
+    [super prepareForReuse];                 // 兩版共用：8.3 的重設邏輯
+    self.iconView.image = nil;
+    self.amountLabel.textColor = nil;
+}
+```
+
+### File's Owner 是什麼
+
+每個 XIB 載入時都有一個「代理物件」叫 <Term en="File's Owner" tw="檔案擁有者" cn="文件所有者" jp="ファイルオーナー" />：它**不在 XIB 裡**，是載入那一刻由呼叫端傳進來的物件（`loadNibNamed:owner:options:` 的 `owner`），XIB 裡連到 File's Owner 的 outlet 會被設到它身上。View Controller 的 XIB 就靠這個：`UIViewController` 載入 `.xib` 時以自己當 owner，XIB 裡的 `view` outlet 連到 File's Owner，於是 VC 的 `self.view` 有了值。
+
+cell 的 XIB **不用** File's Owner：`registerNib:` 載入時 owner 是 nil，table view 直接取 XIB 裡的第一個頂層物件（那個 cell）當結果。所以 outlet 要從 **cell 場景本身** 拖，Class 也設在 cell 上。把 File's Owner 的 Class 改成 `LBTransactionCell` 然後從它拖 outlet，是這一章最常見的錯：編譯沒事，執行期 `NSUnknownKeyException`，因為 UIKit 試著把 outlet set 到 nil owner 上失敗，或者 cell 的 outlet 全是 nil。
+
+### 手動載入 XIB（非 table view 場合）
+
+```objc
+// 從 XIB 載一個獨立 view，例如空狀態提示
+NSArray *objects = [[NSBundle mainBundle] loadNibNamed:@"LBEmptyStateView"
+                                                 owner:nil
+                                               options:nil];
+LBEmptyStateView *empty = objects.firstObject;
+// 或 UINib 版本（會快取解析結果，重複載入用這個）
+UINib *nib = [UINib nibWithNibName:@"LBEmptyStateView" bundle:nil];
+LBEmptyStateView *empty2 = [nib instantiateWithOwner:nil options:nil].firstObject;
+```
+
+### IBDesignable / IBInspectable
+
+自訂 view 預設在 IB 畫布上只是一個白框。加 `IB_DESIGNABLE` 讓 IB 真的編譯並執行你的 `drawRect:` / `layoutSubviews` 來預覽；`IBInspectable` 讓屬性出現在 Attributes inspector 讓設計師調：
+
+```objc
+// LBAmountBadge.h
+IB_DESIGNABLE
+@interface LBAmountBadge : UIView
+@property (nonatomic) IBInspectable CGFloat cornerRadius;
+@property (nonatomic, strong) IBInspectable UIColor *fillColor;
+@property (nonatomic) IBInspectable BOOL isExpense;
+@end
+
+// LBAmountBadge.m
+@implementation LBAmountBadge
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    self.layer.cornerRadius = self.cornerRadius;
+    self.backgroundColor = self.isExpense
+        ? self.fillColor : [self.fillColor colorWithAlphaComponent:0.3];
+}
+- (void)prepareForInterfaceBuilder {      // 只在 IB 預覽時呼叫，可塞假資料
+    [super prepareForInterfaceBuilder];
+    self.cornerRadius = 8;
+}
+@end
+```
+
+支援的 `IBInspectable` 型別：`BOOL`、數值、`NSString`、`UIColor`、`UIImage`、`CGPoint` / `CGSize` / `CGRect`、`NSRange`。注意 `IBInspectable` 值由 XIB 用 KVC 設定，發生在 `awakeFromNib` **之前**，所以在 `awakeFromNib` 讀得到。
+
+### XIB 版 vs 程式碼版
+
+| | XIB 版 | 程式碼版（8.3） |
+|---|---|---|
+| 看得到長相 | 畫布即所見 | 要跑起來才看到 |
+| 約束改動 | 點選拖拉，容易漏掉一條 | 全部在 `activateConstraints:`，diff 清楚 |
+| 程式碼審查 | XML diff 難讀 | 一般程式碼 |
+| 合併衝突 | 常見（11.3 同樣問題） | 跟一般程式碼一樣 |
+| 重用 / 子類別 | 子類別無法「繼承」XIB 版面 | 自然 |
+| 載入成本 | 第一次解析 XIB 較慢，`UINib` 會快取 | 無額外成本 |
+| 設計師參與 | 可以直接調 `IBInspectable` | 需要工程師 |
+
+結論不是「哪個好」，而是：**接手的專案用哪個，你就先跟著用**；新畫面在團隊有共識後再選。
+
+<Tip title="Bundle 要寫對">
+`nibWithNibName:bundle:` 傳 `nil` 等於 `[NSBundle mainBundle]`。在單元測試裡 main bundle 是 **xctest runner**，不是你的 App，所以 XIB 找不到。寫 `[NSBundle bundleForClass:[LBTransactionCell class]]` 兩邊都對；這也是 11.3 測試載 storyboard 用同一招的原因。放在 framework / pod 裡的 XIB 同理，一定要指定 bundle。
+</Tip>
+
+<Pitfall title="從 File's Owner 拖了 cell 的 outlet">
+<Fragment slot="bad">
+```text
+XIB outline：
+  File's Owner  (Class: LBTransactionCell)  ← outlet 連在這
+  LBTransactionCell
+執行期：registerNib: 以 owner = nil 載入 → outlet 全 nil 或 NSUnknownKeyException
+```
+</Fragment>
+<Fragment slot="good">
+```text
+XIB outline：
+  File's Owner  (Class: NSObject，不碰)
+  LBTransactionCell (Class: LBTransactionCell，Identifier 填好)  ← outlet 連在這
+```
+</Fragment>
+判斷方法：選畫布上的 cell，打開 Connections inspector，四條 outlet 應該都列在 cell 身上。如果是列在 File's Owner 底下，全部刪掉重拖。
+</Pitfall>
+
+<Pitfall title="同時 registerNib: 又 registerClass: 同一個 identifier">
+後註冊的會蓋掉先註冊的，而且不會有任何警告。舊專案裡常見 `viewDidLoad` 註冊 XIB、某個 category 或 base class 又註冊了 class，結果 cell 出來是空白的。`#if LB_USE_NIB_CELL` 這種二選一的寫法就是在避免這個：同一個 identifier 只在一處註冊。
+</Pitfall>
+
+<Pitfall title="XIB 裡的 cell 沒填 reuse identifier">
+`registerNib:forCellReuseIdentifier:` 的 identifier 必須跟 XIB 裡 cell 的 Identifier 欄**一字不差**，否則執行期 `NSInternalInconsistencyException: invalid nib registered for identifier (LBTransactionCell) - nib must contain exactly one top level object which must be a UITableViewCell instance`。訊息說的是「頂層物件」：XIB 裡多拖了一個 View 在旁邊也會觸發同一則錯誤。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInternalInconsistencyException',
+reason: 'Could not load NIB in bundle: 'NSBundle </Users/you/Library/Developer/CoreSimulator/.../LittleBook.app> (loaded)'
+with name 'LBTransactionCell''`}>
+UIKit 在 bundle 裡找不到叫 `LBTransactionCell` 的 `.nib`（XIB 編譯後的產物）。三個常見原因，依頻率排：
+
+1. **XIB 沒加進 target**。選 `LBTransactionCell.xib`，File inspector → Target Membership，`LittleBook` 沒勾。新檔案建在錯的 group、或從別的專案拖進來時最常發生。檢查方法：Build Phases → Copy Bundle Resources 有沒有它。
+2. **名字不符**。`nibWithNibName:@"LBTransactionCell"` 跟檔名 `LBTransactionCell.xib` 要一致（不含副檔名、大小寫敏感）；有人改檔名沒改字串。
+3. **bundle 錯**。在測試或 framework 裡傳了 `nil` 拿到 main bundle（見上面的 Tip）。訊息裡的 bundle 路徑會告訴你它在哪裡找：如果是 `xctest` 結尾，就是這個原因。
+
+修完後 Clean Build Folder（⇧⌘K）再跑：Xcode 偶爾會留著舊的 `.nib` 快取讓你誤以為沒修好。
+</Crash>
+
+## 小結
+
+- cell 的 XIB：Class 與 Identifier 都設在 cell 上，outlet 從 cell 拖，File's Owner 不碰；`registerNib:forCellReuseIdentifier:` 註冊後 `dequeue` 不用改。
+- File's Owner 是載入時外面傳進來的代理物件；VC 的 XIB 靠它接 `view`，cell 的 XIB 用不到。
+- 兩個版本的 cell 可以用 `#if` 切換，對外介面（`configureWithViewModel:`、`prepareForReuse`）相同，差在 `initWithStyle:` 還是 `awakeFromNib` 建 view。
+- `IB_DESIGNABLE` + `IBInspectable` 讓自訂 view 在畫布預覽與調整；值在 `awakeFromNib` 前由 KVC 設定。
+- `Could not load NIB in bundle` 先看 Target Membership，再看名字，最後看 bundle。

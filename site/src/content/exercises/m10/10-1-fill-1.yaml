@@ -1,0 +1,31 @@
+id: m10-10-1-fill-1
+chapter: "10.1"
+type: fill
+title: 建立 CADisplayLink
+minutes: 2
+prompt: 補完 FPS 監視器的 start 與 stop。
+code: |
+  - (void)start {
+      _link = [CADisplayLink displayLinkWithTarget:self
+                                          selector:@selector(tick:)];
+      [_link addToRunLoop:NSRunLoop.mainRunLoop
+                  forMode:___1___];
+  }
+  - (void)stop {
+      [_link ___2___];
+      _link = nil;
+  }
+  - (void)tick:(CADisplayLink *)link {
+      double ms = (link.___3___ - _lastTimestamp) * 1000.0;
+      _lastTimestamp = link.timestamp;
+  }
+blanks:
+  "1": { accept: ["NSRunLoopCommonModes"], chips: ["NSRunLoopCommonModes", "NSDefaultRunLoopMode", "UITrackingRunLoopMode", "NSRunLoopMainMode"] }
+  "2": { accept: ["invalidate"], chips: ["invalidate", "stop", "pause", "removeFromRunLoop"] }
+  "3": { accept: ["timestamp"], chips: ["timestamp", "targetTimestamp", "duration", "frameInterval"] }
+hints: ["捲動時也要收到回呼，要哪個模式？", "run loop 持有 display link，怎麼解除？", "上一幀花多久 = 這幀開始時間 − 上一幀開始時間。"]
+feedback:
+  "1=NSDefaultRunLoopMode": 捲動時收不到回呼。
+  "1=UITrackingRunLoopMode": 只有捲動時才收到，靜止時沒數據。
+  "3=targetTimestamp": targetTimestamp 是下一幀該顯示的時間，用它算的是「剩餘預算」不是「上一幀耗時」。
+solution_note: Common modes 讓捲動時也有回呼；`invalidate` 解除 run loop 的持有；兩幀 `timestamp` 的差就是幀耗時。

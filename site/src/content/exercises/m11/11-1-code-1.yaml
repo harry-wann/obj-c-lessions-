@@ -1,0 +1,64 @@
+id: m11-11-1-code-1
+chapter: "11.1"
+type: code
+title: 手寫 copy setter 與 dealloc
+mobile: false
+minutes: 8
+prompt: "在 MRC 檔案（-fno-objc-arc）裡為 `LBLegacyTransaction` 手寫 `setNote:`（copy 屬性）與 `dealloc`。setNote: 要處理同一物件、copy 新值、release 舊值；dealloc 要 release `_note` 與 `_amount`（retain 屬性），不 release `_owner`（assign），最後 `[super dealloc]`。"
+starter: |
+  // 此檔需 -fno-objc-arc
+  @interface LBLegacyTransaction : NSObject {
+      NSString *_note;
+      NSDecimalNumber *_amount;
+      id _owner;
+  }
+  @property (nonatomic, copy) NSString *note;
+  @property (nonatomic, retain) NSDecimalNumber *amount;
+  @property (nonatomic, assign) id owner;
+  @end
+
+  @implementation LBLegacyTransaction
+  @synthesize amount = _amount;
+  @synthesize owner = _owner;
+
+  - (NSString *)note { return _note; }
+
+  - (void)setNote:(NSString *)note {
+
+  }
+
+  - (void)dealloc {
+
+  }
+  @end
+checks:
+  - selector_equals: "setNote:"
+  - selector_equals: "dealloc"
+  - must_match: '_note\s*=\s*\[\s*note\s+copy\s*\]'
+    message: "setNote: 要用 [note copy] 賦值給 _note"
+  - must_match: 'release\s*\]'
+    message: "setNote: 要 release 舊值"
+  - must_not_match: '\[\s*note\s+retain\s*\]'
+    message: "copy setter 不再 retain：copy 回傳的已經是 +1"
+  - must_match: '\[\s*_amount\s+release\s*\]'
+    message: "dealloc 要 release _amount"
+  - must_not_match: '\[\s*_owner\s+release\s*\]'
+    message: "_owner 是 assign，不能 release"
+  - must_match: '\[\s*super\s+dealloc\s*\]\s*;\s*\}'
+    message: "[super dealloc] 要在 dealloc 的最後一行"
+  - "brackets_balanced: true"
+solution: |
+  - (void)setNote:(NSString *)note {
+      if (_note == note) return;
+      NSString *old = _note;
+      _note = [note copy];
+      [old release];
+  }
+
+  - (void)dealloc {
+      [_note release];
+      [_amount release];
+      [super dealloc];
+  }
+solution_note: "copy setter 跟 retain setter 的差別只有一處：`copy` 回傳的物件已經是 +1，不再 retain。dealloc 的清單 = copy / retain 屬性，assign 跳過，`[super dealloc]` 壓底。"
+hints: ["copy 回傳的物件計數是幾？", "dealloc 裡該 release 誰：看屬性修飾詞。", "[super dealloc] 之後記憶體就沒了，所以它在哪裡？"]

@@ -1,0 +1,55 @@
+id: m06-6-6-code-1
+chapter: "6.6"
+type: code
+title: 用 NSInvocation 呼叫多參數方法
+mobile: false
+minutes: 10
+prompt: "實作 `invokeAddOn:amount:note:flag:`：對 `ledger` 動態呼叫 `addAmount:note:flag:`（簽名 `- (NSUInteger)addAmount:(NSDecimalNumber *)amount note:(NSString *)note flag:(BOOL)flag;`），用 NSInvocation 設定三個參數並讀回 NSUInteger 回傳值。"
+starter: |
+  + (NSUInteger)invokeAddOn:(LBLedger *)ledger
+                     amount:(NSDecimalNumber *)amount
+                       note:(NSString *)note
+                       flag:(BOOL)flag {
+      SEL sel = @selector(addAmount:note:flag:);
+
+  }
+checks:
+  - must_match: 'methodSignatureForSelector\s*:\s*sel'
+    message: 先向 ledger 取方法簽名
+  - must_match: 'invocationWithMethodSignature\s*:'
+    message: 用簽名建立 NSInvocation
+  - must_match: '(inv|invocation)\.target\s*=\s*ledger|setTarget\s*:\s*ledger'
+    message: 設定 target
+  - must_match: '(inv|invocation)\.selector\s*=\s*sel|setSelector\s*:\s*sel'
+    message: 設定 selector
+  - must_match: 'setArgument\s*:\s*&amount\s+atIndex\s*:\s*2'
+    message: 第一個參數放索引 2（0 是 self、1 是 _cmd），而且要傳位址
+  - must_match: 'setArgument\s*:\s*&note\s+atIndex\s*:\s*3'
+    message: 第二個參數放索引 3
+  - must_match: 'setArgument\s*:\s*&flag\s+atIndex\s*:\s*4'
+    message: "BOOL 也用 setArgument: 傳位址，索引 4"
+  - must_match: '\binvoke\]'
+    message: 記得 invoke
+  - must_match: 'getReturnValue\s*:\s*&'
+    message: "回傳值用 getReturnValue: 寫進一個變數的位址"
+  - "brackets_balanced: true"
+solution: |
+  + (NSUInteger)invokeAddOn:(LBLedger *)ledger
+                     amount:(NSDecimalNumber *)amount
+                       note:(NSString *)note
+                       flag:(BOOL)flag {
+      SEL sel = @selector(addAmount:note:flag:);
+      NSMethodSignature *sig = [ledger methodSignatureForSelector:sel];
+      NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+      inv.target = ledger;
+      inv.selector = sel;
+      [inv setArgument:&amount atIndex:2];
+      [inv setArgument:&note atIndex:3];
+      [inv setArgument:&flag atIndex:4];
+      [inv invoke];
+      NSUInteger result = 0;
+      [inv getReturnValue:&result];
+      return result;
+  }
+solution_note: "`setArgument:` 與 `getReturnValue:` 都收位址，物件參數也要寫 `&amount`。索引 0、1 是 self 與 _cmd。回傳物件時要注意 getReturnValue: 不會 retain，ARC 下接收變數要標 __unsafe_unretained。"
+hints: ["先要簽名，再建 invocation。", "三個參數的索引是 2、3、4，全部傳位址。", "invoke 之後才能 getReturnValue:。"]

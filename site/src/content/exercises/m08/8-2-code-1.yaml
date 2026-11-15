@@ -1,0 +1,49 @@
+id: m08-8-2-code-1
+chapter: "8.2"
+type: code
+title: 成對註冊與移除鍵盤通知
+mobile: false
+minutes: 8
+prompt: "寫出 `viewWillAppear:` 與 `viewWillDisappear:`：前者註冊 `UIKeyboardWillShowNotification` 與 `UIKeyboardWillHideNotification` 兩個通知到 `keyboardWillChange:`，後者移除同樣兩個。兩個方法都要先呼叫 super。"
+starter: |
+  - (void)viewWillAppear:(BOOL)animated {
+
+  }
+
+  - (void)viewWillDisappear:(BOOL)animated {
+
+  }
+checks:
+  - must_match: 'viewWillAppear\s*:\s*\(BOOL\)\s*animated\s*\{\s*\[super\s+viewWillAppear\s*:\s*animated\]'
+    message: "viewWillAppear: 第一行要呼叫 [super viewWillAppear:animated]"
+  - must_match: 'viewWillDisappear\s*:\s*\(BOOL\)\s*animated\s*\{\s*\[super\s+viewWillDisappear\s*:\s*animated\]'
+    message: "viewWillDisappear: 第一行要呼叫 super"
+  - must_match: 'addObserver\s*:\s*self\s+selector\s*:\s*@selector\(keyboardWillChange:\)\s+name\s*:\s*UIKeyboardWillShowNotification'
+    message: "註冊 UIKeyboardWillShowNotification 到 keyboardWillChange:"
+  - must_match: 'addObserver\s*:\s*self\s+selector\s*:\s*@selector\(keyboardWillChange:\)\s+name\s*:\s*UIKeyboardWillHideNotification'
+    message: "註冊 UIKeyboardWillHideNotification 到 keyboardWillChange:"
+  - must_match: 'removeObserver\s*:\s*self\s+name\s*:\s*UIKeyboardWillShowNotification'
+    message: "viewWillDisappear: 要移除 Show 通知"
+  - must_match: 'removeObserver\s*:\s*self\s+name\s*:\s*UIKeyboardWillHideNotification'
+    message: "viewWillDisappear: 要移除 Hide 通知"
+  - must_not_match: 'dealloc'
+    message: "不要在 dealloc 移除，要跟 viewWillAppear: 成對"
+  - "brackets_balanced: true"
+solution: |
+  - (void)viewWillAppear:(BOOL)animated {
+      [super viewWillAppear:animated];
+      NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
+      [nc addObserver:self selector:@selector(keyboardWillChange:)
+                 name:UIKeyboardWillShowNotification object:nil];
+      [nc addObserver:self selector:@selector(keyboardWillChange:)
+                 name:UIKeyboardWillHideNotification object:nil];
+  }
+
+  - (void)viewWillDisappear:(BOOL)animated {
+      [super viewWillDisappear:animated];
+      NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
+      [nc removeObserver:self name:UIKeyboardWillShowNotification object:nil];
+      [nc removeObserver:self name:UIKeyboardWillHideNotification object:nil];
+  }
+solution_note: "指定 name 移除比 removeObserver:self 一次全拆精準，不會誤拆 viewDidLoad 註冊的別的通知。8.6 會把 keyboardWillChange: 的內容寫出來。"
+hints: ["兩個方法第一行都是 super。", "addObserver:selector:name:object: 的 object 給 nil。", "移除時指定 name，不要用 removeObserver:self 全拆。"]

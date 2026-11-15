@@ -1,0 +1,323 @@
+---
+title: 大量資料匯入
+module: 10
+chapter: "10.3"
+order: 3
+minutes: 45
+prereq: ["10.2", "7.4", "7.6"]
+objectives:
+  - "用串流方式在背景解析 100,000 筆 CSV，每批 500 筆用 performBatchUpdates: 更新列表"
+  - 把進度回報節流到每 100 ms 一次，並用 NSProgress / NSOperation 讓匯入可取消
+  - 用迴圈內的 @autoreleasepool 壓低記憶體峰值，匯入期間仍能新增交易
+summary: "100,000 筆 CSV 串流解析、每 500 筆一批 performBatchUpdates:、進度回報節流 100 ms、NSOperation / NSProgress 可取消、迴圈內 @autoreleasepool、匯入中寫入序列化、Terminated due to memory issue。"
+terms:
+  - { en: streaming parse, tw: 串流解析, cn: 流式解析, jp: ストリーミング解析 }
+  - { en: batch update, tw: 批次更新, cn: 批量更新, jp: バッチ更新 }
+  - { en: throttle, tw: 節流, cn: 节流, jp: スロットル }
+  - { en: cancellation, tw: 取消, cn: 取消, jp: キャンセル }
+  - { en: memory peak, tw: 記憶體峰值, cn: 内存峰值, jp: メモリピーク }
+appProgress: LBImportService 可匯入 100,000 筆並隨時取消；匯入期間列表可捲、可新增交易；記憶體峰值 < 150 MB；兩個測試轉綠。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+let task = Task.detached(priority: .userInitiated) {
+    var batch: [LBTransaction] = []
+    for try await line in url.lines {            // 串流，不一次讀完
+        try Task.checkCancellation()             // 可取消
+        batch.append(parse(line))
+        if batch.count == 500 {
+            let b = batch; batch = []
+            await MainActor.run { ledger.add(b); tableView.insertRows(...) }
+        }
+    }
+}
+task.cancel()
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+val job = scope.launch(Dispatchers.IO) {
+    file.useLines { lines ->
+        lines.map(::parse).chunked(500).forEach { batch ->
+            ensureActive()                       // 可取消
+            withContext(Dispatchers.Main) { adapter.append(batch) }
+        }
+    }
+}
+// 進度：progressFlow.sample(100.milliseconds).collect { ui.progress = it }
+```
+</Fragment>
+<Fragment slot="java">
+```java
+Future<?> f = executor.submit(() -> {
+    try (BufferedReader r = Files.newBufferedReader(path)) {
+        String line; List<Tx> batch = new ArrayList<>();
+        while ((line = r.readLine()) != null) {
+            if (Thread.currentThread().isInterrupted()) return;
+            batch.add(parse(line));
+            if (batch.size() == 500) { publish(batch); batch = new ArrayList<>(); }
+        }
+    }
+});
+f.cancel(true);                                  // interrupt
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+const ac = new AbortController();
+const worker = new Worker("import.js");           // 解析在 Worker
+const reader = file.stream().getReader();         // ReadableStream 串流
+worker.postMessage({ reader }, [reader]);
+worker.onmessage = ({ data }) => appendRows(data.batch);   // 每 500 筆一批
+ac.signal.addEventListener("abort", () => worker.terminate());
+```
+</Fragment>
+四種語言的「正確匯入」長得一樣：**串流讀、分批送、可取消、進度節流**。Swift 的 `url.lines`、Kotlin 的 `useLines`、Java 的 `BufferedReader`、瀏覽器的 `ReadableStream` 都是為了不把 100,000 行一次讀進記憶體。Kotlin 的 `sample(100ms)` 就是進度節流。ObjC 沒有 async / await，但同樣的結構用 `NSOperation` + 串列佇列寫出來，而且多了一個別人沒有的工具：`@autoreleasepool`。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 整個流程
+
+```
+背景佇列                                     主執行緒
+───────────────────────────────────         ──────────────────────────
+開檔，一行一行讀（NSInputStream / fgets）
+  每行 → LBTransaction，放進 batch
+  每 500 筆 → ledger 寫入（barrier）─────▶   performBatchUpdates: 插入 500 列
+  每 100 ms → 回報進度 ─────────────────▶   progressView.progress = x
+  每批結束檢查 isCancelled
+  每批包在 @autoreleasepool
+結束 ────────────────────────────────▶      completion(nil)
+```
+
+六個要點各對應一個常見的錯法，底下逐一說。
+
+### 串流解析：不要 `stringWithContentsOfURL:`
+
+100,000 筆 CSV 約 8 MB。`[NSString stringWithContentsOfURL:]` 再 `componentsSeparatedByString:@"\n"` 會在記憶體裡同時放：8 MB 的 `NSString`（UTF-16 是 16 MB）、100,000 個子字串、100,000 個 `LBTransaction`，峰值輕鬆超過 150 MB。改用 C 標準函式一行一行讀最省：
+
+```objc
+// LBImportService.m（解析核心）
+- (void)parseFile:(NSURL *)url
+           handle:(void (^)(NSArray<LBTransaction *> *batch))handle {
+    FILE *fp = fopen(url.fileSystemRepresentation, "r");
+    if (!fp) return;
+    char line[512];
+    NSMutableArray *batch = [NSMutableArray arrayWithCapacity:_batchSize];
+    while (fgets(line, sizeof line, fp)) {
+        @autoreleasepool {                       // 每行的暫時物件立刻釋放
+            NSString *s = [NSString stringWithUTF8String:line];
+            LBTransaction *tx = [LBTransaction transactionWithCSVLine:s];
+            if (tx) [batch addObject:tx];
+            if (batch.count >= _batchSize) {
+                handle([batch copy]);
+                [batch removeAllObjects];
+            }
+        }
+        if (_cancelled) break;
+    }
+    if (batch.count && !_cancelled) handle([batch copy]);
+    fclose(fp);
+}
+```
+
+`fgets` 每次只拿一行進一個 512 byte 的緩衝區，記憶體跟檔案大小無關。Foundation 的 `NSInputStream` 也可以，但要自己處理「一次 read 讀到半行」的拼接，課堂上 `fgets` 夠用。
+
+### @autoreleasepool：壓住記憶體峰值
+
+`stringWithUTF8String:`、`componentsSeparatedByString:`、`NSDecimalNumber decimalNumberWithString:` 這些便利建構式回傳的物件都是 autorelease 的：它們要等到**最近的 autorelease pool 結束**才真的釋放。背景佇列的 block 外面有一個 pool，但它在整個 block 跑完才排水；100,000 行迴圈跑完前，每一行的暫時字串全部都還活著。迴圈裡包一層 `@autoreleasepool`，每行結束就釋放。貼進 Scratch 看差別：
+
+```objc
+#import <Foundation/Foundation.h>
+#import <mach/mach.h>
+
+static double residentMB(void) {
+    struct mach_task_basic_info info;
+    mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
+    task_info(mach_task_self(), MACH_TASK_BASIC_INFO,
+              (task_info_t)&info, &count);
+    return info.resident_size / 1024.0 / 1024.0;
+}
+
+static void run(BOOL usePool) {
+    double before = residentMB();
+    for (int i = 0; i < 200000; i++) {
+        if (usePool) {
+            @autoreleasepool {
+                NSString *s = [NSString stringWithFormat:@"row-%d,午餐,%d", i, i];
+                (void)[s componentsSeparatedByString:@","];
+            }
+        } else {
+            NSString *s = [NSString stringWithFormat:@"row-%d,午餐,%d", i, i];
+            (void)[s componentsSeparatedByString:@","];
+        }
+    }
+    NSLog(@"%@ pool：峰值增加約 %.0f MB", usePool ? @"有" : @"無",
+          residentMB() - before);
+}
+
+int main(void) {
+    @autoreleasepool { run(NO); }
+    @autoreleasepool { run(YES); }
+    return 0;
+}
+// 預期輸出（數字依機器不同）：
+// 無 pool：峰值增加約 62 MB
+// 有 pool：峰值增加約 0 MB
+```
+
+沒有內層 pool 時，200,000 行的暫時物件全部堆到外層 pool 排水才放掉；有內層 pool 時幾乎不漲。真實匯入裡還有 `LBTransaction` 本身，但那是要留下來的資料，不算浪費。
+
+### 每 500 筆一批：performBatchUpdates:
+
+每一筆都 `insertRowsAtIndexPaths:` 是 100,000 次 table view 更新，每次都要重算 content size，比 `reloadData` 還慢。全部匯完再 `reloadData` 又讓使用者盯著空畫面 10 秒。**分批**是中間解：
+
+```objc
+// LBTransactionListViewController.m
+- (void)appendBatch:(NSArray<LBTransactionViewModel *> *)vms {
+    NSUInteger start = self.viewModels.count;
+    NSMutableArray *paths = [NSMutableArray arrayWithCapacity:vms.count];
+    for (NSUInteger i = 0; i < vms.count; i++) {
+        [paths addObject:[NSIndexPath indexPathForRow:start + i inSection:0]];
+    }
+    [self.tableView performBatchUpdates:^{
+        [self.viewModels addObjectsFromArray:vms];     // 資料與 UI 同一步改
+        [self.tableView insertRowsAtIndexPaths:paths
+                              withRowAnimation:UITableViewRowAnimationNone];
+    } completion:nil];
+}
+```
+
+資料陣列的修改一定放在 `performBatchUpdates:` 的 block 裡：table view 會在 block 前後各問一次 `numberOfRowsInSection:`，兩次的差必須剛好等於你插入的列數，否則就是 10.6 會看到的 `Invalid update` crash。批次 500 是經驗值：太小更新次數多，太大單次主執行緒工作超過 8 ms。
+
+### 進度回報節流：每 100 ms，不是每筆
+
+<Term en="throttle" tw="節流" cn="节流" jp="スロットル" />是「一段時間內最多回報一次」。每筆都 `dispatch_async(main)` 回報，100,000 個 block 排進主佇列，主執行緒忙著更新 progress bar，比不回報還卡。
+
+```objc
+// LBImportService.m
+- (void)reportProgress:(NSUInteger)done total:(NSUInteger)total force:(BOOL)force {
+    CFTimeInterval now = CACurrentMediaTime();
+    if (!force && now - _lastReport < 0.1) return;   // 100 ms 內不重複
+    _lastReport = now;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self.progressHandler(done, total);
+    });
+}
+// 迴圈裡：[self reportProgress:done total:total force:NO];
+// 結束時：[self reportProgress:total total:total force:YES];
+```
+
+`force:YES` 讓最後一次一定送到，否則進度條可能停在 99%。`LBImportServiceTests/testImportsInBatchesAndReportsProgress` 用 10,000 筆、批次 500 檢查：批次回呼 20 次、進度回呼次數遠少於 10,000、最後一次 done == total。
+
+### 可取消：NSProgress 與 NSOperation
+
+介面回傳 `NSProgress`，呼叫端 `[progress cancel]` 就能停。內部用 `NSOperation` 子類別或 `NSBlockOperation`，解析迴圈每批檢查一次 `isCancelled`：
+
+```objc
+- (NSProgress *)importCSVAtURL:(NSURL *)url
+                     batchSize:(NSUInteger)batchSize
+                      progress:(void (^)(NSUInteger, NSUInteger))progress
+                    completion:(void (^)(NSError * _Nullable))completion {
+    NSProgress *p = [NSProgress progressWithTotalUnitCount:-1];
+    __weak NSBlockOperation *weakOp;
+    NSBlockOperation *op = [NSBlockOperation new];
+    weakOp = op;
+    p.cancellationHandler = ^{ [weakOp cancel]; };    // NSProgress → NSOperation
+    [op addExecutionBlock:^{
+        NSUInteger done = 0, total = [self countLinesInFile:url];
+        [self parseFile:url batchSize:batchSize handle:^(NSArray *batch) {
+            if (weakOp.isCancelled) return;
+            [self.ledger performBatchImport:batch];    // barrier 寫入（10.4）
+            done += batch.count;
+            [self reportProgress:done total:total force:NO];
+        } shouldStop:^BOOL{ return weakOp.isCancelled; }];
+        NSError *err = weakOp.isCancelled
+            ? [NSError errorWithDomain:LBErrorDomain
+                                  code:LBErrorCodeCancelled userInfo:nil]
+            : nil;
+        dispatch_async(dispatch_get_main_queue(), ^{ completion(err); });
+    }];
+    [_queue addOperation:op];          // maxConcurrentOperationCount = 1
+    return p;
+}
+```
+
+`testCancelStopsImport` 在第一批回呼時 `cancel`，檢查 completion 收到 `LBErrorCodeCancelled` 且帳本筆數遠小於總數。取消不是「立刻停在這一行」，是「下一次檢查點停」：每批一次剛好，每行檢查太頻繁、整個檔才檢查一次則停不下來。
+
+### 匯入期間仍可新增
+
+使用者在匯入時按「+」新增一筆，是兩條執行緒同時寫帳本。模組 7 的 `LBLedger` 已經用並行佇列 + `dispatch_barrier_async` 保護：匯入批次與使用者新增都走 barrier，自動排隊。UI 這邊要留意的是 `viewModels` 只在主執行緒改，所以 `appendBatch:` 與新增交易的插入都在主佇列串列執行，不會打架。
+
+<Steps title="量記憶體峰值">
+1. 設定頁 → 匯入 100,000 筆測試資料。
+2. 匯入中切到帳本列表捲動，再新增一筆交易：UI 不可以卡住。
+3. ⌘I → Allocations，點 **Mark Generation** 在匯入前後各一次，看 Persistent Bytes 的增量；或直接看 Debug Navigator 的 Memory 儀表，峰值 &lt; 150 MB。
+4. 把迴圈內的 `@autoreleasepool` 註解掉再量一次，看差多少（通常 +50 MB 以上）。
+</Steps>
+
+<Pitfall title="進度每筆回報一次">
+<Fragment slot="bad">
+```objc
+for (NSString *line in lines) {
+    [self parseLine:line];
+    done++;
+    dispatch_async(dispatch_get_main_queue(), ^{   // 100,000 個 block
+        self.progressView.progress = (float)done / total;
+    });
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+if (CACurrentMediaTime() - _lastReport >= 0.1 || done == total) {
+    _lastReport = CACurrentMediaTime();
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self.progressView.progress = (float)done / total;
+    });
+}
+```
+</Fragment>
+主佇列塞進 100,000 個 block，每個要跑 run loop 一圈，使用者的觸控事件排在它們後面。螢幕 60 Hz，進度條每秒更新 10 次已經看不出差別。
+</Pitfall>
+
+<Pitfall title="整個檔案一次讀進記憶體">
+`[[NSString stringWithContentsOfURL:...] componentsSeparatedByString:@"\n"]` 一行就把 8 MB 檔案變成 100,000 個字串物件同時存在。加上 UTF-16 內部表示與 autorelease，峰值上百 MB。串流讀（`fgets` / `NSInputStream`）加迴圈內 pool，記憶體跟檔案大小脫鉤。
+</Pitfall>
+
+<Pitfall title="取消只設旗標、沒有檢查點">
+`[op cancel]` 只是把 `isCancelled` 設成 YES，`NSOperation` 不會幫你中斷正在跑的 block。迴圈裡沒有 `if (op.isCancelled) break;` 的話，取消按鈕按了也會跑完 100,000 筆。檢查點放在每批結束，成本可忽略又能在 50 ms 內停下。
+</Pitfall>
+
+<Pitfall title="performBatchUpdates: 外面改資料">
+在 block 外先 `[self.viewModels addObjectsFromArray:vms]` 再進 block 呼叫 `insertRowsAtIndexPaths:`，table view 在 block 前問到的列數已經是新的，前後差為 0 卻插了 500 列，立刻 `NSInternalInconsistencyException`。資料與 UI 的修改必須在同一個 block 裡。
+</Pitfall>
+
+<Crash message={`Message from debugger: Terminated due to memory issue
+---
+Incident Identifier: 7E1F...
+Exception Type:  EXC_RESOURCE
+Exception Subtype: MEMORY
+Exception Note:  high watermark memory limit exceeded (limit=1450 MB)
+Thread 4 Crashed:: Dispatch queue: tw.littlebook.import
+0   Foundation     -[NSString componentsSeparatedByString:] + 120
+1   LittleBook     -[LBImportService parseAllLines:] + 88`}>
+「Terminated due to memory issue」是 Xcode 主控台看到的版本，裝置上的 crash report 會是 `EXC_RESOURCE` / `MEMORY`，由 jetsam 送出。沒有例外、沒有 EXC_BAD_ACCESS，單純是 process 用的記憶體超過系統給的上限（舊機型可能只有幾百 MB）。讀法：看 Crashed 的執行緒在做什麼，這裡是 `parseAllLines:` 裡的 `componentsSeparatedByString:`，就是「整檔切成字串陣列」的寫法。修法三件事：串流讀、每批 `@autoreleasepool`、不要把 100,000 個中間物件同時留在記憶體。Allocations 的 Mark Generation 可以在 crash 前就看到曲線一路往上。
+</Crash>
+
+## 小結
+
+- 匯入六要點：串流讀、迴圈內 `@autoreleasepool`、每 500 筆 `performBatchUpdates:`、進度節流 100 ms（最後一次 force）、每批檢查 `isCancelled`、寫入走 barrier。
+- 便利建構式回傳的物件要等 pool 排水才釋放；背景 block 的外層 pool 要整個 block 跑完，迴圈裡自己開一層。
+- `performBatchUpdates:` 前後列數差必須等於插入數，資料改動放在同一個 block。
+- `NSProgress.cancellationHandler` 轉呼叫 `NSOperation.cancel`；取消在檢查點生效，不會中斷正在跑的程式。
+- 記憶體上限超過是 jetsam 殺的，訊息是 `Terminated due to memory issue` / `EXC_RESOURCE MEMORY`，從 Crashed 執行緒找出一次配置太多的地方。

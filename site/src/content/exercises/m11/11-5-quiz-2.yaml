@@ -1,0 +1,17 @@
+id: m11-11-5-quiz-2
+chapter: "11.5"
+section: quiz
+type: quiz
+title: 為什麼要開 .xcworkspace
+minutes: 1
+prompt: "`pod install` 之後打開 `.xcodeproj`，出現 `'Masonry/Masonry.h' file not found`。原因是？"
+options:
+  - "Masonry 版本太舊"
+  - "只開 .xcodeproj 看不到 Pods.xcodeproj，CocoaPods 寫進 xcconfig 的 header search path 與連結設定沒生效；要開 .xcworkspace"
+  - "需要加 use_frameworks!"
+  - "要先 pod update"
+answer: 1
+explain: "CocoaPods 用 workspace 把你的專案跟 `Pods.xcodeproj` 包在一起，並透過 `Pods-LittleBook.*.xcconfig` 設定搜尋路徑。開錯檔案時這些都不存在。"
+hints: ["pod install 結尾印了什麼提醒？", "workspace 裡有幾個 project？"]
+feedback:
+  "2": "純 ObjC 不需要 use_frameworks!；問題在開錯檔。"

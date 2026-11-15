@@ -1,0 +1,22 @@
+id: m09-9-3-xcode-1
+chapter: "9.3"
+type: xcode
+title: LBTransaction 採用 NSSecureCoding 與字典往返
+mobile: false
+minutes: 30
+prompt: 讓 LBTransaction 同時支援 NSSecureCoding（二進位封存）與 dictionaryRepresentation / initWithDictionary:error:（9.4 的 JSON 要用），兩個測試轉綠。
+starter: xcode/M09-starter
+steps:
+  - "LBTransaction.h 的協定清單加上 `NSSecureCoding`；宣告 `- (NSDictionary<NSString *, id> *)dictionaryRepresentation;` 與 `- (nullable instancetype)initWithDictionary:(NSDictionary *)dict error:(NSError **)error;`。"
+  - ".m 加 `+supportsSecureCoding` 回 YES。`encodeWithCoder:`：identifier、amount、date、note 用 `encodeObject:forKey:`，kind、flags 用 `encodeInteger:forKey:`，category 只存 `category.identifier`（字串）。"
+  - "`initWithCoder:`：每個物件用 `decodeObjectOfClass:forKey:`；identifier / amount / date 任一缺就 `return nil`；呼叫 `initWithAmount:kind:date:note:category:` 後把 `_identifier` 與 `_flags` 蓋回去。"
+  - "`dictionaryRepresentation`：id 用 `UUIDString`、amount 用 `stringValue`、date 用 `NSISO8601DateFormatter`、kind / flags 用 `@()`、note 原樣、category 存 identifier（nil 就不放）。用 `NSMutableDictionary` 的下標語法，nil 不會 crash。"
+  - "`initWithDictionary:error:`：每個欄位 `isKindOfClass:` 檢查（NSNull 自然被擋）；amount 用 `decimalNumberWithString:` 並判 `notANumber`；必要欄位缺了填 `LBErrorDomain` / `LBErrorCodeUnexpectedType` 的 error 回 nil。"
+  - "⌘U 跑 LBTransactionCodingTests 的兩個測試。"
+tests:
+  - LBTransactionCodingTests/testDictionaryRoundTrip
+  - LBTransactionCodingTests/testSecureCodingRoundTrip
+acceptance:
+  - "testSecureCodingRoundTrip：archivedDataWithRootObject:requiringSecureCoding:YES 後 unarchivedObjectOfClass: 讀回，identifier / amount / date / note / kind / flags 全部相等。"
+  - "testDictionaryRoundTrip：dictionaryRepresentation 通過 isValidJSONObject:，initWithDictionary:error: 讀回後相等；傳入 amount 為 NSNull 的字典回 nil 且 error 不為 nil。"
+solution_note: 兩套序列化放在同一個 model 裡，會發現它們的形狀一樣：一欄一個 key、讀回來先驗型別、必要欄位缺了失敗、最後走指定初始化器。差別只在一個產生 NSData 給 Apple 平台自己用，一個產生字典給 JSON 與伺服器用。

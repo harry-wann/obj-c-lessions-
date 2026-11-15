@@ -1,0 +1,45 @@
+id: m11-11-4-code-1
+chapter: "11.4"
+type: code
+title: "用 #if 讓 XIB 版與程式碼版 cell 並存"
+mobile: false
+minutes: 6
+prompt: "在 `viewDidLoad` 裡：定義了 `LB_USE_NIB_CELL` 時用 `registerNib:`（bundle 用 `bundleForClass:`），否則用 `registerClass:`；兩者 identifier 都是 `@\"LBTransactionCell\"`。"
+starter: |
+  - (void)viewDidLoad {
+      [super viewDidLoad];
+
+  }
+checks:
+  - must_match: '#\s*if\s+LB_USE_NIB_CELL'
+    message: "用 #if LB_USE_NIB_CELL 切換"
+  - must_match: '#\s*else'
+    message: "要有 #else 分支"
+  - must_match: '#\s*endif'
+    message: "記得 #endif"
+  - must_match: 'nibWithNibName\s*:\s*@"LBTransactionCell"'
+    message: "XIB 名字是 LBTransactionCell"
+  - must_match: 'bundleForClass\s*:'
+    message: "bundle 用 bundleForClass:，測試才找得到"
+  - must_match: 'registerNib\s*:'
+    message: "XIB 版用 registerNib:"
+  - must_match: 'registerClass\s*:\s*\[\s*LBTransactionCell\s+class\s*\]'
+    message: "程式碼版用 registerClass:[LBTransactionCell class]"
+  - must_match: 'forCellReuseIdentifier\s*:\s*@"LBTransactionCell"[\s\S]*forCellReuseIdentifier\s*:\s*@"LBTransactionCell"'
+    message: "兩個分支的 identifier 都要是 LBTransactionCell"
+  - "brackets_balanced: true"
+solution: |
+  - (void)viewDidLoad {
+      [super viewDidLoad];
+  #if LB_USE_NIB_CELL
+      UINib *nib = [UINib nibWithNibName:@"LBTransactionCell"
+                                  bundle:[NSBundle bundleForClass:[LBTransactionCell class]]];
+      [self.tableView registerNib:nib
+           forCellReuseIdentifier:@"LBTransactionCell"];
+  #else
+      [self.tableView registerClass:[LBTransactionCell class]
+             forCellReuseIdentifier:@"LBTransactionCell"];
+  #endif
+  }
+solution_note: "`cellForRowAtIndexPath:` 完全不用改。切換巨集放 Build Settings → Preprocessor Macros；兩個版本的 cell 對外介面一致，差在 `initWithStyle:` 還是 `awakeFromNib` 建 view。"
+hints: ["前置處理器的 #if / #else / #endif。", "同一個 identifier 只能在一個分支註冊。", "bundle 要讓測試也找得到。"]

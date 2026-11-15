@@ -1,0 +1,28 @@
+id: m08-8-3-fill-1
+chapter: "8.3"
+type: fill
+title: anchor 約束：圖示靠左置中 36×36
+minutes: 3
+prompt: 補完 LBTransactionCell 裡圖示的約束：左邊貼 layoutMarginsGuide、垂直置中、36 × 36。
+code: |
+  _iconView.___1___ = NO;
+  [self.contentView addSubview:_iconView];
+  UILayoutGuide *m = self.contentView.layoutMarginsGuide;
+  [NSLayoutConstraint ___2___:@[
+      [_iconView.leadingAnchor ___3___:m.leadingAnchor],
+      [_iconView.centerYAnchor constraintEqualToAnchor:self.contentView.___4___],
+      [_iconView.widthAnchor ___5___:36],
+      [_iconView.heightAnchor constraintEqualToConstant:36],
+  ]];
+blanks:
+  "1": { accept: ["translatesAutoresizingMaskIntoConstraints"], chips: ["translatesAutoresizingMaskIntoConstraints", "autoresizesSubviews", "clipsToBounds", "userInteractionEnabled"] }
+  "2": { accept: ["activateConstraints"], chips: ["activateConstraints", "addConstraints", "constraintsWithVisualFormat", "updateConstraints"] }
+  "3": { accept: ["constraintEqualToAnchor"], chips: ["constraintEqualToAnchor", "constraintEqualToConstant", "constraintEqualToSystemSpacingAfterAnchor", "constraintGreaterThanOrEqualToAnchor"] }
+  "4": { accept: ["centerYAnchor"], chips: ["centerYAnchor", "centerXAnchor", "topAnchor", "heightAnchor"] }
+  "5": { accept: ["constraintEqualToConstant"], chips: ["constraintEqualToConstant", "constraintEqualToAnchor", "constraintWithConstant", "constraintEqualTo"] }
+hints: ["程式碼建的 view 要關哪個屬性？", "一批約束一次啟用。", "anchor 對 anchor 用 EqualToAnchor，anchor 對數字用 EqualToConstant。", "垂直置中對的是 Y 軸。"]
+feedback:
+  "2=addConstraints": "舊 API，要自己算加在哪個 view 上；activateConstraints: 會幫你找共同祖先。"
+  "3=constraintEqualToConstant": leading 是位置不是尺寸，只能對另一個 anchor。
+  "4=centerXAnchor": 編譯器會擋：Y 軸 anchor 不能對 X 軸 anchor。
+solution_note: "關 translatesAutoresizingMaskIntoConstraints → addSubview: → activateConstraints:。位置用 EqualToAnchor、尺寸用 EqualToConstant，anchor API 有型別檢查。"

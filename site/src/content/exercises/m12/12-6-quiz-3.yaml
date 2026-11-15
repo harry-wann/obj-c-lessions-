@@ -1,0 +1,20 @@
+id: m12-12-6-quiz-3
+chapter: "12.6"
+section: quiz
+type: quiz
+title: 第一個月做什麼、不做什麼
+minutes: 1
+prompt: 第一個月在陌生 ObjC 專案上，哪些是建議做的？（可複選）
+multi: true
+options:
+  - 修小 bug 單，改之前先寫會失敗的測試
+  - "把 3000 行的 AppDelegate.m 拆成 10 個檔案"
+  - 把畫好的畫面流程圖與類別關係圖放進 wiki
+  - "用 git log / git blame 看奇怪寫法的 commit 訊息"
+  - 把所有單例改成相依注入
+answer: [0, 2, 3]
+explain: 第一個月只做兩種改動：修 bug、加測試；加上把學到的東西寫下來。重構提案要等你能說出每個奇怪寫法「為什麼」之後再提，不然你會把支援舊 iOS 或繞過某個 pod bug 的 workaround 一起拆掉。
+hints: ["哪些動作需要「知道為什麼」才安全？", "哪些動作對團隊有立即價值又零風險？"]
+feedback:
+  "1": 你還不知道哪些寫法是有原因的。
+  "4": 架構層級的改動，等畫完圖、能說出每個單例為什麼存在再提。

@@ -1,0 +1,19 @@
+id: m11-11-3-quiz-1
+chapter: "11.3"
+section: quiz
+type: quiz
+title: IBOutlet 什麼時候有值
+minutes: 1
+prompt: "Storyboard 載入的 `LBSettingsViewController`，在哪個時間點之後 `self.currencyLabel`（IBOutlet）才保證不是 nil？"
+options:
+  - "initWithCoder: 回傳之後"
+  - "instantiateViewControllerWithIdentifier: 回傳之後"
+  - "viewDidLoad 被呼叫時（view 載入之後）"
+  - "viewDidAppear: 之後"
+answer: 2
+explain: "outlet 是 view 階層的一部分，view 要到第一次存取 `self.view`（或 `loadViewIfNeeded`）才載入並連線。init 階段全是 nil，對 nil 送訊息無聲無息。測試裡要先 `loadViewIfNeeded`。"
+hints: ["outlet 連的是 view 的子元件，view 什麼時候才載入？", "測試 testOutletsConnectedAfterLoadView 的名字給了提示。"]
+feedback:
+  "0": "initWithCoder: 只建立 VC 物件，view 還沒載。"
+  "1": "instantiate 只是建立 VC；view 是 lazy 載入的。"
+  "3": "viewDidLoad 就有了，不用等到 appear。"

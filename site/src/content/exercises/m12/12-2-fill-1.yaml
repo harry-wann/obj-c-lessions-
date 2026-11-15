@@ -1,0 +1,22 @@
+id: m12-12-2-fill-1
+chapter: "12.2"
+section: quiz
+type: fill
+title: 讓 Swift 類別進入 ObjC 的視線
+minutes: 2
+prompt: 補完宣告，讓 ObjC 端能用 `LBStatsViewController` 這個名字建立它、Storyboard 也能找到。
+code: |
+  ___1___(LBStatsViewController)
+  final class StatsViewController: ___2___ {
+      ___3___ init(ledger: LBLedger) { ... }
+      required init?(coder: NSCoder) { fatalError() }
+  }
+blanks:
+  "1": { accept: ["@objc"], chips: ["@objc", "@objcMembers", "@dynamic", "@IBDesignable"] }
+  "2": { accept: ["UIViewController"], chips: ["UIViewController", "NSObject", "AnyObject", "UIResponder"] }
+  "3": { accept: ["@objc"], chips: ["@objc", "@objcMembers", "override", "convenience"] }
+hints: ["指定 ObjC 端名字的寫法是哪個屬性加括號？", "VC 本來就是 NSObject 的後代。", "初始化器要自己標。"]
+feedback:
+  "1=@objcMembers": "@objcMembers 不能帶括號指定名字；要改名用 @objc(Name)。"
+  "2=NSObject": 要能放進 navigation controller 得是 UIViewController 子類別，它已經間接繼承 NSObject。
+solution_note: "`@objc(LBStatsViewController)` 一次解決前綴與模組名問題；`UIViewController` 滿足 NSObject 子類別條件；`init` 要單獨標 `@objc` 才會出現在 `-Swift.h`。"

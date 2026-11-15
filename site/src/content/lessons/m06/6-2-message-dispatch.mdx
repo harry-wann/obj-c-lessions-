@@ -1,0 +1,248 @@
+---
+title: 訊息派送原理
+module: 6
+chapter: "6.2"
+order: 2
+minutes: 45
+prereq: ["6.1", "3.4"]
+objectives:
+  - "說出 `[obj msg]` 從 `objc_msgSend` 到找到實作的每一步：isa、方法快取、方法列表、父類別"
+  - "依序說出找不到方法時的三段救援與最後的 `doesNotRecognizeSelector:`，並寫出一個會轉送訊息的類別"
+  - "解釋方法快取為什麼是雜湊表、第一次呼叫慢之後快、以及 `nil` 收訊息為什麼不會 crash"
+summary: "方法呼叫其實是 objc_msgSend(obj, sel, ...)：isa 找類別、以 SEL 為鍵查方法快取（雜湊表）、沿繼承鏈查方法列表；找不到時三段救援：resolveInstanceMethod → forwardingTargetForSelector → forwardInvocation，最後 doesNotRecognizeSelector 丟例外。"
+terms:
+  - { en: message passing, tw: 訊息傳遞, cn: 消息传递, jp: メッセージ送信 }
+  - { en: method cache, tw: 方法快取, cn: 方法缓存, jp: メソッドキャッシュ }
+  - { en: dynamic method resolution, tw: 動態方法解析, cn: 动态方法解析, jp: 動的メソッド解決 }
+  - { en: message forwarding, tw: 訊息轉送, cn: 消息转发, jp: メッセージフォワーディング }
+  - { en: implementation (IMP), tw: 實作指標（IMP）, cn: 方法实现指针, jp: 実装ポインタ }
+appProgress: LBLedger 把不認得的查詢訊息轉送給內部的統計物件，統計分頁少寫一層包裝方法。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+ledger.total()        // 純 Swift：vtable 或靜態派送，編譯期就決定跳到哪個函式
+@objc dynamic func total() -> Decimal   // 加了 dynamic 才走 objc_msgSend
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+ledger.total()        // JVM invokevirtual：虛擬方法表查表
+val m = ledger::class.java.getMethod("total")
+m.invoke(ledger)      // 反射：執行期用字串找方法，找不到丟 NoSuchMethodException
+```
+</Fragment>
+<Fragment slot="java">
+```java
+ledger.total();                            // 編譯期檢查方法存在；執行期 vtable
+Method m = ledger.getClass().getMethod("total");
+m.invoke(ledger);                          // 反射才是「執行期才找」
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+ledger.total();               // 執行期：先查 ledger 自己，再沿 prototype 鏈往上找
+ledger["totl"]();             // 找不到 → undefined is not a function
+const p = new Proxy(ledger, {
+  get(target, key) { return key in target ? target[key] : () => "fallback"; }
+});                           // Proxy：攔截找不到的屬性，等同訊息轉送
+```
+</Fragment>
+Swift、Kotlin、Java 的方法呼叫是「編譯器已經確認方法存在，執行期查表跳過去」。JavaScript 最接近 Objective-C：**每次呼叫都是執行期查找**，先查物件自己再沿原型鏈往上，找不到就出事；而 `Proxy` 讓你在找不到的時候接手。Objective-C 的版本是：`[obj msg]` 編譯成一個 C 函式呼叫 `objc_msgSend`，由它在執行期找實作，找不到時給物件三次機會接手，才丟例外。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### `[obj msg]` 其實是一個 C 函式
+
+```objc
+[ledger addTransaction:tx];
+// 編譯器產生的等價呼叫：
+objc_msgSend(ledger, @selector(addTransaction:), tx);
+```
+
+所有方括號都會變成對 `objc_msgSend` 的呼叫，前兩個參數固定是收件人與 selector，後面接原本的參數。這就是方法裡為什麼有隱藏參數 `self` 與 `_cmd`：它們就是這兩個引數。`[super addTransaction:tx]` 走的是 `objc_msgSendSuper`，差別只在「從父類別開始找」，收件人仍是 `self`。
+
+<Term en="message passing" tw="訊息傳遞" cn="消息传递" jp="メッセージ送信" />這個詞的重點在：編譯器不知道、也不在乎 `ledger` 最後會執行哪段程式碼，它只負責把「這個 selector 給這個物件」打包送出。決定權在執行期。
+
+### 從 isa 到實作：查找流程
+
+每個物件的第一個欄位是 `isa` 指標，指向它的類別物件；類別物件裡有方法列表（selector → <Term en="implementation (IMP)" tw="實作指標（IMP）" cn="方法实现指针" jp="実装ポインタ" />，IMP 就是一個 C 函式指標）、父類別指標，以及一張<Term en="method cache" tw="方法快取" cn="方法缓存" jp="メソッドキャッシュ" />。`objc_msgSend` 的流程：
+
+1. 收件人是 `nil`？直接回傳 0 / `nil` / `NO`，什麼都不做。這是 Objective-C 的「對 nil 送訊息安全」，不是魔法，就是函式開頭的一個判斷。
+2. 透過 `isa` 找到類別，**先查這個類別的方法快取**：以 `SEL` 為鍵的雜湊表，命中就直接跳到 IMP。絕大多數呼叫在這一步結束。
+3. 沒命中，線性掃這個類別的方法列表；沒有就到父類別，一路到 `NSObject`。找到了就**把結果塞進收件人類別的快取**，下次就是第 2 步。
+4. 整條繼承鏈都沒有：進入三段救援。
+
+把 3.4 的雜湊表搬過來看：鍵是 `SEL`（一個去重過的指標，拿位址算雜湊就好，快到不用想），值是 IMP。每個類別一張表，第一次呼叫某個方法要走繼承鏈所以慢，之後是 O(1)。這就是為什麼 `for` 迴圈裡呼叫一萬次 `[tx amount]` 不會比 C 函式慢多少，也是為什麼 `class_addMethod`、swizzling（6.5）之後 runtime 會把相關快取清掉：表裡的答案過期了。
+
+### 三段救援：找不到方法時給物件的三次機會
+
+```
+找不到 IMP
+  ├─ 1. +resolveInstanceMethod: / +resolveClassMethod:   「要不要現在補一個實作？」
+  │       回 YES → 重新查找一次
+  ├─ 2. -forwardingTargetForSelector:                    「要不要換個人收？」
+  │       回非 nil、非 self 的物件 → 對它重送同一則訊息
+  ├─ 3. -methodSignatureForSelector: + -forwardInvocation:  「自己處理整個呼叫」
+  │       把參數包成 NSInvocation 交給你
+  └─ 4. -doesNotRecognizeSelector:                       丟 NSInvalidArgumentException
+```
+
+**第一段，<Term en="dynamic method resolution" tw="動態方法解析" cn="动态方法解析" jp="動的メソッド解決" />**：runtime 呼叫類別方法 `+resolveInstanceMethod:`，你可以在這裡用 `class_addMethod` 當場補上實作並回 `YES`，runtime 會重新查找一次。Core Data 的 `@dynamic` 屬性就是這樣在第一次存取時生出 getter / setter。成本最低，因為補完之後進快取，下次不會再進救援流程。
+
+**第二段，快速轉送**：`-forwardingTargetForSelector:` 回傳另一個物件，runtime 就把同一則訊息原封不動送給它。成本接近一次普通呼叫，是「代理」或「組合取代繼承」最省事的寫法：`LBLedger` 不認得的統計方法交給內部的 `LBStats` 物件。
+
+**第三段，完整轉送**：先回答 `-methodSignatureForSelector:`（告訴 runtime 參數與回傳型別，不然它沒辦法打包），接著 runtime 把整個呼叫包成 `NSInvocation` 交給 `-forwardInvocation:`，你可以改目標、改參數、記錄、延後執行、甚至什麼都不做。成本最高（要配置 `NSInvocation`），但最彈性。`NSProxy` 就是專門為這一段設計的基底類別，6.6 會再碰到 `NSInvocation`。
+
+**終點**：`-doesNotRecognizeSelector:` 預設丟出 `NSInvalidArgumentException`，訊息就是你最熟的 `unrecognized selector sent to instance`。這也是個普通方法，可以覆寫成記錄後吞掉，但幾乎不該這麼做，見下方陷阱。
+
+### 完整範例（可貼進 Scratch）
+
+```objc
+#import <Foundation/Foundation.h>
+#import <objc/runtime.h>
+
+@interface LBStats : NSObject
+- (NSDecimalNumber *)averageAmount;
+@end
+@implementation LBStats
+- (NSDecimalNumber *)averageAmount { return [NSDecimalNumber decimalNumberWithString:@"85.5"]; }
+@end
+
+@interface LBLedger : NSObject
+@property (nonatomic, strong) LBStats *stats;
+@end
+
+// 第一段要補上的 C 函式：IMP 的真面目
+static NSString *LBLedgerTitle(id self, SEL _cmd) {
+    return [NSString stringWithFormat:@"%@ 由 %@ 動態補上",
+            NSStringFromSelector(_cmd), [self class]];
+}
+
+@implementation LBLedger
+- (instancetype)init {
+    if (self = [super init]) _stats = [LBStats new];
+    return self;
+}
+// 1. 動態方法解析
++ (BOOL)resolveInstanceMethod:(SEL)sel {
+    if (sel == @selector(title)) {
+        class_addMethod(self, sel, (IMP)LBLedgerTitle, "@@:");
+        NSLog(@"[1] resolve %@", NSStringFromSelector(sel));
+        return YES;
+    }
+    return [super resolveInstanceMethod:sel];
+}
+// 2. 快速轉送
+- (id)forwardingTargetForSelector:(SEL)sel {
+    if ([_stats respondsToSelector:sel]) {
+        NSLog(@"[2] forward %@ → LBStats", NSStringFromSelector(sel));
+        return _stats;
+    }
+    return [super forwardingTargetForSelector:sel];
+}
+// 3. 完整轉送
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)sel {
+    NSMethodSignature *sig = [super methodSignatureForSelector:sel];
+    if (!sig && [NSStringFromSelector(sel) hasPrefix:@"log"]) {
+        sig = [NSMethodSignature signatureWithObjCTypes:"v@:"];   // void, self, _cmd
+    }
+    return sig;
+}
+- (void)forwardInvocation:(NSInvocation *)invocation {
+    NSLog(@"[3] forwardInvocation 吞掉 %@", NSStringFromSelector(invocation.selector));
+}
+@end
+
+int main(void) {
+    @autoreleasepool {
+        LBLedger *ledger = [LBLedger new];
+        NSLog(@"%@", [ledger performSelector:@selector(title)]);
+        NSLog(@"%@", [ledger performSelector:@selector(title)]);   // 已進快取，不再 resolve
+        NSLog(@"%@", [ledger performSelector:@selector(averageAmount)]);
+        [ledger performSelector:NSSelectorFromString(@"logSomething")];
+        LBLedger *nobody = nil;
+        NSLog(@"nil 回 %@", [nobody performSelector:@selector(title)]);
+        [ledger performSelector:NSSelectorFromString(@"totl")];
+    }
+    return 0;
+}
+// 預期輸出（略去時間戳）：
+// [1] resolve title
+// title 由 LBLedger 動態補上
+// title 由 LBLedger 動態補上
+// [2] forward averageAmount → LBStats
+// 85.5
+// [3] forwardInvocation 吞掉 logSomething
+// nil 回 (null)
+// *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+// reason: '-[LBLedger totl]: unrecognized selector sent to instance 0x600000...'
+```
+
+Scratch 會對 `performSelector:` 給 ARC 的 leak 警告，6.6 解釋怎麼處理；這裡先無視。注意第二次 `title` 沒有再印 `[1]`：第一次 `class_addMethod` 之後實作已經在方法列表，查到後進快取，救援流程不會再觸發。`"@@:"` 與 `"v@:"` 是型別編碼字串：回傳型別、`self`（`@`）、`_cmd`（`:`），再接參數。你不用背，`@encode(id)` 這類巨集可以生出來，或用 `method_getTypeEncoding` 從現有方法抄。
+
+<Tip title="為什麼說 ObjC 的 runtime 比反射輕">
+Java 反射是一套疊在正常呼叫旁邊的平行機制，`Method.invoke` 要做權限檢查、裝箱、建立引數陣列。Objective-C 的 `objc_msgSend` 本身就是**唯一**的呼叫路徑，動態查找不是額外功能而是常態，所以 runtime 函式只是把這條路徑中間的資料結構開放給你。UIKit 的 target-action、KVO、Core Data、單元測試框架找 `test` 開頭的方法，全部站在這條路徑上。
+</Tip>
+
+<Pitfall title="對 nil 送訊息不會 crash，但回傳值不是你想的">
+`LBLedger *l = nil; NSDecimalNumber *total = [l total];` 得到 `nil`，之後 `[total compare:other]` 又回 `NSOrderedSame`（0），於是「nil 帳本的總額等於任何數字」。對 nil 送訊息安全，讓少了一層判斷的程式默默跑出錯的結果，比 crash 更難找。回傳 struct 的方法對 nil 送訊息回傳全零的 struct（`CGRectZero`），回傳 `double` 的回 0.0。碰到「怎麼全是 0」先懷疑收件人是 nil。
+</Pitfall>
+
+<Pitfall title="forwardingTargetForSelector: 回傳 self 等於無限遞迴">
+<Fragment slot="bad">
+```objc
+- (id)forwardingTargetForSelector:(SEL)sel {
+    return self.stats ?: self;     // stats 是 nil 時回 self
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (id)forwardingTargetForSelector:(SEL)sel {
+    if ([self.stats respondsToSelector:sel]) return self.stats;
+    return [super forwardingTargetForSelector:sel];   // 讓流程走到下一段
+}
+```
+</Fragment>
+回傳 `self` 時 runtime 會對 `self` 重送同一則訊息，又找不到，又問你，直到堆疊爆掉（`EXC_BAD_ACCESS`，堆疊裡幾千層 `___forwarding___`）。新版 runtime 對直接回 `self` 有防護會改走下一段，但繞一圈回到 `self` 的（A 轉給 B、B 轉回 A）擋不住。永遠先 `respondsToSelector:`，不接手就呼叫 `super`。
+</Pitfall>
+
+<Pitfall title="覆寫 forwardInvocation: 卻忘了 methodSignatureForSelector:">
+只寫 `forwardInvocation:` 沒用，runtime 在打包 `NSInvocation` 之前會先問 `methodSignatureForSelector:`，拿到 `nil` 就直接跳去 `doesNotRecognizeSelector:`，你的 `forwardInvocation:` 一次都不會被呼叫。兩個方法永遠成對出現。簽名最簡單的來源是「真正會處理的那個物件」：`[self.stats methodSignatureForSelector:sel]`。
+</Pitfall>
+
+<Pitfall title="覆寫 doesNotRecognizeSelector: 吞掉例外">
+有人為了「線上不要 crash」把 `doesNotRecognizeSelector:` 覆寫成只記 log。結果是：呼叫端拿到未定義的回傳值繼續跑、資料寫壞、crash 延後到更遠的地方、而且少了 `unrecognized selector` 這條最好讀的線索。要防 crash 請在呼叫端 `respondsToSelector:`，不要在終點封口。這個方法唯一合理的覆寫是「加上更多診斷資訊再呼叫 `super`」。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: '-[LBLedger totl]: unrecognized selector sent to instance 0x600003a1c2d0'
+*** First throw call stack:
+(
+	0   CoreFoundation   __exceptionPreprocess + 242
+	1   libobjc.A.dylib  objc_exception_throw + 48
+	2   CoreFoundation   -[NSObject(NSObject) doesNotRecognizeSelector:] + 132
+	3   CoreFoundation   ___forwarding___ + 1324
+	4   CoreFoundation   _CF_forwarding_prep_0 + 120
+	5   LittleBook       -[LBStatsViewController refresh] + 164
+	6   LittleBook       -[LBStatsViewController viewWillAppear:] + 72
+	7   UIKitCore        -[UIViewController _setViewAppearState:isAnimating:] + 612
+)`}>
+這是 iOS 工程師一輩子看最多次的 crash，現在你知道每一行是什麼了。`-[LBLedger totl]`：減號代表實體方法（加號是類別方法）、類別 `LBLedger`、selector `totl`，打錯字一眼看出。堆疊從下往上讀是正常呼叫：UIKit 呼叫 `viewWillAppear:` → `refresh`，接著 `_CF_forwarding_prep_0` 與 `___forwarding___` 就是本章的三段救援在跑（都沒人接手），`doesNotRecognizeSelector:` 丟出例外。**找第一個自己模組的 frame**（`-[LBStatsViewController refresh]`），那就是送出錯誤訊息的地方。接著用 6.1 的規則：這個 selector 是 `NSSelectorFromString` 拼出來的還是 `@selector`？是 `id` 被當成錯的型別，還是 Storyboard 裡 action 名稱沒同步改？90% 的 `unrecognized selector` 是這三種之一。
+</Crash>
+
+## 小結
+
+- `[obj msg]` 編譯成 `objc_msgSend(obj, sel, ...)`，`self` 與 `_cmd` 就是前兩個參數；`nil` 收件人直接回 0。
+- 查找順序：isa → 類別的方法快取（以 SEL 為鍵的雜湊表）→ 方法列表 → 父類別鏈；找到就寫進快取，所以第一次慢、之後 O(1)。
+- 三段救援依序：`+resolveInstanceMethod:`（補實作）→ `-forwardingTargetForSelector:`（換收件人）→ `-methodSignatureForSelector:` + `-forwardInvocation:`（自己處理）→ `-doesNotRecognizeSelector:` 丟例外。
+- 轉送時永遠先 `respondsToSelector:`，不接手就呼叫 `super`；不要為了不 crash 而覆寫 `doesNotRecognizeSelector:`。
+- 讀 `unrecognized selector` log：類別、selector、堆疊中第一個自己的 frame。

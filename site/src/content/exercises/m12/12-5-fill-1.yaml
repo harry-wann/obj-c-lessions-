@@ -1,0 +1,27 @@
+id: m12-12-5-fill-1
+chapter: "12.5"
+section: quiz
+type: fill
+title: 補完 .clang-format
+minutes: 2
+prompt: 補完 ObjC 專案的 `.clang-format`：以 Google 風格為底、4 空格縮排、每行 100 字、不自動排序 import、星號靠變數。
+code: |
+  Language: ObjC
+  BasedOnStyle: ___1___
+  IndentWidth: ___2___
+  ColumnLimit: 100
+  ObjCBlockIndentWidth: 4
+  ObjCSpaceAfterProperty: true
+  PointerAlignment: ___3___
+  SortIncludes: ___4___
+blanks:
+  "1": { accept: ["Google"], chips: ["Google", "LLVM", "Apple", "WebKit"] }
+  "2": { accept: ["4"], chips: ["4", "2", "8", "0"] }
+  "3": { accept: ["Right"], chips: ["Right", "Left", "Middle"] }
+  "4": { accept: ["false", "Never"], chips: ["false", "true", "CaseSensitive"] }
+hints: ["有 ObjC 風格指南的公司是哪家？", "NSString *name 的星號靠哪邊？", "ObjC 的 #import 順序常有意義。"]
+feedback:
+  "1=Apple": clang-format 沒有 Apple 這個預設風格。
+  "3=Left": Left 會排成 NSString* name，Cocoa 慣例是星號靠變數名。
+  "4=true": "自動排序會把 .pch 或有相依順序的 import 打亂，ObjC 專案關掉。"
+solution_note: "Google 風格預設 2 空格，用 `IndentWidth: 4` 覆寫成 Apple 慣例。`PointerAlignment: Right` 是 `NSString *name`。`SortIncludes: false` 因為 ObjC 的 import 順序偶爾有相依意義。"

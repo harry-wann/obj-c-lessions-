@@ -1,0 +1,323 @@
+---
+title: 舊語法與已淘汰 API
+module: 11
+chapter: "11.2"
+order: 2
+minutes: 35
+prereq: ["11.1", "7.2"]
+objectives:
+  - 看到 @synthesize、大括號 ivar、NSAutoreleasePool 物件時知道它們在做什麼、現代寫法是什麼
+  - "說出 NSURLConnection、UIWebView、UIAlertView、performSelectorInBackground: 各自的替代品"
+  - 用對照表決定一個淘汰 API 要「現在換」還是「先留著」
+summary: "@synthesize name = _name、@interface {} 裡的 ivar、NSAutoreleasePool 物件、performSelectorInBackground: / NSThread、NSURLConnection → NSURLSession、UIWebView → WKWebView、UIAlertView / UIActionSheet → UIAlertController，附淘汰 API 對照表。"
+terms:
+  - { en: deprecated, tw: 已棄用, cn: 已废弃, jp: 非推奨 }
+  - { en: synthesize, tw: 自動合成（synthesize）, cn: 合成, jp: シンセサイズ }
+  - { en: instance variable (ivar), tw: 實體變數, cn: 成员变量, jp: インスタンス変数 }
+  - { en: delegate-based API, tw: 委派式 API, cn: 代理式 API, jp: デリゲート方式の API }
+  - { en: completion handler, tw: 完成處理器（completion）, cn: 完成回调, jp: 完了ハンドラ }
+appProgress: 把 LittleBook-Legacy 的 NSURLConnection 匯率服務改成 NSURLSession，行為不變、M07 測試照過。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// Swift 專案裡接到一個 2014 年的 ObjC pod，標頭長這樣：
+// - (void)fetchRates:(id<LBRateDelegate>)delegate;   // delegate 式
+// 新碼要的是 async：你得在中間包一層
+func rates() async throws -> [String: Decimal] {
+    try await withCheckedThrowingContinuation { cont in
+        service.fetchRates { rates, error in
+            if let e = error { cont.resume(throwing: e) }
+            else { cont.resume(returning: rates ?? [:]) }
+        }
+    }
+}
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// Android：AsyncTask（API 30 棄用）→ coroutine
+// 舊
+class FetchRates : AsyncTask<String, Unit, Map<String, BigDecimal>>() {
+    override fun doInBackground(vararg p: String) = api.rates(p[0])
+    override fun onPostExecute(r: Map<String, BigDecimal>) = show(r)
+}
+// 新
+viewModelScope.launch {
+    val r = withContext(Dispatchers.IO) { api.rates("TWD") }
+    show(r)
+}
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// Java：Thread + Handler 手動切執行緒（AsyncTask 之前的寫法）
+new Thread(() -> {
+    Map<String, BigDecimal> r = api.rates("TWD");
+    handler.post(() -> show(r));         // 回主執行緒
+}).start();
+// 新：ExecutorService + CompletableFuture，或直接改 Kotlin
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// TS 專案裡的 legacy JS：XMLHttpRequest 回呼 → fetch + async/await
+// 舊
+const xhr = new XMLHttpRequest();
+xhr.onload = () => show(JSON.parse(xhr.responseText));
+xhr.open("GET", url); xhr.send();
+// 新
+const r = await fetch(url); show(await r.json());
+```
+</Fragment>
+每個平台都有一代「用 delegate / 回呼 / 執行緒物件做非同步」的 API 被下一代的「completion / coroutine / async」取代。ObjC 的這一代是 `NSURLConnection`、`NSThread`、`performSelectorInBackground:`。你在舊專案裡會遇到它們全部。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 舊語法：還能編譯，但一眼就知道年代
+
+**(1) ivar 寫在 `@interface` 的大括號裡**。2012 年以前 ivar 必須宣告在標頭檔的 `{}` 裡，所有人都看得到：
+
+```objc
+// 舊：標頭檔曝露內部狀態
+@interface LBLegacyLedger : NSObject {
+    NSMutableArray *_transactions;
+    NSDecimalNumber *_total;
+}
+@property (nonatomic, retain) NSMutableArray *transactions;
+@end
+
+// 新：ivar 由 @property 自動產生；需要額外 ivar 放 .m 的類別延伸
+@interface LBLedger ()
+@property (nonatomic, strong) NSMutableArray *transactions;
+@end
+```
+
+**(2) `@synthesize name = _name;`**。現代編譯器會自動合成，寫出來不會錯，但舊專案裡會有大段 `@synthesize` 清單。要注意兩個邊角：沒寫 `= _name` 的舊式 `@synthesize name;` 會產生**沒有底線**的 ivar `name`，之後有人寫 `_name` 就是另一個變數；以及若你同時覆寫 getter 和 setter，編譯器就**不會**自動合成 ivar，這時 `@synthesize` 是必要的。
+
+**(3) `NSAutoreleasePool` 物件**。`@autoreleasepool { }` 之前的寫法：
+
+```objc
+// 舊（在 MRC 檔案裡）
+NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+for (LBTransaction *tx in batch) { [self import:tx]; }
+[pool drain];      // 不是 release；drain 在 GC 時代也有意義
+
+// 新（ARC / MRC 都能用）
+@autoreleasepool {
+    for (LBTransaction *tx in batch) { [self import:tx]; }
+}
+```
+
+ARC 檔案裡寫 `NSAutoreleasePool` 直接編譯錯誤，Convert to ARC 會自動換成 `@autoreleasepool`。
+
+**(4) `[dict objectForKey:@"x"]`、`[array objectAtIndex:0]`、`[NSNumber numberWithInt:3]`**。2012 年的字面值語法（`dict[@"x"]`、`array[0]`、`@3`）出現之前的寫法。這些**不是淘汰 API**，只是囉嗦；改不改看團隊風格，不要為了改它們開 PR。
+
+### 舊的非同步：執行緒物件與 performSelector
+
+```objc
+// 舊：丟到背景執行緒，自己切回主執行緒
+[self performSelectorInBackground:@selector(reloadRates) withObject:nil];
+- (void)reloadRates {
+    @autoreleasepool {                      // 背景執行緒要自己開池
+        NSDictionary *rates = [self fetchSync];
+        [self performSelectorOnMainThread:@selector(show:)
+                               withObject:rates
+                            waitUntilDone:NO];
+    }
+}
+
+// 新：GCD（7.2）
+dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+    NSDictionary *rates = [self fetchSync];
+    dispatch_async(dispatch_get_main_queue(), ^{ [self show:rates]; });
+});
+```
+
+`NSThread` 的子類別、`detachNewThreadSelector:`、`performSelector:withObject:afterDelay:` 都是同一家族。它們的共同問題：selector 只能帶一個 `id` 參數、編譯器檢查不到型別、取消與錯誤處理要自己來。替換成 GCD 或 `NSOperationQueue` 時，注意 `afterDelay:` 的版本有「可取消」語意（`cancelPreviousPerformRequestsWithTarget:`），改成 `dispatch_after` 會失去這個能力，要用 `dispatch_block_cancel` 或 `NSTimer` 補回來。
+
+### NSURLConnection → NSURLSession
+
+這是本章 Xcode 任務。舊的<Term en="delegate-based API" tw="委派式 API" cn="代理式 API" jp="デリゲート方式の API" />把一次請求拆成四個 delegate 方法，狀態（累積的 `NSMutableData`）放在 ivar 上：
+
+```objc
+// 舊：LBLegacyRateService.m（MRC）
+- (void)fetchRatesForBase:(NSString *)base {
+    NSURLRequest *req = [NSURLRequest requestWithURL:[self urlForBase:base]];
+    _buffer = [[NSMutableData alloc] init];
+    _connection = [[NSURLConnection alloc] initWithRequest:req
+                                                  delegate:self];
+}
+- (void)connection:(NSURLConnection *)c didReceiveData:(NSData *)data {
+    [_buffer appendData:data];
+}
+- (void)connectionDidFinishLoading:(NSURLConnection *)c {
+    NSDictionary *rates = [self parse:_buffer];
+    [self.delegate rateService:self didLoadRates:rates];
+}
+- (void)connection:(NSURLConnection *)c didFailWithError:(NSError *)error {
+    [self.delegate rateService:self didFailWithError:error];
+}
+- (void)dealloc {
+    [_connection cancel];          // 埋雷 6：少了這行會回呼到死掉的 self
+    [_connection release];
+    [_buffer release];
+    [super dealloc];
+}
+```
+
+新版用 `NSURLSession` 的 data task，整個回應一次交到 block 裡；回呼預設在**背景佇列**，要自己切回主佇列（M07 的 `testCompletionCalledOnMainQueue` 就是測這個）：
+
+```objc
+// 新：LBRateService.m（ARC）
+- (void)fetchRatesForBase:(NSString *)base
+              completion:(LBRatesCompletion)completion {
+    NSURL *url = [self urlForBase:base];
+    NSURLSessionDataTask *task =
+        [self.session dataTaskWithURL:url
+                    completionHandler:^(NSData *data,
+                                        NSURLResponse *response,
+                                        NSError *error) {
+        NSError *parseError = nil;
+        NSDictionary *rates = error ? nil
+            : [LBRateService ratesFromJSONData:data error:&parseError];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            completion(rates, error ?: parseError);
+        });
+    }];
+    [task resume];                 // 忘了 resume 什麼都不會發生
+}
+```
+
+改寫時保留對外行為：原本 delegate 收到的兩種結果（成功 / 失敗）變成 completion 的兩個參數；原本 `dealloc` 的 `cancel` 變成持有 `task` 並在需要時 `[task cancel]`。
+
+### UIKit 的三個老面孔
+
+| 舊 | 新 | 備註 |
+|---|---|---|
+| `UIAlertView` / `UIActionSheet`（delegate 回按鈕索引） | `UIAlertController`（每個按鈕一個 `UIAlertAction` block） | iOS 8 起；舊版在 iPad 會 crash 或版面錯 |
+| `UIWebView` | `WKWebView` | **App Store 已拒收** `UIWebView`，這個一定要換 |
+| `UILocalNotification` | `UNUserNotificationCenter` | iOS 10 |
+
+```objc
+// 舊
+UIAlertView *alert = [[UIAlertView alloc] initWithTitle:@"刪除？"
+    message:nil delegate:self
+    cancelButtonTitle:@"取消" otherButtonTitles:@"刪除", nil];
+[alert show];
+- (void)alertView:(UIAlertView *)av clickedButtonAtIndex:(NSInteger)i {
+    if (i == 1) [self deleteTransaction];     // 魔術數字 1
+}
+
+// 新
+UIAlertController *ac = [UIAlertController
+    alertControllerWithTitle:@"刪除？" message:nil
+              preferredStyle:UIAlertControllerStyleAlert];
+[ac addAction:[UIAlertAction actionWithTitle:@"取消"
+    style:UIAlertActionStyleCancel handler:nil]];
+[ac addAction:[UIAlertAction actionWithTitle:@"刪除"
+    style:UIAlertActionStyleDestructive
+    handler:^(UIAlertAction *a) { [self deleteTransaction]; }]];
+[self presentViewController:ac animated:YES completion:nil];
+```
+
+### 淘汰 API → 新 API 對照表
+
+| 淘汰（棄用版本） | 替代 | 急迫度 |
+|---|---|---|
+| `NSURLConnection`（iOS 9） | `NSURLSession` | 高：無背景傳輸、無 ATS 細節控制 |
+| `UIWebView`（iOS 12） | `WKWebView` | **必換**：上架拒收 |
+| `UIAlertView` / `UIActionSheet`（iOS 9） | `UIAlertController` | 中：還能跑，但新 UI 行為不一致 |
+| `performSelectorInBackground:` / `NSThread` 子類別 | GCD / `NSOperationQueue` | 中：先換有競態的那幾處 |
+| `NSAutoreleasePool` 物件 | `@autoreleasepool` | Convert to ARC 自動處理 |
+| `UILocalNotification`（iOS 10） | `UNUserNotificationCenter` | 高：iOS 版本相容 |
+| `NSURLConnection sendSynchronousRequest:` | `NSURLSession` + semaphore（測試）或改非同步 | 高 |
+| `UIActionSheet showInView:` | `UIAlertController` + `popoverPresentationController` | 中 |
+| `dispatch_get_current_queue()`（iOS 6） | `dispatch_queue_set_specific` / 不要問在哪條佇列 | 高：已移除 |
+| `UIDevice uniqueIdentifier`（iOS 5） | `identifierForVendor` | **必換**：拒收 |
+| `NSKeyedUnarchiver unarchiveObjectWithData:`（iOS 12） | `unarchivedObjectOfClass:fromData:error:`（9.4） | 中：安全性 |
+| `UITableView` 不設 `rowHeight` 用 `heightForRowAtIndexPath:` 算 | `UITableViewAutomaticDimension` + Auto Layout | 低：風格 |
+| `addObserver:forKeyPath:` 無 context | 加 `context`、或 10.x 的 block 式封裝 | 低 |
+| `@synthesize`、大括號 ivar、`objectForKey:` | 自動合成、類別延伸、字面值語法 | **不急**：純風格 |
+
+<Tip title="怎麼決定急迫度">
+三個問題：(1) 會不會上架被拒？（`UIWebView`、`uniqueIdentifier`）→ 現在換。(2) 會不會在新 iOS 上行為不同或 crash？（`UIActionSheet` 在 iPad、`dispatch_get_current_queue`）→ 這個版本換。(3) 只是舊風格？→ 順手改、不開專門的 PR。Xcode 的 deprecation 警告數量不是優先順序，上架與 crash 才是。
+</Tip>
+
+<Pitfall title="@synthesize 沒寫底線，ivar 跟屬性同名">
+<Fragment slot="bad">
+```objc
+@synthesize note;          // 產生 ivar 叫 note，不是 _note
+- (void)reset { _note = nil; }   // error: use of undeclared identifier '_note'
+// 更糟：有人之後在 {} 裡又宣告 NSString *_note; 於是兩個變數並存
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+@synthesize note = _note;  // 或刪掉這行讓編譯器自動合成 _note
+```
+</Fragment>
+看到沒有 `= _xxx` 的 `@synthesize`，先 ⌘F 整個檔案找這個名字是怎麼被用的，再決定要不要補底線。方法裡直接寫 `note` 的地方，補底線之後會變成找不到的識別字，編譯器會一個一個告訴你。
+</Pitfall>
+
+<Pitfall title="NSURLConnection 改 NSURLSession 後回呼在背景執行緒">
+<Fragment slot="bad">
+```objc
+[[self.session dataTaskWithURL:url completionHandler:
+  ^(NSData *data, NSURLResponse *r, NSError *e) {
+    self.label.text = @"完成";     // 背景執行緒碰 UI → Main Thread Checker 紫色警告
+}] resume];
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+// 在 service 層統一切回主佇列，呼叫端不用每次想
+dispatch_async(dispatch_get_main_queue(), ^{ completion(rates, error); });
+```
+</Fragment>
+`NSURLConnection` 的 delegate 方法預設在**啟動請求的那條執行緒**回呼，多半是主執行緒，所以舊碼在 delegate 裡直接改 UI 沒事。換成 `NSURLSession` 後 completion 在 session 的 delegate queue（預設背景）跑，同一段 UI 碼就變成執行緒錯誤。
+</Pitfall>
+
+<Pitfall title="performSelector:afterDelay: 改 dispatch_after 丟了取消">
+<Fragment slot="bad">
+```objc
+// 舊碼：每次輸入都重排一次搜尋，並取消上一次
+[NSObject cancelPreviousPerformRequestsWithTarget:self
+                                         selector:@selector(search) object:nil];
+[self performSelector:@selector(search) withObject:nil afterDelay:0.3];
+// 直接改成 dispatch_after → 無法取消，使用者打 5 個字搜 5 次
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+[self.debounceTimer invalidate];
+self.debounceTimer = [NSTimer scheduledTimerWithTimeInterval:0.3
+    target:self selector:@selector(search) userInfo:nil repeats:NO];
+// 或 10.5 的 LBSearchController：dispatch_block_t + dispatch_block_cancel
+```
+</Fragment>
+替換 API 前先問「舊的這個有什麼隱含能力？」`afterDelay:` 的隱含能力是**可取消**與**綁在 run loop 上**（捲動中不會觸發）。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInternalInconsistencyException',
+reason: 'UIAlertView is deprecated and unavailable for UIScene based applications,
+please use UIAlertController!'`}>
+這是 iOS 13 之後、採用 `UISceneDelegate` 的 App 跑到舊的 `UIAlertView` 時的訊息。舊專案多半還是 `UIApplicationDelegate` 的 `window` 寫法，所以 `UIAlertView` 還能顯示；一旦有人為了支援多視窗加了 Scene，所有 `UIAlertView` / `UIActionSheet` 同時變成 crash。
+
+修法：全專案 ⌘⇧F 搜 `UIAlertView` 與 `UIActionSheet`，一處一處換成 `UIAlertController`。按鈕索引的 `if (i == 1)` 要翻譯成對應的 `UIAlertAction` handler。`UIActionSheet` 在 iPad 上還要設 `popoverPresentationController.sourceView`，否則會是另一個 crash。這個替換適合在 11.7 的「先補測試」之後整批做。
+</Crash>
+
+## 小結
+
+- `@synthesize name = _name`、大括號 ivar、`NSAutoreleasePool` 物件、`objectForKey:` 是**舊風格不是 bug**；看得懂、順手改、不開專門 PR。
+- 舊非同步家族（`NSURLConnection`、`NSThread`、`performSelectorInBackground:`）換成 `NSURLSession` / GCD 時，注意回呼執行緒變了、取消能力要補回。
+- `UIAlertView` / `UIActionSheet` → `UIAlertController`，按鈕索引翻成 action block；`UIWebView` → `WKWebView` 是上架必換。
+- 對照表的急迫度看三件事：上架會不會被拒、新 iOS 會不會 crash、純風格。
+- `dealloc` 裡取消進行中的 `NSURLConnection`（埋雷 6），否則 delegate 回呼到死掉的 self。

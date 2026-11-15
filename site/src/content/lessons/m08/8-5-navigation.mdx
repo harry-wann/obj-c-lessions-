@@ -1,0 +1,203 @@
+---
+title: 導覽與傳值
+module: 8
+chapter: "8.5"
+order: 5
+minutes: 40
+prereq: ["8.4", "5.2", "5.4"]
+objectives:
+  - "用 UINavigationController 的 push / pop 與 presentViewController: / dismiss 在畫面間移動，並知道 present 時該包一層 UINavigationController"
+  - 往前傳值用指定初始化器或屬性注入，往回傳值用 delegate 或 block，說出各自適合的場合
+  - 用 UITabBarController 組出三個分頁，並對照 Android Intent / React props 與 callback
+summary: "UINavigationController push / pop、presentViewController: / dismiss 與 sheet、往前傳值用指定初始化器 / 屬性注入、往回傳值用 delegate 或 block、UITabBarController；對照 Android Intent extras 與 ActivityResult、React props 往下 / callback 往上。"
+terms:
+  - { en: navigation controller, tw: 導覽控制器, cn: 导航控制器, jp: ナビゲーションコントローラ }
+  - { en: push / pop, tw: 推入 / 彈出（push / pop）, cn: 推入 / 弹出, jp: プッシュ / ポップ }
+  - { en: modal presentation, tw: 模態呈現（present）, cn: 模态展示, jp: モーダル表示 }
+  - { en: dependency injection, tw: 依賴注入, cn: 依赖注入, jp: 依存性の注入 }
+  - { en: tab bar controller, tw: 分頁列控制器, cn: 标签栏控制器, jp: タブバーコントローラ }
+appProgress: 「＋」present 出 LBTransactionEditorViewController（包在 UINavigationController 裡），儲存後透過 LBTransactionEditorDelegate 回到列表新增一列；分類列 push 到 LBCategoryPickerViewController，用 onSelect block 回傳。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// UIKit Swift：同一套
+let editor = LBTransactionEditorViewController(ledger: ledger, transaction: nil)
+editor.delegate = self
+present(UINavigationController(rootViewController: editor), animated: true)
+// SwiftUI：導覽是狀態，傳值靠 Binding
+NavigationStack { List { NavigationLink("分類", value: category) } }
+    .sheet(isPresented: $showEditor) { EditorView(onSave: { tx in ledger.add(tx) }) }
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// 往前：Intent extras（序列化）↔ iOS 直接把物件塞進 init
+val intent = Intent(this, EditorActivity::class.java).putExtra("txId", tx.id)
+// 往回：ActivityResult ↔ delegate / block
+val launcher = registerForActivityResult(StartActivityForResult()) { result ->
+    result.data?.getStringExtra("savedId")?.let { reload() }
+}
+launcher.launch(intent)
+// Fragment 版：setFragmentResultListener / Navigation component 的 SavedStateHandle
+```
+</Fragment>
+<Fragment slot="java">
+```java
+Intent intent = new Intent(this, EditorActivity.class);
+intent.putExtra("txId", tx.getId().toString());
+startActivityForResult(intent, REQ_EDIT);          // 舊 API
+@Override protected void onActivityResult(int req, int res, Intent data) {
+    if (req == REQ_EDIT && res == RESULT_OK) reload();
+}
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// React：props 往下、callback 往上，跟 iOS 一樣直接傳物件與函式
+<Editor ledger={ledger} transaction={null}
+        onSave={tx => { ledger.add(tx); setShowEditor(false); }}
+        onCancel={() => setShowEditor(false)} />
+// React Router：導覽是 URL，傳值靠 state 或 params
+navigate('/edit', { state: { txId } });
+```
+</Fragment>
+iOS 跟 Android 最大的差別：Android 的 Activity 之間隔著程序邊界，傳值得序列化成 `Intent` extras，回傳要走 `ActivityResult`；iOS 的 VC 都在同一個程序裡，**直接把物件傳進初始化器**，回傳直接呼叫 delegate 方法或 block。React 工程師會覺得很熟：props 往下 ↔ 初始化器 / 屬性注入，callback 往上 ↔ delegate / block，只是 iOS 多了「誰持有誰」要想（delegate 要 weak）。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### push / pop：有來有回的堆疊
+
+<Term en="navigation controller" tw="導覽控制器" cn="导航控制器" jp="ナビゲーションコントローラ" />就是 5.5 的堆疊：`pushViewController:animated:` 推一頁、`popViewControllerAnimated:` 彈回上一頁、`popToRootViewControllerAnimated:` 回到底。每個被 push 進去的 VC 都能透過 `self.navigationController` 拿到它，導覽列的返回鍵自動出現，標題來自各 VC 的 `title`。
+
+```objc
+// LBTransactionEditorViewController.m：點分類那一列
+- (void)showCategoryPicker {
+    LBCategoryPickerViewController *picker =
+        [[LBCategoryPickerViewController alloc] initWithRootCategories:[LBCategory defaultTree]
+                                                              selected:self.category];
+    __weak typeof(self) weakSelf = self;
+    picker.onSelect = ^(LBCategory *category) {
+        weakSelf.category = category;                 // 往回：block
+        [weakSelf.navigationController popViewControllerAnimated:YES];
+    };
+    [self.navigationController pushViewController:picker animated:YES];
+}
+```
+
+### present / dismiss：另起一疊
+
+`presentViewController:animated:completion:` 從下方蓋上一個新的畫面層，`dismissViewControllerAnimated:completion:` 收掉。iOS 13 以後預設是卡片式 sheet（`UIModalPresentationPageSheet`），可以下滑關閉；全螢幕要明寫 `modalPresentationStyle = UIModalPresentationFullScreen`。被 present 的 VC **沒有導覽列**，要有標題、取消、儲存按鈕，就先包一層 `UINavigationController`：
+
+```objc
+// LBTransactionListViewController.m
+- (void)addTapped {
+    LBTransactionEditorViewController *editor =
+        [[LBTransactionEditorViewController alloc] initWithLedger:self.ledger
+                                                      transaction:nil];   // nil = 新增
+    editor.delegate = self;                                             // 往回：delegate
+    UINavigationController *nav =
+        [[UINavigationController alloc] initWithRootViewController:editor];
+    nav.modalPresentationStyle = UIModalPresentationPageSheet;
+    [self presentViewController:nav animated:YES completion:nil];
+}
+
+#pragma mark - LBTransactionEditorDelegate
+
+- (void)editor:(LBTransactionEditorViewController *)editor
+    didSaveTransaction:(LBTransaction *)transaction {
+    [self.ledger addTransaction:transaction];
+    [self reloadSections];
+    [self.tableView reloadData];          // 進階：算出 index path 用 insertRows
+    [editor dismissViewControllerAnimated:YES completion:nil];
+}
+
+- (void)editorDidCancel:(LBTransactionEditorViewController *)editor {
+    [editor dismissViewControllerAnimated:YES completion:nil];
+}
+```
+
+誰來 dismiss？慣例是 **present 的那一方**（這裡是列表）在 delegate 方法裡收掉，編輯頁不用知道自己是被 present 還是被 push，重用性比較好。對被包在 nav 裡的 VC 呼叫 `dismiss`，UIKit 會往上找到被 present 的那個 nav 一起收掉。
+
+### 往前傳值：指定初始化器或屬性注入
+
+```objc
+// LBTransactionEditorViewController.h
+@interface LBTransactionEditorViewController : UIViewController
+- (instancetype)initWithLedger:(LBLedger *)ledger
+                   transaction:(nullable LBTransaction *)transaction NS_DESIGNATED_INITIALIZER;
+@property (nonatomic, weak) id<LBTransactionEditorDelegate> delegate;
+@end
+```
+
+兩種寫法：**指定初始化器**（2.x）把必要的依賴放進 `init`，少一個就編譯不過，缺點是 Storyboard 建的 VC 沒辦法走這條路；**屬性注入**（`editor.ledger = ledger;`）彈性大、Storyboard 可用（8.7 的 `prepareForSegue:` 只能這樣），缺點是忘了設就是 nil 一路傳下去。小帳本程式碼建的 VC 一律指定初始化器，Storyboard 建的設定頁用屬性注入。不要用的方法：全域單例一把抓（測不了）、`NSNotificationCenter` 傳值（有去無回，誰收到都不知道）。
+
+### 往回傳值：delegate 或 block
+
+| | delegate（5.2） | block（5.4） |
+|---|---|---|
+| 適合 | 多個事件（儲存 / 取消 / 刪除）、長期關係 | 單一事件、一次性回呼 |
+| 寫法 | 協定 + `weak` 屬性 + 多個方法 | 一個 `copy` 屬性 |
+| 陷阱 | 屬性寫成 `strong` 循環 | block 捕獲 `self` 循環（要 weakSelf） |
+| 小帳本 | 編輯頁 `LBTransactionEditorDelegate` | 分類選擇 `onSelect` |
+
+共通點：**不要**想從 `present` 拿回傳值。`present` 立刻回傳，使用者按下儲存是幾秒後的事，這是 5.6 講的非同步 API 慣例，傳值一定走回呼。Android 的 `startActivityForResult` → `onActivityResult` 也是同樣的拆法。
+
+### UITabBarController
+
+8.1 已經組過：`tabs.viewControllers = @[ ledgerNav, statsNav, settingsNav ]`，每個分頁各自一個 `UINavigationController`，分頁之間的堆疊獨立。`tabBarItem` 設在 nav 上（不是 nav 裡的 VC），因為 tab bar 看的是它的直接子 VC。`selectedIndex` 可以程式切換；`UITabBarControllerDelegate` 的 `shouldSelectViewController:` 能攔住切換（例如未儲存的表單）。
+
+### 設計稿對照
+
+對應設計稿 **02 畫面 · 深色與導覽流程** 的導覽流程圖與 **04 新增 / 編輯交易**（https://www.figma.com/design/4d6HGy38x11n2uOfkzOBzj ）。流程圖用三種箭頭：實線「push」（列表 → 分類選擇，返回鍵回來）、虛線「present sheet」（列表 ＋ → 編輯頁，卡片頂部有 grabber、圓角 12）、點線「回傳」標注方式（編輯頁 → 列表：`delegate`；分類選擇 → 編輯頁：`block`；幣別面板 → 編輯頁：`block`）。04 的導覽列：左「取消」、中「新增交易」/「編輯交易」、右「儲存」（`UIBarButtonItemStyleDone`，金額非法時 disabled），表單內容見 8.6。
+
+<Pitfall title="present 沒有包 UINavigationController，導覽列不見了">
+<Fragment slot="bad">
+```objc
+[self presentViewController:editor animated:YES completion:nil];
+// 編輯頁沒有標題、沒有取消 / 儲存按鈕，使用者只能下滑關掉
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+UINavigationController *nav =
+    [[UINavigationController alloc] initWithRootViewController:editor];
+[self presentViewController:nav animated:YES completion:nil];
+```
+</Fragment>
+`navigationItem` 的按鈕要有導覽列才看得到。被 present 的 VC 是新的一疊，不在原本的 nav 裡，`self.navigationController` 是 nil，`navigationItem.rightBarButtonItem` 設了也沒地方顯示。
+</Pitfall>
+
+<Pitfall title="想從 present 直接拿回傳值">
+`[self presentViewController:editor ...]; LBTransaction *tx = editor.result;` 讀到的永遠是 nil：present 立刻回傳，使用者還沒開始輸入。回傳值走 delegate 或 block，在回呼裡再動資料。同一個錯誤的 Android 版是 `startActivity` 之後馬上讀 extras。
+</Pitfall>
+
+<Pitfall title="delegate 設在錯的物件上">
+包了 nav 之後寫 `nav.delegate = self` 或忘了設 `editor.delegate`：儲存按鈕按下去沒反應、也不 crash（對 nil 送訊息）。delegate 設在真正發事件的 VC 上；`UINavigationController` 自己的 `delegate` 是另一個協定（`UINavigationControllerDelegate`），管轉場。寫完回呼先放一個 NSLog 或斷點確認有被叫到。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: 'Pushing the same view controller instance more than once is not supported
+(<LBCategoryPickerViewController: 0x7fa3c2e0a400>)'
+*** First throw call stack:
+(
+  2  UIKitCore  -[UINavigationController pushViewController:animated:]
+  3  LittleBook -[LBTransactionEditorViewController showCategoryPicker]
+)`}>
+同一個 VC 實體被 push 兩次。兩種成因：把 picker 存成屬性重複使用，第二次點進去還沒 pop 完又 push；或使用者連點兩下，第一下的動畫還在跑、第二下又進來。修法：每次需要就建新的（VC 很便宜），或在 push 前檢查 `self.navigationController.topViewController` 是不是自己；連點問題可以在點擊後先 `button.enabled = NO`，`viewDidAppear:` 再開回來。類似的訊息 `Application tried to present modally an active controller` 是 present 版，原因一樣。
+</Crash>
+
+## 小結
+
+- `push` / `pop` 是堆疊，返回鍵自動；`present` / `dismiss` 另起一疊，預設卡片 sheet，要導覽列就先包 `UINavigationController`。
+- 往前傳值：程式碼建的 VC 用指定初始化器，Storyboard 建的用屬性注入；不用單例、不用通知。
+- 往回傳值：多事件用 delegate（weak）、單事件用 block（copy + weakSelf）；永遠不是 `present` 的回傳值。
+- 由 present 的那一方在回呼裡 dismiss；`tabBarItem` 設在 nav 上。
+- Android：`Intent` extras ↔ 初始化器參數、`ActivityResult` ↔ delegate；React：props ↔ 注入、callback ↔ delegate / block。

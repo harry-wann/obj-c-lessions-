@@ -1,0 +1,22 @@
+id: m06-6-4-xcode-1
+chapter: "6.4"
+type: xcode
+title: 用 KVO 觀察 LBLedger.total
+mobile: false
+minutes: 30
+prompt: 讓 LBLedger.total 成為可觀察的屬性，寫一個 LBStatsObserver 觀察它並在 dealloc 移除，用 Zombie Objects 驗證。
+starter: xcode/M06-starter
+steps:
+  - "LBLedger.h 加 `@property (nonatomic, strong, readonly) NSDecimalNumber *total;`（收入 − 支出）；.m 的類別延伸裡重新宣告為 readwrite。"
+  - "在 `addTransaction:`、`removeTransactionWithIdentifier:`、`reset` 的末尾重算並用 **`self.total = ...`** 寫回（走 setter 才會通知）。init 裡用 `_total = NSDecimalNumber.zero`。"
+  - "新增 LBStatsObserver：`initWithLedger:` 用靜態 context 註冊觀察 @\"total\"（options New | Initial）；回呼比對 context 後把新值存進 readonly 屬性 `lastTotal`；`dealloc` 呼叫 `removeObserver:forKeyPath:context:`。"
+  - "testTotalChangesNotifyObserver：加一筆支出後 observer.lastTotal 等於負的金額。"
+  - "testObserverRemovedOnDealloc：在 @autoreleasepool 裡建立 observer 再離開，接著對 ledger 加交易不應 crash。Edit Scheme → Diagnostics 勾 Zombie Objects 再跑一次，確認沒有 `message sent to deallocated instance`。"
+  - ⌘U 跑兩個測試。
+tests:
+  - LBLedgerKVOTests/testTotalChangesNotifyObserver
+  - LBLedgerKVOTests/testObserverRemovedOnDealloc
+acceptance:
+  - 開啟 Zombie Objects 後 testObserverRemovedOnDealloc 仍通過，Console 沒有 deallocated instance 訊息。
+  - "把 dealloc 的 removeObserver: 註解掉再跑一次，看到 crash 後再加回去（親眼看一次最有記憶點）。"
+solution_note: 第 2 步是整題的核心：KVO 只對走 setter 的修改有效。第 5 步用 Zombies 把「對已釋放觀察者送訊息」從隨機崩潰變成可讀的錯誤訊息。

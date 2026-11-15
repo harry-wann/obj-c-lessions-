@@ -1,0 +1,47 @@
+id: m09-9-3-spot-1
+chapter: "9.3"
+type: spot
+title: "偷懶的 initWithCoder:"
+minutes: 3
+prompt: 這個類別宣告採用 NSSecureCoding，但解封時丟 NSInvalidUnarchiveOperationException。點選有問題的行並選出原因。
+code: |
+  @implementation LBBudget
+  - (void)encodeWithCoder:(NSCoder *)coder {
+      [coder encodeObject:_name forKey:@"name"];
+      [coder encodeObject:_limit forKey:@"limit"];
+  }
+  - (instancetype)initWithCoder:(NSCoder *)coder {
+      NSString *name = [coder decodeObjectForKey:@"name"];
+      NSDecimalNumber *limit = [coder decodeObjectOfClass:[NSDecimalNumber class]
+                                                   forKey:@"limit"];
+      return [self initWithName:name limit:limit];
+  }
+  @end
+bug_lines: [1, 7]
+reasons:
+  - "類別少了 +supportsSecureCoding 回 YES；而且第 7 行用 decodeObjectForKey: 沒指定類別，secure 模式下直接丟例外"
+  - "encodeObject: 不能存 NSDecimalNumber"
+  - "initWithCoder: 不能呼叫自己的指定初始化器"
+  - "key 名稱不能是 @\"name\""
+answer_reason: 0
+fix: |
+  @implementation LBBudget
+  + (BOOL)supportsSecureCoding { return YES; }
+  - (void)encodeWithCoder:(NSCoder *)coder {
+      [coder encodeObject:_name forKey:@"name"];
+      [coder encodeObject:_limit forKey:@"limit"];
+  }
+  - (instancetype)initWithCoder:(NSCoder *)coder {
+      NSString *name = [coder decodeObjectOfClass:[NSString class] forKey:@"name"];
+      NSDecimalNumber *limit = [coder decodeObjectOfClass:[NSDecimalNumber class]
+                                                   forKey:@"limit"];
+      if (!name || !limit) return nil;
+      return [self initWithName:name limit:limit];
+  }
+  @end
+solution_note: 宣告協定不等於實作它：`+supportsSecureCoding` 要明寫；每一個 `decodeObject` 都要指定類別。順手補上必要欄位為 nil 時回 nil。
+hints: ["三件組少了哪一件？", "哪一行 decode 沒有說期待什麼類別？"]
+feedback:
+  "1": NSDecimalNumber 自己採用 NSSecureCoding，可以直接 encodeObject:。
+  "2": "正好相反，initWithCoder: 應該走到指定初始化器。"
+  "3": key 可以是任何字串。

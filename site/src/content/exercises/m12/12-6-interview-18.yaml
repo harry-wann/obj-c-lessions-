@@ -1,0 +1,13 @@
+id: m12-12-6-interview-18
+chapter: "12.6"
+type: flash
+tier: interview
+title: 面試速記：nullability 對 Swift 端的影響
+minutes: 2
+front: |
+  ObjC 標頭沒標 nullability，Swift 端會怎樣？要怎麼補？標了 nonnull 就安全了嗎？
+back: |
+  沒標的指標匯入成隱式解包 Optional（LBCategory!）：用起來像非 Optional，不用寫問號，但執行期碰到 nil 就 Fatal error: Unexpectedly found nil while implicitly unwrapping an Optional value，訊息在 Swift、根因在 ObjC。
+  補法：每個標頭包 NS_ASSUME_NONNULL_BEGIN / END 把預設改成 nonnull，再把真的會回 nil 的屬性與方法逐一標 nullable；Generated Interface 看到沒有 ! 才算完。
+  nonnull 只是承諾不是檢查：ObjC 實作 return nil 只會有 warning，Swift 端拿到一個「型別說不是 nil 其實是 nil」的值，會在幾層之後以難以追蹤的方式壞掉。
+  加分延伸：NSError ** 與 block 參數有自己的規則；輕量泛型沒加時陣列變 [Any]，一樣是邊界資訊丟失的問題。

@@ -1,0 +1,409 @@
+---
+title: UITableView
+module: 8
+chapter: "8.4"
+order: 4
+minutes: 60
+prereq: ["8.3", "5.2", "4.3"]
+objectives:
+  - "用 dataSource / delegate 兩個協定、registerClass: 與 dequeueReusableCellWithIdentifier:forIndexPath: 寫出依月份分 section 的交易列表，cell 每個欄位都正確重設"
+  - "用 commitEditingStyle: / performBatchUpdates: 做滑動刪除，資料與畫面同步更新，刪到最後一筆時 section 一起消失"
+  - 用遞迴把分類樹攤平成「有深度的列表」顯示在表格裡，並用二元搜尋找出新交易在已排序陣列的插入點
+summary: "dataSource / delegate 分工、registerClass: + dequeueReusableCellWithIdentifier:forIndexPath:、自訂 cell 與 prepareForReuse、section header、滑動刪除 commitEditingStyle:、reloadData vs insertRows / deleteRows / performBatchUpdates:、DiffableDataSource 簡介、空狀態 backgroundView；樹的遞迴攤平與 indexOfObject:inSortedRange: 二元搜尋；對照 RecyclerView.Adapter + ViewHolder。"
+terms:
+  - { en: table view, tw: 表格視圖（UITableView）, cn: 表视图, jp: テーブルビュー }
+  - { en: cell, tw: 儲存格（cell）, cn: 单元格, jp: セル }
+  - { en: cell reuse, tw: cell 重用, cn: 单元格复用, jp: セルの再利用 }
+  - { en: data source, tw: 資料來源（dataSource）, cn: 数据源, jp: データソース }
+  - { en: index path, tw: 索引路徑（NSIndexPath）, cn: 索引路径, jp: インデックスパス }
+  - { en: tree, tw: 樹, cn: 树, jp: 木 }
+  - { en: depth-first traversal, tw: 深度優先走訪, cn: 深度优先遍历, jp: 深さ優先探索 }
+  - { en: binary search, tw: 二元搜尋, cn: 二分查找, jp: 二分探索 }
+appProgress: 畫面 01 / 02 / 05 / 09：LBTransactionListViewController 依月份分 section、自訂 cell、滑動刪除、空狀態；LBCategoryPickerViewController 以縮排顯示分類樹；四個測試轉綠。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// UIKit Swift：同一套 API
+tableView.register(LBTransactionCell.self, forCellReuseIdentifier: "LBTransactionCell")
+func tableView(_ tv: UITableView, cellForRowAt ip: IndexPath) -> UITableViewCell {
+    let cell = tv.dequeueReusableCell(withIdentifier: "LBTransactionCell", for: ip) as! LBTransactionCell
+    cell.configure(with: sections[ip.section].transactions[ip.row])
+    return cell
+}
+// SwiftUI：List 幫你重用，你只管描述一列
+List { ForEach(sections) { s in Section(s.title) { ForEach(s.items) { TransactionRow($0) } } } }
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// RecyclerView：Adapter = dataSource，ViewHolder = cell，onBindViewHolder = cellForRowAt
+class TxAdapter(val items: List<TxVM>) : RecyclerView.Adapter<TxVH>() {
+    override fun getItemCount() = items.size
+    override fun onCreateViewHolder(p: ViewGroup, type: Int) =
+        TxVH(LayoutInflater.from(p.context).inflate(R.layout.tx_cell, p, false))
+    override fun onBindViewHolder(h: TxVH, pos: Int) = h.bind(items[pos])  // 每個欄位都要設
+}
+adapter.notifyItemRemoved(pos)   // ↔ deleteRowsAtIndexPaths:
+```
+</Fragment>
+<Fragment slot="java">
+```java
+public class TxAdapter extends RecyclerView.Adapter<TxVH> {
+    @Override public int getItemCount() { return items.size(); }
+    @Override public TxVH onCreateViewHolder(ViewGroup p, int type) {
+        return new TxVH(inflater.inflate(R.layout.tx_cell, p, false));
+    }
+    @Override public void onBindViewHolder(TxVH h, int pos) { h.bind(items.get(pos)); }
+}
+// ListAdapter + DiffUtil ↔ UITableViewDiffableDataSource
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// React：沒有重用，靠 key 做 diff；長列表才用 react-window / FlatList
+{sections.map(s => (
+  <section key={s.id}>
+    <h3>{s.title}</h3>
+    {s.items.map(tx => <TxRow key={tx.id} vm={tx} onDelete={() => remove(tx.id)} />)}
+  </section>
+))}
+// 虛擬 DOM diff ↔ DiffableDataSource 的 snapshot apply
+```
+</Fragment>
+Android 工程師請直接把 `RecyclerView.Adapter` 的三個方法對上：`getItemCount` ↔ `numberOfRowsInSection:`、`onCreateViewHolder` ↔ `registerClass:` + cell 的 `init`、`onBindViewHolder` ↔ `cellForRowAtIndexPath:`。**cell 重用是完全同一個概念**：螢幕上只放得下 12 列，就只建 14 個 cell 輪著用，捲出去的 cell 立刻被拿來顯示捲進來的資料，所以綁定時每個欄位都要重設。React 沒有重用（靠 key 做 diff），這是 Web 工程師最需要調整的直覺。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### dataSource 與 delegate 的分工
+
+<Term en="table view" tw="表格視圖" cn="表视图" jp="テーブルビュー" />自己不知道資料長什麼樣，它問兩個協定：`UITableViewDataSource` 回答「有幾個 section、每個幾列、第 n 列長什麼樣」，`UITableViewDelegate` 回答「點了怎麼辦、列多高、header 是什麼 view、能不能滑動刪除」。`UITableViewController` 已經把自己設成兩者，直接覆寫方法就好；一般 `UIViewController` 裡放表格要自己設 `tableView.dataSource = self; tableView.delegate = self;`（兩個都是 weak，5.2）。
+
+```objc
+// LBTransactionListViewController.m
+#import "LBTransactionListViewController.h"
+#import "LBTransactionCell.h"
+#import "LBMonthHeaderView.h"
+#import "LBTransactionViewModel.h"
+#import "LBLedger.h"
+#import "LBMonthSection.h"
+#import "LBTransaction.h"
+#import "LBUndoStack.h"
+
+static NSString * const kCellID = @"LBTransactionCell";
+static NSString * const kHeaderID = @"LBMonthHeaderView";
+
+@interface LBTransactionListViewController ()
+@property (nonatomic, strong) LBLedger *ledger;
+@property (nonatomic, strong) LBUndoStack *undoStack;
+@property (nonatomic, copy) NSArray<LBMonthSection *> *sections;
+@end
+
+@implementation LBTransactionListViewController
+
+- (instancetype)initWithLedger:(LBLedger *)ledger undoStack:(LBUndoStack *)undoStack {
+    if (self = [super initWithStyle:UITableViewStyleInsetGrouped]) {
+        _ledger = ledger;
+        _undoStack = undoStack;
+    }
+    return self;
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.title = @"帳本";
+    [self.tableView registerClass:[LBTransactionCell class]
+           forCellReuseIdentifier:kCellID];
+    [self.tableView registerClass:[LBMonthHeaderView class]
+        forHeaderFooterViewReuseIdentifier:kHeaderID];
+    self.tableView.rowHeight = 64;
+    self.tableView.sectionHeaderHeight = 44;
+    [self reloadSections];
+}
+
+- (void)reloadSections {
+    self.sections = [self.ledger transactionsGroupedByMonth];
+    self.tableView.backgroundView = self.sections.count == 0 ? [self makeEmptyView] : nil;
+}
+
+#pragma mark - UITableViewDataSource
+
+- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
+    return self.sections.count;
+}
+
+- (NSInteger)tableView:(UITableView *)tableView
+ numberOfRowsInSection:(NSInteger)section {
+    return self.sections[section].transactions.count;
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView
+         cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    LBTransactionCell *cell =
+        [tableView dequeueReusableCellWithIdentifier:kCellID forIndexPath:indexPath];
+    LBTransaction *tx = self.sections[indexPath.section].transactions[indexPath.row];
+    [cell configureWithViewModel:[LBTransactionViewModel viewModelWithTransaction:tx]];
+    return cell;
+}
+
+#pragma mark - UITableViewDelegate
+
+- (UIView *)tableView:(UITableView *)tableView
+    viewForHeaderInSection:(NSInteger)section {
+    LBMonthHeaderView *header =
+        [tableView dequeueReusableHeaderFooterViewWithIdentifier:kHeaderID];
+    [header configureWithSection:self.sections[section]];
+    return header;
+}
+@end
+```
+
+`registerClass:forCellReuseIdentifier:` 告訴表格「這個識別字對應這個類別」，之後 `dequeueReusableCellWithIdentifier:forIndexPath:` 有閒置的 cell 就回收給你，沒有就用 `initWithStyle:reuseIdentifier:` 建一個，**永遠不回 nil**。舊 API `dequeueReusableCellWithIdentifier:`（沒有 `forIndexPath:`）會回 nil，舊專案裡你會看到 `if (cell == nil) { cell = [[... alloc] init...]; }` 的樣板，那是 iOS 6 以前的寫法。
+
+### 自訂 cell 與 prepareForReuse
+
+cell 被回收時可能還留著上一筆的內容：紅色金額、勾勾、展開狀態。兩個防線：
+
+```objc
+// LBTransactionCell.m（接 8.3）
+- (void)prepareForReuse {
+    [super prepareForReuse];
+    _iconView.image = nil;
+    _titleLabel.text = nil;
+    _subtitleLabel.text = nil;
+    _amountLabel.text = nil;
+    _amountLabel.textColor = UIColor.labelColor;
+    self.accessoryType = UITableViewCellAccessoryNone;
+}
+```
+
+第一道是 `configureWithViewModel:` **每個欄位都設**，包含「這筆沒有」的欄位（`note` 為空就設 `@""` 而不是跳過）；第二道是 `prepareForReuse` 清回預設。只靠第二道不夠：非同步載入圖片的 cell 在回收後圖片才回來，還是會貼到錯的列，要在回呼裡比對 identifier。`testCellResetsAllFields` 測的就是第一道：先用一筆支出設定、再用一筆沒有分類的收入設定同一個 cell，所有欄位都要是後者的值。
+
+`LBTransactionViewModel` 把顯示字串預先算好（金額格式化、日期字串），`cellForRowAtIndexPath:` 只做賦值。這個方法一秒會被叫幾十次，裡面建 `NSDateFormatter` 會掉幀（10.2 會量）。
+
+### 滑動刪除與局部更新
+
+```objc
+- (void)tableView:(UITableView *)tableView
+    commitEditingStyle:(UITableViewCellEditingStyle)editingStyle
+     forRowAtIndexPath:(NSIndexPath *)indexPath {
+    if (editingStyle != UITableViewCellEditingStyleDelete) return;
+
+    LBTransaction *tx = self.sections[indexPath.section].transactions[indexPath.row];
+    BOOL sectionWillVanish = self.sections[indexPath.section].transactions.count == 1;
+
+    [self.ledger removeTransactionWithIdentifier:tx.identifier];   // 1. 先改資料
+    self.sections = [self.ledger transactionsGroupedByMonth];       // 2. 重算模型
+
+    __weak typeof(self) weakSelf = self;
+    [self.undoStack registerUndo:^{ [weakSelf.ledger addTransaction:tx];
+                                    [weakSelf reloadSections];
+                                    [weakSelf.tableView reloadData]; }
+                            redo:^{ [weakSelf.ledger removeTransactionWithIdentifier:tx.identifier];
+                                    [weakSelf reloadSections];
+                                    [weakSelf.tableView reloadData]; }];
+
+    [tableView performBatchUpdates:^{                              // 3. 再改畫面
+        if (sectionWillVanish) {
+            [tableView deleteSections:[NSIndexSet indexSetWithIndex:indexPath.section]
+                     withRowAnimation:UITableViewRowAnimationFade];
+        } else {
+            [tableView deleteRowsAtIndexPaths:@[ indexPath ]
+                             withRowAnimation:UITableViewRowAnimationFade];
+        }
+    } completion:^(BOOL finished) {
+        [weakSelf reloadSections];                                  // 4. header 合計與空狀態
+        if (!sectionWillVanish) {
+            [tableView reloadSections:[NSIndexSet indexSetWithIndex:indexPath.section]
+                     withRowAnimation:UITableViewRowAnimationNone];
+        }
+    }];
+}
+```
+
+鐵律：**資料先改、畫面後改，而且兩邊的差異要一致**。`deleteRowsAtIndexPaths:` 之後表格會重新問 `numberOfRowsInSection:`，數字必須剛好少一；不一致就是本章第二個崩潰現場。`performBatchUpdates:` 把多個 insert / delete 包成一次動畫，裡面的 index path 全部以更新前的狀態計算。只改一筆就用局部更新，動畫順、不會跳回頂端；資料整批換掉（切換月份、搜尋結果）才用 `reloadData`。
+
+畫面 09 的「滑動刪除與確認」用 iOS 11 以後的 `tableView:trailingSwipeActionsConfigurationForRowAtIndexPath:` 回一個 `UISwipeActionsConfiguration`，刪除前跳 `UIAlertController` 確認（8.6），確認後走同一段邏輯。`commitEditingStyle:` 是舊 API，兩者都要認得，舊專案只有前者。
+
+### reloadData、局部更新與 DiffableDataSource
+
+| 方法 | 什麼時候 | 代價 |
+|---|---|---|
+| `reloadData` | 資料整批換、不知道差了什麼 | 沒動畫、捲動位置可能跳、所有可見 cell 重建 |
+| `insertRows` / `deleteRows` / `reloadRows` + `performBatchUpdates:` | 知道差了哪幾筆 | 有動畫；數量算錯就 crash |
+| `UITableViewDiffableDataSource`（iOS 13） | 不想自己算差異 | 給它新 snapshot，它算 diff 並動畫；model 要能 hash / isEqual（3.4） |
+
+Diffable 的用法是 `NSDiffableDataSourceSnapshot` → `appendSectionsWithIdentifiers:` → `appendItemsWithIdentifiers:` → `applySnapshot:animatingDifferences:`，概念就是 React 的虛擬 DOM diff。本章先用手動更新把「數量要一致」的規則練進手裡，延伸題 3 再改寫成 Diffable 比較。
+
+### 樹：分類階層攤平成有深度的列表
+
+畫面 05 的分類選擇是一棵<Term en="tree" tw="樹" cn="树" jp="木" />：「飲食」底下有「早餐 / 午餐 / 晚餐」，每個節點是 `LBCategory`，`parent` weak、`children` strong（4.3 的鏈結方向）。表格是一維的，所以要把樹**攤平**成一個陣列，每個元素帶著自己的深度決定縮排。<Term en="depth-first traversal" tw="深度優先走訪" cn="深度优先遍历" jp="深さ優先探索" />用遞迴寫最自然：先放自己，再依序走每個子節點。
+
+```objc
+// LBCategory.m 新增
+- (NSArray<LBCategory *> *)flattenedWithExpanded:(NSSet<NSString *> *)expandedIDs {
+    NSMutableArray<LBCategory *> *result = [NSMutableArray array];
+    [self lb_flattenInto:result expanded:expandedIDs];
+    return [result copy];
+}
+
+- (void)lb_flattenInto:(NSMutableArray<LBCategory *> *)result
+              expanded:(NSSet<NSString *> *)expandedIDs {
+    [result addObject:self];                                 // 前序：先自己
+    if (![expandedIDs containsObject:self.identifier]) return;   // 收合就不往下
+    for (LBCategory *child in self.children) {
+        [child lb_flattenInto:result expanded:expandedIDs];  // 遞迴
+    }
+}
+```
+
+```objc
+// LBCategoryPickerViewController.m（核心）
+- (void)rebuildRows {
+    NSMutableArray *rows = [NSMutableArray array];
+    for (LBCategory *root in self.roots) {
+        [rows addObjectsFromArray:[root flattenedWithExpanded:self.expandedIDs]];
+    }
+    self.visibleRows = rows;
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView
+         cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"Category"
+                                                            forIndexPath:indexPath];
+    LBCategory *c = self.visibleRows[indexPath.row];
+    cell.textLabel.text = c.name;
+    cell.indentationLevel = (NSInteger)c.depth;     // 縮排 = depth × indentationWidth
+    cell.indentationWidth = 20;
+    cell.imageView.image = [UIImage systemImageNamed:c.symbolName];
+    cell.accessoryType = c.children.count > 0 ? UITableViewCellAccessoryDisclosureIndicator
+                                              : UITableViewCellAccessoryNone;
+    cell.accessoryType = [c isEqual:self.selected] ? UITableViewCellAccessoryCheckmark
+                                                   : cell.accessoryType;
+    return cell;
+}
+
+- (void)toggleExpansionOf:(LBCategory *)category {
+    NSArray *before = self.visibleRows;
+    if ([self.expandedIDs containsObject:category.identifier]) {
+        [self.expandedIDs removeObject:category.identifier];
+    } else {
+        [self.expandedIDs addObject:category.identifier];
+    }
+    [self rebuildRows];
+    // 進階：比對 before / visibleRows 算出要 insert / delete 的 index path 做局部更新
+    [self.tableView reloadData];
+}
+```
+
+複雜度：攤平走訪每個節點一次，O(n)；遞迴深度等於樹的高度，分類樹只有兩三層，不用擔心堆疊。「尋找路徑」（麵包屑「飲食 › 午餐」）反過來走 `parent` 到根，O(高度)。進階練習要你把 `toggleExpansionOf:` 從 `reloadData` 改成 `performBatchUpdates:`：展開時插入的列數就是 `flattenedWithExpanded:` 之後多出來的那段。
+
+### 二元搜尋：新交易該插在哪
+
+帳本的 `transactions` 依日期倒序，新增一筆時不該整個重排（O(n log n)），而是找到插入點 O(log n) 再 `insertObject:atIndex:`（搬移 O(n)，但常數小）。<Term en="binary search" tw="二元搜尋" cn="二分查找" jp="二分探索" />：
+
+```objc
+// 手寫版：回傳第一個「date 早於或等於 tx.date」的索引（倒序陣列）
+NSUInteger LBInsertionIndex(NSArray<LBTransaction *> *sorted, LBTransaction *tx) {
+    NSUInteger lo = 0, hi = sorted.count;          // 半開區間 [lo, hi)
+    while (lo < hi) {
+        NSUInteger mid = lo + (hi - lo) / 2;       // 不寫 (lo+hi)/2，避免溢位
+        if ([sorted[mid].date compare:tx.date] == NSOrderedDescending) {
+            lo = mid + 1;                          // mid 比較新，答案在右邊
+        } else {
+            hi = mid;
+        }
+    }
+    return lo;
+}
+
+// Foundation 現成版：同一件事
+NSUInteger idx = [sorted indexOfObject:tx
+                         inSortedRange:NSMakeRange(0, sorted.count)
+                               options:NSBinarySearchingInsertionIndex |
+                                       NSBinarySearchingFirstEqual
+                       usingComparator:^NSComparisonResult(LBTransaction *a, LBTransaction *b) {
+                           return [b.date compare:a.date];   // 倒序：b 跟 a 反過來
+                       }];
+```
+
+兩個版本都要會：手寫版面試會問，`indexOfObject:inSortedRange:options:usingComparator:` 工作上直接用。`options` 的三個旗標：`NSBinarySearchingInsertionIndex` 回插入點（找不到也回位置，不是 `NSNotFound`）、`FirstEqual` / `LastEqual` 決定同一天的新交易排在同日的最前還是最後。前提永遠是陣列已經依同一個 comparator 排好，否則結果是垃圾。
+
+### 設計稿對照
+
+對應設計稿 **01 帳本 · 交易列表**、**02 空狀態**、**05 分類選擇（樹狀）**、**09 滑動刪除與確認**（https://www.figma.com/design/4d6HGy38x11n2uOfkzOBzj ）。01：`UITableViewStyleInsetGrouped`，群組左右內縮 16、圓角 12；月份 header 高 44；列高 64（cell 版面見 8.3）；導覽列 Large Title「帳本」，右上「＋」，左上「復原」（`canUndo` 為 NO 時 disabled）。02：`backgroundView` 置中堆疊（8.2）。05：每列高 44，縮排 `depth × 20`，有子分類的列右邊 chevron，選中的列 checkmark，根分類 headline、子分類 body。09：向左滑出紅色「刪除」動作，確認用 `UIAlertController` actionSheet，刪除後導覽列「復原」變成可用。
+
+<Pitfall title="cell 重用造成內容錯亂">
+<Fragment slot="bad">
+```objc
+- (void)configureWithViewModel:(LBTransactionViewModel *)vm {
+    _titleLabel.text = vm.title;
+    _amountLabel.text = vm.amountText;
+    if (vm.isExpense) _amountLabel.textColor = UIColor.systemRedColor;   // 收入時沒設回來
+    if (vm.subtitle.length) _subtitleLabel.text = vm.subtitle;          // 空的就留上一筆的
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (void)configureWithViewModel:(LBTransactionViewModel *)vm {
+    _titleLabel.text = vm.title;
+    _subtitleLabel.text = vm.subtitle;                      // 空字串也要設
+    _amountLabel.text = vm.amountText;
+    _amountLabel.textColor = vm.isExpense ? UIColor.systemRedColor
+                                          : UIColor.systemGreenColor;   // 兩個分支都設
+}
+```
+</Fragment>
+症狀：捲動 200 筆後有幾筆收入變紅色、沒備註的列顯示別人的備註。`if` 只設一邊就是元兇。每個欄位在每個分支都有值，再加 `prepareForReuse` 當保險。
+</Pitfall>
+
+<Pitfall title="delegate 宣告成 strong，pop 之後 VC 不釋放">
+<Fragment slot="bad">
+```objc
+@interface LBTransactionEditorViewController : UIViewController
+@property (nonatomic, strong) id<LBTransactionEditorDelegate> delegate;   // 列表 VC 持有編輯頁，編輯頁又持有列表
+@end
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+@property (nonatomic, weak) id<LBTransactionEditorDelegate> delegate;
+```
+</Fragment>
+列表 present 編輯頁（持有它），編輯頁的 delegate 指回列表，`strong` 就是 4.x 的循環參考。症狀：每開一次編輯頁記憶體多一份，`dealloc` 的 NSLog 永遠不出現，Memory Graph 看到兩個 VC 互指。delegate、dataSource 永遠 weak，`UITableView` 自己的兩個屬性也是。
+</Pitfall>
+
+<Pitfall title="改了資料只 insert 一筆，數量對不上">
+新增交易後 `[self.ledger addTransaction:tx]`，然後 `insertRowsAtIndexPaths:@[ ip ]`，但 `tx` 是新的月份，`transactionsGroupedByMonth` 多了一個 section，表格卻只被告知多一列 → `Invalid update` crash。規則：資料改完後比對新舊 `sections`，section 數不同就用 `insertSections:` / `deleteSections:`，數目相同再比對列。算不準就先 `reloadData` 保平安，確定了再換成局部更新。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInternalInconsistencyException',
+reason: 'unable to dequeue a cell with identifier LBTransactionCell - must register
+a nib or a class for the identifier or connect a prototype cell in a storyboard'
+*** First throw call stack:
+(
+  0  CoreFoundation  __exceptionPreprocess
+  1  libobjc.A.dylib objc_exception_throw
+  2  Foundation      -[NSAssertionHandler handleFailureInMethod:object:file:lineNumber:description:]
+  3  UIKitCore       -[UITableView dequeueReusableCellWithIdentifier:forIndexPath:]
+  4  LittleBook      -[LBTransactionListViewController tableView:cellForRowAtIndexPath:]
+)`}>
+訊息把三種修法都寫給你了：`register a nib`（XIB，8.7）、`register a class`（程式碼）、`prototype cell in a storyboard`。原因是 `dequeueReusableCellWithIdentifier:forIndexPath:` 這個版本保證不回 nil，所以找不到登記就直接斷言失敗。檢查三件事：有沒有在 `viewDidLoad` 呼叫 `registerClass:forCellReuseIdentifier:`；兩邊的識別字字串一模一樣（大小寫、空白）；是不是對錯的 tableView 註冊（有搜尋結果表格時常見）。把識別字抽成 `static NSString * const` 常數，兩邊共用一個符號，拼錯就編譯錯誤。
+</Crash>
+
+## 小結
+
+- dataSource 回答「有什麼」、delegate 回答「怎麼互動」，兩個都 weak；`UITableViewController` 已經設好。
+- `registerClass:` 一次，`dequeueReusableCellWithIdentifier:forIndexPath:` 永不回 nil；cell 會被重用，綁定時**每個欄位每個分支都設**，`prepareForReuse` 當保險。
+- 資料先改、畫面後改、差異一致；一筆用 `performBatchUpdates:` 局部更新，整批用 `reloadData`，不想算 diff 用 `DiffableDataSource`。
+- 樹用遞迴前序走訪攤平成帶深度的陣列，`indentationLevel = depth`；路徑沿 `parent` 往上找。
+- 二元搜尋 `[lo, hi)` 半開區間、`mid = lo + (hi - lo) / 2`；Foundation 版是 `indexOfObject:inSortedRange:options:usingComparator:` 加 `NSBinarySearchingInsertionIndex`。
+- Android：Adapter ↔ dataSource、ViewHolder ↔ cell、`onBindViewHolder` ↔ `cellForRowAtIndexPath:`，重用規則完全相同。

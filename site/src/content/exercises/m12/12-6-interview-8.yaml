@@ -1,0 +1,14 @@
+id: m12-12-6-interview-8
+chapter: "12.6"
+type: flash
+tier: interview
+title: 面試速記：KVO 的原理
+minutes: 2
+front: |
+  KVO 是怎麼實作的？直接改實體變數會觸發觀察者嗎？
+back: |
+  第一次對某物件 addObserver:forKeyPath: 時，runtime 動態產生一個子類別 NSKVONotifying_原類別，把該物件的 isa 指過去（isa swizzling）。
+  子類別覆寫被觀察屬性的 setter，在呼叫原 setter 前後分別送 willChangeValueForKey: / didChangeValueForKey:，觀察者的 observeValueForKeyPath: 就在 didChange 時被呼叫。
+  直接寫 _ivar = x 沒有經過 setter，不會觸發；要手動包 will / didChange。
+  子類別也覆寫了 -class 回傳原類別名字，所以 [obj class] 看不出來，object_getClass 才會露餡。
+  加分延伸：忘記 removeObserver 在 iOS 11 前會 crash；用 context 指標區分父類別的觀察；Swift 的 KVO 需要 @objc dynamic。

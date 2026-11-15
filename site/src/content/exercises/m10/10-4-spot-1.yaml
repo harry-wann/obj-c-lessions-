@@ -1,0 +1,42 @@
+id: m10-10-4-spot-1
+chapter: "10.4"
+type: spot
+title: 讀取時整個 App 凍住
+minutes: 3
+prompt: 這個帳本偶爾會讓 App 凍住，10 秒後被殺。點出造成死結的行並選出原因。
+code: |
+  - (NSArray *)transactions {
+      __block NSArray *r;
+      dispatch_sync(_queue, ^{ r = [_items copy]; });
+      return r;
+  }
+  - (NSDecimalNumber *)total {
+      __block NSDecimalNumber *sum = NSDecimalNumber.zero;
+      dispatch_sync(_queue, ^{
+          for (LBTransaction *tx in [self transactions]) {
+              sum = [sum decimalNumberByAdding:tx.signedAmount];
+          }
+      });
+      return sum;
+  }
+bug_lines: [9]
+reasons:
+  - 在 _queue 的 block 裡呼叫 transactions，它再 dispatch_sync 到同一條 _queue；若 _queue 是串列的就是死結，是並行的也會在 barrier 寫入進行時卡死
+  - sum 不能用 __block
+  - for-in 不能在 block 裡用
+  - transactions 應該回傳 mutable 陣列
+answer_reason: 0
+fix: |
+  - (NSDecimalNumber *)total {
+      __block NSDecimalNumber *sum = NSDecimalNumber.zero;
+      dispatch_sync(_queue, ^{
+          for (LBTransaction *tx in _items) {     // 已在佇列上，直接讀 ivar
+              sum = [sum decimalNumberByAdding:tx.signedAmount];
+          }
+      });
+      return sum;
+  }
+solution_note: 已經在佇列上就直接用 ivar，不要再經過會 sync 的公開方法。要防呆可以用 dispatch_queue_set_specific 標記佇列，dispatch_get_specific 非 NULL 就直接執行 block。
+hints: ["total 的 block 在哪條佇列上跑？", "transactions 做了什麼？"]
+feedback:
+  "1": __block 在這裡是必要的，sum 要在 block 裡賦值。

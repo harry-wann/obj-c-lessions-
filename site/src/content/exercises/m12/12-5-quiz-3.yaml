@@ -1,0 +1,19 @@
+id: m12-12-5-quiz-3
+chapter: "12.5"
+section: quiz
+type: quiz
+title: 讀 warning 選修法：method definition not found
+minutes: 1
+prompt: "warning: `method definition for 'removeTransactionWithIdentifier:' not found` 在 `@implementation LBLedger` 的結尾。這代表什麼、該怎麼辦？"
+options:
+  - "只是提醒，ObjC 動態派送會在執行期找到"
+  - ".h 宣告了這個方法但 .m 沒有實作（或拼錯名字）；執行期呼叫會 unrecognized selector，必須補實作或改宣告"
+  - "要加 @dynamic"
+  - "把方法搬到分類就不會警告"
+answer: 1
+explain: 編譯器比對 `@interface` 宣告與 `@implementation` 裡的方法，少一個就警告。這條 warning 的下場是確定的 crash，是最該開 `-Werror` 的理由之一。常見原因是重構時改了 .m 的名字忘了 .h。
+hints: ["宣告了卻沒實作，執行期找得到嗎？", "這條 warning 對應哪個 crash 訊息？"]
+feedback:
+  "0": 找不到就是 unrecognized selector sent to instance。
+  "2": "@dynamic 是給屬性說「存取器會在執行期提供」，不是給一般方法。"
+  "3": 分類只是把宣告與實作分開放，缺的實作還是缺。

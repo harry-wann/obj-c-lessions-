@@ -1,0 +1,70 @@
+id: m09-9-3-code-1
+chapter: "9.3"
+type: code
+title: 讓 LBMonthSummary 採用 NSSecureCoding
+mobile: false
+minutes: 10
+prompt: "`LBMonthSummary` 有 `NSInteger year`、`NSInteger month`、`NSDecimalNumber *expenseTotal`、`NSString *label`。實作三件組：`+supportsSecureCoding` 回 YES、`encodeWithCoder:`（整數用 `encodeInteger:forKey:`、物件用 `encodeObject:forKey:`）、`initWithCoder:`（物件用 `decodeObjectOfClass:forKey:`，`expenseTotal` 缺了回 nil，`label` 缺了給 `@\"\"`，最後呼叫 `initWithYear:month:expenseTotal:label:`）。"
+starter: |
+  @implementation LBMonthSummary
+
+  - (instancetype)initWithYear:(NSInteger)year
+                         month:(NSInteger)month
+                  expenseTotal:(NSDecimalNumber *)total
+                         label:(NSString *)label {
+      if (self = [super init]) {
+          _year = year; _month = month;
+          _expenseTotal = total; _label = [label copy];
+      }
+      return self;
+  }
+
+  // 在這裡加上 NSSecureCoding 三件組
+
+  @end
+checks:
+  - must_match: '\+\s*\(\s*BOOL\s*\)\s*supportsSecureCoding\s*\{[^}]*return\s+YES'
+    message: 要有 +supportsSecureCoding 回 YES
+  - selector_present: "encodeWithCoder:"
+  - selector_present: "initWithCoder:"
+  - must_match: 'encodeInteger\s*:\s*_?(self\.)?year\s+forKey\s*:'
+    message: "year 用 encodeInteger:forKey:"
+  - must_match: 'encodeInteger\s*:\s*_?(self\.)?month\s+forKey\s*:'
+    message: "month 用 encodeInteger:forKey:"
+  - must_match: 'encodeObject\s*:\s*_?(self\.)?expenseTotal\s+forKey\s*:'
+    message: "expenseTotal 用 encodeObject:forKey:"
+  - must_match: 'decodeObjectOfClass\s*:\s*\[\s*NSDecimalNumber\s+class\s*\]\s*forKey\s*:'
+    message: expenseTotal 要用 decodeObjectOfClass:[NSDecimalNumber class] 讀
+  - must_match: 'decodeObjectOfClass\s*:\s*\[\s*NSString\s+class\s*\]\s*forKey\s*:'
+    message: label 要用 decodeObjectOfClass:[NSString class] 讀
+  - must_match: 'decodeIntegerForKey\s*:'
+    message: "整數用 decodeIntegerForKey:"
+  - must_not_match: 'decodeObjectForKey\s*:'
+    message: "secure 模式下不能用 decodeObjectForKey:"
+  - must_match: 'initWithYear\s*:'
+    message: "initWithCoder: 最後要走指定初始化器 initWithYear:month:expenseTotal:label:"
+  - must_match: 'return\s+nil'
+    message: expenseTotal 缺了要回 nil
+  - "brackets_balanced: true"
+solution: |
+  + (BOOL)supportsSecureCoding { return YES; }
+
+  - (void)encodeWithCoder:(NSCoder *)coder {
+      [coder encodeInteger:_year forKey:@"year"];
+      [coder encodeInteger:_month forKey:@"month"];
+      [coder encodeObject:_expenseTotal forKey:@"expenseTotal"];
+      [coder encodeObject:_label forKey:@"label"];
+  }
+
+  - (instancetype)initWithCoder:(NSCoder *)coder {
+      NSDecimalNumber *total = [coder decodeObjectOfClass:[NSDecimalNumber class]
+                                                   forKey:@"expenseTotal"];
+      NSString *label = [coder decodeObjectOfClass:[NSString class] forKey:@"label"];
+      if (!total) return nil;
+      return [self initWithYear:[coder decodeIntegerForKey:@"year"]
+                          month:[coder decodeIntegerForKey:@"month"]
+                   expenseTotal:total
+                          label:label ?: @""];
+  }
+solution_note: 每個欄位一個 key、型別對應的 encode / decode 方法、必要欄位缺了回 nil、最後走指定初始化器。這個形狀對每一個 model 都一樣，背起來。
+hints: ["先寫 +supportsSecureCoding，一行。", "encodeWithCoder: 四行，一欄一行。", "initWithCoder: 先 decode 兩個物件，判 nil，再呼叫 initWithYear:…。"]

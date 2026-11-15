@@ -1,0 +1,26 @@
+id: m08-8-1-fill-1
+chapter: "8.1"
+type: fill
+title: 自建 UIWindow 的三行
+minutes: 2
+prompt: 補完 SceneDelegate 裡建立視窗的程式碼。
+code: |
+  - (void)scene:(UIScene *)scene
+      willConnectToSession:(UISceneSession *)session
+                   options:(UISceneConnectionOptions *)connectionOptions {
+      UIWindowScene *windowScene = (UIWindowScene *)scene;
+      UIWindow *window = [[UIWindow alloc] ___1___:windowScene];
+      window.___2___ = [self makeTabBarController];
+      ___3___ = window;
+      [window ___4___];
+  }
+blanks:
+  "1": { accept: ["initWithWindowScene"], chips: ["initWithWindowScene", "initWithFrame", "initWithScene", "initWithSession"] }
+  "2": { accept: ["rootViewController"], chips: ["rootViewController", "viewController", "contentViewController", "delegate"] }
+  "3": { accept: ["self.window", "_window"], chips: ["self.window", "scene.window", "windowScene.window", "window"] }
+  "4": { accept: ["makeKeyAndVisible"], chips: ["makeKeyAndVisible", "show", "becomeFirstResponder", "setNeedsDisplay"] }
+hints: ["視窗要綁到場景，不是 frame。", "整棵畫面樹的根叫什麼？", "誰持有 window？不存就會立刻釋放。", "讓視窗顯示並接收事件的方法名很長。"]
+feedback:
+  "1=initWithFrame": iOS 13 以後要用場景版初始化器，initWithFrame 建的 window 不會屬於這個場景。
+  "3=window": 只賦值給區域變數，方法結束 window 就釋放，螢幕一片黑。
+solution_note: "initWithWindowScene: → rootViewController → self.window = window → makeKeyAndVisible。漏第三步是黑畫面最常見的原因。"

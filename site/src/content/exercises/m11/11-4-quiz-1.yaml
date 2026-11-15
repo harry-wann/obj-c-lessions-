@@ -1,0 +1,18 @@
+id: m11-11-4-quiz-1
+chapter: "11.4"
+section: quiz
+type: quiz
+title: cell XIB 的 File's Owner
+minutes: 1
+prompt: "做 `LBTransactionCell.xib` 給 `registerNib:` 用，File's Owner 的 Class 應該設成什麼？outlet 從哪裡拖？"
+options:
+  - "File's Owner 設 LBTransactionCell，outlet 從 File's Owner 拖"
+  - "File's Owner 不碰（NSObject），Class 與 Identifier 設在 cell 上，outlet 從 cell 拖"
+  - "File's Owner 設 LBTransactionListViewController，outlet 拖到 VC"
+  - "cell XIB 不能有 outlet，要在 awakeFromNib 用 viewWithTag: 找"
+answer: 1
+explain: "`registerNib:` 載入時 owner 是 nil，table view 直接拿 XIB 裡的頂層 cell。outlet 連在 File's Owner 上會全是 nil 或丟 NSUnknownKeyException。"
+hints: ["registerNib: 載入時傳的 owner 是誰？", "VC 的 XIB 才需要 File's Owner 接 view。"]
+feedback:
+  "0": "這是最常見的錯：編譯沒事，執行期 outlet 全 nil。"
+  "3": "cell 的 outlet 完全可以用，只要從 cell 本身拖。"

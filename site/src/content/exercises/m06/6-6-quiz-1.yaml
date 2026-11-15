@@ -1,0 +1,18 @@
+id: m06-6-6-quiz-1
+chapter: "6.6"
+section: quiz
+type: quiz
+title: target-action 的本質
+minutes: 1
+prompt: "`[button addTarget:self action:@selector(save:) forControlEvents:UIControlEventTouchUpInside]` 之後，使用者放開手指時 UIKit 做了什麼？"
+options:
+  - 呼叫事先存好的 block
+  - "對存起來的 target 用訊息派送送出 action 這個 selector（透過 sendAction:to:from:forEvent:），並依 selector 的冒號數決定傳 0、1 或 2 個參數"
+  - "在編譯期就把 save: 的位址寫進按鈕"
+  - 透過 KVO 通知 target
+answer: 1
+explain: UIKit 誕生時沒有 block，所以存的是「物件 + 方法名稱」，事件來了就 performSelector。這也是為什麼改方法名忘了改 Storyboard 連線會 unrecognized selector。
+hints: ["UIControl 內部存了什麼？", "為什麼改名會 crash？"]
+feedback:
+  "0": "iOS 14 的 UIAction 才是 block 版；addTarget:action: 存的是 selector。"
+  "2": selector 是執行期才派送的，沒有編譯期位址。

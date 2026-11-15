@@ -1,0 +1,56 @@
+id: m10-10-5-advanced-2
+chapter: "10.5"
+type: code
+tier: advanced
+title: 選讀：任務相依圖的拓撲排序
+mobile: false
+minutes: 15
+prompt: "實作 Kahn 演算法 `topologicalOrderWithNodes:edges:`：`nodes` 是任務名陣列；`edges[a]` 是「a 完成後才能跑」的任務陣列。回傳執行順序；若有環（排不完）回傳 nil。這就是 NSOperationQueue 處理 addDependency: 的方式。"
+starter: |
+  + (nullable NSArray<NSString *> *)
+      topologicalOrderWithNodes:(NSArray<NSString *> *)nodes
+                          edges:(NSDictionary<NSString *, NSArray<NSString *> *> *)edges {
+      // 1. 算每個節點的入度
+      // 2. 入度 0 的放進 ready
+      // 3. 取出一個加進 order，把它指向的節點入度 −1，歸零就進 ready
+      // 4. order.count < nodes.count 表示有環 → nil
+  }
+checks:
+  - must_match: 'NSMutableDictionary'
+    message: 用 NSMutableDictionary 存入度
+  - must_match: '==\s*0'
+    message: 入度為 0 才可執行
+  - must_match: 'while\s*\('
+    message: 用 while 迴圈處理 ready
+  - must_match: '-\s*1|--'
+    message: 後繼節點入度要減一
+  - must_match: 'count\s*<|count\s*!=|<\s*nodes\.count|!=\s*nodes\.count'
+    message: 比較 order 與 nodes 數量偵測環
+  - must_match: 'return\s+nil'
+    message: 有環回傳 nil
+  - "brackets_balanced: true"
+solution: |
+  + (nullable NSArray<NSString *> *)
+      topologicalOrderWithNodes:(NSArray<NSString *> *)nodes
+                          edges:(NSDictionary<NSString *, NSArray<NSString *> *> *)edges {
+      NSMutableDictionary<NSString *, NSNumber *> *indeg = [NSMutableDictionary dictionary];
+      for (NSString *n in nodes) indeg[n] = @0;
+      for (NSString *a in edges) {
+          for (NSString *b in edges[a]) indeg[b] = @(indeg[b].integerValue + 1);
+      }
+      NSMutableArray *ready = [NSMutableArray array];
+      for (NSString *n in nodes) if (indeg[n].integerValue == 0) [ready addObject:n];
+      NSMutableArray *order = [NSMutableArray array];
+      while (ready.count) {
+          NSString *n = ready.firstObject;
+          [ready removeObjectAtIndex:0];
+          [order addObject:n];
+          for (NSString *m in edges[n]) {
+              indeg[m] = @(indeg[m].integerValue - 1);
+              if (indeg[m].integerValue == 0) [ready addObject:m];
+          }
+      }
+      return order.count == nodes.count ? order : nil;
+  }
+solution_note: O(V + E)。NSOperationQueue 內建這個邏輯：isReady 等於「所有依賴都 finished」，也就是入度 0。差別是它不會偵測環：A 依賴 B、B 依賴 A 時兩個 operation 永遠 isReady == NO，佇列靜默卡住；自己寫的版本回 nil 讓你在加入佇列前就發現。
+hints: ["入度 = 有幾個任務要先於它完成。", "ready 是入度 0 的佇列（FIFO）。", "排完數量不足就是有環。"]

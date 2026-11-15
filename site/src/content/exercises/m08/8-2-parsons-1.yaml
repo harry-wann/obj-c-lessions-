@@ -1,0 +1,22 @@
+id: m08-8-2-parsons-1
+chapter: "8.2"
+type: parsons
+title: 排出 VC 生命週期順序
+minutes: 2
+prompt: 一個 VC 第一次被 push 上畫面，再被 pop 掉釋放。把回呼排成正確順序。有兩行是干擾行。
+lines:
+  - "initWithLedger:undoStack:"
+  - loadView
+  - viewDidLoad
+  - "viewWillAppear:"
+  - viewWillLayoutSubviews
+  - viewDidLayoutSubviews
+  - "viewDidAppear:"
+  - "viewWillDisappear:"
+  - "viewDidDisappear:"
+  - dealloc
+distractors:
+  - viewDidUnload
+  - "viewDidAppear: 在 viewDidLayoutSubviews 之前"
+solution_note: init → loadView → viewDidLoad → willAppear → layout 兩個 → didAppear → willDisappear → didDisappear → dealloc。viewDidUnload 在 iOS 6 已廢除，view 不再單獨釋放。
+hints: ["view 要先載入（loadView）才有 viewDidLoad。", "動畫開始前是 will、結束後是 did。", "layout 回呼夾在 willAppear 與 didAppear 之間。"]

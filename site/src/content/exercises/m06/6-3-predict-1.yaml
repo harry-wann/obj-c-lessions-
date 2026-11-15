@@ -1,0 +1,30 @@
+id: m06-6-3-predict-1
+chapter: "6.3"
+type: predict
+title: 預測輸出：繼承與協定
+minutes: 2
+code: |
+  @protocol LBExportable <NSObject>
+  - (NSString *)exportLine;
+  @optional
+  - (NSString *)exportHeader;
+  @end
+  @interface LBTransaction : NSObject <LBExportable> @end
+  @implementation LBTransaction
+  - (NSString *)exportLine { return @"tx"; }
+  @end
+  @interface LBRefund : LBTransaction @end
+  @implementation LBRefund @end
+
+  LBRefund *r = [LBRefund new];
+  NSLog(@"%d", [r isKindOfClass:[LBTransaction class]]);
+  NSLog(@"%d", [r isMemberOfClass:[LBTransaction class]]);
+  NSLog(@"%d", [r conformsToProtocol:@protocol(LBExportable)]);
+  NSLog(@"%d", [r respondsToSelector:@selector(exportHeader)]);
+options: ["1\n0\n1\n0", "1\n1\n1\n1", "1\n0\n1\n1", "1\n0\n0\n0"]
+accept: ["1 0 1 0"]
+feedback:
+  "1 0 1 1": "conformsToProtocol: 只看宣告；optional 的 exportHeader 沒人實作，respondsToSelector: 回 NO。"
+  "1 0 0 0": 協定遵守會繼承，LBRefund 透過父類別遵守 LBExportable。
+solution_note: 子類別是父類別的 kind 但不是 member；協定遵守沿繼承鏈往上找；`conformsToProtocol:` 不保證 optional 方法有實作，所以還要 `respondsToSelector:`。
+hints: ["isMemberOfClass: 不含子類別。", "optional 方法沒實作，respondsToSelector: 怎麼回？"]

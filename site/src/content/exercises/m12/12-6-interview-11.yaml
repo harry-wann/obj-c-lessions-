@@ -1,0 +1,14 @@
+id: m12-12-6-interview-11
+chapter: "12.6"
+type: flash
+tier: interview
+title: 面試速記：訊息轉送三階段
+minutes: 2
+front: |
+  對一個物件送它不認得的 selector，到 crash 之前 runtime 給了幾次機會？各是什麼？
+back: |
+  第一階段 +resolveInstanceMethod: / +resolveClassMethod:：用 class_addMethod 在執行期補一個實作，回 YES 就重新派送；@dynamic 屬性常這樣做。
+  第二階段 -forwardingTargetForSelector:：回傳另一個物件接手，成本最低的「代理」做法。
+  第三階段 -methodSignatureForSelector: 加 -forwardInvocation:：把呼叫包成 NSInvocation 給你，可以改參數、轉給多個物件、記錄下來；NSProxy 與 NSUndoManager 的 prepareWithInvocationTarget: 都靠這個。
+  三關都沒處理就 -doesNotRecognizeSelector: 丟 NSInvalidArgumentException：unrecognized selector sent to instance。
+  加分延伸：第二階段最實用，例如 LBTransaction 把所有沒認得的訊息轉給內部的 NSDictionary，做出動態 model。

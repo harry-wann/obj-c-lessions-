@@ -1,0 +1,32 @@
+id: m06-6-4-crash-2
+chapter: "6.4"
+type: crash
+title: not key value coding-compliant
+minutes: 2
+log: |
+  *** Terminating app due to uncaught exception 'NSUnknownKeyException',
+  reason: '[<LBSettingsViewController 0x7fa1c3e0b200> setValue:forUndefinedKey:]:
+  this class is not key value coding-compliant for the key currencyLabel.'
+  *** First throw call stack:
+  (
+    2   Foundation       -[NSObject(NSKeyValueCoding) setValue:forUndefinedKey:] + 288
+    3   Foundation       -[NSObject(NSKeyValueCoding) setValue:forKey:] + 240
+    4   UIKitCore        -[UIRuntimeOutletConnection connect] + 112
+    5   UIKitCore        -[UINib instantiateWithOwner:options:] + 1920
+    6   UIKitCore        -[UIViewController loadView] + 456
+  )
+options:
+  - LBSettingsViewController 沒有遵守 NSCoding
+  - "Storyboard 裡有一條 IBOutlet 連線叫 currencyLabel，載入時 UIKit 用 KVC setValue:forKey: 設定它，但類別裡已經沒有這個屬性（被改名或刪除）；斷掉或重連那條 outlet"
+  - currencyLabel 屬性必須宣告成 strong 才能連
+  - KVC 不能用在 UIViewController 上
+answer: 1
+fix: |
+  // 在 Storyboard 的 Connections Inspector 找到 currencyLabel 連線，按 x 斷掉；
+  // 或把屬性加回來：
+  @property (nonatomic, weak) IBOutlet UILabel *currencyLabel;
+solution_note: "堆疊裡的 `UIRuntimeOutletConnection connect` 與 `UINib instantiateWithOwner:` 告訴你這是載入 nib / Storyboard 時發生的。IBOutlet 連線存的只是一個鍵名字串，程式碼改名它不會跟著變。很多人第一次看到完全不知道這是 KVC，現在你知道了。8.7 與 11.3 會再回頭。"
+hints: ["setValue:forKey: 找不到 setter 也找不到 ivar 會怎樣？", "堆疊裡 UINib 與 OutletConnection 在說什麼？"]
+feedback:
+  "0": NSCoding 跟 KVC 無關；訊息說的是 key value coding。
+  "2": weak 或 strong 都能連，問題是屬性根本不存在。

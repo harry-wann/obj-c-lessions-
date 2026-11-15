@@ -1,0 +1,23 @@
+id: m10-10-2-xcode-1
+chapter: "10.2"
+type: xcode
+title: 交易列表 view model 化：cell 內零格式化
+mobile: false
+minutes: 40
+prompt: 把 LBTransactionViewModel 加上 LRU 快取與共用 formatter，cell 只貼字串；修掉所有離屏渲染；用 Time Profiler 錄一段捲動確認。
+starter: xcode/M10-starter
+steps:
+  - "`LBTransactionViewModel`：`+dateFormatter`、`+amountFormatter` 用 `dispatch_once` 共用；`+cache` 是容量 500 的 `LBLRUCache`；`viewModelWithTransaction:` 先查快取（key = identifier + modifiedAt）。"
+  - "`LBTransactionListViewController`：帳本變動時在 `QOS_CLASS_USER_INITIATED` 全域佇列建立全部 view model，回主執行緒賦值 `viewModels` 再更新列表。`cellForRowAtIndexPath:` 只呼叫 `configureWithViewModel:`。"
+  - "`LBTransactionCell`：移除所有 `masksToBounds`；圖示改用 view model 預先裁好的 `UIImage`；卡片陰影在 `layoutSubviews` 設 `shadowPath`；label 設不透明背景。固定 `tableView.rowHeight = 56`。"
+  - "設定頁匯入 100,000 筆（10.3 完成前可先用 `+[LBImportService generateSampleCSVWithCount:]` 配合既有的同步載入）。"
+  - "模擬器 Debug → Color Off-screen Rendered 與 Color Blended Layers，捲動整個列表。"
+  - "⌘I → Time Profiler，錄 10 秒快速捲動；Invert Call Tree + Hide System Libraries。"
+tests:
+  - LBTransactionViewModelTests/testFormatsOnceAndCaches
+acceptance:
+  - 捲動 100,000 筆全程 ≥ 58 FPS（效能面板），單幀主執行緒 < 8 ms
+  - Color Off-screen Rendered 全列表無黃色；Color Blended Layers 的 label 與 cell 背景為綠色
+  - "Time Profiler 錄製中 `cellForRowAtIndexPath:` 占主執行緒 < 10%，Call Tree 裡沒有 `NSDateFormatter` / `NSNumberFormatter` 的 init"
+  - 編輯一筆交易後列表字串正確更新（快取 key 含 modifiedAt）
+solution_note: testFormatsOnceAndCaches 會把 +dateFormatter 換成會計數的子類別（或用 method swizzling 包一層），對同一筆交易呼叫兩次，計數必須是 1。Time Profiler 的 Call Tree 若還看到 formatter，通常是 section header 或搜尋列裡還有漏網之魚。

@@ -1,0 +1,37 @@
+id: m12-12-5-code-1
+chapter: "12.5"
+type: code
+title: 照 Apple 慣例重寫方法簽名
+mobile: false
+minutes: 6
+prompt: "把這三個方法改成符合 Apple Coding Guidelines 的簽名（只改宣告）：`-getTx:` 回傳指定 identifier 的交易可能為 nil；`-remove:idx:` 刪掉某索引的交易；`-tx:cat:` 回傳某分類底下的交易陣列。用完整單字、參數前加描述詞、標 nullability 與輕量泛型。"
+starter: |
+  NS_ASSUME_NONNULL_BEGIN
+  @interface LBLedger : NSObject
+  - (LBTransaction *)getTx:(NSString *)identifier;
+  - (void)remove:(LBTransaction *)tx idx:(NSUInteger)idx;
+  - (NSArray *)tx:(LBCategory *)cat;
+  @end
+  NS_ASSUME_NONNULL_END
+checks:
+  - must_match: '\(\s*nullable\s+LBTransaction\s*\*\s*\)\s*transactionWithIdentifier\s*:\s*\(\s*NSString\s*\*\s*\)\s*\w+'
+    message: "第一個改成 - (nullable LBTransaction *)transactionWithIdentifier:(NSString *)identifier"
+  - must_not_match: 'getTx|\bget[A-Z]'
+    message: 不用 get 前綴
+  - must_match: 'removeTransactionAtIndex\s*:\s*\(\s*NSUInteger\s*\)\s*\w+'
+    message: "第二個改成 - (void)removeTransactionAtIndex:(NSUInteger)index（只需要索引）"
+  - must_match: 'NSArray\s*<\s*LBTransaction\s*\*\s*>\s*\*\s*\)\s*transactionsInCategory\s*:\s*\(\s*LBCategory\s*\*\s*\)\s*\w+'
+    message: "第三個改成 - (NSArray<LBTransaction *> *)transactionsInCategory:(LBCategory *)category"
+  - must_not_match: '\bidx\b|\bcat\b|\btx\b'
+    message: 參數名用完整單字
+  - "brackets_balanced: true"
+solution: |
+  NS_ASSUME_NONNULL_BEGIN
+  @interface LBLedger : NSObject
+  - (nullable LBTransaction *)transactionWithIdentifier:(NSString *)identifier;
+  - (void)removeTransactionAtIndex:(NSUInteger)index;
+  - (NSArray<LBTransaction *> *)transactionsInCategory:(LBCategory *)category;
+  @end
+  NS_ASSUME_NONNULL_END
+solution_note: 讀出來像句子：「transaction with identifier」、「remove transaction at index」、「transactions in category」。第二個原本同時收交易與索引是多餘的，二選一；Cocoa 的對應是 `removeObjectAtIndex:`。
+hints: ["Cocoa 的對應方法：objectAtIndex:、removeObjectAtIndex:、objectsAtIndexes:。", "找不到回 nil 的要標 nullable。", "陣列加角括號。"]

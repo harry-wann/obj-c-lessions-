@@ -3,7 +3,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'; import { join } f
 const walk = (d) => readdirSync(d).flatMap(f => { const p = join(d, f); return statSync(p).isDirectory() ? walk(p) : p.endsWith('.yaml') ? [p] : []; });
 let bad = 0;
 for (const f of walk('src/content/exercises')) {
-  const d = yaml.load(readFileSync(f, 'utf8')); const issues = [];
+  let d; try { d = yaml.load(readFileSync(f, 'utf8')); } catch (e) { bad++; console.log(f + ': YAML 錯誤 ' + e.message.split('\n')[0]); continue; } const issues = [];
   for (const k of ['id','chapter','type','title']) if (typeof d[k] !== 'string') issues.push(`${k} 不是字串`);
   for (const k of ['prompt','solution_note']) if (d[k] != null && typeof d[k] !== 'string') issues.push(`${k} 不是字串`);
   if (d.hints != null && !(Array.isArray(d.hints) && d.hints.every(x => typeof x === 'string'))) issues.push('hints 不是字串陣列');

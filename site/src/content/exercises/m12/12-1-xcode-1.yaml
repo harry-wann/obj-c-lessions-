@@ -1,0 +1,24 @@
+id: m12-12-1-xcode-1
+chapter: "12.1"
+type: xcode
+title: 用 Swift 寫 StatsViewModel 讀 ObjC 的 LBLedger
+mobile: false
+minutes: 40
+prompt: 在 M12-starter 加入第一個 Swift 檔案，設定橋接標頭，讓 Swift 讀 LBLedger 算統計；兩個 Swift 測試轉綠，統計頁（畫面 06）能顯示。
+starter: xcode/M12-starter
+steps:
+  - "File → New → File → Swift File，命名 `StatsViewModel.swift`；Xcode 問要不要建橋接標頭時選 Create Bridging Header。確認 Build Settings 的 `SWIFT_OBJC_BRIDGING_HEADER` 指向 `LittleBook/LittleBook-Bridging-Header.h`、`SWIFT_VERSION` 為 5。"
+  - "在橋接標頭 `#import` `LBLedger.h`、`LBTransaction.h`、`LBCategory.h`。"
+  - "把 `LBLedger.h`、`LBTransaction.h`、`LBCategory.h` 全部包進 `NS_ASSUME_NONNULL_BEGIN / END`，把會回 nil 的成員（`LBTransaction.category`、`LBCategory.parent`、`-transactionWithIdentifier:`）標 `nullable`；至少兩處用 `NS_SWIFT_NAME`（建議：`+transactionWithAmount:note:` → `init(amount:note:)`、`LBTransactionKind` → `LBTransaction.Kind`）。"
+  - "開 `LBLedger.h` 的 Generated Interface 確認 `transactions` 是 `[LBTransaction]`、`transaction(withIdentifier:)` 回 `LBTransaction?`。"
+  - "寫 `final class StatsViewModel: NSObject`：`init(ledger:)`、`expenseTotal` / `incomeTotal` / `balance`（`NSDecimalNumber`）、`categoryBreakdown() -> [(name: String, total: NSDecimalNumber)]` 由大到小排序，沒分類的交易歸「未分類」。"
+  - "在測試 target 新增 `StatsViewModelTests.swift`，`@testable import LittleBook`，補齊兩個測試。⌘U。"
+  - "寫 `StatsViewController.swift`（`UIViewController` 子類別，`init(ledger:)`），用 `UITableView` 顯示三個總額與分類明細；12.2 會把它接進 Tab。"
+tests:
+  - StatsViewModelTests/testTotalsFromLedger
+  - StatsViewModelTests/testCategoryBreakdownSorted
+acceptance:
+  - 畫面 06：統計頁顯示支出總額、收入總額、結餘，分類明細依金額由大到小
+  - "Generated Interface 中 LBLedger / LBTransaction / LBCategory 沒有任何 `!` 型別"
+  - "`StatsViewModel.swift` 裡沒有任何 `!` 強制解包與 `as!`"
+solution_note: 這題的重點不是 Swift 寫得多漂亮，而是你被迫回頭把 ObjC 標頭標乾淨。驗收第二條用 Generated Interface 當檢查工具：只要還看到 `!`，就有一個沒標的指標。

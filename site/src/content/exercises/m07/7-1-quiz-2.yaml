@@ -1,0 +1,17 @@
+id: m07-7-1-quiz-2
+chapter: "7.1"
+section: quiz
+type: quiz
+title: code 要配什麼一起看
+minutes: 1
+prompt: "log 裡看到一個 NSError 的 `code = -1009`。要知道它代表什麼，還需要哪個欄位？"
+options:
+  - "`userInfo`，code 的意義寫在裡面"
+  - "`domain`，同一個數字在不同 domain 代表不同的錯誤"
+  - "不需要，-1009 是全系統統一的錯誤碼"
+  - "`localizedDescription`"
+answer: 1
+explain: code 只在 domain 內有意義。NSURLErrorDomain 的 -1009 是沒有網路，別的 domain 的 -1009 完全是另一回事。查 Apple 文件時要先確定 domain。
+hints: ["兩個不同 framework 可以用同一個數字嗎？", "錯誤「屬於誰」是哪個欄位？"]
+feedback:
+  "2": 沒有全系統統一的錯誤碼表，每個 domain 自己管自己的號碼。

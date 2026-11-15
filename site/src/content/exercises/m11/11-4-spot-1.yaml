@@ -1,0 +1,39 @@
+id: m11-11-4-spot-1
+chapter: "11.4"
+type: spot
+title: 找錯：awakeFromNib 與 prepareForReuse
+minutes: 2
+prompt: XIB 版 cell 顯示時字型對、但捲動後有些 cell 的 icon 殘留上一筆的圖。點出有問題的行並選原因。
+code: |
+  - (void)awakeFromNib {
+      self.amountLabel.font = [UIFont monospacedDigitSystemFontOfSize:17
+                                                               weight:UIFontWeightSemibold];
+  }
+
+  - (void)prepareForReuse {
+      self.amountLabel.textColor = nil;
+  }
+bug_lines: [1, 6]
+reasons:
+  - "awakeFromNib 沒呼叫 [super awakeFromNib]（文件要求）；prepareForReuse 沒呼叫 super 也沒清 iconView.image，重用時殘留"
+  - "awakeFromNib 不能設字型，要在 initWithStyle: 設"
+  - "prepareForReuse 不應該被覆寫"
+  - "textColor 設 nil 會 crash"
+answer_reason: 0
+fix: |
+  - (void)awakeFromNib {
+      [super awakeFromNib];
+      self.amountLabel.font = [UIFont monospacedDigitSystemFontOfSize:17
+                                                               weight:UIFontWeightSemibold];
+  }
+
+  - (void)prepareForReuse {
+      [super prepareForReuse];
+      self.iconView.image = nil;
+      self.amountLabel.textColor = nil;
+  }
+solution_note: "XIB 版 cell 的初始化走 `awakeFromNib`，不走 `initWithStyle:`；兩邊都要呼叫 super。重用邏輯跟程式碼版共用，8.3 的 testCellResetsAllFields 會抓殘留。"
+hints: ["覆寫 UIKit 的生命週期方法第一行該做什麼？", "哪個欄位沒有被重設？"]
+feedback:
+  "1": "XIB 版 cell 不會走 initWithStyle:，awakeFromNib 正是設定外觀的地方。"
+  "3": "textColor 設 nil 是回到預設色，合法。"

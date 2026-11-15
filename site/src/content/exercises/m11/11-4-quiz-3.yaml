@@ -1,0 +1,17 @@
+id: m11-11-4-quiz-3
+chapter: "11.4"
+section: quiz
+type: quiz
+title: 單元測試裡載 XIB 的 bundle
+minutes: 1
+prompt: "在 XCTest 裡 `[UINib nibWithNibName:@\"LBTransactionCell\" bundle:nil]` 找不到 XIB，為什麼？"
+options:
+  - "測試不能載 XIB"
+  - "bundle 傳 nil 等於 main bundle，在測試裡 main bundle 是 xctest runner，不是 App；要用 bundleForClass:"
+  - "XIB 要先編譯成 nib 才能在測試用"
+  - "nibWithNibName: 要加 .xib 副檔名"
+answer: 1
+explain: "`[NSBundle bundleForClass:[LBTransactionCell class]]` 在 App 與測試兩邊都指向正確的 bundle。11.3 載 storyboard 同理。"
+hints: ["測試跑起來時「主程式」是誰？", "11.4 的 Tip。"]
+feedback:
+  "3": "nibName 不含副檔名；加了反而找不到。"

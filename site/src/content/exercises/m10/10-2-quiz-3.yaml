@@ -1,0 +1,18 @@
+id: m10-10-2-quiz-3
+chapter: "10.2"
+section: quiz
+type: quiz
+title: prepareForReuse 該做什麼
+minutes: 1
+prompt: "`prepareForReuse` 最適合做哪件事？"
+options:
+  - 取消進行中的圖片下載、重設 accessoryType 等「下一次配置不一定會蓋掉」的狀態
+  - 把每個 label 的 text 設成 nil，確保乾淨
+  - 重新建立所有子 view
+  - "呼叫 configureWithViewModel: 配置新資料"
+answer: 0
+explain: 配置方法會蓋掉所有欄位，prepareForReuse 清光 label 只是多做一次 layout。它負責的是配置不會碰到、卻會殘留的狀態。
+hints: ["配置方法會蓋掉什麼？不會蓋掉什麼？", "多設一次 nil 的成本是什麼？"]
+feedback:
+  "1": 下一行 configure 就全設回來了，白做一次 layout。
+  "3": prepareForReuse 不知道新資料是什麼，配置是 cellForRow 的工作。

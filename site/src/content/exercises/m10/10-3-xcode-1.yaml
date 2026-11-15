@@ -1,0 +1,26 @@
+id: m10-10-3-xcode-1
+chapter: "10.3"
+type: xcode
+title: LBImportService：匯入 100,000 筆、分批、節流、可取消
+mobile: false
+minutes: 50
+prompt: 完成 LBImportService，從設定頁匯入 100,000 筆測試資料，期間 UI 可操作、可取消、記憶體峰值 < 150 MB。
+starter: xcode/M10-starter
+steps:
+  - "`+generateSampleCSVWithCount:error:`：寫到 `NSTemporaryDirectory()`，每行 `日期,分類,金額,備註`，金額用 `NSDecimalNumber` 字串。"
+  - "`importCSVAtURL:batchSize:progress:completion:`：回傳 `NSProgress`，`cancellationHandler` 呼叫內部 `NSBlockOperation` 的 `cancel`。解析用 `fgets` 逐行，每行包 `@autoreleasepool`。"
+  - "每 `batchSize` 筆呼叫 `[ledger performBatchImport:]`（barrier 寫入，10.4）；每批結束檢查 `isCancelled`。"
+  - "進度節流：`reportProgress:total:force:` 每 100 ms 一次，結束時 force。completion 在主佇列，取消時傳 `LBErrorCodeCancelled`。"
+  - "`LBTransactionListViewController` 監聽帳本的批次變動通知，用 `performBatchUpdates:` 插入該批列。"
+  - "設定頁：匯入按鈕 → 進度條 + 取消按鈕；匯入中可切到帳本列表捲動、新增交易。"
+  - "⌘U 跑兩個測試；⌘I → Allocations 量峰值。"
+tests:
+  - LBImportServiceTests/testImportsInBatchesAndReportsProgress
+  - LBImportServiceTests/testCancelStopsImport
+acceptance:
+  - 匯入 100,000 筆期間列表可捲動、可新增交易，效能面板 FPS ≥ 50
+  - 記憶體峰值 < 150 MB（Allocations 或 Debug Navigator）
+  - 模擬器完成時間 < 20 s
+  - 進度條平順前進，取消按鈕 0.5 s 內停止匯入且 completion 收到 LBErrorCodeCancelled
+  - 把迴圈內 @autoreleasepool 拿掉再量一次，能說出峰值差多少
+solution_note: testImportsInBatchesAndReportsProgress 用 10,000 筆、批次 500：帳本最後 10,000 筆、進度回呼次數 < 200、最後一次 done == total。testCancelStopsImport 在第一次進度回呼時 cancel，等 completion，檢查 error.code == LBErrorCodeCancelled 且帳本筆數 < 總數。測試裡要把 debounce / 節流時間縮短或注入時鐘，否則會很慢。

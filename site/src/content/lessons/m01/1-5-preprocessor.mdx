@@ -6,17 +6,17 @@ order: 5
 minutes: 20
 prereq: ["1.4"]
 objectives:
-  - 看懂 #define、#if、#pragma 在編譯之前做了什麼
-  - 用 #pragma mark 分段、用 #if DEBUG 區隔偵錯程式碼
+  - "看懂 #define、#if、#pragma 在編譯之前做了什麼"
+  - "用 #pragma mark 分段、用 #if DEBUG 區隔偵錯程式碼"
   - 知道什麼時候不該寫巨集，改用 static const 與 inline 函式
-summary: 前置處理器是編譯前的文字替換；#define 與括號；#pragma mark -；#if DEBUG / #ifdef；為何現代 Objective-C 少用巨集。
+summary: "前置處理器是編譯前的文字替換；#define 與括號；#pragma mark -；#if DEBUG / #ifdef；為何現代 Objective-C 少用巨集。"
 terms:
   - { en: preprocessor, tw: 前置處理器, cn: 预处理器, jp: プリプロセッサ }
   - { en: macro, tw: 巨集, cn: 宏, jp: マクロ }
   - { en: conditional compilation, tw: 條件編譯, cn: 条件编译, jp: 条件コンパイル }
   - { en: inline function, tw: 行內函式, cn: 内联函数, jp: インライン関数 }
   - { en: build configuration, tw: 建置組態, cn: 构建配置, jp: ビルド構成 }
-appProgress: LBTypes.h 用 #pragma mark 分段、LBLog 只在 Debug 印；M1 里程碑完成。
+appProgress: "LBTypes.h 用 #pragma mark 分段、LBLog 只在 Debug 印；M1 里程碑完成。"
 ---
 import Compare from '../../../components/Compare.astro';
 import Pitfall from '../../../components/Pitfall.astro';

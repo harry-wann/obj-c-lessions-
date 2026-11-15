@@ -1,0 +1,23 @@
+id: m09-9-2-predict-1
+chapter: "9.2"
+type: predict
+title: 預測輸出：預設值與移除
+minutes: 2
+code: |
+  NSUserDefaults *d = [[NSUserDefaults alloc] initWithSuiteName:@"lb.test"];
+  [d removePersistentDomainForName:@"lb.test"];
+  [d registerDefaults:@{ @"appearance": @1 }];
+  NSLog(@"%ld", (long)[d integerForKey:@"appearance"]);
+  [d setInteger:2 forKey:@"appearance"];
+  NSLog(@"%ld", (long)[d integerForKey:@"appearance"]);
+  [d removeObjectForKey:@"appearance"];
+  NSLog(@"%ld", (long)[d integerForKey:@"appearance"]);
+  NSLog(@"%ld", (long)[d integerForKey:@"nope"]);
+options: ["1\n2\n1\n0", "0\n2\n0\n0", "1\n2\n0\n0", "1\n2\n1\n1"]
+accept: ["1 2 1 0"]
+feedback:
+  "0 2 0 0": "registerDefaults: 登記的值會在查不到時回傳，所以第一行是 1 不是 0。"
+  "1 2 0 0": "removeObjectForKey: 移除的是使用者設的值，之後查詢又回到 registerDefaults: 的 1。"
+  "1 2 1 1": nope 這個 key 既沒設過也沒登記預設值，整數回 0。
+solution_note: "查詢順序是「使用者設的值 → registerDefaults: 的值 → 型別零值」。移除使用者的值會露出預設值。"
+hints: ["registerDefaults: 的值什麼時候會被用到？", "remove 之後是 nil 還是回到預設？"]

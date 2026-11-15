@@ -1,0 +1,35 @@
+id: m10-10-5-fill-1
+chapter: "10.5"
+type: fill
+title: semaphore 限流 + group 聚合
+minutes: 3
+prompt: 補完 5 幣別並行抓取、限流 2 的骨架。
+code: |
+  dispatch_semaphore_t gate = dispatch_semaphore_create(___1___);
+  dispatch_group_t group = dispatch_group_create();
+  for (NSString *base in bases) {
+      ___2___(group);
+      dispatch_async(work, ^{
+          dispatch_semaphore_wait(gate, DISPATCH_TIME_FOREVER);
+          [self fetchRatesForBase:base completion:^(NSDictionary *r, NSError *e) {
+              dispatch_async(sync, ^{ if (r) results[base] = r; });
+              dispatch_semaphore____3___(gate);
+              dispatch_group_leave(group);
+          }];
+      });
+  }
+  ___4___(group, dispatch_get_main_queue(), ^{
+      dispatch_sync(sync, ^{});
+      completion([results copy], [errors copy]);
+  });
+blanks:
+  "1": { accept: ["2", "max", "maxConcurrent"], chips: ["2", "0", "1", "5"] }
+  "2": { accept: ["dispatch_group_enter"], chips: ["dispatch_group_enter", "dispatch_group_leave", "dispatch_group_async", "dispatch_group_wait"] }
+  "3": { accept: ["signal"], chips: ["signal", "wait", "release", "leave"] }
+  "4": { accept: ["dispatch_group_notify"], chips: ["dispatch_group_notify", "dispatch_group_wait", "dispatch_async", "dispatch_group_leave"] }
+hints: ["限流 N 就是 N 張通行證。", "每個任務開始前計數 +1。", "工作完成要還通行證。", "全部完成後在主佇列回呼，不阻塞。"]
+feedback:
+  "1=0": 初始值 0 沒有人拿得到通行證，全部卡住。
+  "1=1": 那是互斥，一次只有一個請求。
+  "4=dispatch_group_wait": wait 會阻塞呼叫端；要在主佇列回呼用 notify。
+solution_note: semaphore 管「同時幾個」，group 管「全部完成了沒」，串列佇列 sync 管「結果字典的寫入」。三件事三個工具，不要混用。

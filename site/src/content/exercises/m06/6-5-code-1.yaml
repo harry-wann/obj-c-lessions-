@@ -1,0 +1,41 @@
+id: m06-6-5-code-1
+chapter: "6.5"
+type: code
+title: 幫分類加一個可儲存的屬性
+mobile: false
+minutes: 8
+prompt: "在 `LBCategory (Color)` 分類裡用關聯物件實作 `colorHex` 屬性（語意等同 `copy`）：key 用靜態變數位址；getter 用 `objc_getAssociatedObject`、setter 用 `objc_setAssociatedObject` 搭配 `OBJC_ASSOCIATION_COPY_NONATOMIC`。"
+starter: |
+  @implementation LBCategory (Color)
+  static const void *LBColorHexKey = &LBColorHexKey;
+
+  - (NSString *)colorHex {
+
+  }
+  - (void)setColorHex:(NSString *)colorHex {
+
+  }
+  @end
+checks:
+  - must_match: 'objc_getAssociatedObject\s*\(\s*self\s*,\s*LBColorHexKey\s*\)'
+    message: getter 用 objc_getAssociatedObject(self, LBColorHexKey)
+  - must_match: 'objc_setAssociatedObject\s*\(\s*self\s*,\s*LBColorHexKey\s*,\s*colorHex\s*,\s*OBJC_ASSOCIATION_COPY_NONATOMIC\s*\)'
+    message: setter 用 objc_setAssociatedObject 並選 COPY_NONATOMIC 策略
+  - must_not_match: 'OBJC_ASSOCIATION_ASSIGN'
+    message: ASSIGN 存物件會變懸空指標
+  - must_not_match: '_colorHex\b'
+    message: 分類不能有實體變數，值要存在關聯物件裡
+  - "brackets_balanced: true"
+solution: |
+  @implementation LBCategory (Color)
+  static const void *LBColorHexKey = &LBColorHexKey;
+
+  - (NSString *)colorHex {
+      return objc_getAssociatedObject(self, LBColorHexKey);
+  }
+  - (void)setColorHex:(NSString *)colorHex {
+      objc_setAssociatedObject(self, LBColorHexKey, colorHex, OBJC_ASSOCIATION_COPY_NONATOMIC);
+  }
+  @end
+solution_note: "分類裡的 `@property` 只宣告 getter / setter，沒有 ivar；關聯物件讓 runtime 幫你存。物件 dealloc 時關聯自動清掉；setter 傳 nil 等於移除。"
+hints: ["getter 一行：get(self, key)。", "setter 一行：set(self, key, value, policy)。", "copy 語意對應哪個 policy？"]

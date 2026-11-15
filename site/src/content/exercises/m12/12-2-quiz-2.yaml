@@ -1,0 +1,18 @@
+id: m12-12-2-quiz-2
+chapter: "12.2"
+section: quiz
+type: quiz
+title: Swift enum 要怎麼寫 ObjC 才看得到
+minutes: 1
+prompt: 哪個 Swift enum 宣告會出現在 `-Swift.h` 裡？
+options:
+  - "enum StatsPeriod { case week, month }"
+  - "@objc enum StatsPeriod: String { case week, month }"
+  - "@objc enum StatsPeriod: Int { case week, month }"
+  - "enum StatsPeriod: Int { case week, month }（在 @objcMembers 類別裡）"
+answer: 2
+explain: 只有 `@objc` 加 `Int` 系列原始值的 enum 會變成 `NS_ENUM`（`SWIFT_ENUM`），成員名變 `StatsPeriodWeek`。沒有原始值、String 原始值、關聯值都不行；`@objcMembers` 只影響類別成員，不影響巢狀型別的 enum 本身。
+hints: ["ObjC 的 enum 底層是什麼型別？", "@objcMembers 管的是類別的成員，不是型別。"]
+feedback:
+  "1": "ObjC 的 enum 只能是整數，String 原始值沒有對應。"
+  "3": "@objcMembers 不會替巢狀 enum 加 @objc。"

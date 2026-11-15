@@ -1,0 +1,17 @@
+id: m11-11-6-quiz-2
+chapter: "11.6"
+section: quiz
+type: quiz
+title: "$(inherited) 的作用"
+minutes: 1
+prompt: "`pod install` 後警告 `The LittleBook target overrides the HEADER_SEARCH_PATHS build setting`。該怎麼做？"
+options:
+  - "忽略，警告不影響建置"
+  - "在 target 的 HEADER_SEARCH_PATHS 第一行加 $(inherited)，讓 Pods 的 xcconfig 設定不被蓋掉"
+  - "刪掉 Pods 的 xcconfig"
+  - "改用 use_frameworks!"
+answer: 1
+explain: "target 層級的設定會蓋掉 xcconfig 的；`$(inherited)` 把上層（xcconfig、project）的值接進來。所有路徑類與旗標類設定（`OTHER_LDFLAGS`、`FRAMEWORK_SEARCH_PATHS`、`GCC_PREPROCESSOR_DEFINITIONS`）同理。"
+hints: ["Build Settings 的層級：xcconfig → project → target，誰蓋誰？", "怎麼在 target 層保留上層的值？"]
+feedback:
+  "0": "忽略的結果是下一次 pod install 後 header file not found。"

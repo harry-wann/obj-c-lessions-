@@ -1,0 +1,38 @@
+id: m06-6-2-predict-1
+chapter: "6.2"
+type: predict
+title: 預測輸出：快速轉送
+minutes: 2
+code: |
+  @interface LBStats : NSObject
+  @end
+  @implementation LBStats
+  - (NSString *)summary { return @"stats summary"; }
+  @end
+
+  @interface LBLedger : NSObject
+  @property (nonatomic, strong) LBStats *stats;
+  @end
+  @implementation LBLedger
+  - (id)forwardingTargetForSelector:(SEL)sel {
+      NSLog(@"forward %@", NSStringFromSelector(sel));
+      if ([_stats respondsToSelector:sel]) return _stats;
+      return [super forwardingTargetForSelector:sel];
+  }
+  @end
+
+  LBLedger *ledger = [LBLedger new];
+  ledger.stats = [LBStats new];
+  NSLog(@"%@", [ledger performSelector:@selector(summary)]);
+  NSLog(@"%d", [ledger respondsToSelector:@selector(summary)]);
+options:
+  - "forward summary\nstats summary\n0"
+  - "forward summary\nstats summary\n1"
+  - "stats summary\n1"
+  - "crash：unrecognized selector"
+accept: ["forward summary stats summary 0"]
+feedback:
+  "forward summary stats summary 1": "respondsToSelector: 只看方法列表與繼承鏈，不會觸發轉送；要讓它回 YES 得自己覆寫。"
+  "crash：unrecognized selector": "forwardingTargetForSelector: 回傳了 _stats，runtime 把 summary 重送給它。"
+solution_note: 快速轉送讓 LBLedger 看起來會 summary，但 `respondsToSelector:` 不會進入救援流程，所以回 NO。這是轉送類別常見的不一致，要覆寫 `respondsToSelector:` 補上。
+hints: ["forwardingTargetForSelector: 回傳非 nil 時 runtime 做什麼？", "respondsToSelector: 會走三段救援嗎？"]

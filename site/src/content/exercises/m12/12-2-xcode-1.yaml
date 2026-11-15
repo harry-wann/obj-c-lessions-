@@ -1,0 +1,23 @@
+id: m12-12-2-xcode-1
+chapter: "12.2"
+type: xcode
+title: ObjC 透過 LittleBook-Swift.h 把統計頁放進 Tab
+mobile: false
+minutes: 30
+prompt: 讓 ObjC 的 AppDelegate 建立 Swift 寫的 StatsViewController 並放進 UITabBarController；LBBridgingTests 兩個測試轉綠。
+starter: xcode/M12-starter
+steps:
+  - "`StatsViewController.swift` 與 `StatsViewModel.swift` 都改成 `@objc final class ... : NSObject / UIViewController`，`init(ledger:)` 標 `@objc`；給 ObjC 看的成員標 `@objc`。回傳 tuple 的 `categoryBreakdown()` 不標，另外提供 `@objc func categoryNames() -> [String]`。"
+  - "`StatsViewController` 加 `@objc(StatsViewController)`（或帶前綴並更新 LBRouter 的 alias），讓 `NSClassFromString` 找得到。"
+  - "在 `AppDelegate.m`（不是 .h）`#import \"LittleBook-Swift.h\"`，建立 `[[StatsViewController alloc] initWithLedger:self.ledger]` 包進 `UINavigationController` 放到 Tab 第二格。"
+  - "在 `LBBridgingTests.m` 補 `testObjCCanInstantiateSwiftStatsViewController`：建立 VC、`loadViewIfNeeded`、斷言 `view` 非 nil、`title` 是「統計」。"
+  - "補 `testNullabilityAnnotationsPresent`：用 `NSBundle` 讀不到原始碼，所以改成讀測試 bundle 內附的標頭副本，或直接以字串常數列出三個標頭路徑，用 `NSString` 檢查檔案內容含 `NS_ASSUME_NONNULL_BEGIN`。"
+  - ⌘U；⌘R 真機或模擬器點統計 Tab。
+tests:
+  - LBBridgingTests/testObjCCanInstantiateSwiftStatsViewController
+  - LBBridgingTests/testNullabilityAnnotationsPresent
+acceptance:
+  - 畫面 06：從 Tab 點進統計頁，資料與帳本一致；新增交易後回來數字更新
+  - "`.h` 檔沒有任何一個 import `LittleBook-Swift.h`"
+  - "`po NSClassFromString(@\"StatsViewController\")` 在 lldb 不是 nil"
+solution_note: "`testNullabilityAnnotationsPresent` 的實作方式不重要，重要的是它會在有人新增沒標 nullability 的標頭時變紅。第二條驗收用 `grep -r 'LittleBook-Swift.h' --include='*.h'` 檢查，應該沒有結果。"

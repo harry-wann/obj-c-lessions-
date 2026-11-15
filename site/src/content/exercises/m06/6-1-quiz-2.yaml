@@ -1,0 +1,19 @@
+id: m06-6-1-quiz-2
+chapter: "6.1"
+section: quiz
+type: quiz
+title: "@selector 與 NSSelectorFromString"
+minutes: 1
+prompt: 下面哪一句關於 selector 的描述正確？
+options:
+  - "`@selector(note)` 與 `NSSelectorFromString(@\"note\")` 得到的 SEL 不能用 == 比較，要用 isEqual:"
+  - "`NSSelectorFromString(@\"nte\")` 打錯字會回傳 NULL"
+  - "`@selector()` 在編譯期解析，名稱打錯會有警告；字串版在執行期才知道，打錯字安靜通過"
+  - selector 包含參數型別，所以 ObjC 可以多載
+answer: 2
+explain: SEL 是去重過的指標，可以直接 `==`；字串版打錯字會得到一個合法但沒人實作的 SEL，不是 NULL；selector 不含型別所以沒有多載。
+hints: ["SEL 在 runtime 裡是什麼？", "哪一種寫法編譯器幫你檢查？"]
+feedback:
+  "0": 同名 selector 全程式只有一份，== 就是正確比法。
+  "1": 任何字串都能變成 SEL，runtime 不知道有沒有人實作它。
+  "3": selector 只有名稱與冒號，`addAmount:` 收什麼型別都是同一個 SEL。

@@ -1,0 +1,19 @@
+id: m09-9-2-quiz-4
+chapter: "9.2"
+section: quiz
+type: quiz
+title: 舊程式碼裡的 synchronize
+minutes: 1
+prompt: "接手的專案每次 `setObject:forKey:` 後都跟一行 `[defaults synchronize];`。你應該？"
+options:
+  - 保留，不然值不會存進磁碟
+  - 自己寫新程式碼時不加；舊的可以留著不影響正確性，有空再清
+  - "全部改成在 applicationWillTerminate: 呼叫一次"
+  - 改成 dispatch_async 到背景呼叫 synchronize
+answer: 1
+explain: iOS 12 起 Apple 文件明寫 synchronize「不必要也不應該使用」，系統自己會在適當時機寫回，App 進背景或終止前也會。它不會壞事，但是多餘的同步 I/O。
+hints: ["Apple 文件現在怎麼說這個方法？", "系統什麼時候會自動寫回？"]
+feedback:
+  "0": 不呼叫也會存，系統定期寫回，進背景與終止前也寫。
+  "2": "終止前系統已經會寫回，不用你做；而且 applicationWillTerminate: 在 iOS 上不保證被呼叫。"
+  "3": 問題不在它在哪個執行緒，而在它根本不需要。

@@ -1,0 +1,34 @@
+id: m07-7-2-crash-1
+chapter: "7.2"
+type: crash
+title: 讀懂 uncaught exception 的堆疊
+minutes: 3
+prompt: 測試機上 App 閃退，Console 留下這段。該去哪裡修？
+log: |
+  *** Terminating app due to uncaught exception 'NSRangeException', reason: '*** -[__NSArrayM objectAtIndex:]: index 5 beyond bounds [0 .. 3]'
+  *** First throw call stack:
+  (
+      0   CoreFoundation    __exceptionPreprocess + 242
+      1   libobjc.A.dylib   objc_exception_throw + 48
+      2   CoreFoundation    -[__NSArrayM objectAtIndex:] + 124
+      3   LittleBook        -[LBTransactionListViewController tableView:cellForRowAtIndexPath:] + 212
+      4   UIKitCore         -[UITableView _createPreparedCellForGlobalRow:withIndexPath:willDisplay:] + 348
+      5   LittleBook        -[LBTransactionListViewController deleteSelected] + 96
+  )
+  libc++abi: terminating due to uncaught exception of type NSException
+options:
+  - "在 cellForRowAtIndexPath: 用 @try 包住取值，接到例外就回空 cell"
+  - "去 cellForRowAtIndexPath: 看為什麼資料陣列（4 筆）跟 table 認為的列數不一致：很可能 deleteSelected 改了陣列卻沒更新 table，或反過來"
+  - 改用 NSMutableArray 就不會越界
+  - 在 Info.plist 關掉例外
+answer: 1
+fix: |
+  // deleteSelected：資料與畫面要一起改
+  [self.rows removeObjectAtIndex:indexPath.row];
+  [self.tableView deleteRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
+  // 或至少 [self.tableView reloadData];
+solution_note: "從上往下找第一個自己模組的 frame（第 3 行）是例外發生的位置，再往下找上一個自己的 frame（第 5 行）是觸發它的操作。越界是資料源與 table 不同步的症狀，不是 cell 的問題；修源頭，不接例外。"
+hints: ["call stack 裡第一個 LittleBook 的 frame 是哪一行？", "index 5 beyond bounds [0 .. 3]：陣列有幾筆、table 想要第幾筆？"]
+feedback:
+  "0": "症狀消失、bug 留著，下次會炸在 deleteRowsAtIndexPaths: 裡，離源頭更遠。"
+  "2": 可變不可變跟越界無關，__NSArrayM 本來就是 NSMutableArray。

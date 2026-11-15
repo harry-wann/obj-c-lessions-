@@ -1,0 +1,20 @@
+id: m06-6-5-quiz-1
+chapter: "6.5"
+section: quiz
+type: quiz
+title: "+load 與 +initialize 的差別"
+minutes: 2
+prompt: "關於 `+load` 與 `+initialize`，哪些描述正確？（可複選）"
+multi: true
+options:
+  - "`+load` 在類別載入 runtime 時呼叫，比 main 還早；`+initialize` 在類別第一次收到訊息之前才呼叫"
+  - "分類（category）的 `+load` 會蓋掉類別本身的 `+load`，只有一個會執行"
+  - "子類別沒有實作 `+initialize` 時，第一次使用子類別會再觸發一次父類別的 `+initialize`，此時 self 是子類別"
+  - "`+load` 裡要寫 `[super load]`，否則父類別的不會執行"
+  - "swizzling 應該放在 `+load` 並包 `dispatch_once`"
+answer: [0, 2, 4]
+explain: "分類與類別的 `+load` 各自執行一次（這是 `+load` 不走訊息派送的結果）；`+initialize` 走一般派送所以會沿繼承鏈再被觸發，裡面要判 `self == [LBLedger class]`；兩者都不需要呼叫 super，runtime 自己處理順序。"
+hints: ["哪一個不走訊息派送？這決定了分類會不會蓋掉它。", "+initialize 會被子類別多觸發幾次？", "swizzle 要「一定只做一次、而且在任何呼叫之前」。"]
+feedback:
+  "1": 恰恰相反，runtime 直接呼叫每個 +load 的函式指標，類別與每個分類各執行一次。
+  "3": runtime 已經保證父類別先；自己呼叫 [super load] 會讓父類別的跑兩次。

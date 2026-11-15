@@ -1,0 +1,20 @@
+id: m06-6-1-predict-1
+chapter: "6.1"
+type: predict
+title: 預測輸出：類別叢集
+minutes: 2
+code: |
+  NSString *s = [NSString stringWithFormat:@"%d", 42];
+  NSNumber *n = @42;
+  Class c1 = [s class];
+  Class c2 = [NSString class];
+  NSLog(@"%d", c1 == c2);
+  NSLog(@"%d", [n respondsToSelector:@selector(integerValue)]);
+  NSLog(@"%d", NSClassFromString(@"NSNumber") == [NSNumber class]);
+options: ["1\n1\n1", "0\n1\n1", "0\n1\n0", "1\n0\n1"]
+accept: ["0 1 1"]
+feedback:
+  "1 1 1": "`[s class]` 回傳的是私有實體類別（例如 __NSCFString），不等於 NSString 門面類別。"
+  "0 1 0": NSClassFromString 找得到公開類別 NSNumber，兩個 Class 是同一個物件。
+solution_note: NSString 是類別叢集，實體的類別是私有子類別，所以第一行是 0。NSNumber 當然回應 integerValue。類別物件全程式只有一份，用字串找到的跟 `[NSNumber class]` 是同一個指標。
+hints: ["Foundation 的類別叢集：公開類別只是門面。", "類別物件是單一份的嗎？"]

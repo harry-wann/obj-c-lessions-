@@ -1,0 +1,21 @@
+id: m11-11-6-parsons-1
+chapter: "11.6"
+type: parsons
+title: 排出第一天讀專案的 SOP
+minutes: 2
+prompt: 把接手舊專案第一天的步驟排成合理順序（有干擾步驟）。
+lines:
+  - "README → pod install → 開 .xcworkspace → 選 scheme → ⌘R 跑起來"
+  - "看 Build Settings 與 target：幾個 target、Deployment Target、-ObjC、哪些檔 -fno-objc-arc"
+  - "讀 AppDelegate：初始化了哪些 Singleton、根 VC 是誰"
+  - "讀 .pch 與巨集：隱含 import、常數、環境切換"
+  - "畫畫面流：storyboard 全貌 + 搜 pushViewController / presentViewController"
+  - "畫資料流：搜 sharedInstance 與 postNotificationName:"
+  - "找最大的三個 .m 檔"
+  - "⌘U 跑測試，記錄狀態"
+  - "寫 docs/ONBOARDING.md"
+distractors:
+  - "一次 Convert to ARC 全部檔案"
+  - "把所有 UIAlertView 換成 UIAlertController"
+solution_note: "第一天的目標是**讀懂不動手**。兩個干擾項都是改行為的大動作，要等測試狀態確認、第一個零風險 PR 走過流程之後。"
+hints: ["先跑起來，再讀設定，再讀入口。", "改行為的事第一天不做。"]

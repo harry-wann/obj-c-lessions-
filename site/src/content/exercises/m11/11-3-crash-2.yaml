@@ -1,0 +1,23 @@
+id: m11-11-3-crash-2
+chapter: "11.3"
+type: crash
+title: 讀 crash：doesn't contain a view controller with identifier
+minutes: 2
+log: |
+  *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+  reason: 'Storyboard (<UIStoryboard: 0x600003a1c2e0>) doesn't contain a view controller with identifier 'Editor''
+options:
+  - "instantiateViewControllerWithIdentifier:@\"Editor\" 找的是 Storyboard ID，storyboard 裡那個 VC 的 Storyboard ID 沒填或打錯"
+  - "LBTransactionEditorViewController 這個類別不存在"
+  - "storyboard 檔沒加進 target"
+  - "應該用 instantiateInitialViewController"
+answer: 0
+fix: |
+  // 開 storyboard，選編輯頁的 View Controller
+  // Identity inspector → Storyboard ID 填 Editor（勾 Use Storyboard ID 讓 Restoration ID 跟著）
+  // 常見錯誤：只填了 Class，以為 identifier 預設等於類別名——不會
+solution_note: "Storyboard ID 跟 Class 是兩個欄位。Class 決定建出什麼型別，Storyboard ID 是查找用的字串。storyboard 檔沒加進 target 會是另一則訊息：`Could not find a storyboard named 'Settings'`。"
+hints: ["訊息說「storyboard 不包含」某個 identifier 的 VC。", "Class 欄位跟 Storyboard ID 欄位是同一個嗎？"]
+feedback:
+  "2": "storyboard 不在 target 會在 storyboardWithName: 就失敗，訊息是 Could not find a storyboard named。"
+  "3": "initial VC 只有一個，編輯頁不是進入點。"

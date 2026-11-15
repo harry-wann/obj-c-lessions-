@@ -1,0 +1,42 @@
+id: m04-4-4-advanced-1
+chapter: "4.4"
+type: code
+tier: advanced
+title: 進階：反轉單向鏈結串列
+mobile: false
+minutes: 10
+prompt: 給定單向節點 `LBNode`（屬性 `value`、`next`），實作函式 `LBNode *LBReverse(LBNode *head)`，就地反轉並回傳新的頭節點。用迭代（三個指標）寫，O(n) 時間、O(1) 額外空間。想一想：ARC 下每次改 `next` 時，誰持有誰？
+starter: |
+  @interface LBNode : NSObject
+  @property (nonatomic, strong) id value;
+  @property (nonatomic, strong, nullable) LBNode *next;
+  @end
+
+  LBNode *LBReverse(LBNode *head) {
+
+  }
+checks:
+  - must_match: 'LBNode\s*\*\s*LBReverse\s*\(\s*LBNode\s*\*\s*head\s*\)'
+    message: 函式簽名要是 LBNode *LBReverse(LBNode *head)
+  - must_match: 'while\s*\('
+    message: 用 while 迴圈迭代，不要遞迴
+  - must_match: '\.next\s*='
+    message: 要改寫節點的 next
+  - must_match: 'return\s+\w+\s*;'
+    message: 要回傳新的頭節點
+  - brackets_balanced: true
+solution: |
+  LBNode *LBReverse(LBNode *head) {
+      LBNode *prev = nil;
+      LBNode *curr = head;
+      while (curr) {
+          LBNode *next = curr.next;   // 先留住下一個，否則改 next 時它會被釋放
+          curr.next = prev;           // 反向
+          prev = curr;
+          curr = next;
+      }
+      return prev;                    // 原本的尾變成頭
+  }
+solution_note: |
+  三指標 prev / curr / next。ARC 重點在第 5 行：`curr.next = prev` 會讓 curr 放掉對原下一個節點的持有，如果沒先用 strong 區域變數 `next` 接住，那個節點（以及它後面整條）會當場釋放。Swift 寫法完全相同；Kotlin / Java 不用擔心這點，因為 GC 不會在賦值當下回收。複雜度 O(n) / O(1)。遞迴版 O(n) 堆疊深度，一萬個節點就可能爆堆疊，面試時要說出這點。
+hints: ["每一步需要知道三個東西：前一個、現在這個、下一個。", "改 curr.next 之前，先把原本的 curr.next 存起來——ARC 下這不只是為了邏輯。", "迴圈結束時 prev 指著誰？"]

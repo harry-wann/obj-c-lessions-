@@ -207,7 +207,7 @@ NSLog(@"%d", count);
 int n = count;
 // ⚠️ Implicit conversion loses integer precision: 'NSInteger' (aka 'long') to 'int'
 ```
-第一個警告在 64 位元上通常還能印對，換台機器就可能印出垃圾。第二個警告（要開 `-Wshorten-64-to-32`，Xcode 新專案範本預設開）是在告訓你 8 bytes 塞進 4 bytes 會被截斷：`[array count]` 超過 21 億的機率不高，但 `NSUInteger` 的 `NSNotFound`（下一章）塞進 `int` 會變成 -1，條件判斷就全錯了。看到黃色三角形就處理，別讓專案累積到幾百個警告後誰也不看。
+第一個警告在 64 位元上通常還能印對，換台機器就可能印出垃圾。第二個警告（要開 `-Wshorten-64-to-32`，Xcode 新專案範本預設開）是在告訴你 8 bytes 塞進 4 bytes 會被截斷：`[array count]` 超過 21 億的機率不高，但 `NSUInteger` 的 `NSNotFound`（下一章）塞進 `int` 會變成 -1，條件判斷就全錯了。看到黃色三角形就處理，別讓專案累積到幾百個警告後誰也不看。
 </Pitfall>
 
 <Pitfall title="金額不用 double">

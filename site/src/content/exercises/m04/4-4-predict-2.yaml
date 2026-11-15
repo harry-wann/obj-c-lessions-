@@ -1,0 +1,26 @@
+id: m04-4-4-predict-2
+chapter: "4.4"
+type: predict
+title: 連鎖釋放的順序
+minutes: 2
+prompt: LBLedger 的 dealloc 印 `dealloc 帳本`，LBTransaction 的 dealloc 印 `dealloc 交易`。LBLedger 用 strong 的 NSMutableArray 持有交易。印出順序是？
+code: |
+  LBLedger *ledger = [[LBLedger alloc] init];
+  LBTransaction *tx = [[LBTransaction alloc] initWithNote:@"午餐"];
+  [ledger.items addObject:tx];
+  tx = nil;
+  NSLog(@"一");
+  ledger = nil;
+  NSLog(@"二");
+options:
+  - "dealloc 交易 一 dealloc 帳本 二"
+  - "一 dealloc 帳本 dealloc 交易 二"
+  - "一 dealloc 交易 dealloc 帳本 二"
+  - "一 二 dealloc 帳本 dealloc 交易"
+accept: ["一 dealloc 帳本 dealloc 交易 二"]
+feedback:
+  "dealloc 交易 一 dealloc 帳本 二": "tx = nil 時陣列還持有交易，不會釋放。"
+  "一 dealloc 交易 dealloc 帳本 二": "順序反了：帳本的 dealloc 主體先跑，之後編譯器才釋放它的 ivar（陣列），陣列釋放才放掉交易。"
+  "一 二 dealloc 帳本 dealloc 交易": "ledger = nil 當場釋放，不會等到最後。"
+solution_note: 由外而內：ledger = nil → 帳本 dealloc 主體（印）→ .cxx_destruct 釋放 _items → 陣列 dealloc 放掉所有元素 → 交易 dealloc（印）。所以在帳本的 dealloc 裡 _items 還是完整可用的。
+hints: ["tx = nil 之後，交易還有誰持有？", "ivar 是在 dealloc 主體「之前」還是「之後」釋放？"]

@@ -1,0 +1,299 @@
+---
+title: 非同步 API 設計慣例
+module: 5
+chapter: "5.6"
+order: 6
+minutes: 30
+prereq: ["5.5"]
+objectives:
+  - 寫出符合 Cocoa 慣例的 completion handler 簽名（result, error）並保證只呼叫一次
+  - 在文件與實作上說清楚回呼在哪條執行緒、怎麼取消
+  - 把三層以上的巢狀回呼整理成可讀的形狀
+summary: "completion handler 慣例：(result, error) 簽名、每條路徑剛好呼叫一次、回呼執行緒、取消機制、callback hell 的整理；Promise 與 async/await 的對照。"
+terms:
+  - { en: completion handler, tw: 完成處理器（completion）, cn: 完成回调, jp: 完了ハンドラ }
+  - { en: asynchronous, tw: 非同步, cn: 异步, jp: 非同期 }
+  - { en: main thread, tw: 主執行緒, cn: 主线程, jp: メインスレッド }
+  - { en: cancellation, tw: 取消, cn: 取消, jp: キャンセル }
+  - { en: callback hell, tw: 回呼地獄, cn: 回调地狱, jp: コールバック地獄 }
+appProgress: 帳本的匯入與同步走同一套 completion 慣例，回呼一律回主執行緒，可取消。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+func sync() async throws -> SyncResult        // 現代寫法
+let result = try await ledger.sync()           // 錯誤走 throws，一定只回一次
+
+// 舊式 completion 仍到處都是；Swift 把 ObjC 的
+// - (void)syncWithCompletion:(void (^)(LBSyncResult *, NSError *))c;
+// 自動匯入成 func sync() async throws -> SyncResult
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+suspend fun sync(): SyncResult                 // coroutine
+viewModelScope.launch {
+    try { show(ledger.sync()) } catch (e: IOException) { showError(e) }
+}
+// 取消：launch 回傳 Job，job.cancel()；suspend 函式自動配合
+```
+</Fragment>
+<Fragment slot="java">
+```java
+CompletableFuture<SyncResult> sync();
+ledger.sync()
+      .thenAccept(this::show)
+      .exceptionally(e -> { showError(e); return null; });
+// 舊式：介面 Callback<T> { void onSuccess(T r); void onFailure(Throwable t); }
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+async function sync(): Promise<SyncResult>;
+try { show(await ledger.sync()); } catch (e) { showError(e); }
+// Promise 保證：resolve / reject 只會發生一次，第二次呼叫被忽略
+// 取消：AbortController + signal
+```
+</Fragment>
+四個語言現在都有 `async / await` 或等價物，「只完成一次」「錯誤走單獨通道」「可取消」由語言或 `Promise` 幫你保證。Objective-C 沒有這些：你拿到的是一個 block，**每一條慣例都要自己守**。好消息是 Swift 會把守規矩的 ObjC completion 方法自動變成 `async throws`，所以照慣例寫，Swift 同事直接受益。
+</Compare>
+
+## Objective-C 怎麼寫
+
+Objective-C 的非同步就是「傳一個 block 進去，事情做完時被呼叫」。語法 5.4 教完了，這一章講的是**慣例**：Cocoa 三十年累積下來、所有系統 API 都遵守、Swift 匯入時會依賴的那幾條規矩。
+
+### 簽名：`(result, error)`，兩個都 nullable
+
+```objc
+typedef void (^LBSyncCompletion)(LBSyncResult * _Nullable result,
+                                 NSError * _Nullable error);
+
+- (void)syncWithCompletion:(LBSyncCompletion)completion;
+```
+
+規則：成功時 `result` 有值、`error` 為 `nil`；失敗時 `result` 為 `nil`、`error` 有值。不要兩個都有，不要兩個都沒有。結果參數放前面、`error` 放最後，跟 `NSURLSession` 的 `(data, response, error)` 一致。只有成功失敗沒有結果的話用 `(BOOL ok, NSError * _Nullable error)`，模組 1 的 `LBCompletion` 就是這個。
+
+這條慣例有實際後果：Swift 看到「最後一個參數是 block，block 的最後一個參數是 `NSError *`」就會自動匯入成 `func sync() async throws -> SyncResult`。簽名亂寫（error 放前面、用 `NSString *` 當錯誤），Swift 端就只剩醜陋的 completion 版本。
+
+### 保證剛好呼叫一次
+
+這是最常出錯、也最難抓的慣例。方法裡每一條路徑（成功、每一種失敗、提早 return、取消）都要呼叫 completion **恰好一次**。少呼叫：呼叫端的 spinner 永遠轉；多呼叫：畫面 pop 兩次、資料寫入兩次、`dispatch_group` 當掉。
+
+```objc
+- (void)syncWithCompletion:(LBSyncCompletion)completion {
+    if (!self.isOnline) {
+        if (completion) completion(nil, [self offlineError]);
+        return;                                     // 失敗路徑：呼叫後立刻 return
+    }
+    [self.client fetch:^(NSData *data, NSError *error) {
+        if (error) {
+            if (completion) completion(nil, error);
+            return;                                 // 沒有這行就會往下再呼叫一次
+        }
+        LBSyncResult *r = [self parse:data];
+        if (completion) completion(r, nil);
+    }];
+}
+```
+
+寫法上的兩個習慣：（1）每個 `completion(...)` 後面緊跟 `return`，用眼睛就能驗證；（2）路徑多到數不清時，集中成一個私有方法 `-finishWithResult:error:completion:`，或用 `__block BOOL called` 加 `NSAssert(!called, ...)` 在開發期抓重複呼叫。
+
+### 說清楚回呼在哪條執行緒
+
+```objc
+/// 完成後在主執行緒呼叫 completion。
+- (void)syncWithCompletion:(LBSyncCompletion)completion;
+
+/// 在內部的串列佇列上呼叫 completion；需要更新 UI 請自行切回主執行緒。
+- (void)syncOnBackgroundWithCompletion:(LBSyncCompletion)completion;
+```
+
+這一句註解比簽名本身重要。`NSURLSession` 的 completion 在背景佇列、`UIView` 動畫的 completion 在主執行緒、CoreData 的 `performBlock:` 在 context 的佇列。你的 API 給 UI 層用，就在內部切回主執行緒再呼叫，呼叫端不必每次都包一層 `dispatch_async`：
+
+```objc
+dispatch_async(dispatch_get_main_queue(), ^{
+    if (completion) completion(result, nil);
+});
+```
+
+要給呼叫端選擇，就多一個 `queue` 參數：`- (void)syncOnQueue:(dispatch_queue_t)queue completion:(...)`，傳 `nil` 代表主執行緒。GCD 細節模組 7 講，這裡只需要知道 `dispatch_async(dispatch_get_main_queue(), block)` 是「把 block 丟回主執行緒排隊執行」。
+
+### 取消機制
+
+長時間的操作要能取消，慣例是**回傳一個可取消的物件**而不是另外加方法：
+
+```objc
+@protocol LBCancellable <NSObject>
+- (void)cancel;
+@end
+
+- (id<LBCancellable>)syncWithCompletion:(LBSyncCompletion)completion;
+
+// 呼叫端
+self.syncTask = [ledger syncWithCompletion:...];
+- (void)viewWillDisappear:(BOOL)animated {
+    [super viewWillDisappear:animated];
+    [self.syncTask cancel];
+}
+```
+
+`NSURLSessionTask`、`NSOperation`、`NSProgress` 都是這個形狀。被取消之後 completion **仍然要呼叫一次**，帶 `NSUserCancelledError`（domain `NSCocoaErrorDomain`，code 3072）或你自己的錯誤碼，讓呼叫端收尾（關 spinner、解鎖按鈕）。安靜地不呼叫是最糟的選擇，呼叫端分不出「被取消」跟「卡住」。
+
+### 巢狀回呼的整理
+
+三個非同步步驟串起來，天真的寫法長這樣：
+
+```objc
+[self fetchRates:^(NSArray *rates, NSError *e1) {
+    if (e1) { completion(nil, e1); return; }
+    [self fetchTransactions:^(NSArray *txs, NSError *e2) {
+        if (e2) { completion(nil, e2); return; }
+        [self convert:txs with:rates completion:^(LBSyncResult *r, NSError *e3) {
+            if (e3) { completion(nil, e3); return; }
+            completion(r, nil);
+        }];
+    }];
+}];
+```
+
+三層還能讀，五層就是<Term en="callback hell" tw="回呼地獄" cn="回调地狱" jp="コールバック地獄" />。沒有 `Promise` 跟 `await`，Objective-C 的整理方式有三種，依複雜度選：
+
+1. **拆成命名方法**：每一步一個私有方法，前一步的 completion 裡只做「檢查錯誤 → 呼叫下一步」。縱深變成橫向的三個方法，每個都能單獨測試。
+2. **狀態機或步驟陣列**：步驟很多且會變動時，把每步包成 `void (^)(LBStep next)` 存進陣列，一個小迴圈依序執行。模組 7 的 `NSOperation` 相依性是這個想法的框架版。
+3. **先做同步版本**：如果每一步其實都是本機計算（解析、排序），根本不該非同步。把它們改成同步方法，只在最外層包一次 `dispatch_async`。
+
+### 完整範例（可貼進 Scratch）
+
+```objc
+#import <Foundation/Foundation.h>
+
+typedef void (^LBSyncCompletion)(NSDecimalNumber * _Nullable total,
+                                 NSError * _Nullable error);
+
+@interface LBSyncTask : NSObject
+@property (atomic, assign, readonly, getter=isCancelled) BOOL cancelled;
+- (void)cancel;
+@end
+@implementation LBSyncTask
+- (void)cancel { _cancelled = YES; }
+@end
+
+@interface LBLedger : NSObject
+/// 模擬網路：0.1 秒後在主執行緒呼叫 completion，恰好一次。
+- (LBSyncTask *)syncAmounts:(NSArray<NSString *> *)raw
+                 completion:(LBSyncCompletion)completion;
+@end
+
+@implementation LBLedger
+- (LBSyncTask *)syncAmounts:(NSArray<NSString *> *)raw
+                 completion:(LBSyncCompletion)completion {
+    LBSyncTask *task = [LBSyncTask new];
+    dispatch_queue_t bg = dispatch_get_global_queue(QOS_CLASS_UTILITY, 0);
+    dispatch_async(bg, ^{
+        NSDecimalNumber *total = [NSDecimalNumber zero];
+        NSError *error = nil;
+        for (NSString *s in raw) {
+            NSDecimalNumber *n = [NSDecimalNumber decimalNumberWithString:s];
+            if ([n isEqual:[NSDecimalNumber notANumber]]) {
+                error = [NSError errorWithDomain:@"com.littlebook.error"
+                                            code:1 userInfo:nil];
+                break;                              // 不在這裡呼叫 completion
+            }
+            total = [total decimalNumberByAdding:n];
+        }
+        if (task.isCancelled) {
+            error = [NSError errorWithDomain:NSCocoaErrorDomain
+                                        code:NSUserCancelledError userInfo:nil];
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{   // 統一出口：只呼叫一次
+            if (!completion) return;
+            if (error) completion(nil, error);
+            else completion(total, nil);
+        });
+    });
+    return task;
+}
+@end
+
+int main(void) {
+    @autoreleasepool {
+        LBLedger *ledger = [LBLedger new];
+        [ledger syncAmounts:@[@"120", @"80"] completion:^(NSDecimalNumber *t, NSError *e) {
+            NSLog(@"1 成功 %@ 主執行緒=%d", t, [NSThread isMainThread]);
+        }];
+        [ledger syncAmounts:@[@"5", @"x"] completion:^(NSDecimalNumber *t, NSError *e) {
+            NSLog(@"2 失敗 code=%ld result=%@", (long)e.code, t);
+        }];
+        LBSyncTask *task = [ledger syncAmounts:@[@"1"] completion:^(NSDecimalNumber *t, NSError *e) {
+            NSLog(@"3 取消 code=%ld domain=%@", (long)e.code, e.domain);
+        }];
+        [task cancel];
+        [[NSRunLoop mainRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.5]];
+    }
+    return 0;
+}
+// 預期輸出（三行順序可能不同）：
+// 1 成功 200 主執行緒=1
+// 2 失敗 code=1 result=(null)
+// 3 取消 code=3072 domain=NSCocoaErrorDomain
+```
+
+最後的 `runUntilDate:` 是讓 Scratch 的 `main` 等一下主執行緒的回呼；App 裡有 RunLoop 在跑，不需要這行。
+
+<Tip title="同步方法用 NSError **，非同步用 completion，不要混">
+同步方法的錯誤通道是 `- (BOOL)saveWithError:(NSError **)error`（模組 7 細講）；非同步的錯誤通道是 completion 的 `error` 參數。一個方法不要同時「回傳值」又「呼叫 completion」，也不要在非同步方法上放 `NSError **` 參數：方法返回時工作還沒開始，那個 error 永遠是 nil。
+</Tip>
+
+<Pitfall title="completion 有時同步有時非同步">
+<Fragment slot="bad">
+```objc
+- (void)loadWithCompletion:(LBCompletion)completion {
+    if (self.cache) { completion(YES, nil); return; }   // 立刻同步呼叫
+    [self fetch:^{ completion(YES, nil); }];            // 之後非同步呼叫
+}
+// 呼叫端：
+[self loadWithCompletion:^(BOOL ok, NSError *e) { [self.spinner stopAnimating]; }];
+[self.spinner startAnimating];   // 有快取時，stop 跑在 start 之前
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+if (self.cache) {
+    dispatch_async(dispatch_get_main_queue(), ^{ if (completion) completion(YES, nil); });
+    return;
+}
+```
+</Fragment>
+呼叫端寫程式時假設「completion 之後才會跑」，有快取時這個假設破掉，而且只在第二次打開畫面才重現。非同步 API 就算結果早就在手上，也要非同步地呼叫 completion（Node.js 社群叫這個問題 Zalgo）。
+</Pitfall>
+
+<Pitfall title="方法會把 completion 存起來，就要想 weakSelf">
+```objc
+// LBSyncManager 是單例，self.completion 會活很久
+self.completion = ^(LBSyncResult *r, NSError *e) { [self.tableView reloadData]; };
+```
+5.5 的規則：`self` 持有 block 且 block 捕獲 `self` 才是循環。單例持有 block、block 捕獲控制器，控制器不持有單例，嚴格說不是循環，但控制器會活到下次同步完成，可能是幾分鐘後。長壽物件（單例、manager）存 completion 時，呼叫端要用 weakSelf，API 設計端要在呼叫完後把 `self.completion = nil` 放掉。
+</Pitfall>
+
+<Pitfall title="錯誤路徑忘了呼叫 completion">
+`if (!data) return;` 省掉了一行 completion，畫面上的 spinner 從此不停。code review 時逐條 `return` 往上看兩行，每個 `return` 前面都要有一個 completion 呼叫（或走到統一出口）。開發期可以在 `dealloc` 或測試裡斷言 completion 被呼叫過。模組 1 的 `LBCompletion` 題目會回來練。
+</Pitfall>
+
+<Crash message={`BUG IN CLIENT OF LIBDISPATCH: Unbalanced call to dispatch_group_leave()
+Thread 5: EXC_BREAKPOINT (code=1, subcode=0x1a2b3c4d)`}>
+`dispatch_group`（模組 7）是一個計數器：`enter` 加一、`leave` 減一、歸零時觸發 notify。libdispatch 發現 `leave` 比 `enter` 多，直接以 `EXC_BREAKPOINT` 中止程式，訊息開頭的 `BUG IN CLIENT OF LIBDISPATCH` 是在說「錯在呼叫端」。十次有九次的原因是某個 completion 被呼叫了兩次，而呼叫端在 completion 裡 `dispatch_group_leave`。往上找哪個方法的成功與失敗路徑都呼叫了 completion、或 `if (error)` 裡少了 `return`。這個 crash 很值錢：它把「呼叫兩次」這種平常靜悄悄的 bug 變成可重現的崩潰。
+</Crash>
+
+## 小結
+
+- 簽名 `(result, error)`，兩者皆 nullable、互斥；Swift 會自動匯入成 `async throws`。
+- 每條路徑恰好呼叫 completion 一次；`completion(...)` 後緊跟 `return`，或用統一出口。
+- 註解寫清楚回呼執行緒；給 UI 用的 API 在內部切回主執行緒。
+- 長操作回傳可取消物件；取消後仍呼叫 completion，帶 `NSUserCancelledError`。
+- 巢狀回呼拆成命名方法；同步能做的事不要包成非同步。

@@ -1,0 +1,30 @@
+id: m04-4-5-crash-1
+chapter: "4.5"
+type: crash
+title: 讀懂 CF 物件多放一次的訊息
+minutes: 2
+log: |
+  *** -[__NSCFString release]: message sent to deallocated instance 0x600001e4c3a0
+  Thread 1: EXC_BREAKPOINT (code=1, subcode=0x1f0ad4b2c)
+options:
+  - "一個 CFString / NSString 被多 release 一次：最常見是對 Get 回傳值用了 CFBridgingRelease，或 CFBridgingRelease 後又 CFRelease"
+  - NSString 沒有 release 方法
+  - 字串太長，記憶體不足
+  - 這是正常的警告，可以忽略
+answer: 0
+fix: |
+  // 錯：Get 回傳 +0，不能 transfer
+  NSString *s = CFBridgingRelease(CFLocaleGetIdentifier(locale));
+  // 對：借用 + copy
+  NSString *s = [(__bridge NSString *)CFLocaleGetIdentifier(locale) copy];
+
+  // 錯：交給 ARC 之後又手動放
+  NSString *t = CFBridgingRelease(cf);
+  CFRelease(cf);
+  // 對：交給 ARC 就不再碰
+  NSString *t = CFBridgingRelease(cf);
+solution_note: __NSCFString 是 NSString / CFString 在記憶體裡的真正類別名，release 被送到已釋放的字串上 = 有人多放一次。CF 相關的多放只有三種：Get 值被 transfer、transfer 後又 CFRelease、同一個 Create 值 CFRelease 兩次。用 Exception Breakpoint 停下來，找最近的 CFRelease / CFBridgingRelease，往上對照變數來源函式名是 Create / Copy 還是 Get。
+hints: ["「deallocated instance」加上 release selector 代表什麼？", "__NSCFString 是哪個類別的內部名字？"]
+feedback:
+  "1": "NSString 當然有 release（ARC 只是不讓你手寫）。問題是它被送到死掉的物件上。"
+  "3": "這是 Zombie Objects 偵測到的 crash 原因，不是警告。"

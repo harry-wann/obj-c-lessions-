@@ -1,0 +1,16 @@
+# macOS Command Line Tool（Objective-C）：Playground 不支援 ObjC，用這個專案當草稿本
+name: Scratch
+options:
+  bundleIdPrefix: com.littlebook
+  deploymentTarget:
+    macOS: "13.0"
+settings:
+  base:
+    CLANG_ENABLE_OBJC_ARC: YES
+    CLANG_ENABLE_MODULES: YES
+targets:
+  Scratch:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Sources

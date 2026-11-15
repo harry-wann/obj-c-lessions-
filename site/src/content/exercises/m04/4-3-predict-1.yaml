@@ -1,0 +1,24 @@
+id: m04-4-3-predict-1
+chapter: "4.3"
+type: predict
+title: 用了 weak 之後 delegate 去哪了？
+minutes: 2
+prompt: LBAuditLogger 的 dealloc 印 `logger dealloc`，`ledger:didAddTransaction:` 印 `logged`。`LBLedger.delegate` 是 weak。這段程式印出什麼？
+code: |
+  LBLedger *ledger = [[LBLedger alloc] init];
+  ledger.delegate = [[LBAuditLogger alloc] init];
+  NSLog(@"設定完成");
+  [ledger addTransaction:tx];     // 內部呼叫 [self.delegate ledger:self didAddTransaction:tx]
+  NSLog(@"新增完成");
+options:
+  - "設定完成 logged 新增完成"
+  - "logger dealloc 設定完成 新增完成"
+  - "設定完成 logged logger dealloc 新增完成"
+  - "設定完成 新增完成 logger dealloc"
+accept: ["logger dealloc 設定完成 新增完成"]
+feedback:
+  "設定完成 logged 新增完成": "logger 沒有任何 strong 持有者，賦給 weak 屬性的那一行結束就釋放了。"
+  "設定完成 logged logger dealloc 新增完成": "logger 活不到 addTransaction:，第 2 行結束時就走了。"
+  "設定完成 新增完成 logger dealloc": "釋放不會等到最後；而且 delegate 方法沒被呼叫這件事是重點。"
+solution_note: 「我用了 weak 所以沒問題」的反面：weak 保證不撐著，也不保證活著。logger 唯一的參考是 weak 的 delegate，第 2 行結束立刻 dealloc；之後 self.delegate 是 nil，對 nil 送訊息什麼都沒發生，稽核紀錄悄悄消失，沒有 crash、沒有警告。修法：讓某個擁有者（例如 self.auditLogger）strong 持有它。
+hints: ["誰 strong 持有這個 LBAuditLogger？", "對 nil 送訊息會發生什麼？（2.2）"]

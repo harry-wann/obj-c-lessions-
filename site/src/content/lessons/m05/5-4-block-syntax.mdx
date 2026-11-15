@@ -1,0 +1,283 @@
+---
+title: 區塊語法
+module: 5
+chapter: "5.4"
+order: 4
+minutes: 30
+prereq: ["5.3", "1.4"]
+objectives:
+  - 不查表就能寫出 block 的變數宣告、typedef、參數、屬性、回傳值五種位置
+  - 看懂 ^{} / ^(int x){} / ^NSString *(int x){} 三種字面值
+  - 呼叫 block 前先判 nil，屬性用 copy
+summary: "block 語法全解：返回型別 (^名稱)(參數)、typedef、作為參數 / 屬性（copy）/ 回傳值、字面值 ^{}、呼叫前判 nil、_Nullable 放哪。"
+terms:
+  - { en: block, tw: 區塊（block）, cn: 块 / Block, jp: ブロック }
+  - { en: block literal, tw: 區塊字面值, cn: 块字面量, jp: ブロックリテラル }
+  - { en: closure, tw: 閉包, cn: 闭包, jp: クロージャ }
+  - { en: completion handler, tw: 完成處理器（completion）, cn: 完成回调, jp: 完了ハンドラ }
+  - { en: function pointer, tw: 函式指標, cn: 函数指针, jp: 関数ポインタ }
+appProgress: LBLedger 的匯入方法接受 completion block；LBCompletion typedef 進了 LBTypes.h。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+typealias Completion = (Bool, Error?) -> Void
+let done: Completion = { ok, error in print(ok) }
+func load(completion: @escaping Completion) { completion(true, nil) }
+load { ok, _ in print(ok) }                  // 尾隨閉包，ObjC 沒有
+var onChange: ((Ledger) -> Void)?            // 可選型別的閉包屬性
+onChange?(ledger)                            // ?() 自動判 nil
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+typealias Completion = (Boolean, Throwable?) -> Unit
+val done: Completion = { ok, error -> println(ok) }
+fun load(completion: Completion) = completion(true, null)
+load { ok, _ -> println(ok) }                // 尾隨 lambda
+var onChange: ((Ledger) -> Unit)? = null
+onChange?.invoke(ledger)
+```
+</Fragment>
+<Fragment slot="java">
+```java
+BiConsumer<Boolean, Throwable> done = (ok, error) -> System.out.println(ok);
+void load(BiConsumer<Boolean, Throwable> completion) {
+    completion.accept(true, null);
+}
+load((ok, e) -> System.out.println(ok));
+Consumer<Ledger> onChange;                   // 函式介面 + lambda
+if (onChange != null) onChange.accept(ledger);
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+type Completion = (ok: boolean, error?: Error) => void;
+const done: Completion = (ok, error) => console.log(ok);
+function load(completion: Completion) { completion(true); }
+load((ok) => console.log(ok));
+let onChange: ((ledger: Ledger) => void) | undefined;
+onChange?.(ledger);                          // 可選呼叫
+```
+</Fragment>
+四個語言的匿名函式語法都是「參數 → 本體」，型別寫成 `(參數) -> 回傳`。Objective-C 的 block 是同一個東西，但型別語法繼承自 C 的函式指標，長得像 `返回型別 (^名稱)(參數)`，`^` 是唯一的新符號。沒有尾隨閉包，沒有 `?()` 可選呼叫，判 nil 要自己寫。
+</Compare>
+
+## Objective-C 怎麼寫
+
+<Term en="block" tw="區塊" cn="块" jp="ブロック" />（block）是 Objective-C 的閉包：一段可以存起來、傳來傳去、之後再呼叫的程式碼，而且會帶著宣告當下的變數（5.5 細講捕獲）。語法的核心只有一條規則，記住它其他都能推：
+
+> **`返回型別 (^名稱)(參數型別...)`**：把 C 函式指標 `int (*fn)(int)` 的 `*` 換成 `^`。
+
+### 五種位置
+
+```objc
+// 1. 區域變數
+void (^done)(void);
+NSString *(^format)(NSDecimalNumber *amount);
+
+// 2. typedef（實務上 90% 的 block 型別都先 typedef）
+typedef void (^LBCompletion)(BOOL ok, NSError * _Nullable error);
+typedef NSString *(^LBFormatter)(NSDecimalNumber *amount);
+
+// 3. 方法參數（不用 typedef 時，名稱寫在型別裡的 ^ 後面省略）
+- (void)importFrom:(NSURL *)url
+        completion:(void (^)(BOOL ok, NSError * _Nullable error))completion;
+- (void)importFrom:(NSURL *)url completion:(LBCompletion)completion;
+
+// 4. 屬性（一律 copy）
+@property (nonatomic, copy, nullable) void (^onChange)(LBLedger *ledger);
+@property (nonatomic, copy, nullable) LBCompletion completion;
+
+// 5. 回傳值（沒 typedef 時很難讀，所以一定 typedef）
+- (LBFormatter)formatterForLocale:(NSLocale *)locale;
+- (BOOL (^)(LBTransaction *))predicateForKind:(LBTransactionKind)kind;
+```
+
+`(void)` 不能省：`void (^done)()` 在 C 的意思是「參數不定」，現代 clang 會警告 `a block declaration without a prototype is deprecated`，而且 Swift 端會變成 `(() -> Void)!` 以外的怪型別。沒參數就寫 `(void)`。
+
+### 字面值：`^` 開頭
+
+```objc
+^{ NSLog(@"無參數無回傳"); }                    // 參數可省略整組括號
+^(NSDecimalNumber *amount) { NSLog(@"%@", amount); }
+^NSString *(NSDecimalNumber *amount) {           // 回傳型別通常可省，編譯器推
+    return [amount stringValue];
+}
+^BOOL(LBTransaction *tx) { return tx.kind == LBTransactionKindExpense; }
+```
+
+回傳型別大多可以省，編譯器從 `return` 推。什麼時候要寫？兩條 `return` 回傳不同型別時（`nil` 跟 `NSString *`），或是 block 體很長、讀者看不到 `return`。慣例是當參數或屬性傳進去的 block 字面值不寫回傳型別，宣告成變數的寫。
+
+把字面值放進五種位置：
+
+```objc
+LBCompletion done = ^(BOOL ok, NSError *error) {
+    NSLog(@"完成 %d", ok);
+};
+[ledger importFrom:url completion:^(BOOL ok, NSError *error) {
+    NSLog(@"完成 %d", ok);
+}];
+ledger.onChange = ^(LBLedger *l) { NSLog(@"變了"); };
+```
+
+方法呼叫裡的 block 字面值通常是最後一個參數，右大括號後緊接 `]`，這是 Objective-C 最有辨識度的視覺特徵，`}];` 三個字元連在一起。
+
+### 呼叫：像函式一樣，但先判 nil
+
+```objc
+if (completion) {
+    completion(YES, nil);
+}
+```
+
+block 是指標，呼叫 `nil` 的 block 不像對 `nil` 物件送訊息會安靜回傳，它是直接跳到一個不存在的位址：`EXC_BAD_ACCESS`，每次必死（見崩潰現場）。慣例：
+
+- 參數是 block 的方法，內部每個呼叫點都先 `if (completion)`。
+- 屬性是 block 的，呼叫前 `if (self.onChange)`。
+- 有人寫 `!completion ?: completion(YES, nil);` 省一行，能跑但 code review 不會過。
+
+`_Nullable` 寫在 `^` 後面：`void (^ _Nullable completion)(void)`。屬性可以直接在修飾詞寫 `nullable`。參數上標 `nullable` 之後 Swift 端會變 `((Bool, Error?) -> Void)?`，呼叫端的 `completion?(...)` 才有意義。
+
+### Foundation 現成的 typedef
+
+| typedef | 展開 | 用在 |
+|---|---|---|
+| `dispatch_block_t` | `void (^)(void)` | GCD、任何「做一件事」 |
+| `NSComparator` | `NSComparisonResult (^)(id, id)` | `sortedArrayUsingComparator:` |
+| `void (^)(id obj, NSUInteger idx, BOOL *stop)` | （沒 typedef） | `enumerateObjectsUsingBlock:` |
+| `void (^)(NSData *, NSURLResponse *, NSError *)` | （沒 typedef） | `NSURLSession dataTaskWithURL:completionHandler:` |
+
+`enumerateObjectsUsingBlock:` 的 `BOOL *stop` 值得注意：block 裡不能 `break`，所以 Foundation 給你一個指標，`*stop = YES;` 就是 `break`。
+
+### 完整範例（可貼進 Scratch）
+
+```objc
+#import <Foundation/Foundation.h>
+
+typedef void (^LBCompletion)(BOOL ok, NSError * _Nullable error);
+typedef NSString *(^LBFormatter)(NSDecimalNumber *amount);
+
+@interface LBLedger : NSObject
+@property (nonatomic, copy, nullable) void (^onChange)(NSDecimalNumber *total);
+- (void)addAmount:(NSDecimalNumber *)amount;
+- (void)importAmounts:(NSArray<NSString *> *)raw completion:(LBCompletion)completion;
+- (LBFormatter)formatterWithPrefix:(NSString *)prefix;
+@end
+
+@implementation LBLedger {
+    NSDecimalNumber *_total;
+}
+- (instancetype)init {
+    if (self = [super init]) { _total = [NSDecimalNumber zero]; }
+    return self;
+}
+- (void)addAmount:(NSDecimalNumber *)amount {
+    _total = [_total decimalNumberByAdding:amount];
+    if (self.onChange) self.onChange(_total);           // 屬性：先判 nil
+}
+- (void)importAmounts:(NSArray<NSString *> *)raw completion:(LBCompletion)completion {
+    for (NSString *s in raw) {
+        NSDecimalNumber *n = [NSDecimalNumber decimalNumberWithString:s];
+        if ([n isEqual:[NSDecimalNumber notANumber]]) {
+            NSError *e = [NSError errorWithDomain:@"com.littlebook.error"
+                                             code:1 userInfo:nil];
+            if (completion) completion(NO, e);          // 參數：先判 nil
+            return;
+        }
+        [self addAmount:n];
+    }
+    if (completion) completion(YES, nil);
+}
+- (LBFormatter)formatterWithPrefix:(NSString *)prefix {
+    return ^NSString *(NSDecimalNumber *amount) {       // 回傳一個 block
+        return [NSString stringWithFormat:@"%@%@", prefix, amount];
+    };
+}
+@end
+
+int main(void) {
+    @autoreleasepool {
+        LBLedger *ledger = [LBLedger new];
+        LBFormatter fmt = [ledger formatterWithPrefix:@"NT$"];
+        ledger.onChange = ^(NSDecimalNumber *total) {
+            NSLog(@"總額 %@", fmt(total));
+        };
+        [ledger importAmounts:@[@"120", @"80"] completion:^(BOOL ok, NSError *error) {
+            NSLog(@"匯入 %@", ok ? @"成功" : @"失敗");
+        }];
+        [ledger importAmounts:@[@"5", @"abc"] completion:^(BOOL ok, NSError *error) {
+            NSLog(@"匯入 %@，錯誤碼 %ld", ok ? @"成功" : @"失敗", (long)error.code);
+        }];
+        ledger.onChange = nil;
+        [ledger addAmount:[NSDecimalNumber one]];       // 沒有 onChange，不印
+        [ledger importAmounts:@[@"1"] completion:nil];  // nil completion 也安全
+        dispatch_block_t hello = ^{ NSLog(@"dispatch_block_t 就是 void (^)(void)"); };
+        hello();
+    }
+    return 0;
+}
+// 預期輸出：
+// 總額 NT$120
+// 總額 NT$200
+// 匯入 成功
+// 總額 NT$205
+// 匯入 失敗，錯誤碼 1
+// dispatch_block_t 就是 void (^)(void)
+```
+
+<Tip title="記不住就查這一行">
+`返回型別 (^名稱)(參數)`：變數時名稱在 `^` 後面；作為參數時名稱移到整個型別的括號後面 `(void (^)(BOOL))completion`；typedef 時名稱的位置變成型別名。三個位置都是同一個骨架在移動。業界有一個叫 goshdarnblocksyntax 的速查頁，每個 ObjC 工程師都收藏過，不丟臉。
+</Tip>
+
+<Pitfall title="block 屬性寫 strong 能編譯，但慣例是 copy">
+<Fragment slot="bad">
+```objc
+@property (nonatomic, strong) void (^onChange)(LBLedger *ledger);
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+@property (nonatomic, copy, nullable) void (^onChange)(LBLedger *ledger);
+```
+</Fragment>
+block 字面值一開始住在堆疊上，離開作用域就失效；存起來之前必須 `copy` 到堆積（5.5 細講）。ARC 下對 block 做 `retain` 等於 `copy`，所以 `strong` 實際上也會正確，但 Apple 文件、所有系統框架、每一本教材都寫 `copy`，MRC 專案（模組 11）裡 `strong`（`retain`）更是真的會 crash。寫 `copy` 讓讀者一眼知道「這是 block」，也讓程式碼在兩種記憶體模式下都對。
+</Pitfall>
+
+<Pitfall title="(void) 不是 ()">
+`void (^done)();` 跟 `typedef void (^LBHandler)();` 在 C 的語意是「參數清單不明」，不是「無參數」。clang 從 Xcode 14 起警告 `a block declaration without a prototype is deprecated`，Swift 匯入會失去型別資訊。無參數一律寫 `(void)`。字面值 `^{}` 可以省參數括號，但宣告型別不行。
+</Pitfall>
+
+<Pitfall title="block 裡的 return 回傳的是 block，不是外層方法">
+```objc
+- (LBTransaction *)firstExpense {
+    [self.items enumerateObjectsUsingBlock:^(LBTransaction *tx, NSUInteger i, BOOL *stop) {
+        if (tx.kind == LBTransactionKindExpense) {
+            return tx;        // 編譯錯誤：block 推斷為 void，而且這不會離開方法
+        }
+    }];
+    return nil;
+}
+```
+block 是獨立的函式本體，`return` 只結束 block 這一次呼叫。要從列舉中帶值出來得用 `__block` 變數（5.5）加 `*stop = YES`，或者乾脆用 `for-in` 迴圈。做搜尋這類「找到就離開」的事，`for-in` 幾乎永遠比 `enumerateObjectsUsingBlock:` 清楚。
+</Pitfall>
+
+<Crash message={`Thread 1: EXC_BAD_ACCESS (code=1, address=0x10)
+#0  0x0000000000000010 in 0x10 ()
+#1  -[LBLedger importAmounts:completion:] (LBLedger.m:31)`}>
+堆疊第 0 層是位址 `0x10`，沒有函式名，這是「呼叫了 nil block」的招牌長相。block 在記憶體裡是一個 struct，呼叫 block 等於讀 struct 偏移 16 位元組（`0x10`）處的函式指標再跳過去；block 是 `nil`，`nil + 0x10 = 0x10`，跳到位址 16 就是這個 crash。第 1 層告訴你是 `importAmounts:completion:` 第 31 行，呼叫端傳了 `nil` 當 completion（或者這個方法把 completion 存在屬性，屬性還沒設）。修法：`if (completion) completion(YES, nil);`。看到 `address=0x10`（32 位元時代是 `0xc`）先想 nil block。
+</Crash>
+
+## 小結
+
+- 骨架：`返回型別 (^名稱)(參數)`；作參數時名稱移到括號外，typedef 時名稱變型別名。
+- 無參數寫 `(void)` 不寫 `()`；字面值 `^{}` / `^(型別 參數){}`，回傳型別多半可省。
+- 屬性用 `copy`；`_Nullable` 寫在 `^` 後面。
+- 呼叫前一定 `if (block)`；`address=0x10` 的 `EXC_BAD_ACCESS` 就是呼叫了 nil block。
+- block 裡的 `return` 只離開 block；要提早停用 `*stop = YES`。

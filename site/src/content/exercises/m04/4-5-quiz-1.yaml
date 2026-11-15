@@ -1,0 +1,20 @@
+id: m04-4-5-quiz-1
+chapter: "4.5"
+section: quiz
+type: quiz
+title: 看函式名判斷要不要 CFRelease
+minutes: 1
+prompt: 下列哪些 CF 函式的回傳值是「你擁有、要自己 CFRelease（或交給 ARC）」的？（可複選）
+multi: true
+options:
+  - "`CFUUIDCreate(NULL)`"
+  - "`CFLocaleGetIdentifier(locale)`"
+  - "`CFLocaleCopyCurrent()`"
+  - "`CFDictionaryGetValue(dict, key)`"
+  - "`CFStringCreateWithFormat(NULL, NULL, CFSTR(\"%d\"), 3)`"
+answer: [0, 2, 4]
+explain: Create / Copy 規則：名字含 Create 或 Copy 回傳 +1，你負責放手；含 Get 回傳 +0，只是借用，想留住要 CFRetain。對應 4.1 的 alloc / new / copy 開頭 = +1。
+hints: ["找名字裡的 Create、Copy、Get。", "Get 開頭的借用，碰都不能碰它的計數。"]
+feedback:
+  "1": "Get 規則：借用，不是你的。release 它會讓擁有者之後多 release 一次。"
+  "3": "CFDictionaryGetValue 回傳的值由字典持有，你只是借來看。"

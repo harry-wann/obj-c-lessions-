@@ -1,0 +1,40 @@
+id: m04-4-2-code-1
+chapter: "4.2"
+type: code
+title: 幫 LBLedger 的 completion 加上 weakSelf / strongSelf
+mobile: false
+minutes: 6
+prompt: 補完 `-startAutosave` 方法：用 weakSelf / strongSelf 樣板把 `self.autosaveHandler` 這個 block 寫好。block 內要呼叫 `[strongSelf save]`，並在 self 已釋放時直接 return。
+starter: |
+  - (void)startAutosave {
+      // 1. 在這裡宣告 weakSelf
+
+      self.autosaveHandler = ^{
+          // 2. 轉回 strong、判 nil、呼叫 save
+      };
+  }
+checks:
+  - must_match: '__weak\s+(typeof|__typeof__|__typeof)\s*\(\s*self\s*\)\s*weakSelf\s*=\s*self\s*;'
+    message: 要在 block 外宣告 `__weak typeof(self) weakSelf = self;`
+  - must_match: '__strong\s+(typeof|__typeof__|__typeof)\s*\(\s*weakSelf\s*\)\s*strongSelf\s*=\s*weakSelf\s*;'
+    message: block 內第一行要 `__strong typeof(weakSelf) strongSelf = weakSelf;`
+  - must_match: 'if\s*\(\s*!\s*strongSelf\s*\)\s*\{?\s*return\s*;'
+    message: 要判 `if (!strongSelf) return;`
+  - must_match: '\[\s*strongSelf\s+save\s*\]'
+    message: 要透過 strongSelf 呼叫 save
+  - must_not_match: '\[\s*self\s+save\s*\]'
+    message: block 內不能直接用 self，會形成循環參考
+  - must_not_match: '\[\s*weakSelf\s+save\s*\]'
+    message: 不要直接對 weakSelf 送訊息；先轉 strong
+  - brackets_balanced: true
+solution: |
+  - (void)startAutosave {
+      __weak typeof(self) weakSelf = self;
+      self.autosaveHandler = ^{
+          __strong typeof(weakSelf) strongSelf = weakSelf;
+          if (!strongSelf) { return; }
+          [strongSelf save];
+      };
+  }
+solution_note: self 持有 autosaveHandler，block 若捕獲 self 就循環。外 weak 斷開循環；內 strong 讓 save 執行期間 self 不會中途消失；判 nil 處理「self 已經走了」的情況。
+hints: ["樣板第一行寫在 block 外面。", "typeof(self) 讓你不用寫出類別名。", "判 nil 判的是 strongSelf。"]

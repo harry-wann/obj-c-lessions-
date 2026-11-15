@@ -1,0 +1,25 @@
+id: m04-4-4-xcode-1
+chapter: "4.4"
+type: xcode
+title: 實作雙向鏈結串列 LBLinkedList（prev weak）
+mobile: false
+minutes: 40
+prompt: 在 M04 起始專案實作 `LBLinkedListNode` 與 `LBLinkedList`：`next` strong、`prev` weak、O(1) 的尾端加入與任意節點移除、block 走訪。通過 LBLinkedListTests。
+starter: xcode/M04-starter
+steps:
+  - "LBLinkedListNode：`@property (nonatomic, strong) id object;`、`@property (nonatomic, strong, nullable) LBLinkedListNode *next;`、`@property (nonatomic, weak, nullable) LBLinkedListNode *prev;`。"
+  - "LBLinkedList：`head` / `tail`（readonly、nullable）、`count`（readonly）；`- (LBLinkedListNode *)appendObject:(id)object` 回傳新節點；`- (void)removeNode:(LBLinkedListNode *)node`；`- (void)enumerateObjectsUsingBlock:(void (^)(id obj, NSUInteger idx, BOOL *stop))block`。"
+  - "appendObject：建節點；串列為空時 head = tail = node；否則 tail.next = node、node.prev = tail、tail = node。count +1。"
+  - "removeNode：把 node.prev.next 接到 node.next、node.next.prev 接回 node.prev；node 是 head 或 tail 時更新端點；最後清掉 node 的 next / prev。count −1。注意 nil 的情況（對 nil 送訊息安全，但賦值要想清楚）。"
+  - "enumerate：從 head 沿 next 走到 nil，index 遞增，stop 為 YES 就 break。"
+  - 在 LBLinkedListNode 的 dealloc 暫時加 NSLog，建一條 3 節點的串列再把 list 設 nil，確認三個 dealloc 都印出來；印完就刪掉 NSLog。
+tests:
+  - LBLinkedListTests/testAppendAndCount
+  - LBLinkedListTests/testRemoveNode
+  - LBLinkedListTests/testPrevIsWeak
+  - LBLinkedListTests/testIteration
+acceptance:
+  - 把 prev 暫時改成 strong 再跑 testPrevIsWeak，確認它會紅；改回 weak
+  - 移除中間節點後，剩下節點的 prev / next 仍然正確（走訪順序與 count 一致）
+solution_note: |
+  時間複雜度：append O(1)、removeNode O(1)（已經有節點），依索引查找 O(n)。對照 NSMutableArray：中間插刪 O(n) 但隨機存取 O(1)、記憶體連續、快取友善。什麼時候真的該自己寫：需要「拿著節點 O(1) 移除 / 搬動」的場景——下一章的 LRU 快取就是。單純列表請用 NSMutableArray。

@@ -1,0 +1,19 @@
+id: m04-4-3-quiz-2
+chapter: "4.3"
+section: quiz
+type: quiz
+title: 哪一條線應該是 weak？
+minutes: 1
+prompt: "`LBMonthSection` 持有一個 `NSArray<LBTransaction *> *transactions`；為了方便，每個 `LBTransaction` 想加一個指回所屬 section 的屬性。哪一邊該 weak？"
+options:
+  - "section 的 transactions 改成 weak"
+  - "transaction 的 section 屬性用 weak"
+  - 兩邊都 weak，最安全
+  - 兩邊都 strong，ARC 會處理
+answer: 1
+explain: 斷環的原則：往「擁有者」方向指回去的那條線用 weak。section 擁有 transactions（生命週期較長、概念上是容器），transaction 指回 section 是「往回看」，用 weak。
+hints: ["誰是容器、誰是內容？", "如果 transactions 是 weak，陣列裡的交易誰持有？"]
+feedback:
+  "0": "transactions 若是 weak，沒人持有那些交易，建完就釋放了。"
+  "2": "兩邊都 weak 等於沒人持有任何東西。"
+  "3": "ARC 不處理循環參考，這正是本章的主題。"

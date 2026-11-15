@@ -1,0 +1,17 @@
+id: m04-4-1-quiz-2
+chapter: "4.1"
+section: quiz
+type: quiz
+title: autorelease 在做什麼？
+minutes: 1
+prompt: MRC 時代的 `return [tx autorelease];` 相比 `return tx;` 多做了什麼？
+options:
+  - 立刻把計數減 1，若歸零就釋放
+  - 把「減 1」登記到目前的自動釋放池，等池子排空時才執行
+  - 把物件標成不可變，避免呼叫端修改
+  - 什麼都不做，只是讓編譯器不要警告
+answer: 1
+explain: autorelease 是「延後放手」。直接 release 會在回傳前殺掉物件；不 release 則呼叫端拿到 +1 卻不知道該放。延後到池子排空，呼叫端有機會先 retain。
+hints: ["想想為什麼工廠方法不能直接 release。", "「池子排空」是什麼時候？主執行緒 run loop 一圈結束。"]
+feedback:
+  "0": "那是 release 做的事；autorelease 的重點就在「不是立刻」。"

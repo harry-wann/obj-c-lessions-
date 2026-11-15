@@ -1,0 +1,201 @@
+---
+title: 輕量泛型與 nullability
+module: 3
+chapter: "3.6"
+order: 6
+minutes: 25
+prereq: ["3.5"]
+objectives:
+  - 用 NSArray<LBTransaction *> * 這種寫法讓編譯器幫你抓型別錯誤，並知道執行期它全部消失
+  - 用 NS_ASSUME_NONNULL_BEGIN / END 與 nullable 標注標頭檔，知道每個標注在 Swift 端變成什麼
+  - 分清楚 nullable / nonnull / null_resettable / null_unspecified
+summary: 輕量泛型 NSArray<T *>、__kindof、泛型只在編譯期；NS_ASSUME_NONNULL_BEGIN / END、nullable / nonnull / null_resettable、對 Swift 匯入的影響。
+terms:
+  - { en: lightweight generics, tw: 輕量泛型, cn: 轻量泛型, jp: 軽量ジェネリクス }
+  - { en: type erasure, tw: 型別抹除, cn: 类型擦除, jp: 型消去 }
+  - { en: nullability, tw: 可為空性, cn: 可空性, jp: Null 許容性 }
+  - { en: audited region, tw: 稽核區段, cn: 审计区域, jp: 監査領域 }
+  - { en: implicitly unwrapped optional, tw: 隱式解包 Optional, cn: 隐式解包可选值, jp: 暗黙的アンラップ Optional }
+appProgress: LBLedger 的 transactionsGroupedByMonth 與 totalForKind: 完成，標頭檔有完整的泛型與 nullability 標注；LBLedgerTests 全綠。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+var txs: [Transaction] = []            // 真泛型：放錯型別是編譯錯誤
+var byMonth: [String: [Transaction]] = [:]
+var category: Category?                // Optional：型別系統強制你處理 nil
+let note: String = tx.note             // 非 Optional 就一定有值
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+val txs: MutableList<Transaction> = mutableListOf()   // 泛型，JVM 上執行期抹除
+val byMonth: Map<String, List<Transaction>>
+var category: Category? = null         // 可空型別，? 是語言的一部分
+val note: String = tx.note             // 非空保證
+```
+</Fragment>
+<Fragment slot="java">
+```java
+List<Transaction> txs = new ArrayList<>();   // 泛型，執行期抹除（和 ObjC 一樣）
+Map<String, List<Transaction>> byMonth;
+@Nullable Category category;           // 註解，靠工具檢查，不是語言保證
+@NonNull String note;
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+const txs: Transaction[] = [];         // 型別只在編譯期，執行期是普通陣列
+const byMonth: Record<string, Transaction[]> = {};
+let category: Category | null = null;  // strictNullChecks 下必須處理
+const note: string = tx.note;
+```
+</Fragment>
+Objective-C 的輕量泛型最像 **Java**：寫起來一樣、編譯器會警告、執行期全部抹除。nullability 最像 **Java 的 `@Nullable` 註解**：是提示不是保證，但 Xcode 會警告，而且決定 Swift 端看到的是 `?` 還是 `!`。Swift 和 Kotlin 把這兩件事都做進型別系統，所以從它們來的人要調整預期：ObjC 的標注是給編譯器和 Swift 看的文件，不是執行期的防線。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 輕量泛型：角括號裡寫元素型別
+
+```objc
+NSArray<LBTransaction *> *txs = ledger.transactions;
+NSDictionary<NSString *, NSArray<LBTransaction *> *> *byMonth = @{};
+NSMutableSet<NSUUID *> *selected = [NSMutableSet set];
+
+for (LBTransaction *tx in txs) { }          // 不用 cast，編譯器知道元素型別
+NSString *note = txs.firstObject.note;       // 點語法直接接，不會警告 id 沒有 note
+[selected addObject:@"not a uuid"];
+// ⚠️ Incompatible pointer types sending 'NSString *' to parameter of type 'NSUUID *'
+```
+
+Xcode 7 之後，Foundation 的容器都接受<Term en="lightweight generics" tw="輕量泛型" cn="轻量泛型" jp="軽量ジェネリクス" />：`NSArray<元素型別 *> *`、`NSDictionary<鍵型別 *, 值型別 *> *`。它帶來三個好處：取出的元素有具體型別、放錯型別會警告、Swift 匯入時變成 `[LBTransaction]` 而不是 `[Any]`。沒有泛型的 `NSArray *` 等於 `NSArray<id> *`，什麼都能放，取出來全是 `id`。
+
+但它叫「輕量」是有原因的：**只存在於編譯期**。執行期的 `NSArray` 根本不知道自己該裝什麼，這叫<Term en="type erasure" tw="型別抹除" cn="类型擦除" jp="型消去" />。
+
+```objc
+NSMutableArray<NSNumber *> *amounts = [NSMutableArray array];
+[amounts addObject:(id)@"一百"];             // cast 成 id 就沒警告了
+NSLog(@"%@", [amounts.firstObject class]);   // __NSCFConstantString —— 執行期沒人攔
+NSLog(@"%ld", (long)amounts.firstObject.integerValue);   // 0 —— 送給字串，剛好有這個方法
+```
+
+所以從 JSON、`NSUserDefaults`、Core Data 這些邊界進來的集合，型別宣告再漂亮也不能信，要用 `isKindOfClass:` 檢查；只有自己程式內部建立的集合才能把泛型當保證。
+
+### `__kindof`：允許子類別
+
+```objc
+@property (nonatomic, copy, readonly) NSArray<__kindof UIView *> *subviews;   // UIKit 的宣告
+
+UILabel *label = view.subviews.firstObject;     // __kindof：隱式往下轉型不警告
+```
+
+`NSArray<UIView *>` 取出的元素是 `UIView *`，直接賦給 `UILabel *` 會警告；加上 `__kindof` 表示「`UIView` 或它的任何子類別」，編譯器就允許隱式向下轉型。自己的 API 裡，元素確實可能是多種子類別時用它（例如 `NSArray<__kindof LBTransaction *> *`），否則別加，少一層防線。
+
+### nullability：先畫一個「全部非空」的區域
+
+```objc
+// LBLedger.h
+NS_ASSUME_NONNULL_BEGIN
+
+@interface LBLedger : NSObject
+@property (nonatomic, copy, readonly) NSArray<LBTransaction *> *transactions;   // 預設 nonnull
+@property (nonatomic, weak, nullable) id<LBLedgerObserver> delegate;           // 可能沒有
+- (void)addTransaction:(LBTransaction *)tx;                                     // 參數不接受 nil
+- (nullable LBTransaction *)transactionWithIdentifier:(NSUUID *)identifier;     // 找不到回 nil
+- (NSArray<LBMonthSection *> *)transactionsGroupedByMonth;
+- (NSDecimalNumber *)totalForKind:(LBTransactionKind)kind;
+@end
+
+NS_ASSUME_NONNULL_END
+```
+
+<Term en="nullability" tw="可為空性" cn="可空性" jp="Null 許容性" />標注有四種：
+
+| 標注 | 意思 | Swift 端 |
+|---|---|---|
+| `nonnull` | 絕對不會是 nil | `LBTransaction` |
+| `nullable` | 可能是 nil，呼叫端要判斷 | `LBTransaction?` |
+| `null_resettable` | getter 永遠有值，setter 接受 nil 表示「重設為預設」（`UIView.tintColor`） | getter 非 Optional、setter Optional |
+| `null_unspecified` | 沒說（等於沒標） | `LBTransaction!` |
+
+正確用法不是每個指標都寫一次，而是把整個標頭檔包在 `NS_ASSUME_NONNULL_BEGIN` / `END` 之間——這叫<Term en="audited region" tw="稽核區段" cn="审计区域" jp="監査領域" />，裡面的指標預設全部 `nonnull`，你只需要標出**例外**的 `nullable`。這樣讀標頭檔時，每個 `nullable` 都是一個訊號：這裡要判斷。
+
+標注位置有兩套寫法：屬性與方法回傳值、參數用不帶底線的 `nullable` / `nonnull`；C 指標、block 參數、`NSError **` 這種地方用帶底線的 `_Nullable` / `_Nonnull` 放在星號後面：
+
+```objc
+- (BOOL)saveWithError:(NSError * _Nullable * _Nullable)error;
+typedef void (^LBCompletion)(NSArray<LBTransaction *> * _Nullable result,
+                             NSError * _Nullable error);
+```
+
+### 它對 Swift 的意義
+
+小帳本的 Swift 擴充（模組 12）會這樣看到 `LBLedger`：
+
+```swift
+let txs: [LBTransaction] = ledger.transactions          // 泛型 + nonnull
+if let tx = ledger.transaction(withIdentifier: id) { }   // nullable → Optional
+ledger.delegate = nil                                    // nullable 屬性
+```
+
+沒有標注的標頭檔，所有物件指標匯入成<Term en="implicitly unwrapped optional" tw="隱式解包 Optional" cn="隐式解包可选值" jp="暗黙的アンラップ Optional" />（`LBTransaction!`），Swift 端一存取就可能 crash，等於把 ObjC 的 nil 安全全部丟掉。這就是 2026 年還要學這一章的實際理由：舊的 ObjC 標頭檔加上泛型與 nullability，是讓 Swift 同事能安全使用它的最低門檻。
+
+### 編譯期提示，不是執行期防線
+
+```objc
+- (void)addTransaction:(LBTransaction *)tx {          // nonnull
+    [self.storage addObject:tx];                       // tx 真的是 nil 就會在這裡 crash
+}
+[ledger addTransaction:nil];     // ⚠️ Null passed to a callee that requires a non-null argument
+LBTransaction *maybe = [self findSomething];           // 回傳 nullable 的方法
+[ledger addTransaction:maybe];   // 沒有警告！編譯器不追蹤變數的流向
+```
+
+標 `nonnull` 之後，直接傳 `nil` 字面值會警告，但透過變數傳進來的 nil 編譯器看不到，執行期也不會替你擋。所以公開 API 的入口還是要自己防：`NSParameterAssert(tx)`（Debug 時斷言）或 `if (!tx) return;`。nullability 的價值在文件化與 Swift 互通，不在攔截。
+
+<Pitfall title="nullable 的回傳值直接放進集合">
+<Fragment slot="bad">
+```objc
+LBCategory *cat = [ledger categoryNamed:name];        // nullable
+NSArray *row = @[tx.note, cat, tx.amount];            // 💥 cat 是 nil 時字面值建構炸掉
+summary[@"category"] = cat;                           // 可變字典：nil 等於刪除鍵，安靜地少一筆
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+NSArray *row = @[tx.note, cat ?: [NSNull null], tx.amount];   // 用 NSNull 佔位
+// 取出時：
+id value = row[1];
+LBCategory *back = (value == [NSNull null]) ? nil : value;
+```
+</Fragment>
+看到 `nullable` 就想到三件事：要不要判斷、放進集合前要不要換成 `NSNull`、傳給 `nonnull` 參數前要不要擋。`?:` 是 GNU 擴充的「nil 就用右邊」，Xcode 預設支援。
+</Pitfall>
+
+<Pitfall title="只標 nullable 不開稽核區段">
+一個標頭檔裡只要出現任何一個 nullability 標注，編譯器就會對**其他沒標的指標**發警告：`Pointer is missing a nullability type specifier`。新人常見的反應是把警告關掉，結果 Swift 端拿到一堆 `!`。正解永遠是先包 `NS_ASSUME_NONNULL_BEGIN` / `END`，再挑例外標 `nullable`。
+</Pitfall>
+
+<Pitfall title="泛型只能寫在 Foundation 容器與自己宣告的類別上">
+`NSArray<LBTransaction *> *` 可以，但 `LBTransaction<Something *> *` 不行，除非 `LBTransaction` 的 `@interface` 自己宣告型別參數：`@interface LBStack<ObjectType> : NSObject`。這在 M5 寫 `LBUndoStack` 時會用到一次。也沒有泛型方法：`- (T)first` 這種寫不出來，回傳型別就寫 `ObjectType` 或 `id`。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: '*** -[__NSPlaceholderArray initWithObjects:count:]: attempt to insert nil object from objects[1]'`}>
+讀法：接收者 `__NSPlaceholderArray` 是陣列字面值 `@[ ]` 或 `arrayWithObjects:` 建構過程中的暫時物件，所以事發點是**某一行 `@[ … ]`**，不是後來的 `addObject:`（那會顯示 `__NSArrayM insertObject:atIndex:` 與 `object cannot be nil`）；`objects[1]` 說第二個元素（從 0 數）是 nil。對照原始碼找那一行字面值的第二個元素，它幾乎一定來自某個回傳 `nullable` 的方法、一個字典的 `objectForKey:`，或者還沒賦值的屬性。字典版本的訊息是 `-[__NSPlaceholderDictionary initWithObjects:forKeys:count:]: attempt to insert nil object from objects[0]`，`objects[N]` 一樣指的是第 N 對鍵值的**值**。修法：在建構字面值之前判斷，用 `NSNull` 佔位，或乾脆不要把可能為 nil 的東西放進集合，改成有就 `addObject:`。
+</Crash>
+
+## 小結
+
+- `NSArray<T *> *`、`NSDictionary<K *, V *> *` 讓取值不用 cast、放錯會警告、Swift 看到真型別；執行期全部抹除，邊界資料仍要 `isKindOfClass:`。
+- `__kindof` 表示「這個類別或其子類別」，允許隱式向下轉型。
+- 標頭檔先包 `NS_ASSUME_NONNULL_BEGIN` / `END`，再標例外的 `nullable`；C 指標與 block 參數用 `_Nullable`。
+- `nullable` → Swift `?`，沒標 → `!`；`null_resettable` 是 setter 接受 nil 重設。
+- 標注是編譯期提示，公開 API 入口還是要 `NSParameterAssert` 或自己判斷；nil 進集合用 `NSNull`。

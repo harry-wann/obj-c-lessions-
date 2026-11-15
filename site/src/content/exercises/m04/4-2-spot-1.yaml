@@ -1,0 +1,40 @@
+id: m04-4-2-spot-1
+chapter: "4.2"
+type: spot
+title: 這段 ARC 程式碼哪幾行會被編譯器擋下？
+minutes: 3
+prompt: 這是一個 ARC 檔案。點出會造成編譯錯誤或嚴重警告的行，並選出原因。
+code: |
+  typedef struct {
+      LBTransaction *latest;
+      NSInteger count;
+  } LBSummary;
+
+  - (void)refresh {
+      __weak LBLedger *ledger = [[LBLedger alloc] init];
+      [ledger retain];
+      NSLog(@"%@", ledger);
+  }
+bug_lines: [2, 7, 8]
+reasons:
+  - "struct 內放物件指標（舊 Clang 直接拒絕、新版也不建議）；剛 alloc 的物件直接賦給 weak 會立刻釋放（警告）；ARC 禁止手動 retain（錯誤）"
+  - "NSInteger 不能放在 struct 裡"
+  - "__weak 不能用在區域變數，只能用在屬性"
+  - "NSLog 不能印 weak 變數"
+answer_reason: 0
+fix: |
+  @interface LBSummary : NSObject          // struct 改成類別
+  @property (nonatomic, strong) LBTransaction *latest;
+  @property (nonatomic, assign) NSInteger count;
+  @end
+
+  - (void)refresh {
+      LBLedger *ledger = [[LBLedger alloc] init];   // strong 撐著
+      __weak LBLedger *weakLedger = ledger;         // 需要時再取 weak
+      NSLog(@"%@", weakLedger);
+  }
+solution_note: 三件 ARC 不讓你做的事湊在一起：struct 裡的物件指標 ARC 無法插 retain / release（Xcode 10 之後勉強允許，但該 struct 不能 memcpy）；沒有 strong 持有者的物件賦給 weak 等於立刻釋放；retain 是 ARC 的工作，手寫就是錯誤。
+hints: ["ARC 怎麼知道 struct 裡的指標該何時 release？", "一個剛 alloc 的物件，除了 weak 變數還有誰持有它？"]
+feedback:
+  "2": "__weak 可以修飾區域變數，weakSelf 樣板就是這樣用的。"
+  "3": "NSLog 印 weak 變數沒問題，印出來會是 (null) 而已。"

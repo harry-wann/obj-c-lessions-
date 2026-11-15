@@ -1,0 +1,40 @@
+id: m04-4-4-spot-1
+chapter: "4.4"
+type: spot
+title: 匯入 20 萬筆交易時記憶體爆掉
+minutes: 3
+prompt: 這段匯入程式在模擬器正常、在舊 iPhone 上跑到一半被系統殺掉（Terminated due to memory issue）。點出該改的行並選原因。
+code: |
+  - (void)importRows:(NSArray<NSDictionary *> *)rows {
+      NSNumberFormatter *f = [[NSNumberFormatter alloc] init];
+      for (NSDictionary *row in rows) {
+          NSString *note = [NSString stringWithFormat:@"%@ %@",
+                            row[@"shop"], row[@"item"]];
+          NSNumber *amount = [f numberFromString:row[@"amount"]];
+          [self.ledger addTransaction:
+              [LBTransaction transactionWithNote:note amount:amount]];
+      }
+  }
+bug_lines: [3]
+reasons:
+  - "每圈產生的 autoreleased 暫存物件要等整個方法結束、run loop 一圈才釋放；20 萬圈堆到峰值爆掉。迴圈體要包 @autoreleasepool"
+  - "NSNumberFormatter 應該在迴圈內每次重新建立"
+  - "stringWithFormat: 應該換成 alloc init 版本就不會洩漏"
+  - "addTransaction: 持有了太多交易，應該用 weak"
+answer_reason: 0
+fix: |
+  for (NSDictionary *row in rows) {
+      @autoreleasepool {
+          NSString *note = [NSString stringWithFormat:@"%@ %@",
+                            row[@"shop"], row[@"item"]];
+          NSNumber *amount = [f numberFromString:row[@"amount"]];
+          [self.ledger addTransaction:
+              [LBTransaction transactionWithNote:note amount:amount]];
+      }
+  }
+solution_note: 這不是洩漏——方法結束後記憶體會掉回來——而是峰值。ARC 省不掉 Foundation 內部的 autorelease，每圈的暫存物件都掛在最外層的池裡。每圈開一個池，這一圈的垃圾這一圈就走。ledger 持有的 20 萬筆交易是真正需要的資料，不受影響。
+hints: ["autoreleased 物件什麼時候釋放？這個方法跑完之前有機會嗎？", "問題不是「漏」而是「堆」。"]
+feedback:
+  "1": "formatter 很貴，放在迴圈外重用是對的。"
+  "2": "問題不在 stringWithFormat: 本身，而是 formatter / Foundation 內部產生的暫存物件。"
+  "3": "交易是要留下來的資料，用 weak 等於全部丟掉。"

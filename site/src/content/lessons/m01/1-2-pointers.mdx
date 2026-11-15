@@ -1,0 +1,229 @@
+---
+title: 指標
+module: 1
+chapter: "1.2"
+order: 2
+minutes: 30
+prereq: ["1.1"]
+objectives:
+  - 看懂 * 與 &，說得出「每個物件變數都是指標」是什麼意思
+  - 分清 nil、NULL、Nil、NSNull、NSNotFound
+  - 會用 NSError ** 這種傳址參數，並知道它為什麼長這樣
+summary: 指標的宣告與解參考、取址；物件變數為什麼都帶星號；對 nil 送訊息不會 crash；nil / NULL / Nil / NSNull / NSNotFound；NSError ** 的由來。
+terms:
+  - { en: pointer, tw: 指標, cn: 指针, jp: ポインタ }
+  - { en: address, tw: 位址, cn: 地址, jp: アドレス }
+  - { en: dereference, tw: 解參考, cn: 解引用, jp: 参照外し }
+  - { en: heap, tw: 堆積, cn: 堆, jp: ヒープ }
+  - { en: dangling pointer, tw: 懸空指標, cn: 野指针, jp: ダングリングポインタ }
+appProgress: 沒有新檔案；但你現在知道 LBTransaction *tx 那顆星號是什麼了。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+var a = 1
+var b = a                    // 值型別：複製一份
+func bump(_ x: inout Int) { x += 1 }
+bump(&a)                     // & 只是 inout 的標記，不是真的位址
+let s: String? = nil         // 沒有指標；「可能沒有」靠 Optional
+s?.count                     // nil
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+val list = mutableListOf(1)
+val alias = list             // 物件變數是參考：兩個名字、同一個物件
+alias.add(2)                 // list 也變了
+val s: String? = null
+s?.length                    // 安全呼叫：null 就整個回 null
+```
+</Fragment>
+<Fragment slot="java">
+```java
+StringBuilder sb = new StringBuilder();
+StringBuilder alias = sb;    // 參考，不是複製
+alias.append("x");           // sb 也看得到
+String s = null;
+s.length();                  // NullPointerException
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+const list = [1];
+const alias = list;          // 參考
+alias.push(2);               // list 也變了
+let s: string | null = null;
+s?.length;                   // undefined，不會丟錯
+```
+</Fragment>
+Kotlin / Java / TypeScript 的「物件變數其實是參考」你早就習慣了。C 把這件事講白：參考就是**位址**，而且你可以親手拿到它、傳遞它、改它指到哪。Swift 的 `inout` 加 `&` 是最接近的東西。Kotlin 和 TS 的 `?.`，則幾乎就是 Objective-C「對 nil 送訊息」的翻版。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### `*` 與 `&`
+
+<Term en="pointer" tw="指標" cn="指针" jp="ポインタ" />是一個存著<Term en="address" tw="位址" cn="地址" jp="アドレス" />的變數。只有兩個運算子要學：`&x` 是「x 的位址」，`*p` 是「p 指到的那個東西」（<Term en="dereference" tw="解參考" cn="解引用" jp="参照外し" />）。
+
+```objc
+#import <Foundation/Foundation.h>
+
+void LBAddFee(long long *cents) {   // 參數是「指向 long long 的指標」
+    *cents += 1500;                 // 改的是呼叫端那個變數
+}
+
+int main(int argc, const char * argv[]) {
+    @autoreleasepool {
+        long long lunch = 128000;
+        long long *p = &lunch;              // p 存 lunch 的位址
+        NSLog(@"%lld", *p);                 // 128000：解參考拿值
+        *p = 130000;                        // 透過指標改 lunch
+        NSLog(@"%lld", lunch);              // 130000
+        NSLog(@"%p %p", p, &lunch);         // 0x16fdff2c8 0x16fdff2c8（每次不同）
+
+        LBAddFee(&lunch);                   // 傳位址進去
+        NSLog(@"%lld", lunch);              // 131500
+    }
+    return 0;
+}
+```
+
+宣告 `long long *p` 讀成「p 是一個指向 `long long` 的指標」；使用時 `*p` 就是那個 `long long`。`LBAddFee(&lunch)` 是 C 版的 Swift `inout`：函式拿到位址，改到的是呼叫端的變數。這就是「傳址」。
+
+### 每個物件變數都是指標
+
+```objc
+NSString *name = @"午餐";
+LBTransaction *tx = [[LBTransaction alloc] init];
+```
+
+`NSString *name` 讀作「name 是指向 `NSString` 的指標」。Objective-C 的物件永遠住在<Term en="heap" tw="堆積" cn="堆" jp="ヒープ" />裡，你手上拿到的永遠是位址，不會是物件本體；寫 `NSString name;` 會得到編譯錯誤 `Interface type cannot be statically allocated`。幾個直接推論：
+
+- 兩個變數指同一物件，改一個另一個會看到——跟 Kotlin 的參考一模一樣。
+- `id` 是「指向任何物件的指標」，已經含星號，所以寫 `id obj`，不寫 `id *obj`。
+- 方法回傳物件就是回傳位址：`- (NSString *)note`。
+- `==` 比的是位址，不是內容（陷阱一）。
+
+```objc
+NSMutableString *a = [NSMutableString stringWithString:@"午"];
+NSMutableString *b = a;              // 複製的是位址
+[b appendString:@"餐"];
+NSLog(@"%@ %@ %d", a, b, a == b);    // 午餐 午餐 1
+```
+
+### 對 nil 送訊息不會 crash
+
+```objc
+NSString *s = nil;
+NSLog(@"%lu", (unsigned long)[s length]);      // 0
+NSLog(@"%@", [s uppercaseString]);              // (null)
+NSLog(@"%d", [s isEqualToString:@"午餐"]);      // 0
+```
+
+Java 在這裡丟 `NullPointerException`，Swift 連編譯都不讓你過。Objective-C 的規則是：對 `nil` 送任何訊息，什麼都不做，回傳 0 / `nil` / `NO` / 0.0（struct 回全零）。這讓很多防禦性判斷可以省掉，也讓錯誤安靜地往下游流（模組 2 會再談取捨）。但注意：這是「送訊息」安全，不是「解參考」安全——拿一個空的 C 指標去 `*p`，立刻就是本章的崩潰現場。
+
+### nil、NULL、Nil、NSNull、NSNotFound
+
+| 名字 | 是什麼 | 用在 |
+|---|---|---|
+| `nil` | 物件指標的 0，`(id)0` | `NSString *s = nil;` |
+| `NULL` | C 指標的 0，`(void *)0` | `int *p = NULL;`、`char *`、Core Foundation、`NSError **` 不想接時 |
+| `Nil` | 類別指標的 0 | `Class c = Nil;`，幾乎碰不到 |
+| `NSNull` | 一個真正的物件、單例 `[NSNull null]` | 集合裡要放「空」：`NSArray` / `NSDictionary` 不能放 nil |
+| `NSNotFound` | 整數，等於 `NSIntegerMax` | `indexOfObject:`、`rangeOfString:` 找不到時的回傳值 |
+
+前三個數值都是 0，混用能編譯，但慣例要分清楚——讀的人一眼就知道這是物件指標還是 C 指標。`NSNull` 完全是另一回事：它**不是 0**，是個活生生的物件，拿它當 nil 判斷永遠不成立。JSON 裡的 `null` 經 `NSJSONSerialization` 解析後就是 `NSNull`，忘了處理會在送訊息時變成 `unrecognized selector`。
+
+```objc
+NSArray *items = @[@"早餐", [NSNull null], @"晚餐"];
+NSLog(@"%lu", (unsigned long)items.count);                  // 3
+NSLog(@"%d", items[1] == [NSNull null]);                    // 1：單例可直接比
+NSUInteger idx = [items indexOfObject:@"宵夜"];
+NSLog(@"%d", idx == NSNotFound);                            // 1
+NSRange r = [@"午餐 120 元" rangeOfString:@"晚餐"];
+NSLog(@"%d", r.location == NSNotFound);                     // 1
+```
+
+### `NSError **`：為什麼要兩顆星
+
+C 函式只能回傳一個值，而 Foundation 的慣例是把回傳值留給「結果」（`BOOL` 成功與否，或結果物件），錯誤資訊得走另一條路出來。做法是請你傳一個**指標變數的位址**進去：參數型別 `NSError **` 讀作「指向『指向 NSError 的指標』的指標」。方法內部寫 `*error = [NSError errorWithDomain:...]`，就能把錯誤物件塞進你那顆變數。
+
+```objc
+NSError *error = nil;                    // 準備一顆 nil 的指標變數
+NSString *path = @"/no/such/file";
+NSString *text = [NSString stringWithContentsOfFile:path
+                                           encoding:NSUTF8StringEncoding
+                                              error:&error];   // 傳它的位址
+if (text == nil) {
+    NSLog(@"失敗：%@", error.localizedDescription);
+}
+// 失敗：The file “file” couldn’t be opened because there is no such file.
+```
+
+兩條規矩：成敗看**回傳值**（`text == nil` 或 `ok == NO`），不看 `error` 有沒有值——Apple 不保證成功時不去碰它；不想接錯誤就傳 `NULL`（它是 C 指標，寫 `nil` 也能編譯，但慣例寫 `NULL`）。Swift 把這整套翻成 `throws`，所以 Swift 端看不到 `**`。
+
+<Pitfall title="== 比的是位址，不是字串內容">
+<Fragment slot="bad">
+```objc
+NSString *input = [textField.text stringByAppendingString:@""];
+if (input == @"午餐") { ... }        // 比位址：幾乎永遠不成立
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+if ([input isEqualToString:@"午餐"]) { ... }
+if ([a isEqual:b]) { ... }           // 任何物件的內容比較
+```
+</Fragment>
+最陰的地方：兩個字面值 `@"午餐" == @"午餐"` 會是真的，因為編譯器把相同字面值合併成同一個物件，所以單元測試裡用 `==` 常常過，上線後接到使用者輸入的字串就壞。字串用 `isEqualToString:`，其他物件用 `isEqual:`；`==` 只在你真的要問「是不是同一個物件」時用（例如 `NSNull` 單例、delegate 身分確認）。
+</Pitfall>
+
+<Pitfall title="星號屬於變數，不屬於型別">
+<Fragment slot="bad">
+```objc
+NSString *a, b;          // b 是 NSString（不是指標）→ 編譯錯誤
+int *p, q;               // q 是 int，不是 int *
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+NSString *a, *b;         // 每個變數自己帶星號
+NSString *a;             // 或乾脆一行一個
+NSString *b;
+```
+</Fragment>
+C 的語法把 `*` 掛在變數名上，`NSString *a, b;` 的第二個是純 `NSString`，報錯 `Interface type cannot be statically allocated`。這也是為什麼 Apple 風格寫 `NSString *name` 而不是 `NSString* name`：星號靠變數，提醒你它屬於誰。
+</Pitfall>
+
+<Pitfall title="把 nil 放進集合會當場 crash">
+```objc
+NSString *note = nil;
+NSArray *row = @[@"午餐", note];
+// *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+// reason: '*** -[__NSPlaceholderArray initWithObjects:count:]:
+// attempt to insert nil object from objects[1]'
+```
+`NSArray` / `NSDictionary` 不接受 nil，`@[]` 字面值和 `addObject:` 都會丟例外。來源通常是 JSON 少欄位、或某個方法在失敗時回 nil。真的需要「這格是空的」就放 `[NSNull null]`；否則用 `note ?: @""` 給預設值（`?:` 是 GNU 擴充的「空則用右邊」運算子，Objective-C 專案很常見）。
+</Pitfall>
+
+<Crash message={`Thread 1: EXC_BAD_ACCESS (code=1, address=0x0)`}>
+```objc
+long long *total = NULL;
+*total += 100;              // 💥 Xcode 停在這一行
+```
+`EXC_BAD_ACCESS` 是「碰了不該碰的記憶體」，`code=1` 是 `KERN_INVALID_ADDRESS`（這個位址不合法），`address=0x0` 說那個位址是 0——你解參考了一個空指標。位址很小但不是 0（像 `0x10`、`0x18`）通常是「對空的 struct 指標取欄位」，offset 就是欄位在 struct 裡的位置；位址是一長串看起來亂的數字，多半是<Term en="dangling pointer" tw="懸空指標" cn="野指针" jp="ダングリングポインタ" />（物件已經釋放了，模組 4）。怎麼讀堆疊：Xcode 會停在出錯的行，左側 Debug navigator 從上往下找第一個不是灰色（系統）的 frame，那就是你的程式碼出事的地方。修法很土：解參考前檢查 `if (total)`；更好的做法是在 Objective-C 裡盡量用物件，對 nil 送訊息是安全的，裸指標才會這樣死。
+</Crash>
+
+## 小結
+
+- `&x` 取位址、`*p` 解參考；函式參數收指標就是「傳址」，相當於 Swift 的 `inout`。
+- 每個物件變數都是指標，`NSString *s` 的星號不是裝飾；`==` 比位址，內容比較用 `isEqualToString:` / `isEqual:`。
+- 對 `nil` 送訊息回 0 / nil / NO，不會 crash；解參考 `NULL` 會。
+- `nil` 給物件、`NULL` 給 C 指標、`Nil` 給類別、`NSNull` 是放進集合的占位物件、`NSNotFound` 是找不到時的整數。
+- `NSError **` 是為了讓錯誤從第二條路出來；成敗看回傳值。

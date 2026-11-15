@@ -1,0 +1,17 @@
+id: m04-4-4-quiz-4
+chapter: "4.4"
+section: quiz
+type: quiz
+title: 雙向鏈結串列為什麼 prev 要 weak？
+minutes: 1
+prompt: "`LBLinkedListNode` 有 `next` 與 `prev` 兩個屬性。如果兩個都宣告成 strong，會發生什麼？"
+options:
+  - 沒事，ARC 會處理
+  - 相鄰兩個節點互相 strong 持有，list 釋放後整條串列全部洩漏
+  - 只有 head 會洩漏
+  - 編譯錯誤
+answer: 1
+explain: A.next → B、B.prev → A，就是 4.3 的循環參考，每一對相鄰節點都是一圈。prev 改 weak 後，每個節點只被前一個節點（或 head）持有一份，list 放手就從頭連鎖釋放到尾。往「擁有者」方向的那條線用 weak。
+hints: ["畫三個節點、畫出 next 與 prev 的箭頭。", "哪一個方向是「擁有」、哪一個是「往回看」？"]
+feedback:
+  "0": "ARC 不處理循環參考。"

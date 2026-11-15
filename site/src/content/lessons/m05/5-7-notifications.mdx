@@ -1,0 +1,280 @@
+---
+title: NSNotificationCenter
+module: 5
+chapter: "5.7"
+order: 7
+minutes: 25
+prereq: ["5.2", "5.6"]
+objectives:
+  - 用 NSNotificationCenter 發送與接收通知，常數命名符合 LBLedgerDidChangeNotification 慣例
+  - 分清楚 object 與 userInfo 的角色，知道通知在哪條執行緒送達
+  - 判斷哪些情境不該用通知
+summary: "一對多的 NSNotificationCenter：postNotificationName:object:userInfo:、常數命名、selector 與 block 兩種註冊、移除時機、同步送達、濫用的代價。"
+terms:
+  - { en: notification, tw: 通知, cn: 通知, jp: 通知 }
+  - { en: observer, tw: 觀察者, cn: 观察者, jp: オブザーバ }
+  - { en: post, tw: 發送, cn: 发送, jp: ポスト（送信） }
+  - { en: broadcast, tw: 廣播, cn: 广播, jp: ブロードキャスト }
+  - { en: user info, tw: 附帶資料（userInfo）, cn: 附加信息, jp: ユーザー情報 }
+appProgress: LBLedger 每次變動發送 LBLedgerDidChangeNotification，報表分頁與小工具同步刷新。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+extension Notification.Name {
+    static let ledgerDidChange = Notification.Name("LBLedgerDidChangeNotification")
+}
+NotificationCenter.default.post(name: .ledgerDidChange, object: ledger,
+                                userInfo: ["transaction": tx])
+let token = NotificationCenter.default.addObserver(forName: .ledgerDidChange,
+                                                   object: nil, queue: .main) { note in
+    print(note.userInfo?["transaction"] as Any)
+}
+// 或 Combine：NotificationCenter.default.publisher(for: .ledgerDidChange)
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// Android 沒有統一的通知中心；常見替代：
+val events = MutableSharedFlow<LedgerEvent>()          // 一對多
+scope.launch { events.collect { render(it) } }
+events.emit(LedgerEvent.Changed(tx))
+// 舊專案：LocalBroadcastManager / EventBus
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// 自己寫觀察者列表，或用 EventBus / PropertyChangeSupport
+PropertyChangeSupport pcs = new PropertyChangeSupport(this);
+pcs.addPropertyChangeListener(evt -> render(evt));
+pcs.firePropertyChange("transactions", null, tx);
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+const bus = new EventTarget();                          // 或 Node 的 EventEmitter
+bus.addEventListener("ledgerDidChange", (e) => render((e as CustomEvent).detail));
+bus.dispatchEvent(new CustomEvent("ledgerDidChange", { detail: { tx } }));
+```
+</Fragment>
+每個平台都有「發送者不認識接收者」的廣播機制：EventEmitter、SharedFlow、EventBus。`NSNotificationCenter` 是 Cocoa 內建的那一個，整個系統都在用它（鍵盤出現、App 進背景、時區改變都是通知）。差別是它**全域、同步、用字串當名字**，三個特性各有一條對應的陷阱。
+</Compare>
+
+## Objective-C 怎麼寫
+
+<Term en="notification" tw="通知" cn="通知" jp="通知" />解決 5.2 表格裡的最後一格：**一對多**，而且發送者不想知道、也不該知道誰在聽。帳本變了，首頁、報表、桌面小工具都要刷新；讓 `LBLedger` 認識這三個畫面是錯的，讓它喊一聲「我變了」才對。
+
+### 三個動作：定名、發送、接收
+
+```objc
+// LBLedger.h
+extern NSNotificationName const LBLedgerDidChangeNotification;
+extern NSString * const LBLedgerTransactionUserInfoKey;
+
+// LBLedger.m
+NSNotificationName const LBLedgerDidChangeNotification = @"LBLedgerDidChangeNotification";
+NSString * const LBLedgerTransactionUserInfoKey = @"transaction";
+
+- (void)addTransaction:(LBTransaction *)tx {
+    [_items addObject:tx];
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:LBLedgerDidChangeNotification
+                      object:self
+                    userInfo:@{ LBLedgerTransactionUserInfoKey: tx }];
+}
+```
+
+命名慣例跟 delegate 方法一樣：來源 + 時態 + `Notification`。`LBLedgerDidChangeNotification`、`UIKeyboardWillShowNotification`、`NSManagedObjectContextDidSaveNotification`。一定做成 `extern` 常數，不要在發送處與接收處各寫一次字串字面值：打錯一個字母，通知就是永遠收不到，沒有任何錯誤。常數還有一個好處：在 Xcode 裡對它「Find Call Hierarchy」，一次看到所有發送點與接收點。
+
+`object` 與 `userInfo` 各有角色，別混：
+
+| 參數 | 放什麼 | 接收端怎麼用 |
+|---|---|---|
+| `object` | **發送者**（哪一本帳） | 註冊時傳同一個物件可以只聽它；回呼裡 `note.object` 拿回來 |
+| `userInfo` | **附帶資料**（哪筆交易、舊值新值） | `note.userInfo[LBLedgerTransactionUserInfoKey]` |
+
+把交易塞進 `object` 是最常見的誤用：接收端就沒辦法用 `object` 過濾來源，而且跟系統所有通知的慣例相反。
+
+接收有兩種寫法：
+
+```objc
+// 寫法一：selector（iOS 9 起會在觀察者釋放時自動解除註冊）
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(ledgerDidChange:)
+                                                 name:LBLedgerDidChangeNotification
+                                               object:nil];           // nil = 任何帳本
+}
+- (void)ledgerDidChange:(NSNotification *)note {
+    LBTransaction *tx = note.userInfo[LBLedgerTransactionUserInfoKey];
+    [self.tableView reloadData];
+}
+
+// 寫法二：block（回傳 token，必須自己移除）
+__weak typeof(self) weakSelf = self;
+self.ledgerToken = [[NSNotificationCenter defaultCenter]
+    addObserverForName:LBLedgerDidChangeNotification
+                object:nil
+                 queue:[NSOperationQueue mainQueue]    // 指定回呼佇列
+            usingBlock:^(NSNotification *note) {
+                [weakSelf.tableView reloadData];
+            }];
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self.ledgerToken];
+}
+```
+
+selector 版的方法簽名固定是「一個 `NSNotification *` 參數」，方法名慣例用通知名去掉前綴與 `Notification`：`ledgerDidChange:`。block 版多了 `queue` 參數，傳 `mainQueue` 就不用自己切執行緒，是它最大的優點；代價是 token 要存起來、要記得移除、block 要 weakSelf（通知中心是單例，會一直持有這個 block）。
+
+### 通知是同步的，而且在發送者的執行緒
+
+`postNotificationName:` 會**立刻、依序**呼叫所有觀察者，全部跑完才返回。這有兩個後果：
+
+1. 觀察者的方法在哪條執行緒執行，取決於誰 `post`。帳本在背景佇列更新後發通知，所有觀察者就在背景執行緒被叫到，裡面的 `reloadData` 就是 UI 執行緒違規。解法：發送端保證在主執行緒 post，或接收端用 block 版指定 `mainQueue`，或 selector 版裡自己 `dispatch_async` 回主執行緒。
+2. 觀察者做太多事會拖慢發送者。十個畫面各自 reload，`addTransaction:` 就要等十次 reload。
+
+### 完整範例（可貼進 Scratch）
+
+```objc
+#import <Foundation/Foundation.h>
+
+NSNotificationName const LBLedgerDidChangeNotification = @"LBLedgerDidChangeNotification";
+NSString * const LBLedgerNoteUserInfoKey = @"note";
+
+@interface LBLedger : NSObject
+@property (nonatomic, copy) NSString *name;
+- (void)addNote:(NSString *)note;
+@end
+@implementation LBLedger
+- (void)addNote:(NSString *)note {
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:LBLedgerDidChangeNotification
+                      object:self
+                    userInfo:@{ LBLedgerNoteUserInfoKey: note }];
+}
+@end
+
+@interface LBReport : NSObject
+@property (nonatomic, copy) NSString *title;
+@end
+@implementation LBReport
+- (instancetype)initWithTitle:(NSString *)title listeningTo:(LBLedger *)ledger {
+    if (self = [super init]) {
+        _title = [title copy];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(ledgerDidChange:)
+                                                     name:LBLedgerDidChangeNotification
+                                                   object:ledger];   // 只聽這一本
+    }
+    return self;
+}
+- (void)ledgerDidChange:(NSNotification *)note {
+    LBLedger *ledger = note.object;
+    NSLog(@"%@ 收到 %@ 的變動：%@", _title, ledger.name,
+          note.userInfo[LBLedgerNoteUserInfoKey]);
+}
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];   // iOS 9+ 可省，寫了不吃虧
+    NSLog(@"%@ dealloc", _title);
+}
+@end
+
+int main(void) {
+    @autoreleasepool {
+        LBLedger *personal = [LBLedger new]; personal.name = @"個人";
+        LBLedger *company = [LBLedger new];  company.name = @"公司";
+        LBReport *monthly = [[LBReport alloc] initWithTitle:@"月報" listeningTo:personal];
+        LBReport *audit = [[LBReport alloc] initWithTitle:@"稽核" listeningTo:company];
+        // 第三個觀察者用 block，object:nil 聽全部
+        id token = [[NSNotificationCenter defaultCenter]
+            addObserverForName:LBLedgerDidChangeNotification object:nil queue:nil
+                    usingBlock:^(NSNotification *n) {
+                        NSLog(@"總覽 收到 %@", [n.object name]);
+                    }];
+        [personal addNote:@"午餐"];
+        [company addNote:@"伺服器"];
+        [[NSNotificationCenter defaultCenter] removeObserver:token];
+        audit = nil;
+        [company addNote:@"沒人聽"];
+        NSLog(@"結束 %@", monthly.title);
+    }
+    return 0;
+}
+// 預期輸出：
+// 月報 收到 個人 的變動：午餐
+// 總覽 收到 個人
+// 稽核 收到 公司 的變動：伺服器
+// 總覽 收到 公司
+// 稽核 dealloc
+// 結束 月報
+// 月報 dealloc
+```
+
+「沒人聽」那次 post 沒有任何輸出，也沒有錯誤：`audit` 釋放了、token 移除了、`monthly` 只聽 `personal`。通知的沉默就是它的特性，也是它的風險。
+
+### 什麼時候不該用通知
+
+通知很好寫，所以很容易被濫用。看到下面任何一條就該換工具：
+
+- **需要回傳值或否決權**：通知是單向廣播，`should` 類決定用 delegate。
+- **只有一個接收者，而且你知道是誰**：用 delegate 或 block。通知在這裡只是讓程式碼更難追：讀到 `post` 的人要全專案搜尋才知道誰會反應。
+- **當成流程控制**：A 發通知叫 B 做事、B 做完發通知叫 C。這樣的程式沒有人能從上到下讀懂，執行順序取決於註冊順序（文件說是未定義）。這種情況用 completion 串起來，或用模組 7 的 `NSOperation`。
+- **傳大量資料**：`userInfo` 每個觀察者都拿同一份，誰改了誰倒楣；傳 identifier 讓接收端自己去查。
+
+一個健康的專案裡，自訂通知的數量是個位數，而且幾乎都是「某份共享資料變了」這一類。
+
+<Tip title="KVO 與通知的分工">
+模組 6.4 會講的 KVO 是「某個屬性的值變了」的細粒度觀察，不用自己 post，但只能觀察屬性。通知是「某件事發生了」的粗粒度廣播，什麼都能發，但要自己 post、自己定義 `userInfo`。帳本「交易列表變了」用通知，「某個設定值變了」用 KVO 或直接用 `NSUserDefaultsDidChangeNotification`。
+</Tip>
+
+<Pitfall title="在 viewWillAppear 註冊、沒有在 viewWillDisappear 移除">
+<Fragment slot="bad">
+```objc
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(reload:)
+                                                 name:LBLedgerDidChangeNotification object:nil];
+}
+// 每次回到這個畫面就多註冊一次，第五次回來 reload: 會被叫五遍
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+// 配對：viewWillAppear 註冊、viewWillDisappear 移除
+// 或者乾脆在 viewDidLoad 註冊一次（iOS 9+ 釋放時自動解除）
+- (void)viewWillDisappear:(BOOL)animated {
+    [super viewWillDisappear:animated];
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                    name:LBLedgerDidChangeNotification object:nil];
+}
+```
+</Fragment>
+`addObserver:` 不會去重，同一個觀察者註冊 N 次就會被呼叫 N 次。症狀是「畫面越用越慢」「資料重複」。註冊與移除要成對出現在生命週期的對稱位置。
+</Pitfall>
+
+<Pitfall title="block 版的 token 忘了移除，block 永遠活著">
+`addObserverForName:object:queue:usingBlock:` 回傳的觀察者物件是通知中心替你造的，**不會**因為你的控制器釋放而自動解除，iOS 9 的自動解除只對 selector 版有效。沒移除 token，通知中心就一直持有那個 block；block 若捕獲了 `self`（沒寫 weakSelf），控制器永遠不釋放；寫了 weakSelf，block 本身還是漏了，而且每次通知都會白跑一次。token 存成屬性，`dealloc` 裡 `removeObserver:`。
+</Pitfall>
+
+<Pitfall title="object 與 userInfo 放反">
+`postNotificationName:LBLedgerDidChangeNotification object:tx userInfo:nil` 把交易當 `object` 送出去。接收端註冊時傳 `object:ledger` 想只聽這本帳，結果永遠收不到（`object` 比對的是指標相等）；想拿交易的人又得猜 `note.object` 是什麼型別。`object` 永遠是發送者 `self`，資料走 `userInfo` 加具名 key。
+</Pitfall>
+
+<Crash message={`*** -[LBReportViewController ledgerDidChange:]: message sent to deallocated instance 0x7fa3c9d0a2c0`}>
+這是開了 NSZombie（Edit Scheme → Diagnostics → Zombie Objects）後的訊息；沒開的話只會看到一個落在 `_CFXNotificationPost` 附近、毫無線索的 `EXC_BAD_ACCESS`。意思是：`LBReportViewController` 已經釋放，通知中心還留著它的位址，下一次 post 就對死掉的物件送訊息。iOS 9 之前這是最常見的 crash 之一，每個 `dealloc` 都要寫 `[[NSNotificationCenter defaultCenter] removeObserver:self]`。iOS 9 起 selector 版會自動解除，但模組 11 的舊專案、以及 **block 版 token 沒移除**的情況下仍會遇到。修法：`dealloc` 裡移除；block 版移除 token。
+</Crash>
+
+## 小結
+
+- 通知是一對多廣播：`extern` 常數命名 `LBXxxDidYyyNotification`，`object` 放發送者、`userInfo` 放資料。
+- selector 版 iOS 9+ 自動解除；block 版回傳 token，要自己存、自己移除、block 要 weakSelf。
+- 送達是同步的、在發送者的執行緒；UI 更新要確保在主執行緒（block 版傳 `mainQueue`）。
+- 需要回傳值、只有一個接收者、或當流程控制時不要用通知。
+- 註冊與移除成對出現在生命週期的對稱位置；`addObserver:` 不去重。

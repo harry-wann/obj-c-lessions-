@@ -1,0 +1,349 @@
+---
+title: 區塊捕獲語意
+module: 5
+chapter: "5.5"
+order: 5
+minutes: 40
+prereq: ["5.4", "4.3"]
+objectives:
+  - 預測 block 捕獲外部變數後的輸出：值拷貝、__block、物件指標三種情況
+  - 判斷哪些 block 會跟 self 形成循環參考，並用 weakSelf / strongSelf 修
+  - 說出 block 的三種儲存位置與 ARC 何時自動 copy；用兩個堆疊實作復原 / 重做
+summary: "捕獲是值拷貝（JS 是參考）、__block 共享變數、捕獲物件會 retain、self 循環與 weakSelf / strongSelf、global / stack / malloc 三種 block、堆疊資料結構與 LBUndoStack 雙堆疊模型。"
+terms:
+  - { en: capture, tw: 捕獲, cn: 捕获, jp: キャプチャ }
+  - { en: capture by value, tw: 值拷貝捕獲, cn: 值捕获, jp: 値キャプチャ }
+  - { en: retain cycle, tw: 循環參考, cn: 循环引用, jp: 循環参照 }
+  - { en: stack (data structure), tw: 堆疊, cn: 栈, jp: スタック }
+  - { en: heap (memory), tw: 堆積, cn: 堆, jp: ヒープ }
+  - { en: undo / redo, tw: 復原 / 重做, cn: 撤销 / 重做, jp: 元に戻す / やり直す }
+appProgress: LBUndoStack 用兩個堆疊存 block，帳本可以復原與重做；三個測試轉綠。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+var count = 0
+let show = { print(count) }
+count = 5
+show()                       // 5：Swift 閉包捕獲的是變數本身（參考）
+// 要拷貝值得明寫 capture list：
+let snap = { [count] in print(count) }
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+var count = 0
+val show = { println(count) }
+count = 5
+show()                       // 5：lambda 捕獲變數（包成 Ref 物件）
+```
+</Fragment>
+<Fragment slot="java">
+```java
+int count = 0;
+Runnable show = () -> System.out.println(count);
+count = 5;                   // 編譯錯誤：lambda 捕獲的區域變數必須 effectively final
+// Java 乾脆禁止修改，變相等於「值捕獲」
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+let count = 0;
+const show = () => console.log(count);
+count = 5;
+show();                      // 5：JS 閉包捕獲的是變數（參考）
+for (var i = 0; i < 3; i++) setTimeout(() => console.log(i));  // 3 3 3
+```
+</Fragment>
+這是整個模組最容易被母語直覺害到的地方。Swift、Kotlin、JavaScript 的閉包捕獲的是**變數**：閉包建立後外面改了，閉包裡看到新值。**Objective-C 的 block 捕獲的是變數當下的值**，是拷貝一份，之後外面怎麼改都不影響。Java 的 effectively final 規定反而最接近 ObjC：既然不能改，值跟參考就沒有差別。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 捕獲是值拷貝
+
+```objc
+int count = 0;
+void (^show)(void) = ^{ NSLog(@"%d", count); };
+count = 5;
+show();                      // 0
+```
+
+block 字面值執行到的那一刻，把 `count` 的值（0）拷貝進 block 自己的儲存空間，從此跟外面的 `count` 無關。這也是為什麼在 block 裡寫 `count = 1;` 會編譯錯誤 `variable is not assignable (missing __block type specifier)`：那份拷貝是 `const`。JS 的 `for (var i ...)` 印三個 3 的經典陷阱，在 ObjC 剛好反過來：每一圈的 block 各自拷貝了當圈的 `i`，印出 0 1 2。
+
+### `__block`：真的要共享就說清楚
+
+```objc
+__block int count = 0;
+void (^bump)(void) = ^{ count++; };
+bump(); bump();
+NSLog(@"%d", count);         // 2
+```
+
+`__block` 修飾的變數不再被拷貝，而是搬進一個 block 跟外層共用的小盒子，兩邊讀寫的都是同一個位置。這才是 JS / Swift 閉包的預設行為，ObjC 要你明寫。常見用途：在 `enumerateObjectsUsingBlock:` 裡累加、找到目標後帶出來。
+
+### 捕獲物件：拷貝的是指標，物件被 retain
+
+```objc
+NSMutableString *note = [NSMutableString stringWithString:@"午"];
+void (^show)(void) = ^{ NSLog(@"%@", note); };
+[note appendString:@"餐"];
+show();                      // 午餐：同一個物件，透過指標看得到修改
+note = [NSMutableString stringWithString:@"晚餐"];
+show();                      // 午餐：block 裡的指標還指著舊物件
+```
+
+對物件變數來說，「值」就是指標。block 拷貝指標，而且會對那個物件 `retain`（block 活著，物件就活著），所以透過指標修改物件的內容看得到，但把變數指向別的物件看不到。這一條推到 `self` 身上就是循環參考。
+
+### self 循環與 weakSelf / strongSelf
+
+```objc
+// LBLedgerViewController.m
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.ledger.onChange = ^(LBLedger *ledger) {
+        [self.tableView reloadData];       // block 捕獲 self → retain self
+    };
+}
+// self → ledger → onChange（block）→ self：三角形，誰都放不掉
+```
+
+條件有兩個：block 捕獲了 `self`（直接寫 `self`，或是用了 `_ivar`、呼叫自己的方法，這些都隱含 `self`），**而且** `self` 直接或間接持有這個 block。兩個條件都成立才是循環。標準修法：
+
+```objc
+__weak typeof(self) weakSelf = self;
+self.ledger.onChange = ^(LBLedger *ledger) {
+    __strong typeof(weakSelf) strongSelf = weakSelf;   // 進門先抓穩
+    if (!strongSelf) return;                           // 已經釋放就什麼都不做
+    [strongSelf.tableView reloadData];
+    [strongSelf updateTotalLabel];
+};
+```
+
+`weakSelf` 讓 block 不持有 `self`，三角形斷掉。`strongSelf` 的用意是「block 執行期間 `self` 不會中途消失」：block 一進來把弱參考升級成強參考，執行完才放掉。block 很短、只碰 `weakSelf` 一次時，可以省略 `strongSelf` 直接 `[weakSelf.tableView reloadData]`（對 nil 送訊息安全）；碰兩次以上就寫完整，不然第一行成功、第二行變 nil 的狀況偵錯起來很痛。
+
+什麼時候**不需要** weakSelf？block 不被 `self` 持有的時候。`dispatch_async(dispatch_get_main_queue(), ^{ [self reload]; })`、`[UIView animateWithDuration:0.3 animations:^{ self.view.alpha = 0; }]`、`[array enumerateObjectsUsingBlock:]`：這些 block 由 GCD、UIKit、陣列暫時持有，執行完就釋放，`self` 多活幾毫秒而已，不是循環。每個 block 都寫 weakSelf 是另一種錯：動畫跑到一半 `self` 變 nil，畫面停在半路。
+
+### 三種儲存位置
+
+```objc
+int x = 1;
+void (^g)(void) = ^{ NSLog(@"沒捕獲"); };
+NSLog(@"%@", [g class]);                              // __NSGlobalBlock__
+NSLog(@"%@", [^{ NSLog(@"%d", x); } class]);           // __NSStackBlock__
+void (^h)(void) = ^{ NSLog(@"%d", x); };
+NSLog(@"%@", [h class]);                              // __NSMallocBlock__
+```
+
+| 類別 | 什麼時候 | 壽命 |
+|---|---|---|
+| `__NSGlobalBlock__` | 沒捕獲任何外部變數 | 整個程式，像字串字面值 |
+| `__NSStackBlock__` | 有捕獲、剛寫出來還沒存起來 | 到當前作用域結束，之後是懸空指標 |
+| `__NSMallocBlock__` | 對 stack block 做 `copy` | 參考計數管理，跟一般物件一樣 |
+
+ARC 替你做了絕大多數的 `copy`：block 賦值給 `strong` 變數、存進 `copy` 屬性、當回傳值、轉成 `id` 丟進 `NSArray`，都會自動搬到堆積。只有兩種情況要自己想：MRC 專案（模組 11）裡存 block 必須手動 `[block copy]`；把 block 塞進 C 陣列或 struct，ARC 管不到。這也是 5.4 說「屬性寫 `copy`」的根本原因：它描述的是 block 的真實生命週期。
+
+### 完整範例（可貼進 Scratch）
+
+```objc
+#import <Foundation/Foundation.h>
+
+@interface LBLedger : NSObject
+@property (nonatomic, copy, nullable) void (^onChange)(void);
+@property (nonatomic, copy) NSString *name;
+@end
+@implementation LBLedger
+- (void)dealloc { NSLog(@"%@ dealloc", _name); }
+@end
+
+int main(void) {
+    @autoreleasepool {
+        // 1. 值拷貝 vs __block
+        int a = 1;
+        __block int b = 1;
+        void (^show)(void) = ^{ NSLog(@"a=%d b=%d", a, b); };
+        a = 2; b = 2;
+        show();
+
+        // 2. 迴圈：每圈各自拷貝
+        NSMutableArray *blocks = [NSMutableArray array];
+        for (int i = 0; i < 3; i++) {
+            [blocks addObject:^{ NSLog(@"i=%d", i); }];
+        }
+        for (void (^blk)(void) in blocks) blk();
+
+        // 3. 捕獲物件：指標拷貝、物件 retain
+        NSMutableString *note = [NSMutableString stringWithString:@"午"];
+        void (^showNote)(void) = ^{ NSLog(@"%@", note); };
+        [note appendString:@"餐"];
+        note = [NSMutableString stringWithString:@"晚餐"];
+        showNote();
+
+        // 4. 循環參考 vs weakSelf
+        @autoreleasepool {
+            LBLedger *leak = [LBLedger new];
+            leak.name = @"leak";
+            leak.onChange = ^{ NSLog(@"%@", leak.name); };   // leak → block → leak
+
+            LBLedger *safe = [LBLedger new];
+            safe.name = @"safe";
+            __weak LBLedger *weakSafe = safe;
+            safe.onChange = ^{
+                __strong LBLedger *strongSafe = weakSafe;
+                if (!strongSafe) return;
+                NSLog(@"%@", strongSafe.name);
+            };
+            safe.onChange();
+        }
+        NSLog(@"內層 pool 結束");
+
+        // 5. 三種儲存位置
+        NSLog(@"%@", [^{ NSLog(@"x"); } class]);
+        NSLog(@"%@", [^{ NSLog(@"%d", a); } class]);
+        NSLog(@"%@", [show class]);
+    }
+    return 0;
+}
+// 預期輸出：
+// a=1 b=2
+// i=0
+// i=1
+// i=2
+// 午餐
+// safe
+// safe dealloc
+// 內層 pool 結束
+// __NSGlobalBlock__
+// __NSStackBlock__
+// __NSMallocBlock__
+```
+
+`leak dealloc` 永遠不會出現：這就是循環參考的樣子。`safe` 離開內層 pool 就釋放了。
+
+## 堆疊：push / pop / peek 與復原 / 重做
+
+<Term en="stack (data structure)" tw="堆疊" cn="栈" jp="スタック" />是「後進先出」的容器：`push` 放到頂端、`pop` 從頂端拿走、`peek` 看頂端不拿走。Foundation 沒有 `NSStack`，`NSMutableArray` 的 `addObject:` / `lastObject` / `removeLastObject` 三件組就是它，三個操作都是 O(1)。注意別用 `insertObject:atIndex:0` 當 push，那是 O(n)。
+
+復原 / 重做是堆疊最經典的應用，模型叫**雙堆疊**：
+
+```
+使用者操作 → push 到 undo 堆疊，清空 redo 堆疊
+undo       → 從 undo 堆疊 pop 一個動作，執行它的「復原」，push 到 redo 堆疊
+redo       → 從 redo 堆疊 pop 一個動作，執行它的「重做」，push 回 undo 堆疊
+```
+
+「清空 redo」那條是關鍵：復原兩步之後做了新動作，原本可以重做的兩步就失去意義了，所有編輯器都這樣。block 在這裡剛好派上用場：一個「動作」就是一對 block，`undo` block 知道怎麼倒回去、`redo` block 知道怎麼再做一次，捕獲的變數就是動作需要的狀態。
+
+```objc
+// LBUndoStack.h
+@interface LBUndoStack : NSObject
+@property (nonatomic, readonly) BOOL canUndo;
+@property (nonatomic, readonly) BOOL canRedo;
+- (void)registerUndo:(void (^)(void))undo redo:(void (^)(void))redo;
+- (void)undo;
+- (void)redo;
+@end
+
+// LBUndoStack.m（核心）
+@interface LBUndoAction : NSObject
+@property (nonatomic, copy) void (^undo)(void);
+@property (nonatomic, copy) void (^redo)(void);
+@end
+@implementation LBUndoAction
+@end
+
+@implementation LBUndoStack {
+    NSMutableArray<LBUndoAction *> *_undoStack;
+    NSMutableArray<LBUndoAction *> *_redoStack;
+}
+- (void)registerUndo:(void (^)(void))undo redo:(void (^)(void))redo {
+    LBUndoAction *a = [LBUndoAction new];
+    a.undo = undo; a.redo = redo;
+    [_undoStack addObject:a];          // push
+    [_redoStack removeAllObjects];     // 新動作讓 redo 失效
+}
+- (void)undo {
+    LBUndoAction *a = _undoStack.lastObject;   // peek
+    if (!a) return;
+    [_undoStack removeLastObject];             // pop
+    a.undo();
+    [_redoStack addObject:a];
+}
+- (void)redo {
+    LBUndoAction *a = _redoStack.lastObject;
+    if (!a) return;
+    [_redoStack removeLastObject];
+    a.redo();
+    [_undoStack addObject:a];
+}
+- (BOOL)canUndo { return _undoStack.count > 0; }
+- (BOOL)canRedo { return _redoStack.count > 0; }
+@end
+```
+
+用在帳本上：
+
+```objc
+LBTransaction *tx = ...;
+[ledger addTransaction:tx];
+[undoStack registerUndo:^{ [ledger removeTransactionWithIdentifier:tx.identifier]; }
+                   redo:^{ [ledger addTransaction:tx]; }];
+```
+
+兩個 block 捕獲了 `ledger` 與 `tx` 的指標並 retain 它們，所以就算畫面早就換頁，復原時物件都還在。這裡 `ledger` 不會形成循環：`ledger` 不持有 `undoStack`。如果你把 `undoStack` 做成 `ledger` 的屬性，就要回頭想 weakSelf 了。
+
+<Tip title="什麼時候直接用 NSUndoManager">
+Foundation 內建的 `NSUndoManager` 就是這個雙堆疊，多了三件事：動作分組（一次拖曳算一步）、`undoActionName` 給選單顯示「復原 刪除交易」、以及跟 `UIResponder` 鏈整合（搖晃裝置、⌘Z 自動找到它）。iOS 9 起有 block 版 `registerUndoWithTarget:handler:`。它的 redo 不用你另外給 block：你的 undo handler 裡再呼叫一次 `registerUndoWithTarget:`，manager 發現「正在 undo 時登記的動作」就自動放進 redo 堆疊。做文件型 App、文字編輯、有選單的 macOS 程式直接用它；本章自己寫一遍是為了把 block 捕獲與堆疊操作練進手裡，也因為帳本的復原不走 responder 鏈。
+</Tip>
+
+<Pitfall title="用了 _ivar 或自己的方法，就是隱含捕獲 self">
+<Fragment slot="bad">
+```objc
+__weak typeof(self) weakSelf = self;
+self.ledger.onChange = ^(LBLedger *l) {
+    _totalLabel.text = l.total.stringValue;   // _totalLabel 展開是 self->_totalLabel
+    [self refresh];                           // 直接寫了 self
+};
+// 寫了 weakSelf 卻沒用到，循環還在
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+__weak typeof(self) weakSelf = self;
+self.ledger.onChange = ^(LBLedger *l) {
+    __strong typeof(weakSelf) strongSelf = weakSelf;
+    strongSelf.totalLabel.text = l.total.stringValue;
+    [strongSelf refresh];
+};
+```
+</Fragment>
+block 裡出現 `_ivar` 就等於 `self->_ivar`，一樣捕獲 `self`。開啟編譯器警告 `-Wimplicit-retain-self`（Build Settings 搜「Implicit retain of self」）讓它幫你抓。
+</Pitfall>
+
+<Pitfall title="在 block 裡改外部變數忘了 __block">
+`NSInteger total = 0; [items enumerateObjectsUsingBlock:^(...) { total += tx.cents; }];` 編譯錯誤 `variable is not assignable (missing __block type specifier)`。這是好事：編譯器在提醒你 ObjC 的捕獲是值拷貝。加 `__block`，或者改用 `for-in`。對可變物件（`NSMutableArray`）呼叫 `addObject:` 不需要 `__block`，因為你沒改指標，改的是物件內容。
+</Pitfall>
+
+<Pitfall title="每個 block 都寫 weakSelf 也是錯">
+`[UIView animateWithDuration:0.3 animations:^{ weakSelf.view.alpha = 0; } completion:^(BOOL done) { [weakSelf.navigationController popViewControllerAnimated:NO]; }]`：動畫跑到一半 `self` 被釋放，`weakSelf` 變 nil，completion 什麼都不做，使用者卡在半透明的畫面。UIKit 與 GCD 暫時持有的 block 用 `self` 就好，讓 `self` 活到動畫結束是正確行為。判斷標準永遠是「`self` 有沒有持有這個 block」。
+</Pitfall>
+
+<Crash message={`Thread 1: EXC_BAD_ACCESS (code=1, address=0x7ff8a3c01230)
+#0  __LBLedger_importAmounts_completion__block_invoke
+#1  -[LBImportViewController finishImport]`}>
+看到 `_block_invoke` 就知道 crash 發生在某個 block 本體裡；前綴告訴你 block 寫在 `-[LBLedger importAmounts:completion:]` 裡面。這段 MRC 時代留下來的程式把一個 stack block 存進 `assign` 的實體變數，沒有 `copy`，離開方法後 block 所在的堆疊空間被別的東西覆寫，下次 `finishImport` 呼叫它就跳到垃圾位址。ARC 專案裡幾乎不會遇到（`strong` / `copy` 都會自動搬到堆積），但模組 11 接手舊專案時會。修法：屬性改 `copy`，MRC 下手動 `[block copy]`。
+</Crash>
+
+## 小結
+
+- block 捕獲外部變數是**值拷貝**，JS / Swift / Kotlin 是參考；要共享寫 `__block`。
+- 捕獲物件拷貝的是指標並 retain 物件；透過指標改內容看得到、重新賦值看不到。
+- `self` 持有 block 且 block 捕獲 `self` 才是循環；修法 `weakSelf` 進門升 `strongSelf`。`_ivar` 也算捕獲 self。GCD / UIView 動畫的 block 不需要 weakSelf。
+- 三種 block：global（無捕獲）、stack（剛寫出來）、malloc（copy 後）；ARC 幾乎都自動 copy，MRC 要手動。
+- 堆疊 = `addObject:` / `lastObject` / `removeLastObject`；復原 / 重做是雙堆疊，新動作清空 redo；文件型 App 直接用 `NSUndoManager`。

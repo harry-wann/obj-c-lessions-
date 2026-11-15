@@ -1,0 +1,28 @@
+id: m04-4-4-predict-1
+chapter: "4.4"
+type: predict
+title: autoreleasepool 內外有什麼不一樣？
+minutes: 2
+prompt: LBTransaction 的 dealloc 印 `dealloc <note>`。這段程式印出什麼？（nil 印成 (null)）
+code: |
+  LBTransaction *outside = nil;
+  __weak LBTransaction *weakInside = nil;
+  @autoreleasepool {
+      LBTransaction *inside = [[LBTransaction alloc] initWithNote:@"內"];
+      weakInside = inside;
+      outside = [[LBTransaction alloc] initWithNote:@"外"];
+  }
+  NSLog(@"A %@", weakInside);
+  NSLog(@"B %@", outside.note);
+options:
+  - "dealloc 內 A (null) B 外"
+  - "dealloc 內 dealloc 外 A (null) B (null)"
+  - "A 內 B 外"
+  - "A (null) B 外 dealloc 內"
+accept: ["dealloc 內 A (null) B 外"]
+feedback:
+  "dealloc 內 dealloc 外 A (null) B (null)": "@autoreleasepool 不會釋放 strong 變數持有的物件。outside 宣告在池外，池結束時它仍持有「外」。"
+  "A 內 B 外": "inside 是池內的區域變數，右大括號時離開範圍，最後一個 strong 放手 → dealloc。"
+  "A (null) B 外 dealloc 內": "釋放發生在右大括號，早於 A 那行。"
+solution_note: 「內」釋放是因為 inside 這個 strong 變數離開範圍，不是因為池子排空；「外」沒釋放是因為 outside 這個 strong 變數還在。@autoreleasepool 只對登記在池裡的 autoreleased 物件送 release，不會動你 strong 持有的東西。
+hints: ["池子排空只影響哪一種物件？", "outside 是 strong，宣告在哪裡？"]

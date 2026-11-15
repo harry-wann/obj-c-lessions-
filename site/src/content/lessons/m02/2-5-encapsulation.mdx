@@ -232,7 +232,7 @@ int main(int argc, const char *argv[]) {
 [cat valueForKey:@"mutableChildren"];                              // 連私有屬性都拿得到
 ```
 
-`performSelector:` 只看 selector 名字；<Term en="KVC (key-value coding)" tw="鍵值編碦" cn="键值编码" jp="キー値コーディング" />（`setValue:forKey:`，模組 3）會找 `setParent:`、找不到就直接找 `_parent` ivar。這和 TS 的 `private`（編譯後消失）是同一個等級，比 TS 的 `#field` 弱。所以封裝在 Objective-C 是**契約**不是**圍牆**：你用 `.h` 告訴別人「這些才是我支援的 API」，守不守是他們的事。實務上這剛好夠用——真正惡意繞過的人，用任何語言都繞得過。
+`performSelector:` 只看 selector 名字；<Term en="KVC (key-value coding)" tw="鍵值編碼" cn="键值编码" jp="キー値コーディング" />（`setValue:forKey:`，模組 3）會找 `setParent:`、找不到就直接找 `_parent` ivar。這和 TS 的 `private`（編譯後消失）是同一個等級，比 TS 的 `#field` 弱。所以封裝在 Objective-C 是**契約**不是**圍牆**：你用 `.h` 告訴別人「這些才是我支援的 API」，守不守是他們的事。實務上這剛好夠用——真正惡意繞過的人，用任何語言都繞得過。
 
 <Pitfall title="類別延伸裡的修飾詞和 .h 不一致">
 <Fragment slot="bad">
@@ -283,7 +283,7 @@ int main(int argc, const char *argv[]) {
 Storyboard 的 User Defined Runtime Attributes、`NSCoding`、某些 JSON 對應函式庫都走 KVC，它們會無視你的 `readonly`。如果某個屬性真的不能被外部改，在類別裡覆寫 `+accessInstanceVariablesDirectly` 回傳 `NO`，KVC 就會改丟 `NSUnknownKeyException`——至少從「無聲地被改」變成「大聲地失敗」。
 </Pitfall>
 
-<Crash message={`*** Terminating app due to uncaught exception 'NSInternalInconsistencyException',
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
 reason: '-[__NSArrayI addObject:]: unrecognized selector sent to instance 0x600002f1c3c0'
 *** First throw call stack:
 (

@@ -1,0 +1,22 @@
+id: m04-4-4-advanced-3
+chapter: "4.4"
+type: flash
+tier: advanced
+title: 進階：環偵測（Floyd 龜兔）
+minutes: 3
+front: "單向鏈結串列可能有環（某個節點的 next 指回前面）。怎麼在 O(1) 額外空間下判斷有沒有環？進一步：環的起點在哪？ARC 下一條有環的串列會有什麼副作用？"
+back: |
+  **判斷有環**：快慢指標，慢走 1 快走 2；若 fast 追上 slow（`slow == fast`，比位址）就有環；fast 走到 nil 就沒有。
+  ```objc
+  BOOL LBHasCycle(LBNode *head) {
+      LBNode *slow = head, *fast = head;
+      while (fast && fast.next) {
+          slow = slow.next; fast = fast.next.next;
+          if (slow == fast) { return YES; }
+      }
+      return NO;
+  }
+  ```
+  **環的起點**：相遇後把一個指標放回 head，兩個都一次走一步，再相遇處就是起點（數學：頭到起點距離 = 相遇點到起點距離 mod 環長）。
+  **ARC 副作用**：環就是循環參考。有環的串列在 head 放手後不會釋放——每個節點都被前一個 strong 持有。測試時要在結束前手動斷開（找到尾把 next 設 nil），否則 Leaks 會報。這也是為什麼真實資料結構裡「往回指」的線（prev、parent）要 weak。
+  Swift 寫法相同（`===` 比位址）；Kotlin / Java 用 `===` / `==` 比參考。

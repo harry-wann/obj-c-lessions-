@@ -1,0 +1,220 @@
+---
+title: 第一個程式
+module: 0
+chapter: "0.3"
+order: 3
+minutes: 25
+prereq: ["0.2"]
+objectives:
+  - 逐行說出 main.m 範本每一行在做什麼
+  - 為 NSString、NSInteger、int、double 挑對格式指定子
+  - 知道 @autoreleasepool 為什麼包著 main 的全部內容
+summary: main.m、@import Foundation、NSLog 與格式指定子 %@ %ld %d %f %zd、@autoreleasepool 在 main 裡的意義。
+terms:
+  - { en: format specifier, tw: 格式指定子, cn: 格式说明符, jp: 書式指定子 }
+  - { en: literal, tw: 字面值, cn: 字面量, jp: リテラル }
+  - { en: string, tw: 字串, cn: 字符串, jp: 文字列 }
+  - { en: autorelease pool, tw: 自動釋放池, cn: 自动释放池, jp: 自動解放プール }
+  - { en: module, tw: 模組, cn: 模块, jp: モジュール }
+appProgress: Scratch 能印出各種型別的值；之後每章的範例都靠它驗證。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+let note = "午餐", cents = 12000
+print("Hello, 小帳本")
+print("\(note)：\(cents) 分，\(Double(cents) / 100) 元")
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+fun main() {
+    val note = "午餐"; val cents = 12000
+    println("Hello, 小帳本")
+    println("$note：$cents 分，${cents / 100.0} 元")
+}
+```
+</Fragment>
+<Fragment slot="java">
+```java
+public static void main(String[] args) {
+    String note = "午餐"; long cents = 12000;
+    System.out.println("Hello, 小帳本");
+    System.out.printf("%s：%d 分，%.2f 元%n", note, cents, cents / 100.0);
+}
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+const note = "午餐", cents = 12000;
+console.log("Hello, 小帳本");
+console.log(`${note}：${cents} 分，${(cents / 100).toFixed(2)} 元`);
+```
+</Fragment>
+Swift、Kotlin、TypeScript 都有字串插值。Objective-C 沒有，走的是 Java `printf` 那條路：一個格式字串加一串引數，靠<Term en="format specifier" tw="格式指定子" cn="格式说明符" jp="書式指定子" />對位。對位錯了，編譯器只會警告，執行期可能印出垃圾或直接 crash。
+</Compare>
+
+## Objective-C 怎麼寫
+
+Xcode 建好 Command Line Tool 專案後的 `main.m` 只有幾行，但每行都值得認識：
+
+```objc
+@import Foundation;                        // ①
+
+int main(int argc, const char * argv[]) {  // ②
+    @autoreleasepool {                     // ③
+        NSLog(@"Hello, 小帳本");             // ④
+    }
+    return 0;
+}
+// 輸出：2026-11-15 09:41:00.123456+0800 Scratch[4242:98765] Hello, 小帳本
+```
+
+**① `@import Foundation;`** 載入 Foundation <Term en="module" tw="模組" cn="模块" jp="モジュール" />：`NSString`、`NSArray`、`NSLog` 全部來自這裡。Xcode 範本寫的是舊式 `#import <Foundation/Foundation.h>`，兩者在開了 modules 的專案（預設開）完全等價，0.4 會比較三種 import。
+
+**② `int main(int argc, const char * argv[])`** 就是 C 的 `main`：程式入口、`argc` 是引數個數、`argv` 是引數字串陣列、回傳 0 表示正常結束。iOS App 的 `main.m` 也長這樣，只是裡面呼叫 `UIApplicationMain` 把控制權交給 UIKit。
+
+**③ `@autoreleasepool { }`** 一個<Term en="autorelease pool" tw="自動釋放池" cn="自动释放池" jp="自動解放プール" />。Objective-C 很多方法回傳的物件是「延後釋放」的：先登記到目前的池子，池子結束時一起釋放。App 裡 UIKit 的執行迴圈每一圈都幫你建一個池子、清一個池子；Command Line Tool 沒有執行迴圈，所以範本幫你包一個，整個 `main` 的內容都在裡面。拿掉它程式還是能跑，但主控台會出現 `Object 0x... of class __NSCFString autoreleased with no pool in place - just leaking`。模組 4 會把參考計數講清楚，現在只要知道：**範例要貼在這對大括號裡面。**
+
+**④ `NSLog(@"Hello, 小帳本");`** `@"..."` 是 `NSString` 的<Term en="literal" tw="字面值" cn="字面量" jp="リテラル" />；少了 `@` 就是 C 的 `char *` 字串，兩者不是同一種東西。`NSLog` 寫到 stderr，自動加時間戳、程序名、`[pid:執行緒 id]` 與換行。它是偵錯工具，不是正式的日誌系統（上線用 `os_log`，模組 7），也不要放在熱路徑裡（模組 10 會量給你看它有多慢）。
+
+### 格式指定子
+
+`NSLog` 的格式字串與 C 的 `printf` 相同，多了一個 `%@`。工作上 95% 的情況只用這幾個：
+
+| 指定子 | 配什麼型別 | 備註 |
+|---|---|---|
+| `%@` | 任何 Objective-C 物件 | 呼叫該物件的 `description`；`nil` 印 `(null)` |
+| `%d` | `int`、`BOOL`（印 1 / 0） | 不要拿來印 `NSInteger` |
+| `%ld` / `%lu` | `long` / `unsigned long` | `NSInteger` / `NSUInteger` 用這個，加 `(long)` 轉型 |
+| `%zd` / `%tu` | `NSInteger` / `NSUInteger` | 免轉型的寫法，舊程式碼常見 |
+| `%lld` | `long long` | 金額用分存成整數時會用到 |
+| `%f`、`%.2f` | `double`、`CGFloat` | `%.2f` 保留兩位；`float` 也用 `%f` |
+| `%s` | C 字串 `char *` | 配 `[str UTF8String]` |
+| `%p` | 任何指標的位址 | 看兩個變數是不是同一個物件 |
+| `%%` | 印一個 `%` | |
+
+為什麼 `NSInteger` 不能用 `%d`？因為在 64 位元平台 `NSInteger` 是 `long`（8 bytes），`%d` 只讀 4 bytes。值小的時候碰巧正確，值大或在某些 ABI 下就印出垃圾，而且編譯器會給你一行警告，不要忽略它。
+
+```objc
+@import Foundation;
+
+int main(int argc, const char * argv[]) {
+    @autoreleasepool {
+        NSString *note = @"午餐";
+        NSInteger count = 3;
+        int retries = 2;
+        double rate = 0.3125;
+        NSDecimalNumber *amount =
+            [NSDecimalNumber decimalNumberWithString:@"120.50"];
+        BOOL reconciled = YES;
+
+        NSLog(@"%@ x%ld", note, (long)count);
+        // 輸出：午餐 x3
+        NSLog(@"%zd 筆、重試 %d 次", count, retries);
+        // 輸出：3 筆、重試 2 次
+        NSLog(@"匯率 %.4f，金額 %@", rate, amount);
+        // 輸出：匯率 0.3125，金額 120.5
+        NSLog(@"已對帳：%@", reconciled ? @"YES" : @"NO");
+        // 輸出：已對帳：YES
+        NSLog(@"C 字串：%s，折扣 %d%%", [note UTF8String], 50);
+        // 輸出：C 字串：午餐，折扣 50%
+    }
+    return 0;
+}
+```
+
+注意 `NSDecimalNumber` 的 `description` 把 `120.50` 印成 `120.5`，金額要給人看時得用格式化器（模組 5）。`BOOL` 沒有專用指定子，`%d` 會印 `1`，想看 `YES` / `NO` 就自己用三元運算子。
+
+### `%@` 印集合
+
+`%@` 對任何物件都有效，集合會多行縱排印出，這也是你讀 log 時最常看到的格式：
+
+```objc
+@import Foundation;
+
+int main(int argc, const char * argv[]) {
+    @autoreleasepool {
+        NSString *missing = nil;
+        NSLog(@"%@", missing);
+        // 輸出：(null)
+
+        NSArray *tags = @[@"lunch", @"taxi"];
+        NSLog(@"%@", tags);
+        // 輸出：(
+        //     lunch,
+        //     taxi
+        // )
+
+        NSDictionary *row = @{@"amount": @120, @"kind": @"expense"};
+        NSLog(@"%@", row);
+        // 輸出：{
+        //     amount = 120;
+        //     kind = expense;
+        // }
+    }
+    return 0;
+}
+```
+
+`(null)` 就是 nil 的樣子，`( )` 是陣列、`{ }` 是字典，字典的順序不保證。`@120` 是 `NSNumber` 字面值，模組 3 再講。
+
+<Pitfall title="用 %d 印 NSInteger">
+<Fragment slot="bad">
+```objc
+NSInteger count = 3;
+NSLog(@"%d 筆", count);
+// warning: Format specifies type 'int' but the argument
+//          has type 'NSInteger' (aka 'long')
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+NSLog(@"%ld 筆", (long)count);   // Apple 建議的寫法
+NSLog(@"%zd 筆", count);         // 免轉型的替代寫法
+```
+</Fragment>
+這條警告在舊專案裡可能有幾百個，大家都視而不見，直到某天在 32 位元與 64 位元之間傳資料印出亂數。把 Build Settings 的 `-Wformat` 升級成錯誤（`-Werror=format`）是最便宜的保險。
+</Pitfall>
+
+<Pitfall title="忘了 @，把 C 字串當 NSString">
+<Fragment slot="bad">
+```objc
+NSLog("Hello");
+// error: Implicit conversion of a non-Objective-C pointer type
+//        'char[6]' to 'NSString * _Nonnull' is disallowed with ARC
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+NSLog(@"Hello");
+```
+</Fragment>
+好消息是 ARC 下這是編譯錯誤，不會悄悄過關。但反過來把 `NSString` 傳給要 `char *` 的 C 函式（`printf`、`strlen`）時只有警告，執行期印出亂碼：記得 `[str UTF8String]`。
+</Pitfall>
+
+<Pitfall title="NSLog 與 printf 混用，輸出順序亂掉">
+`NSLog` 寫 stderr、不緩衝；`printf` 寫 stdout、有緩衝。兩個混用時主控台的順序可能跟程式碼順序相反，你會以為程式邏輯有問題。草稿本一律用 `NSLog`；真的要 `printf`，記得字串尾端加 `\n`（`NSLog` 會自動加，`printf` 不會）。
+</Pitfall>
+
+<Crash message={`Thread 1: EXC_BAD_ACCESS (code=1, address=0x2a)
+
+warning: Format specifies type 'id' but the argument has type 'int'
+        NSLog(@"%@", 42);
+                ~~   ^~`}>
+`%@` 告訴 `NSLog`「這個引數是物件指標，請對它送 `description`」，但你給的是整數 `42`。`NSLog` 照辦，把 42 當位址去讀，就是 `address=0x2a`（十六進位的 42）。讀法：`EXC_BAD_ACCESS` 是存取了不該碰的記憶體；位址很小（幾十、幾百）幾乎都是「把數字當指標」或「對已釋放物件的欄位取值」；`address=0x0` 則是 nil 解參考（1.2）。編譯器其實早就警告了，所以**格式字串的警告一律當成錯誤處理**。修法：`%d` 配 `42`，或用 `@42` 包成 `NSNumber` 再配 `%@`。
+</Crash>
+
+## 小結
+
+- `@import Foundation;` 載入模組；`main` 是 C 的入口；`@autoreleasepool` 替沒有執行迴圈的程式收尾；`@"..."` 才是 `NSString`。
+- `%@` 物件、`%d` int、`%ld` 配 `(long)` 印 `NSInteger`、`%f` 浮點、`%s` C 字串、`%%` 百分號。
+- `%@` 印 nil 得到 `(null)`，印陣列是 `( )`、字典是 `{ }`。
+- 格式指定子對不上只有警告，執行期可能 `EXC_BAD_ACCESS`；把 `-Wformat` 當錯誤。
+- `NSLog` 是偵錯工具，不是日誌系統，也不要放在熱路徑。

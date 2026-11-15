@@ -1,0 +1,17 @@
+id: m04-4-3-quiz-1
+chapter: "4.3"
+section: quiz
+type: quiz
+title: 為什麼 Java 不用擔心、Objective-C 要擔心？
+minutes: 1
+prompt: 兩個物件互相 strong 持有，外面沒有任何人指著它們。在 Kotlin / Java / TS 裡會被回收、在 Objective-C 裡不會，根本原因是？
+options:
+  - Objective-C 的物件比較大，GC 掃不完
+  - GC 用「從根可達」判斷垃圾，互指但不可達照樣回收；參考計數只看數字，兩個都還是 1
+  - Objective-C 沒有背景執行緒
+  - Java 的物件沒有 strong / weak 的概念
+answer: 1
+explain: 參考計數沒有可達性分析，計數不為零就不釋放。這是 ARC 換來「釋放時機確定、沒有停頓」的代價。Android 的 Activity 洩漏是另一種問題：物件「可達」（被單例抓著），GC 也救不了——這一種 Objective-C 也會中。
+hints: ["GC 怎麼判斷一個物件是垃圾？", "參考計數判斷「可以釋放」的條件只有一個數字。"]
+feedback:
+  "3": "Java 有 WeakReference，但 GC 本身就能處理循環，不需要它來斷環。"

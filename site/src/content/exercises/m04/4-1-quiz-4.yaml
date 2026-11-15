@@ -1,0 +1,17 @@
+id: m04-4-1-quiz-4
+chapter: "4.1"
+section: quiz
+type: quiz
+title: ARC 專案裡看到 [super dealloc]
+minutes: 1
+prompt: 你在一個 ARC 專案的 `.m` 檔看到 `dealloc` 最後一行是 `[super dealloc];`，而且編譯沒有錯誤。最可能的原因是？
+options:
+  - ARC 允許手寫 [super dealloc]，只是多餘
+  - 這個檔案在 Compile Sources 加了 -fno-objc-arc，是 MRC 檔案
+  - 這個類別繼承自 NSProxy，規則不同
+  - 專案的 Deployment Target 太舊
+answer: 1
+explain: ARC 下 `[super dealloc]` 一定是編譯錯誤（ARC forbids explicit message send of 'dealloc'）。能編譯只有一種可能：該檔案被個別關掉 ARC。改這個檔案前先確認它是 MRC。
+hints: ["ARC 禁止的事清單裡有沒有這一條？", "ARC 可以「逐檔」關閉。"]
+feedback:
+  "0": "ARC 對 dealloc 的顯式呼叫是錯誤，不是警告。"

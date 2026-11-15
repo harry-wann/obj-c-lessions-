@@ -1,0 +1,33 @@
+id: m04-4-5-spot-1
+chapter: "4.5"
+type: spot
+title: Instruments 說 CFString 洩漏了
+minutes: 3
+prompt: Leaks 報告每次呼叫這個方法就多一個 `CFString (immutable)` 與一個 `CFUUID`。點出問題行並選原因。
+code: |
+  - (NSString *)makeIdentifier {
+      CFUUIDRef uuid = CFUUIDCreate(kCFAllocatorDefault);
+      CFStringRef s = CFUUIDCreateString(kCFAllocatorDefault, uuid);
+      NSString *result = (__bridge NSString *)s;
+      return result;
+  }
+bug_lines: [2, 3, 4]
+reasons:
+  - "兩個 Create 回傳的 +1 都沒人還：uuid 沒有 CFRelease，s 用 __bridge 轉型沒有把 +1 交給 ARC"
+  - "CFUUIDCreate 應該傳 NULL 而不是 kCFAllocatorDefault"
+  - "result 應該用 copy 修飾"
+  - "方法名應該改成 newIdentifier"
+answer_reason: 0
+fix: |
+  - (NSString *)makeIdentifier {
+      CFUUIDRef uuid = CFUUIDCreate(kCFAllocatorDefault);
+      NSString *result =
+          CFBridgingRelease(CFUUIDCreateString(kCFAllocatorDefault, uuid));
+      CFRelease(uuid);
+      return result;
+  }
+solution_note: 兩個 Create 就要有兩個「放手」：uuid 用 CFRelease；字串用 CFBridgingRelease 交給 ARC（之後由 ARC 在適當時機釋放）。Leaks 報告裡的 CFString / __NSCFString 沒有你的類別名，看到就搜所有 Create / Copy 呼叫檢查配對。
+hints: ["數一數有幾個 Create。", "__bridge 會不會改變擁有權？", "方法回傳後，誰負責 uuid？"]
+feedback:
+  "1": "NULL 與 kCFAllocatorDefault 等價，不影響擁有權。"
+  "3": "new 開頭反而違反 4.1 的命名規約。"

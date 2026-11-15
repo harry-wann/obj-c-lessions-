@@ -1,0 +1,29 @@
+id: m04-4-2-fill-1
+chapter: "4.2"
+type: fill
+title: 補齊 weakSelf / strongSelf 樣板
+minutes: 3
+prompt: 這個 block 由 self 持有（屬性）。填入樣板缺少的修飾詞與變數名，讓它既不循環參考、又能在執行期間保證 self 活著。
+code: |
+  ___1___ typeof(self) weakSelf = self;
+  self.onChange = ^{
+      ___2___ typeof(weakSelf) strongSelf = ___3___;
+      if (!___4___) { return; }
+      [strongSelf reloadTotals];
+  };
+blanks:
+  "1": { accept: [__weak], chips: [__weak, __strong, __unsafe_unretained, __block] }
+  "2": { accept: [__strong], chips: [__weak, __strong, __unsafe_unretained, __block] }
+  "3": { accept: [weakSelf], chips: [weakSelf, self, strongSelf] }
+  "4": { accept: [strongSelf], chips: [weakSelf, self, strongSelf] }
+hints:
+  - block 外要把 self 變成「不持有」的版本。
+  - block 內第一行要把它轉回「暫時持有」，之後才判 nil。
+  - 判 nil 要判轉回來的那個，不是 weak 的那個。
+feedback:
+  "1=__strong": "block 捕獲 strong 的 self，self 又持有 block → 循環參考。"
+  "1=__block": "__block 讓變數可在 block 內修改，跟持有權無關；仍然是 strong。"
+  "2=__weak": "block 內如果還是 weak，執行到一半 self 可能變 nil。"
+  "3=self": "寫 self 等於直接捕獲 self，weakSelf 白做了。"
+  "4=weakSelf": "多執行緒下判完 weakSelf 不為 nil、下一行它又變 nil。要判 strongSelf。"
+solution_note: 外 weak、內 strong、判 strong。strongSelf 只在 block 執行期間持有 self，跑完即放，不會形成循環。

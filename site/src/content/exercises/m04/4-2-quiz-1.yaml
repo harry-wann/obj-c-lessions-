@@ -1,0 +1,18 @@
+id: m04-4-2-quiz-1
+chapter: "4.2"
+section: quiz
+type: quiz
+title: ARC 在哪一個階段工作？
+minutes: 1
+prompt: 「ARC 會自動管理記憶體」——它是怎麼做到的？
+options:
+  - 執行期有一個背景執行緒定期掃描不可達的物件並回收
+  - 編譯器在編譯期依擁有權規則插入 retain / release，執行期沒有額外的掃描
+  - runtime 在每次 run loop 結束時統一釋放所有沒被引用的物件
+  - 物件自己在 dealloc 裡釋放其他物件
+answer: 1
+explain: ARC 是 Clang 的一個編譯階段，產出的機器碼和手寫 MRC 一樣。沒有 GC 的掃描與停頓，釋放時機確定；代價是循環參考要自己斷。
+hints: ["ARC 的 A 是 Automatic，不是 Garbage。", "如果有背景掃描，就不會有循環參考的問題了。"]
+feedback:
+  "0": "那是 GC（Kotlin / Java / TS）的做法。ARC 沒有可達性分析，所以才會有循環參考。"
+  "2": "run loop 結束排空的是 autorelease 池，只影響 autoreleased 物件，不是「所有沒被引用的物件」。"

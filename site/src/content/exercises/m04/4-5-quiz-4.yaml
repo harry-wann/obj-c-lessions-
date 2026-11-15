@@ -1,0 +1,17 @@
+id: m04-4-5-quiz-4
+chapter: "4.5"
+section: quiz
+type: quiz
+title: 哪個不是免費橋接？
+minutes: 1
+prompt: 下列哪一組**不能**用 `__bridge` 互轉成對方的類別？
+options:
+  - "`CFStringRef` ↔ `NSString *`"
+  - "`CFArrayRef` ↔ `NSArray *`"
+  - "`CGColorRef` ↔ `UIColor *`"
+  - "`CFDictionaryRef` ↔ `NSDictionary *`"
+answer: 2
+explain: 免費橋接只限 Foundation 清單裡的型別（String、Array、Dictionary、Number、Data、Date、URL、Set 等）。CGColorRef 是 CF 物件，可以 `(__bridge id)` 放進 NSArray（CAGradientLayer.colors），但它和 UIColor 不是同一塊記憶體，要用 `[UIColor colorWithCGColor:]`。
+hints: ["免費橋接的前提是「記憶體裡是同一個東西」。", "UIColor 是 UIKit 類別，CGColorRef 是 Core Graphics。"]
+feedback:
+  "0": "CFString 與 NSString 是最經典的免費橋接。"

@@ -325,4 +325,4 @@ reason: '-[LBTransaction init]: unrecognized selector sent to instance 0x600001a
 - 樣板：`if (self = [super init]) { _ivar = …; } return self;`，回傳型別用 `instancetype`。
 - 只有指定初始化器呼叫 `super`、寫 ivar；便利初始化器呼叫 `self` 的指定初始化器。
 - `NS_DESIGNATED_INITIALIZER` 讓 Clang 幫你檢查；`NS_UNAVAILABLE` 禁用 `init` / `new`，避免半成品物件。
-- 類別方法工廂用 `[self alloc]`，子類別才能沿用；`init` 回 nil 是合法的失敗方式，呼叫端要檢查。
+- 類別方法工廠用 `[self alloc]`，子類別才能沿用；`init` 回 nil 是合法的失敗方式，呼叫端要檢查。

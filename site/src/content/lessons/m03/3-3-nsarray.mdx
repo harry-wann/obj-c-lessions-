@@ -1,0 +1,262 @@
+---
+title: NSArray 與 NSMutableArray
+module: 3
+chapter: "3.3"
+order: 3
+minutes: 35
+prereq: ["3.2"]
+objectives:
+  - 用字面值、下標、firstObject 安全地建立與取值，知道 objectAtIndex: 什麼時候會炸
+  - 用快速列舉、enumerateObjectsUsingBlock:、比較器排序與 NSPredicate 過濾交易
+  - 說出動態陣列的攤銷成本、為什麼中間插入是 O(n)、列舉中為什麼不能改
+summary: 字面值 @[]、下標、firstObject vs objectAtIndex:、快速列舉、排序與過濾、indexOfObject: 走 isEqual:、動態陣列的擴容與攤銷成本。
+terms:
+  - { en: fast enumeration, tw: 快速列舉, cn: 快速遍历, jp: 高速列挙 }
+  - { en: comparator, tw: 比較器, cn: 比较器, jp: コンパレータ }
+  - { en: predicate, tw: 述詞（predicate）, cn: 谓词, jp: 述語（プレディケート） }
+  - { en: dynamic array, tw: 動態陣列, cn: 动态数组, jp: 動的配列 }
+  - { en: amortized cost, tw: 攤銷成本, cn: 平摊成本, jp: 償却コスト }
+  - { en: out of bounds, tw: 越界, cn: 越界, jp: 範囲外 }
+appProgress: LBLedger 能新增、刪除交易，並依日期倒序列出；LBLedgerTests 前兩個測試轉綠。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+var txs: [Transaction] = []                // 值型別；let 就不可變
+txs.append(lunch)
+txs.first                                  // Optional，空陣列回 nil
+let sorted = txs.sorted { $0.date > $1.date }
+let expenses = txs.filter { $0.kind == .expense }
+for tx in txs { print(tx.note) }
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+val txs: MutableList<Transaction> = mutableListOf()
+txs.add(lunch)
+val readOnly: List<Transaction> = txs      // 唯讀介面，底下同一個物件
+txs.firstOrNull()
+val sorted = txs.sortedByDescending { it.date }
+val expenses = txs.filter { it.kind == Kind.EXPENSE }
+```
+</Fragment>
+<Fragment slot="java">
+```java
+List<Transaction> txs = new ArrayList<>();
+txs.add(lunch);
+txs.isEmpty() ? null : txs.get(0);         // get(0) 在空列表會丟 IndexOutOfBounds
+txs.sort(Comparator.comparing(Transaction::getDate).reversed());
+List<Transaction> expenses = txs.stream()
+    .filter(t -> t.getKind() == Kind.EXPENSE).toList();
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+const txs: Transaction[] = [];
+txs.push(lunch);
+txs[0];                                    // 空陣列是 undefined，不會丟
+const sorted = [...txs].sort((a, b) => b.date.getTime() - a.date.getTime());
+const expenses = txs.filter(t => t.kind === "expense");
+const notes = txs.map(t => t.note);
+```
+</Fragment>
+Kotlin 的 `List` / `MutableList` 和 Objective-C 的 `NSArray` / `NSMutableArray` 哲學幾乎一樣：唯讀介面對外、可變實作在內，而且底下是同一個物件。Swift 的 `Array` 是值型別，`let` 就不可變，這點和 ObjC 相反。Java 的 `List` / `ArrayList` 也是同一套，`get(0)` 在空列表會丟例外的行為和 `objectAtIndex:0` 一樣。TS 的 `map` / `filter` / `reduce` 在 ObjC **沒有對應方法**，5.3 會用分類補上。
+</Compare>
+
+## Objective-C 怎麼寫
+
+本章的範例都用這個迷你版 `LBTransaction`，貼在 Scratch 的 `main` 上方即可（App 裡的正式版在 M2 已經寫好）：
+
+```objc
+@interface LBTransaction : NSObject
+@property (nonatomic, copy) NSString *note;
+@property (nonatomic, strong) NSDecimalNumber *amount;
+@property (nonatomic, copy) NSDate *date;
++ (instancetype)note:(NSString *)note amount:(NSString *)amount daysAgo:(NSInteger)days;
+@end
+@implementation LBTransaction
++ (instancetype)note:(NSString *)note amount:(NSString *)amount daysAgo:(NSInteger)days {
+    LBTransaction *tx = [self new];
+    tx.note = note;
+    tx.amount = [NSDecimalNumber decimalNumberWithString:amount];
+    tx.date = [NSDate dateWithTimeIntervalSinceNow:-days * 86400.0];
+    return tx;
+}
+- (NSString *)description { return [NSString stringWithFormat:@"%@ %@", _note, _amount]; }
+@end
+```
+
+### 建立與取值
+
+```objc
+NSArray<LBTransaction *> *txs = @[
+    [LBTransaction note:@"早餐" amount:@"60" daysAgo:2],
+    [LBTransaction note:@"午餐" amount:@"120" daysAgo:1],
+    [LBTransaction note:@"晚餐" amount:@"250" daysAgo:0],
+];
+NSLog(@"%lu", (unsigned long)txs.count);        // 3
+NSLog(@"%@", txs[0]);                           // 早餐 60 —— 下標等於 objectAtIndex:
+NSLog(@"%@", txs.firstObject);                  // 早餐 60
+NSLog(@"%@", txs.lastObject);                   // 晚餐 250
+
+NSArray *empty = @[];
+NSLog(@"%@", empty.firstObject);                // (null) —— 不會越界
+// NSLog(@"%@", empty[0]);                      // 💥 index 0 beyond bounds for empty array
+```
+
+`@[ ]` 是字面值語法，最後一個元素後面可以留逗號。`txs[0]` 只是 `[txs objectAtIndex:0]` 的語法糖，兩者都會在<Term en="out of bounds" tw="越界" cn="越界" jp="範囲外" />時丟例外；`firstObject` / `lastObject` 在空陣列回 nil。所以「拿第一筆、可能沒有」的場合永遠用 `firstObject`，你會少掉一半的崩潰回報。
+
+### 走訪：快速列舉與 block
+
+```objc
+for (LBTransaction *tx in txs) {               // 快速列舉：最快、最常用
+    NSLog(@"%@", tx.note);
+}
+// 早餐 午餐 晚餐（各一行）
+
+[txs enumerateObjectsUsingBlock:^(LBTransaction *tx, NSUInteger idx, BOOL *stop) {
+    NSLog(@"%lu %@", (unsigned long)idx, tx.note);
+    if ([tx.note isEqualToString:@"午餐"]) *stop = YES;   // 提早結束
+}];
+// 0 早餐
+// 1 午餐
+```
+
+<Term en="fast enumeration" tw="快速列舉" cn="快速遍历" jp="高速列挙" />（`for … in`）需要索引時不方便，這時用 `enumerateObjectsUsingBlock:`，block 收到物件、索引與一個 `stop` 指標，`*stop = YES` 相當於 `break`。要倒著走用 `enumerateObjectsWithOptions:NSEnumerationReverse usingBlock:`。
+
+### 搜尋：`indexOfObject:` 用的是 `isEqual:`
+
+```objc
+LBTransaction *lunch = txs[1];
+NSLog(@"%lu", (unsigned long)[txs indexOfObject:lunch]);        // 1
+NSLog(@"%d", [txs containsObject:lunch]);                        // 1
+
+NSUInteger idx = [txs indexOfObject:[LBTransaction note:@"宵夜" amount:@"80" daysAgo:0]];
+NSLog(@"%d", idx == NSNotFound);                                 // 1
+NSUInteger byTest = [txs indexOfObjectPassingTest:
+    ^BOOL(LBTransaction *tx, NSUInteger i, BOOL *stop) {
+        return [tx.amount compare:[NSDecimalNumber decimalNumberWithString:@"100"]] > 0;
+    }];
+NSLog(@"%lu", (unsigned long)byTest);                            // 1 —— 第一筆超過 100 的
+```
+
+`indexOfObject:` 和 `containsObject:` 逐一呼叫 `isEqual:`，所以 2.7 寫的 `isEqual:` / `hash` 在這裡生效：兩個不同實體、相同 `identifier` 的交易會被視為同一筆。找不到回傳 `NSNotFound`（它是 `NSIntegerMax`，不是 -1），比較時只能寫 `!= NSNotFound`。整個搜尋是 O(n)，依 ID 查交易查得多的話，3.4 的字典才是正解。
+
+### 排序與過濾
+
+```objc
+NSArray<LBTransaction *> *byDateDesc =
+    [txs sortedArrayUsingComparator:^NSComparisonResult(LBTransaction *a, LBTransaction *b) {
+        return [b.date compare:a.date];         // 反過來比就是倒序
+    }];
+NSLog(@"%@", [[byDateDesc valueForKey:@"note"] componentsJoinedByString:@" "]);
+// 晚餐 午餐 早餐
+
+NSSortDescriptor *byAmount = [NSSortDescriptor sortDescriptorWithKey:@"amount" ascending:YES];
+NSLog(@"%@", [[[txs sortedArrayUsingDescriptors:@[byAmount]] valueForKey:@"note"]
+              componentsJoinedByString:@" "]);
+// 早餐 午餐 晚餐
+
+NSPredicate *over100 = [NSPredicate predicateWithFormat:@"amount > %@",
+                        [NSDecimalNumber decimalNumberWithString:@"100"]];
+NSLog(@"%@", [[[txs filteredArrayUsingPredicate:over100] valueForKey:@"note"]
+              componentsJoinedByString:@" "]);
+// 午餐 晚餐
+```
+
+<Term en="comparator" tw="比較器" cn="比较器" jp="コンパレータ" />是一個回傳 `NSComparisonResult` 的 block；大多數 Foundation 物件（`NSDate`、`NSString`、`NSNumber`、`NSDecimalNumber`）都有 `compare:`，直接轉手即可。Foundation 的排序是穩定的，相同日期的交易會保持原本相對順序。（`valueForKey:@"note"` 會把每筆的 `note` 收成新陣列，3.7 會講；直接 `NSLog` 一個含中文的陣列會印成 `\U665a\U9910` 的跳脫碼，所以先 join 起來。）`NSSortDescriptor` 用屬性名字串（KVC，3.7）描述排序條件，可以疊多個鍵，`UITableView` 的區段排序、Core Data 查詢都吃它。<Term en="predicate" tw="述詞（predicate）" cn="谓词" jp="述語（プレディケート）" />是一套小型查詢語言，`%@` 代入物件、`%K` 代入屬性名、支援 `AND` / `OR` / `CONTAINS[cd]` / `BEGINSWITH`。
+
+### 可變版本 `NSMutableArray`
+
+```objc
+NSMutableArray<LBTransaction *> *ledger = [NSMutableArray array];
+[ledger addObject:[LBTransaction note:@"早餐" amount:@"60" daysAgo:2]];
+[ledger addObject:[LBTransaction note:@"午餐" amount:@"120" daysAgo:1]];
+[ledger insertObject:[LBTransaction note:@"咖啡" amount:@"90" daysAgo:1] atIndex:1];
+ledger[0] = [LBTransaction note:@"早餐（改）" amount:@"65" daysAgo:2];   // 等於 replaceObjectAtIndex:withObject:
+[ledger removeObjectAtIndex:2];
+[ledger removeObject:ledger.firstObject];       // 用 isEqual: 找出來刪
+NSLog(@"%lu %@", (unsigned long)ledger.count, ledger.firstObject);
+// 1 咖啡 90
+```
+
+`NSMutableArray` 是 `NSArray` 的子類別，所有讀取方法都繼承，多了 `addObject:`、`insertObject:atIndex:`、`removeObjectAtIndex:`、`removeObject:`、`sortUsingComparator:`（原地排序）、`filterUsingPredicate:`（原地過濾）。
+
+### 底下是動態陣列：攤銷成本與 O(n) 插入
+
+`NSMutableArray` 的實作是<Term en="dynamic array" tw="動態陣列" cn="动态数组" jp="動的配列" />：一塊連續記憶體，滿了就配一塊更大的（通常是倍數成長），把舊元素搬過去。單次搬移是 O(n)，但 n 次 `addObject:` 總共只搬 O(n) 個元素，平均每次 O(1)，這叫<Term en="amortized cost" tw="攤銷成本" cn="平摊成本" jp="償却コスト" />。相對地，`insertObject:atIndex:0` 要把後面所有元素往後挪一格，是真的 O(n)；一萬筆交易每筆都插最前面就是一億次搬移。
+
+| 操作 | 時間 | 備註 |
+|---|---|---|
+| `arr[i]`、`count` | O(1) | 連續記憶體直接算位移 |
+| `addObject:` | 攤銷 O(1) | 偶爾一次 O(n) 擴容 |
+| `insertObject:atIndex:` / `removeObjectAtIndex:` | O(n) | 要搬移後面元素；Apple 的實作對頭尾插入有最佳化，但不要依賴 |
+| `indexOfObject:` / `containsObject:` | O(n) | 逐一 `isEqual:` |
+| `sortedArrayUsingComparator:` | O(n log n) | 穩定排序 |
+
+小帳本的交易是「依日期倒序顯示」，新交易通常是最新的，所以 `addObject:` 到尾端、顯示時倒著走，比每次都 `insertObject:atIndex:0` 便宜。想親眼看到擴容曲線，本章「想多練？」裡有自己寫 `LBDynamicArray` 的進階題。
+
+<Pitfall title="列舉中修改集合會直接 crash">
+<Fragment slot="bad">
+```objc
+for (LBTransaction *tx in ledger) {
+    if (tx.amount.doubleValue < 100) {
+        [ledger removeObject:tx];      // 💥 mutated while being enumerated
+    }
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+for (LBTransaction *tx in [ledger copy]) {    // 走訪快照，改原本
+    if (tx.amount.doubleValue < 100) [ledger removeObject:tx];
+}
+// 或：收集索引後一次刪
+NSIndexSet *small = [ledger indexesOfObjectsPassingTest:
+    ^BOOL(LBTransaction *tx, NSUInteger i, BOOL *stop) {
+        return tx.amount.doubleValue < 100;
+    }];
+[ledger removeObjectsAtIndexes:small];
+```
+</Fragment>
+錯誤訊息是 `*** Collection <__NSArrayM: 0x…> was mutated while being enumerated.`，例外類別 `NSGenericException`。快速列舉會檢查集合的變動計數，一變就丟。倒著用 C 迴圈刪是可以的，但多數時候 `removeObjectsAtIndexes:` 或 `filterUsingPredicate:` 更清楚。
+</Pitfall>
+
+<Pitfall title="nil 放不進 @[ ]">
+```objc
+NSString *note = nil;
+NSArray *row = @[@"午餐", note, @"120"];
+// 💥 -[__NSPlaceholderArray initWithObjects:count:]: attempt to insert nil object from objects[1]
+```
+集合不能裝 nil，字面值一建就炸，`addObject:nil` 也一樣（訊息是 `object cannot be nil`）。要表示「這格沒有」用 `[NSNull null]`，取出時記得判斷 `obj == [NSNull null]`——它是單例，所以這裡例外地可以用 `==`。3.6 講 nullability 時會再處理這個邊界。
+</Pitfall>
+
+<Pitfall title="NSUInteger 的 count - 1 在空陣列會變成天文數字">
+```objc
+for (NSUInteger i = 0; i < arr.count - 1; i++) { ... }   // arr 空時 count - 1 = 18446744073709551615
+```
+`count` 是無號整數，0 減 1 會繞回最大值，迴圈跑到越界 crash。寫成 `i + 1 < arr.count`，或先判斷 `arr.count == 0`。同理，`for (NSInteger i = arr.count - 1; i >= 0; i--)` 要把 `i` 宣告成有號的 `NSInteger` 才停得下來。
+</Pitfall>
+
+<Pitfall title="indexOfObject: 回的是 NSNotFound，不是 -1">
+`NSUInteger idx = [arr indexOfObject:x]; if (idx >= 0)` 永遠成立，`if (idx == -1)` 永遠不成立（還會收到比較有號無號的警告）。唯一正確的寫法是 `idx != NSNotFound`。`rangeOfString:` 的 `location` 也是同一回事。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSRangeException',
+reason: '*** -[__NSArrayI objectAtIndex:]: index 3 beyond bounds [0 .. 2]'`}>
+讀法：`NSRangeException` 是越界；接收者 `__NSArrayI` 的 `I` 代表 immutable，所以這是一個不可變陣列，通常是 `@[ ]` 字面值、`copy` 的結果或某個 API 回傳值，不是你自己 `addObject:` 的那個；selector `objectAtIndex:`（下標 `arr[3]` 也會顯示成這個）；`index 3 beyond bounds [0 .. 2]` 說陣列有 3 個元素你卻要第 4 個。如果類別名是 `__NSArrayM`（M 代表 mutable），事發地點就在你操作 `NSMutableArray` 的地方，很可能是先刪了元素再用舊索引取值；`__NSPlaceholderArray` 則表示字面值或 `initWithObjects:` 建構中，八成是 nil 問題；`__NSArray0` 是空陣列單例、`__NSSingleObjectArrayI` 是只有一個元素的最佳化版本，看到它們就知道陣列有 0 或 1 筆。常見成因是 `UITableView` 的 `numberOfRowsInSection:` 回了舊的數量，資料更新後 cell 還在拿 `indexPath.row`。修法：取值前檢查 `idx < arr.count`，拿頭尾用 `firstObject` / `lastObject`，資料與畫面一起更新。
+</Crash>
+
+## 小結
+
+- `@[ ]` 建立、`arr[i]` 取值會越界 crash；`firstObject` / `lastObject` 在空陣列回 nil。
+- 走訪用 `for … in`，要索引或提早停用 `enumerateObjectsUsingBlock:`；列舉中不能改集合。
+- `indexOfObject:` / `containsObject:` 走 `isEqual:`，找不到是 `NSNotFound`。
+- 排序給比較器或 `NSSortDescriptor`，過濾給 `NSPredicate`；`map` / `filter` / `reduce` 要等 5.3 的分類。
+- 動態陣列：尾端加入攤銷 O(1)，中間插入 O(n)，依 ID 查找 O(n)——那是字典的工作。

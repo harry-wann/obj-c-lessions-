@@ -1,0 +1,45 @@
+id: m04-4-3-spot-1
+chapter: "4.3"
+type: spot
+title: 看程式碼判斷：NSTimer 版
+minutes: 3
+prompt: 這個 ViewController 離開畫面後永遠不會 dealloc。點出造成問題的行並選原因。
+code: |
+  - (void)viewDidLoad {
+      [super viewDidLoad];
+      self.timer = [NSTimer scheduledTimerWithTimeInterval:30
+                                                    target:self
+                                                  selector:@selector(autosave)
+                                                  userInfo:nil
+                                                   repeats:YES];
+  }
+
+  - (void)dealloc {
+      [_timer invalidate];
+  }
+bug_lines: [4, 11]
+reasons:
+  - "target: 版的 timer 強持有 self，RunLoop 又持有 timer；invalidate 放在 dealloc 等於等一件永遠不會發生的事"
+  - "scheduledTimer 必須在 viewWillAppear 建立，不能在 viewDidLoad"
+  - "self.timer 應該是 weak 屬性就能解決"
+  - "repeats:YES 的 timer 不能 invalidate"
+answer_reason: 0
+fix: |
+  // 方案一：在明確的生命週期點停掉
+  - (void)viewWillDisappear:(BOOL)animated {
+      [super viewWillDisappear:animated];
+      [self.timer invalidate];
+      self.timer = nil;
+  }
+
+  // 方案二：block 版 + weakSelf，timer 不再持有 self，dealloc 裡的 invalidate 才有效
+  __weak typeof(self) weakSelf = self;
+  self.timer = [NSTimer scheduledTimerWithTimeInterval:30 repeats:YES
+                                                 block:^(NSTimer *t) {
+      [weakSelf autosave];
+  }];
+solution_note: 持有鏈：RunLoop → timer → self。就算 self.timer 改 weak 也沒用，撐著 timer 的是 RunLoop 不是 self。只有 invalidate 能讓 timer 放手，而 dealloc 要等 timer 放手才會跑——死結。
+hints: ["timer 持有誰？誰持有 timer？", "dealloc 什麼時候會被呼叫？在那之前 invalidate 跑得到嗎？"]
+feedback:
+  "2": "把 timer 屬性改 weak 不會改變「timer 持有 self」這條線，RunLoop 仍撐著 timer。"
+  "3": "repeats:YES 的 timer 正是最需要 invalidate 的。"

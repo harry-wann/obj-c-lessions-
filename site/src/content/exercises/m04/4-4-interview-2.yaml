@@ -1,0 +1,26 @@
+id: m04-4-4-interview-2
+chapter: "4.4"
+type: flash
+tier: interview
+title: 面試題：複製帶隨機指標的鏈結串列
+minutes: 4
+front: "面試官：每個節點有 `next` 與 `random`（指向串列中任意節點或 nil）。深拷貝整條串列。怎麼做到 O(n)？random 用 strong 還是 weak？"
+back: |
+  **思路一：字典對應**（最直覺）。走訪一次，為每個舊節點建新節點，`NSMapTable` 或 `NSMutableDictionary`（key 用 `NSValue valueWithNonretainedObject:` 或直接用 NSMapTable 的 pointer identity）記 舊→新；第二次走訪設定 `new.next = map[old.next]`、`new.random = map[old.random]`。O(n) 時間、O(n) 空間。
+  ```objc
+  LBRNode *LBCopyList(LBRNode *head) {
+      NSMapTable *map = [NSMapTable strongToStrongObjectsMapTable];  // 以位址為 key
+      for (LBRNode *p = head; p; p = p.next) {
+          LBRNode *c = [LBRNode new]; c.value = p.value; [map setObject:c forKey:p];
+      }
+      for (LBRNode *p = head; p; p = p.next) {
+          LBRNode *c = [map objectForKey:p];
+          c.next = [map objectForKey:p.next];
+          c.random = [map objectForKey:p.random];
+      }
+      return [map objectForKey:head];
+  }
+  ```
+  注意 NSMapTable 預設用 `isEqual:` / `hash`；節點沒覆寫就是位址比較，正好。若節點覆寫了 isEqual:，改用 `NSPointerFunctionsObjectPointerPersonality`。
+  **思路二：交織法**，O(1) 額外空間：在每個舊節點後面插一個新節點（A→A'→B→B'），這樣 `A'.random = A.random.next`，最後再把兩條拆開。
+  **random 用 strong 還是 weak？** random 可以指向前面的節點 → 可能循環參考。串列的擁有關係由 next 表達，random 是「往任意方向看」的參考，應該 **weak**（或 unsafe_unretained 配合明確的生命週期）。這一題在 Swift / ObjC 面試是加分點；Kotlin / Java 面試官不會問，因為 GC 不在意。

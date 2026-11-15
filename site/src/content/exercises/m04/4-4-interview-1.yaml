@@ -1,0 +1,33 @@
+id: m04-4-4-interview-1
+chapter: "4.4"
+type: flash
+tier: interview
+title: 面試題：合併 K 個有序鏈結串列
+minutes: 4
+front: "面試官：給你 K 條已排序的鏈結串列（總共 N 個節點），合併成一條有序串列。講思路、複雜度，用 Objective-C 寫出核心。"
+back: |
+  三種思路，由差到好：
+  1. **逐條合併**：第 1 條併第 2 條，結果再併第 3 條……O(N·K)。
+  2. **分治**：兩兩合併，像合併排序。O(N log K)，不需額外結構，面試最常寫。
+  3. **最小堆積**：K 個頭節點放進最小堆積，每次取最小接到結果、把它的 next 放回堆積。O(N log K)、O(K) 空間。Foundation 沒有內建堆積（10.5 會手寫），所以 ObjC 面試通常寫分治。
+  ```objc
+  LBNode *LBMergeTwo(LBNode *a, LBNode *b) {
+      LBNode *dummy = [LBNode new]; LBNode *tail = dummy;
+      while (a && b) {
+          if ([a.value compare:b.value] != NSOrderedDescending) {
+              tail.next = a; a = a.next;
+          } else { tail.next = b; b = b.next; }
+          tail = tail.next;
+      }
+      tail.next = a ?: b;
+      return dummy.next;
+  }
+  LBNode *LBMergeK(NSArray<LBNode *> *lists, NSUInteger lo, NSUInteger hi) {
+      if (lo > hi) return nil;
+      if (lo == hi) return lists[lo];
+      NSUInteger mid = lo + (hi - lo) / 2;
+      return LBMergeTwo(LBMergeK(lists, lo, mid), LBMergeK(lists, mid + 1, hi));
+  }
+  ```
+  ARC 細節：`dummy` 是區域變數，回傳 `dummy.next` 後 dummy 釋放，但它的 next 已經被呼叫端的變數 strong 持有，不會連鎖消失。`tail.next = a` 這類賦值會改變持有關係，但因為 a 仍由區域變數撐著，中間不會有節點被提早釋放。
+  Swift 用 `Comparable` 泛型與 `?.`；Kotlin 用 `compareTo` 與 `PriorityQueue`（Java 內建堆積，思路 3 就變成首選）。

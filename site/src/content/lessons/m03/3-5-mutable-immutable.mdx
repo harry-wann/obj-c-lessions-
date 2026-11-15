@@ -1,0 +1,210 @@
+---
+title: 可變與不可變的設計哲學
+module: 3
+chapter: "3.5"
+order: 5
+minutes: 25
+prereq: ["3.4"]
+objectives:
+  - 說出「預設不可變、需要才 mutableCopy」為什麼是 Foundation 的核心哲學
+  - 把屬性對外宣告成不可變型別、內部持有可變版本，回傳快照而不是內部狀態
+  - 看到 __NSArrayI / __NSArrayM / __NSCFConstantString 就知道物件從哪來、能不能改
+summary: 預設不可變、mutableCopy 與 copy 的回傳型別、對外不可變對內可變的屬性模式、類別叢集與 __NSArrayI 等真實類別名。
+terms:
+  - { en: mutable / immutable, tw: 可變 / 不可變, cn: 可变 / 不可变, jp: ミュータブル / イミュータブル }
+  - { en: class cluster, tw: 類別叢集, cn: 类簇, jp: クラスクラスタ }
+  - { en: snapshot, tw: 快照, cn: 快照, jp: スナップショット }
+  - { en: defensive copy, tw: 防禦性複製, cn: 防御性拷贝, jp: 防御的コピー }
+  - { en: value semantics, tw: 值語意, cn: 值语义, jp: 値セマンティクス }
+appProgress: LBLedger 的 transactions 回傳不可變快照，外面拿到的陣列再怎麼 cast 都改不到帳本。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+struct Ledger {
+    private var storage: [Transaction] = []
+    var transactions: [Transaction] { storage }   // 值型別：回傳就是拷貝
+    mutating func add(_ tx: Transaction) { storage.append(tx) }
+}
+let a = ledger.transactions   // let 就不可變，語言層保證
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+class Ledger {
+    private val storage = mutableListOf<Transaction>()
+    val transactions: List<Transaction> get() = storage.toList()   // 快照
+    fun add(tx: Transaction) { storage += tx }
+}
+// 回 storage 本身的話，呼叫端 (as MutableList) 就能改你的內部 —— 和 ObjC 一模一樣
+```
+</Fragment>
+<Fragment slot="java">
+```java
+public class Ledger {
+    private final List<Transaction> storage = new ArrayList<>();
+    public List<Transaction> getTransactions() {
+        return Collections.unmodifiableList(new ArrayList<>(storage));   // 防禦性複製
+    }
+}
+// Effective Java 第 50 條：防禦性複製
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+class Ledger {
+  #storage: Transaction[] = [];
+  get transactions(): readonly Transaction[] { return [...this.#storage]; }
+}
+// readonly 只有編譯期；執行期 (arr as Transaction[]).push() 照樣成功
+```
+</Fragment>
+Kotlin 的 `List` / `MutableList` 和 Objective-C 的 `NSArray` / `NSMutableArray` 是同一個哲學：**唯讀是介面，可變是實作，底下可能是同一個物件**。Java 的防禦性複製（Effective Java）就是本章要教的模式。Swift 走另一條路：集合是值型別，拷貝語意由語言保證，所以 Swift 開發者最容易忘記 ObjC 這邊要自己 copy。TS 的 `readonly` 和 ObjC 的 `NSArray *` 型別一樣，只是編譯期的提示。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 預設不可變，需要才可變
+
+Foundation 的每個容器都是一對：`NSString` / `NSMutableString`、`NSArray` / `NSMutableArray`、`NSDictionary` / `NSMutableDictionary`、`NSSet` / `NSMutableSet`、`NSData` / `NSMutableData`。可變版本是不可變版本的子類別，所以任何收 `NSArray *` 的地方都能傳 `NSMutableArray *`，反過來不行。
+
+為什麼預設是不可變？三個理由：**執行緒安全**——不會變的東西多少個執行緒同時讀都沒事；**可以當字典的鍵**——`hash` 不會變；**可以放心分享**——傳給別人不必擔心被改。Apple 的 API 幾乎都回傳不可變型別，`UIView.subviews`、`NSBundle.mainBundle.infoDictionary`、`NSJSONSerialization` 的結果都是。
+
+```objc
+NSArray<NSString *> *names = @[@"早餐", @"午餐"];
+NSMutableArray<NSString *> *draft = [names mutableCopy];   // 需要改：拿一份可變的
+[draft addObject:@"晚餐"];
+NSArray<NSString *> *final = [draft copy];                 // 改完：凍結回不可變
+NSLog(@"%lu %lu", (unsigned long)names.count, (unsigned long)final.count);   // 2 3
+```
+
+`copy` 回傳**不可變**版本、`mutableCopy` 回傳**可變**版本，不管接收者原本是哪一種。這兩個方法在所有 Foundation 容器上都成立，也是你 2.7 實作 `NSCopying` 時要遵守的語意。對不可變物件呼叫 `copy` 可能直接回傳自己（反正不會變），所以不用擔心成本。
+
+### 屬性模式：對外不可變，對內可變
+
+這是整個模組最重要的一個模式，`LBLedger` 就是這樣寫：
+
+```objc
+// LBLedger.h —— 對外只看得到不可變型別
+@interface LBLedger : NSObject
+@property (nonatomic, copy, readonly) NSArray<LBTransaction *> *transactions;
+- (void)addTransaction:(LBTransaction *)tx;
+@end
+
+// LBLedger.m —— 內部持有可變版本
+@interface LBLedger ()
+@property (nonatomic, strong) NSMutableArray<LBTransaction *> *storage;
+@end
+
+@implementation LBLedger
+- (instancetype)init {
+    if (self = [super init]) { _storage = [NSMutableArray array]; }
+    return self;
+}
+- (void)addTransaction:(LBTransaction *)tx { [self.storage addObject:tx]; }
+- (NSArray<LBTransaction *> *)transactions {
+    return [self.storage copy];            // 回傳快照：不可變、而且不是 storage 本身
+}
+@end
+```
+
+```objc
+LBLedger *ledger = [LBLedger new];
+[ledger addTransaction:tx1];
+NSArray *snapshot = ledger.transactions;
+[ledger addTransaction:tx2];
+NSLog(@"%lu %lu", (unsigned long)snapshot.count, (unsigned long)ledger.transactions.count);
+// 1 2 —— 拿到的快照不會跟著變
+```
+
+重點有三個。第一，標頭檔只出現 `NSArray`，呼叫端從型別就知道「這東西不能改、也不會偷偷變」。第二，getter 回傳 `[storage copy]`——一個<Term en="snapshot" tw="快照" cn="快照" jp="スナップショット" />，而不是 `storage` 本身；如果直接回 `storage`，呼叫端一行 `(NSMutableArray *)ledger.transactions` 轉型就能改你的內部狀態，這是 Java 說的<Term en="defensive copy" tw="防禦性複製" cn="防御性拷贝" jp="防御的コピー" />要防的事。第三，呼叫端拿到的快照在你之後 `addTransaction:` 時不會變，所以 `UITableView` 正在用的資料來源不會在你背後長度改變——3.3 那個 `index beyond bounds` 很多就是這樣來的。
+
+反方向同理：**收**集合的屬性要 `copy`。`@property (copy) NSArray *items` 的 setter 存的是 `[items copy]`，呼叫端傳進可變陣列後再改，也影響不到你（2.4 已經用 `NSString` 講過一次）。
+
+### 類別叢集：`NSArray` 其實不是 `NSArray`
+
+```objc
+NSLog(@"%@", [@[] class]);                              // __NSArray0
+NSLog(@"%@", [@[@1] class]);                            // __NSSingleObjectArrayI
+NSLog(@"%@", [@[@1, @2] class]);                        // __NSArrayI
+NSLog(@"%@", [[NSMutableArray array] class]);           // __NSArrayM
+NSLog(@"%@", [[@[@1, @2] mutableCopy] class]);          // __NSArrayM
+NSLog(@"%@", [[[NSMutableArray array] copy] class]);    // __NSArray0
+NSLog(@"%@", [@"午餐" class]);                          // __NSCFConstantString
+NSLog(@"%@", [[NSMutableString string] class]);         // __NSCFString
+NSLog(@"%@", [@{} class]);                              // __NSDictionary0
+NSLog(@"%@", [[NSMutableDictionary dictionary] class]); // __NSDictionaryM
+```
+
+`NSArray` 是一個<Term en="class cluster" tw="類別叢集" cn="类簇" jp="クラスクラスタ" />：你看到的 `NSArray` 是抽象的公開介面，`[[NSArray alloc] init]` 真正回傳的是某個私有子類別，Foundation 依內容挑最省的實作——空陣列給單例 `__NSArray0`、一個元素給 `__NSSingleObjectArrayI`、一般情況給 `__NSArrayI`，可變的給 `__NSArrayM`。這些名字會以上面的樣子出現在崩潰訊息裡（實際名稱隨版本略有不同）：
+
+| 崩潰訊息裡的類別 | 它是什麼 | 推論 |
+|---|---|---|
+| `__NSArrayI`、`__NSDictionaryI`、`__NSSetI` | 不可變容器 | 來自字面值、`copy` 或 API 回傳值；對它送 `addObject:` 必炸 |
+| `__NSArrayM`、`__NSDictionaryM`、`__NSSetM` | 可變容器 | 你自己 `mutableCopy` 或 `[NSMutableArray array]` 出來的 |
+| `__NSArray0`、`__NSDictionary0` | 空容器單例 | 陣列是空的，先懷疑資料沒載到 |
+| `__NSSingleObjectArrayI` | 只有一個元素 | `arr[1]` 當然越界 |
+| `__NSPlaceholderArray`、`__NSPlaceholderDictionary` | 字面值 / `initWithObjects:` 建構中 | 幾乎都是 nil 元素 |
+| `__NSCFConstantString` | `@"..."` 字面值 | 不可變；送 `appendString:` 必炸 |
+| `__NSCFString` | 執行期建立的字串 | 可能可變也可能不可變，看建立方式 |
+| `NSTaggedPointerString`、`__NSCFNumber` | 短字串 / 數字 | 值在指標裡；`==` 會「剛好相等」 |
+
+類別叢集帶來一個實務後果：**不要用 `isKindOfClass:` 判斷可變性**。`[arr isKindOfClass:[NSMutableArray class]]` 在某些版本對不可變陣列也回 YES，Apple 文件明講不可依賴。你的判斷依據只有一個——型別宣告上寫什麼，就當它是什麼；拿到 `NSArray *` 就不改，要改先 `mutableCopy`。
+
+<Pitfall title="copy 修飾的 NSMutableArray 屬性，存進去就變成不可變">
+<Fragment slot="bad">
+```objc
+@property (nonatomic, copy) NSMutableArray<LBTransaction *> *drafts;
+// ...
+self.drafts = [NSMutableArray array];
+[self.drafts addObject:tx];
+// 💥 -[__NSArrayI addObject:]: unrecognized selector sent to instance
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+@property (nonatomic, strong) NSMutableArray<LBTransaction *> *drafts;   // 內部可變狀態用 strong
+// 或對外用 copy + NSArray，內部另有 NSMutableArray（本章模式）
+```
+</Fragment>
+`copy` 的 setter 存的是 `[value copy]`，而 `copy` 回不可變版本，所以你宣告的型別寫 `NSMutableArray` 也沒用，拿到的是 `__NSArrayI`。規則：`copy` 只配不可變型別；可變型別的屬性用 `strong`，而且最好只在 `.m` 裡出現。
+</Pitfall>
+
+<Pitfall title="直接回傳內部的 NSMutableArray">
+<Fragment slot="bad">
+```objc
+- (NSArray<LBTransaction *> *)transactions { return self.storage; }
+// 呼叫端：
+[(NSMutableArray *)ledger.transactions removeAllObjects];   // 帳本被清空了
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (NSArray<LBTransaction *> *)transactions { return [self.storage copy]; }
+```
+</Fragment>
+型別宣告擋不住轉型，執行期也不會檢查。更隱蔽的版本是沒有人惡意轉型，但呼叫端把它存起來當 table view 的資料來源，你這邊一 `addObject:`，那邊的 `numberOfRows` 和實際內容就不同步。對小陣列每次 copy 很便宜；真的大到需要在意時，再換成只在變動時重建快取的做法。
+</Pitfall>
+
+<Pitfall title="mutableCopy 是淺拷貝">
+`[txs mutableCopy]` 複製的是陣列這個容器，裡面的每個 `LBTransaction` 仍是同一批物件。改快照裡某筆交易的屬性，原本陣列裡的那筆也會變，因為它們是同一個。要連元素一起複製（深拷貝），自己走訪並對每個元素 `copy`，或用 `initWithArray:copyItems:YES`。這也是為什麼小帳本把 `LBTransaction` 設計成不可變：元素不會變，淺拷貝就夠了。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: '-[__NSCFConstantString appendString:]: unrecognized selector sent to instance 0x1004a8060'`}>
+讀法：接收者是 `__NSCFConstantString`——一個 `@"..."` 字面值；selector 是 `appendString:`，那是 `NSMutableString` 才有的方法。翻譯：有人對不可變字串送了可變訊息。這種事能編譯過，通常是因為變數宣告成 `NSMutableString *` 卻被賦了一個 `NSString`：`NSMutableString *s = (NSMutableString *)someString;`，或是 `@property (copy) NSMutableString *buffer`（上面的陷阱），或是函式參數型別寫 `id`。位址 `0x1004a8060` 落在程式本身的區段（開頭 `0x1`），再次佐證它是編譯進執行檔的字面值。同一家族的訊息還有 `-[__NSArrayI addObject:]`、`-[__NSDictionaryI setObject:forKey:]`、`-[__NSArray0 removeObjectAtIndex:]`，看類別名尾字就能判斷。修法：往回找那個變數是從哪裡拿到不可變物件的，在那一點 `mutableCopy`，而不是在崩潰點強制轉型。
+</Crash>
+
+## 小結
+
+- Foundation 預設不可變：安全分享、能當鍵、執行緒友善；需要改才 `mutableCopy`，改完 `copy` 凍結。
+- `copy` 回不可變、`mutableCopy` 回可變，與接收者原本是哪種無關。
+- 屬性模式：`.h` 宣告 `copy, readonly` 的不可變型別，`.m` 持有可變版本，getter 回傳 `[storage copy]` 快照。
+- `copy` 修飾詞只配不可變型別；`NSMutableArray` 屬性用 `strong` 且別外露。
+- 類別叢集：`__NSArrayI` 不可變、`__NSArrayM` 可變、`__NSArray0` 空、`__NSPlaceholderArray` 建構中、`__NSCFConstantString` 字面值；別用 `isKindOfClass:` 判斷可變性。

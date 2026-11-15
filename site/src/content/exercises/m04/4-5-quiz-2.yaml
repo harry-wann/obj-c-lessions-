@@ -1,0 +1,17 @@
+id: m04-4-5-quiz-2
+chapter: "4.5"
+section: quiz
+type: quiz
+title: __bridge 做了什麼？
+minutes: 1
+prompt: "`CFStringRef cf = (__bridge CFStringRef)nsString;` 之後，誰負責這塊記憶體？"
+options:
+  - 你；之後要 CFRelease(cf)
+  - ARC；擁有權完全沒變，cf 只是用另一個型別看同一塊記憶體
+  - 兩邊各持有一份
+  - 沒有人；物件會立刻釋放
+answer: 1
+explain: __bridge 不動擁有權。nsString 仍由 ARC 管，cf 的有效期跟著 nsString 走——nsString 釋放後 cf 就是懸空指標。對 cf 呼叫 CFRelease 會多放一次。
+hints: ["三種轉型中只有一種「不動擁有權」。", "免費橋接代表 cf 與 nsString 是同一塊記憶體。"]
+feedback:
+  "0": "那是 __bridge_retained / CFBridgingRetain 的語意。"

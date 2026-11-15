@@ -1,0 +1,19 @@
+id: m04-4-4-quiz-1
+chapter: "4.4"
+section: quiz
+type: quiz
+title: ARC 下的 dealloc 要寫什麼？
+minutes: 1
+prompt: 一個類別有 `strong` 屬性 `ledger`、一個 block 版的 `NSTimer`、一個通知 block 的 token。ARC 下它的 dealloc 需要做哪些事？（可複選）
+multi: true
+options:
+  - "`[_timer invalidate];`"
+  - "`[NSNotificationCenter.defaultCenter removeObserver:_token];`"
+  - "`_ledger = nil;` 或 `[_ledger release];`"
+  - "`[super dealloc];`"
+answer: [0, 1]
+explain: ARC 會在你的 dealloc 主體之後自動釋放所有 strong ivar，並自動呼叫 [super dealloc]（手寫是編譯錯誤）。你只處理 ARC 管不到的：timer、通知 token、KVO、C 資源。
+hints: ["哪些東西是 ARC「看得到」的？strong ivar 是。", "timer 的 RunLoop 登記與通知中心的 block，ARC 管得到嗎？"]
+feedback:
+  "2": "strong ivar 由編譯器釋放；手動設 nil 多此一舉，release 則是編譯錯誤。"
+  "3": "ARC forbids explicit message send of 'dealloc'。"

@@ -1,0 +1,200 @@
+---
+title: NSDictionary、NSSet 與雜湊表
+module: 3
+chapter: "3.4"
+order: 4
+minutes: 40
+prereq: ["3.3"]
+objectives:
+  - 用字面值與下標讀寫字典，知道鍵為什麼要 NSCopying、取不到為什麼是 nil 而不是 crash
+  - 說出 NSDictionary 怎麼用 hash / isEqual: 找到值、負載因子與擴容是什麼
+  - 分清楚 NSSet、NSOrderedSet、NSCountedSet、NSIndexSet 各自解決什麼問題
+summary: 字面值 @{}、下標、鍵要 NSCopying、取不存在鍵回 nil、enumerateKeysAndObjectsUsingBlock:、allKeys 順序不保證、NSSet 依賴 hash、NSCountedSet；雜湊表原理與 LBHashMap 鏈結法。
+terms:
+  - { en: hash table, tw: 雜湊表, cn: 哈希表, jp: ハッシュテーブル }
+  - { en: bucket, tw: 桶（bucket）, cn: 桶, jp: バケット }
+  - { en: collision, tw: 碰撞, cn: 冲突 / 碰撞, jp: 衝突 }
+  - { en: separate chaining, tw: 鏈結法, cn: 链地址法 / 拉链法, jp: チェイン法 }
+  - { en: load factor, tw: 負載因子, cn: 负载因子, jp: 負荷率（ロードファクタ） }
+  - { en: open addressing, tw: 開放定址, cn: 开放寻址, jp: オープンアドレス法 }
+appProgress: LBLedger 能依 ID 在 O(1) 找到交易；LBHashMap 五個測試轉綠，你知道字典底下在做什麼。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+var byID: [UUID: Transaction] = [:]
+byID[tx.id] = tx                           // 值型別，寫入就是拷貝
+byID[other]                                // Optional，沒有就 nil
+for (id, tx) in byID { }                   // 順序不保證
+let tags: Set<String> = ["餐飲", "交通"]
+tags.contains("餐飲")                      // O(1)
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+val byID: MutableMap<UUID, Transaction> = mutableMapOf()
+byID[tx.id] = tx
+byID[other]                                // 可空，沒有就 null
+for ((id, tx) in byID) { }                 // LinkedHashMap 保插入順序（ObjC 不保證）
+val tags = setOf("餐飲", "交通")
+tags.contains("餐飲")
+```
+</Fragment>
+<Fragment slot="java">
+```java
+Map<UUID, Transaction> byID = new HashMap<>();
+byID.put(tx.getId(), tx);
+byID.get(other);                           // 沒有就 null
+for (var e : byID.entrySet()) { }          // HashMap 順序不保證，和 ObjC 一樣
+Set<String> tags = Set.of("餐飲", "交通");
+// key 要正確實作 hashCode() 與 equals()
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+const byID = new Map<string, Transaction>();
+byID.set(tx.id, tx);
+byID.get(other);                           // undefined
+for (const [id, tx] of byID) { }           // Map 保插入順序
+const tags = new Set(["餐飲", "交通"]);
+// 物件當 key 比的是參考，不會呼叫 equals
+```
+</Fragment>
+Java 的 `hashCode()` / `equals()` 合約與 Objective-C 的 `hash` / `isEqual:` 完全是同一件事，`HashMap` 的順序不保證也一樣。Kotlin 預設的 `mutableMapOf` 和 TS 的 `Map` 保留插入順序，Swift 不保留；Objective-C 的 `NSDictionary` **不保證任何順序**，從 Kotlin / TS 來的人最容易在這裡寫出只在測試機上會過的程式。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 字典：建立、取值、走訪
+
+```objc
+NSDictionary<NSString *, NSNumber *> *budget = @{
+    @"餐飲": @6000,
+    @"交通": @1500,
+    @"娛樂": @2000,
+};
+NSLog(@"%@", budget[@"餐飲"]);                 // 6000 —— 等於 objectForKey:
+NSLog(@"%@", budget[@"房租"]);                 // (null) —— 沒有這個鍵，不會 crash
+NSLog(@"%lu", (unsigned long)budget.count);    // 3
+
+[budget enumerateKeysAndObjectsUsingBlock:^(NSString *key, NSNumber *limit, BOOL *stop) {
+    NSLog(@"%@ → %@", key, limit);
+}];
+// 三行，順序不保證！可能是 交通、餐飲、娛樂，也可能不是
+for (NSString *key in budget) { }              // 快速列舉走的是鍵
+NSArray *sortedKeys = [budget.allKeys sortedArrayUsingSelector:@selector(localizedStandardCompare:)];
+NSLog(@"%@", [sortedKeys componentsJoinedByString:@" "]);   // 交通 娛樂 餐飲 —— 要順序就自己排
+```
+
+`@{ 鍵: 值 }` 建立不可變字典，`dict[key]` 是 `objectForKey:` 的語法糖。取不存在的鍵回傳 nil，而 nil 可以安全地送訊息，所以一條 `[budget[@"房租"] integerValue]` 會安靜地得到 0，這是 ObjC 和 Java（NPE）最大的手感差異，也是找 bug 時要先懷疑的地方。
+
+可變版本：
+
+```objc
+NSMutableDictionary<NSUUID *, LBTransaction *> *byID = [NSMutableDictionary dictionary];
+NSUUID *id1 = [NSUUID UUID];
+byID[id1] = tx;                                // setObject:forKeyedSubscript:
+byID[id1] = nil;                               // 下標設 nil = 移除（iOS 9+）
+[byID removeObjectForKey:id1];                 // 同義
+// [byID setObject:nil forKey:id1];            // 💥 object cannot be nil (key: …)
+```
+
+### 鍵必須遵循 `NSCopying`
+
+`NSDictionary` 會把你傳進來的鍵 **copy 一份**存起來，不是直接持有。原因很實際：如果鍵是 `NSMutableString`，你放進去之後改了它，它的 `hash` 就變了，字典再也找不到那筆資料。所以 `NSString`、`NSNumber`、`NSUUID`、`NSDate`、`NSIndexPath` 都能當鍵，自己寫的類別要先實作 `NSCopying`（2.7），否則一放進去就 crash（見本章崩潰現場）。值沒有這個限制，什麼物件都行。
+
+### 字典底下是雜湊表
+
+<Term en="hash table" tw="雜湊表" cn="哈希表" jp="ハッシュテーブル" />的點子只有一句話：**用鍵算出一個數字，直接當成陣列索引**。
+
+1. 對鍵呼叫 `hash`，得到一個 `NSUInteger`。
+2. 取餘數 `hash % bucketCount`，決定它住在哪個<Term en="bucket" tw="桶（bucket）" cn="桶" jp="バケット" />。
+3. 不同的鍵可能算到同一個桶，叫<Term en="collision" tw="碰撞" cn="冲突 / 碰撞" jp="衝突" />。最直覺的解法是每個桶放一條串列，叫<Term en="separate chaining" tw="鏈結法" cn="链地址法 / 拉链法" jp="チェイン法" />。
+4. 查詢時算出桶，再沿串列用 `isEqual:` 一個個比，找到就回值。
+
+這就是為什麼 `hash` / `isEqual:` 必須成對：`isEqual:` 為 YES 的兩個物件，`hash` **一定要相同**，否則它們會落在不同桶，字典宣告「找不到」。反過來不要求：不同物件 `hash` 相同只是碰撞，慢一點但正確。只要碰撞不多，`objectForKey:` 就是 O(1)。
+
+元素越多碰撞越多，衡量的指標是<Term en="load factor" tw="負載因子" cn="负载因子" jp="負荷率（ロードファクタ）" />＝元素數 ÷ 桶數。超過某個門檻（常見是 0.75）就把桶數加倍、所有元素重新算一次位置，叫擴容（rehash）。和 3.3 的動態陣列一樣，單次擴容 O(n)，攤銷後每次插入仍是 O(1)。另一派解法叫<Term en="open addressing" tw="開放定址" cn="开放寻址" jp="オープンアドレス法" />：桶裡不放串列，碰撞就往下一格找空位，記憶體更緊、快取更友善，但刪除要做墓碑標記，負載因子得壓更低。Apple 的 `NSDictionary` / `CFDictionary` 用的是開放定址的變體；本章作業的 `LBHashMap` 用鏈結法，因為它最容易寫對。
+
+```objc
+// LBHashMap 鏈結法的核心骨架（完整版見本章 Xcode 任務）
+- (NSUInteger)bucketIndexForKey:(id)key {
+    return [key hash] % self.buckets.count;
+}
+- (void)setObject:(id)object forKey:(id<NSCopying>)key {
+    NSMutableArray<LBHashMapEntry *> *bucket = self.buckets[[self bucketIndexForKey:key]];
+    for (LBHashMapEntry *e in bucket) {
+        if ([e.key isEqual:key]) { e.value = object; return; }   // 覆寫
+    }
+    [bucket addObject:[LBHashMapEntry entryWithKey:[(id)key copyWithZone:NULL] value:object]];
+    self.count += 1;
+    if ((double)self.count / self.buckets.count > 0.75) [self growAndRehash];
+}
+```
+
+### `NSSet`、`NSOrderedSet`、`NSCountedSet`、`NSIndexSet`
+
+```objc
+NSSet<NSString *> *tags = [NSSet setWithArray:@[@"餐飲", @"交通", @"餐飲"]];
+NSLog(@"%lu", (unsigned long)tags.count);           // 2 —— 重複的只留一個
+NSLog(@"%d", [tags containsObject:@"交通"]);        // 1 —— O(1)，陣列是 O(n)
+
+NSOrderedSet *recent = [NSOrderedSet orderedSetWithArray:@[@"午餐", @"咖啡", @"午餐"]];
+NSLog(@"%@", [recent.array componentsJoinedByString:@" "]);   // 午餐 咖啡 —— 去重且保序
+
+NSCountedSet *counter = [NSCountedSet setWithArray:@[@"餐飲", @"交通", @"餐飲"]];
+NSLog(@"%lu", (unsigned long)[counter countForObject:@"餐飲"]);   // 2
+
+NSMutableIndexSet *rows = [NSMutableIndexSet indexSetWithIndex:0];
+[rows addIndexesInRange:NSMakeRange(3, 2)];
+NSLog(@"%@", rows);                                 // <NSMutableIndexSet: …>[number of indexes: 3 (in 2 ranges), indexes: (0 3-4)]
+```
+
+`NSSet` 是沒有順序、不重複的集合，底下也是雜湊表，所以同樣依賴 `hash` / `isEqual:`，`containsObject:` 是 O(1)——「這筆交易有沒有在已選取清單裡」這種判斷用它，別用陣列。`NSOrderedSet` 兼具去重與順序，Core Data 的有序關聯用的就是它。`NSCountedSet` 幫你數每個元素出現幾次，統計分類次數一行搞定。`NSIndexSet` 專門裝一組 `NSUInteger` 索引，3.3 的 `removeObjectsAtIndexes:` 和 `UITableView` 的 `insertRowsAtIndexPaths:` 系列都圍著它轉。
+
+<Pitfall title="字典走訪順序不保證，測試不能依賴">
+`enumerateKeysAndObjectsUsingBlock:`、`allKeys`、`allValues`、快速列舉的順序由雜湊值決定，而 `NSString` 的 `hash` 在不同作業系統版本可能不同；元素數量一變、擴容一次，順序就重排。單元測試要比對結果時先 `sortedArrayUsingSelector:` 再比，或改比 `NSSet`。畫面上要固定順序的清單就不該用字典存，用陣列或 `NSOrderedSet`。
+</Pitfall>
+
+<Pitfall title="放進集合後改了物件：找不到，也刪不掉">
+<Fragment slot="bad">
+```objc
+NSMutableSet *selected = [NSMutableSet set];
+LBDraft *d = [LBDraft new];           // isEqual: / hash 依 note
+d.note = @"午餐";
+[selected addObject:d];
+d.note = @"晚餐";                      // hash 變了，但它還躺在舊的桶裡
+NSLog(@"%d", [selected containsObject:d]);   // 0
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+// 參與 hash 的欄位做成不可變（readonly + 初始化器傳入），
+// 或在改欄位前先 removeObject:，改完再 addObject:。
+```
+</Fragment>
+這就是字典要 copy 鍵的原因，但 `NSSet` 的元素和字典的**值**沒有被 copy，風險在你自己的類別上。2.7 說「`hash` 只用不會變的欄位」，這裡就是後果。
+</Pitfall>
+
+<Pitfall title="自訂 hash 寫得太偷懶，字典退化成陣列">
+`- (NSUInteger)hash { return 1; }` 能過所有測試——合約沒被違反——但所有元素都掉進同一個桶，`objectForKey:` 變成 O(n)。好的 `hash` 要把「相等所依據的欄位」都混進來：`return self.identifier.hash ^ (self.date.hash << 1);`。進階題會讓你量化這件事。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: '-[LBCategory copyWithZone:]: unrecognized selector sent to instance 0x600001d2c3f0'`}>
+讀法：`unrecognized selector` 表示物件沒有這個方法；selector 是 `copyWithZone:`，這是 `NSCopying` 協定唯一的方法；接收者是你自己的 `LBCategory`。沒有人在程式裡寫過 `[category copy]`，那是誰呼叫的？答案是 `NSDictionary`：你把 `LBCategory` 當成鍵放進字典（`budget[category] = @6000` 或 `@{ category: … }`），字典依規矩去 copy 鍵，`LBCategory` 不會回應。往上看堆疊會看到 `-[__NSDictionaryM setObject:forKeyedSubscript:]` 或 `-[__NSPlaceholderDictionary initWithObjects:forKeys:count:]`，前者是可變字典寫入、後者是字面值建構中。修法有兩條：讓 `LBCategory` 遵循 `NSCopying`（不可變物件直接 `return self` 即可），或者改用它的 `identifier` 字串當鍵。附帶一提，如果訊息是 `attempt to insert nil object from objects[0]`，那是值為 nil；`key cannot be nil` 則是鍵為 nil。
+</Crash>
+
+## 小結
+
+- `@{ }` 建立、`dict[key]` 取值，沒有的鍵回 nil 不會 crash；可變字典下標設 nil 等於移除。
+- 鍵要 `NSCopying`，字典會 copy 它；自己的類別當鍵要先實作，否則 `copyWithZone:` unrecognized selector。
+- 雜湊表：`hash` 選桶、`isEqual:` 確認；相等必同 hash；負載因子超過門檻就加倍擴容，攤銷 O(1)。
+- 走訪順序不保證；放進集合後不要改參與 `hash` 的欄位。
+- 成員判斷用 `NSSet`（O(1)）、去重保序用 `NSOrderedSet`、計次用 `NSCountedSet`、一組索引用 `NSIndexSet`。

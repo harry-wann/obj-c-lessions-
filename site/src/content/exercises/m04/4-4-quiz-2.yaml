@@ -1,0 +1,17 @@
+id: m04-4-4-quiz-2
+chapter: "4.4"
+section: quiz
+type: quiz
+title: dealloc 執行時 weak 參考是什麼狀態？
+minutes: 1
+prompt: 物件 A 正在執行自己的 `dealloc`。此時外部某個 `__weak` 變數原本指著 A，讀取它會得到？
+options:
+  - A 的位址，直到 dealloc 結束才變 nil
+  - nil；物件在 dealloc 開始前就已標成「正在釋放」，weak 讀取一律回傳 nil
+  - 不確定，看執行緒
+  - 會 crash
+answer: 1
+explain: 時序是：計數歸零 → 標記正在釋放（weak 讀取開始回傳 nil）→ 你的 dealloc → 釋放 ivar → super dealloc → free。所以 dealloc 裡不能靠 weak 把 self 交給別人；而且此時「建立新的 weak 參考指向 self」會直接中止。
+hints: ["回想時序圖：「正在釋放」的標記在 dealloc 之前還是之後？", "如果 dealloc 期間 weak 還能讀到物件，別人就可能把一個半死的物件 retain 回來。"]
+feedback:
+  "3": "讀取 weak 不會 crash，會得到 nil；crash 的是在 dealloc 裡「建立」新的 weak 參考。"

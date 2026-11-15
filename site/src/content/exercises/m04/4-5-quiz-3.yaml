@@ -1,0 +1,19 @@
+id: m04-4-5-quiz-3
+chapter: "4.5"
+section: quiz
+type: quiz
+title: CFBridgingRelease 等於哪個轉型？
+minutes: 1
+prompt: "`NSString *s = CFBridgingRelease(cfCreated);` 與下列哪一個寫法等價？cfCreated 是 Create 函式回傳的 +1 物件。"
+options:
+  - "`(__bridge NSString *)cfCreated`"
+  - "`(__bridge_transfer NSString *)cfCreated`"
+  - "`(__bridge_retained NSString *)cfCreated`"
+  - "`[(__bridge NSString *)cfCreated copy]`"
+answer: 1
+explain: CFBridgingRelease = __bridge_transfer：CF 端的 +1 轉交給 ARC，之後你不能再 CFRelease。記法：函式名講的是 CF 那邊發生的事——CF 端「Release」（放手交出去）。CFBridgingRetain 則是 __bridge_retained，CF 端多持有一份。
+hints: ["函式名裡的 Release 是指 CF 那一邊放手。", "transfer = 轉移擁有權。"]
+feedback:
+  "0": "__bridge 不動擁有權，Create 出來的 +1 沒人還，會洩漏。"
+  "2": "__bridge_retained 的方向是 ObjC → CF，而且會多一份 +1。"
+  "3": "copy 會得到另一個物件，原本的 +1 仍然沒人還。"

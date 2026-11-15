@@ -1,0 +1,25 @@
+id: m04-4-1-predict-1
+chapter: "4.1"
+type: predict
+title: dealloc 什麼時候印出來？
+minutes: 2
+prompt: LBTransaction 的 dealloc 會印 `dealloc <note>`。這段 ARC 程式碼印出什麼順序？
+code: |
+  LBTransaction *a = [[LBTransaction alloc] initWithNote:@"午餐"];
+  LBTransaction *b = a;
+  a = nil;
+  NSLog(@"一");
+  b = nil;
+  NSLog(@"二");
+options:
+  - "一 二"
+  - "dealloc 午餐 一 二"
+  - "一 dealloc 午餐 二"
+  - "一 二 dealloc 午餐"
+accept: ["一 dealloc 午餐 二"]
+feedback:
+  "dealloc 午餐 一 二": "a = nil 時 b 還持有物件，計數 1，不會釋放。"
+  "一 二 dealloc 午餐": "參考計數不是 GC：b = nil 當下計數歸零就立刻 dealloc，不會等到程式結束。"
+  "一 二": "物件一定會被釋放，dealloc 一定會印。問題只是在哪一行。"
+solution_note: 兩個 strong 參考，放掉第一個時計數 2 → 1；放掉第二個時 1 → 0，當場 dealloc。釋放時機確定，印在「一」與「二」之間。
+hints: ["數一數有幾個 strong 變數指著同一個物件。", "計數歸零的那一行就是 dealloc 的那一行。"]

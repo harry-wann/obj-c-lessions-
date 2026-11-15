@@ -1,0 +1,250 @@
+---
+title: 函式、static、const、extern
+module: 1
+chapter: "1.4"
+order: 4
+minutes: 30
+prereq: ["1.3"]
+objectives:
+  - 分清 C 函式與方法，知道什麼時候寫哪個
+  - 用 static 把函式與變數藏在 .m 裡
+  - 寫出全域常數的標準 .h / .m 配對，說得出 const 放哪裡的差別
+summary: C 函式 vs 方法；static 的兩個意思；const 的位置；extern 與全域常數的標準寫法；LBFormatCents 的實作。
+terms:
+  - { en: function, tw: 函式, cn: 函数, jp: 関数 }
+  - { en: declaration / definition, tw: 宣告 / 定義, cn: 声明 / 定义, jp: 宣言 / 定義 }
+  - { en: constant, tw: 常數, cn: 常量, jp: 定数 }
+  - { en: linker, tw: 連結器, cn: 链接器, jp: リンカ }
+  - { en: translation unit, tw: 編譯單元, cn: 编译单元, jp: 翻訳単位 }
+appProgress: LBTypes.h / .m 有了 LBErrorDomain 與 LBFormatCents；LBTypesTests 四個測試全綠。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+func formatCents(_ cents: Int64) -> String { ... }   // 頂層函式
+private func helper() { }                  // 檔案私有
+let errorDomain = "com.littlebook.error"   // 頂層 let 就是全域常數
+enum LB { static let maxNoteLength = 140 } // 命名空間裡的常數
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+fun formatCents(cents: Long): String = TODO()        // 頂層函式
+private fun helper() { }                             // 檔案私有
+const val ERROR_DOMAIN = "com.littlebook.error"
+object LBConstants { const val MAX_NOTE_LENGTH = 140 }
+```
+</Fragment>
+<Fragment slot="java">
+```java
+public final class LBFormat {
+    private LBFormat() { }
+    public static String formatCents(long cents) { ... }   // 沒有頂層函式
+    public static final String ERROR_DOMAIN = "com.littlebook.error";
+    private static int counter = 0;                        // 類別私有
+}
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+export function formatCents(cents: bigint): string { ... }
+function helper() { }                      // 沒 export 就是模組私有
+export const ERROR_DOMAIN = "com.littlebook.error";
+```
+</Fragment>
+TypeScript 的「沒 `export` 就是模組私有」最接近 C 的 `static`；Swift / Kotlin 的頂層函式就是 C 函式。C 多出來的功課是：宣告和定義分在兩個檔案，而且要親手處理「這個符號會不會被定義兩次」。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### C 函式 vs 方法
+
+Objective-C 專案裡兩種東西並存：方法掛在物件上、用方括號送訊息；<Term en="function" tw="函式" cn="函数" jp="関数" />是純 C，直接呼叫。函式要先<Term en="declaration / definition" tw="宣告" cn="声明" jp="宣言" />（原型）才能用，本體（定義）可以在後面或另一個檔案。
+
+```objc
+#import <Foundation/Foundation.h>
+
+// 宣告（原型）：告訴編譯器有這個函式，通常放 .h
+NSString *LBKindName(NSInteger kind);
+long long LBAddFee(long long cents, long long fee);
+
+int main(int argc, const char * argv[]) {
+    @autoreleasepool {
+        NSLog(@"%@ %lld", LBKindName(1), LBAddFee(128000, 1500));
+        // 收入 129500
+    }
+    return 0;
+}
+
+// 定義：函式本體，通常放 .m
+NSString *LBKindName(NSInteger kind) {
+    return kind == 0 ? @"支出" : @"收入";
+}
+
+long long LBAddFee(long long cents, long long fee) {
+    return cents + fee;
+}
+```
+
+| | C 函式 | Objective-C 方法 |
+|---|---|---|
+| 呼叫 | `LBFormatCents(cents)` | `[tx formattedAmount]` |
+| 接收者 | 沒有 | 有，`self` |
+| 參數 | 只有位置，沒有名字 | 名字是 selector 的一部分 |
+| 綁定 | 編譯 / 連結期決定 | 執行期訊息派送（模組 6） |
+| 覆寫 | 不能 | 子類別可以 |
+| 適合 | 純計算、不屬於任何物件、效能敏感 | 和物件狀態有關的行為 |
+
+Foundation 大量用函式：`CGRectMake`、`NSStringFromClass`、`NSLog`、`dispatch_async`、`MAX`。選擇原則：需要 `self` 就是方法，不需要就寫函式（或類別方法 `+`）。命名跟類別一樣加前綴、大駝峰：`LBFormatCents`。空參數列寫 `(void)`，`f()` 在 C 裡是「參數不確定」的舊語法。
+
+把原型刪掉再編譯一次，你會看到 `Call to undeclared function 'LBKindName'; ISO C99 and later do not support implicit function declarations`——Xcode 14.3 之後這是錯誤不是警告。函式一定要在用到之前宣告。
+
+### static：藏在這個檔案裡
+
+`static` 有兩個完全不同的意思，看它寫在哪：
+
+**檔案層級**的 `static` 函式或變數，只有這個 `.m`（嚴格說是這個<Term en="translation unit" tw="編譯單元" cn="编译单元" jp="翻訳単位" />）看得到。Objective-C 沒有 `private` 關鍵字，「`.h` 不寫、`.m` 加 `static`」就是私有。
+
+**函式內**的 `static` 區域變數只初始化一次，函式結束後還活著，下次呼叫接著用：
+
+```objc
+static NSInteger LBCallCount(void) {    // 檔案私有的函式
+    static NSInteger count = 0;         // 只初始化一次
+    count += 1;
+    return count;
+}
+// LBCallCount(); LBCallCount(); LBCallCount();  → 1, 2, 3
+```
+
+這也是單例與「只建一次的昂貴物件」的基礎，下面的 `LBFormatCents` 會用到。
+
+### const：從變數名往左讀
+
+```objc
+const NSInteger LBMaxNoteLength = 140;                   // 整數常數
+NSString * const LBErrorDomain = @"com.littlebook.error"; // 字串常數
+```
+
+整數<Term en="constant" tw="常數" cn="常量" jp="定数" />簡單，`const` 放前面。指標的 `const` 看位置，訣竅是**從變數名往左讀**：
+
+- `NSString * const x`：x 是 const 的，是個指標，指向 `NSString`。→ 指標不能改指別處；`NSString` 本來就不可變。**這是我們要的。**
+- `const NSString *x`：x 是指標，指向 const 的 `NSString`。→「不能改的 NSString」對 Objective-C 物件沒意義（物件只能透過訊息改），而且傳給任何要 `NSString *` 的 API 都會警告。
+
+所以字串常數的星號在 `const` 前面，一個字都不能錯。
+
+### extern：一份定義、多處宣告
+
+`#import` 的本質是把 `.h` 的文字複製進每個 `.m`。如果 `.h` 寫 `NSString * const LBErrorDomain = @"...";`，import 它的每個 `.m` 都定義了一份，<Term en="linker" tw="連結器" cn="链接器" jp="リンカ" />就會抱怨 duplicate symbol（看崩潰現場）。解法是 `.h` 只宣告，`.m` 定義一次。`extern` 的意思是「這個東西存在，定義在別的地方」：
+
+```objc
+// LBTypes.h
+extern NSString * const LBErrorDomain;
+extern const NSInteger LBMaxNoteLength;
+
+// LBTypes.m
+NSString * const LBErrorDomain = @"com.littlebook.error";
+const NSInteger LBMaxNoteLength = 140;
+```
+
+Apple 的標頭檔寫 `FOUNDATION_EXPORT NSString * const NSCocoaErrorDomain;`，`FOUNDATION_EXPORT` / `UIKIT_EXTERN` 只是 `extern` 加上 C++ 相容的包裝。三種情境三種寫法：
+
+| 情境 | 寫法 |
+|---|---|
+| 全 App 共用的字串常數（錯誤 domain、通知名、UserDefaults key） | `.h` 寫 `extern NSString * const X;`，`.m` 定義 |
+| 全 App 共用的數字常數 | 同上；或直接在 `.h` 寫 `static const NSInteger X = 140;`（每個 .m 各一份，編譯器會折疊，沒有連結問題） |
+| 只有這個 `.m` 用 | `.m` 頂端 `static NSString * const kCellID = @"Cell";`（`k` 前綴是檔案私有常數的舊慣例，兩種都會看到） |
+
+字串走 `extern` 還有一個實際理由：整個 App 只有一份，`NSNotificationCenter` 比對通知名時用 `==` 也成立，省掉字串比較。
+
+### LBFormatCents：把前面全部用上
+
+小帳本需要一個把「分」變成 `@"1,280.00"` 的函式。它不屬於任何物件、純計算，所以是 C 函式；`NSNumberFormatter` 很貴，用 `static` 區域變數只建一次：
+
+```objc
+NSString *LBFormatCents(long long cents) {
+    static NSNumberFormatter *formatter;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{                 // 保證只跑一次，執行緒安全（模組 7）
+        formatter = [[NSNumberFormatter alloc] init];
+        formatter.numberStyle = NSNumberFormatterDecimalStyle;
+        formatter.minimumFractionDigits = 2;
+        formatter.maximumFractionDigits = 2;
+        formatter.locale =
+            [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+    });
+    unsigned long long mantissa = (unsigned long long)llabs(cents);
+    NSDecimalNumber *amount =
+        [NSDecimalNumber decimalNumberWithMantissa:mantissa
+                                          exponent:-2
+                                        isNegative:cents < 0];
+    return [formatter stringFromNumber:amount];
+}
+// LBFormatCents(128000)  → 1,280.00
+// LBFormatCents(-5)      → -0.05
+// LBFormatCents(0)       → 0.00
+```
+
+`decimalNumberWithMantissa:exponent:isNegative:` 用 128000 × 10 的 -2 次方組出精確的 1280.00，中間沒有任何 `double`。鎖定 `en_US_POSIX` 是為了測試穩定；真的顯示給使用者時要用 `[NSLocale currentLocale]`（模組 5 的分類會處理）。
+
+<Pitfall title="const 放錯邊，整個專案都是警告">
+<Fragment slot="bad">
+```objc
+extern const NSString *LBErrorDomain;
+// 之後每次傳給 API：
+// ⚠️ Passing 'const NSString *' to parameter of type 'NSString *'
+//    discards qualifiers
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+extern NSString * const LBErrorDomain;
+```
+</Fragment>
+`const NSString *` 是「指向不可變 NSString 的指標」，而 Foundation 的每個 API 都要 `NSString *`，於是每個呼叫點都要轉型或吃警告。往左讀一次：星號、`const`、變數名，`const` 要緊貼變數名。
+</Pitfall>
+
+<Pitfall title="方法裡的 static 變數是全部實體共用的">
+```objc
+- (void)addTransaction:(LBTransaction *)tx {
+    static NSInteger count = 0;     // 不是「這個 ledger 的計數」
+    count += 1;                     // 是「所有 ledger 加起來的計數」
+}
+```
+`static` 區域變數只有一份，跟它在哪個方法裡、被哪個物件呼叫無關——行為等同 Kotlin 的 `companion object` 或 Java 的 `static` 欄位。要「每個實體各一份」就宣告成實體變數或屬性（模組 2）。
+</Pitfall>
+
+<Pitfall title="用 == 比 error.domain 只對自己丟的錯有效">
+<Fragment slot="bad">
+```objc
+if (error.domain == LBErrorDomain) { ... }
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+if ([error.domain isEqualToString:LBErrorDomain]) { ... }
+```
+</Fragment>
+`extern` 常數在 App 內只有一份，所以 `==` 常常剛好成立；但 `NSError` 從磁碟解碼、從 XPC 傳過來、或由別的 framework 用同一個字串建立時，位址就不同了。判斷 domain 一律 `isEqualToString:`。
+</Pitfall>
+
+<Crash message={`duplicate symbol '_LBErrorDomain' in:
+    .../Objects-normal/arm64/LBTypes.o
+    .../Objects-normal/arm64/LBLedger.o
+ld: 1 duplicate symbol for architecture arm64
+clang: error: linker command failed with exit code 1 (use -v to see invocation)`}>
+這不是執行期 crash，是連結器 `ld` 的錯誤，而且它不會指到任何一行，是新手最慌的一種紅字。讀法：符號 `_LBErrorDomain`（C 符號在機器碼層會多一個底線）在 `LBTypes.o` 和 `LBLedger.o` 兩個檔案都有定義。原因只有一個：定義寫在 `.h`，被兩個 `.m` import 了。修法：`.h` 改成 `extern NSString * const LBErrorDomain;`，定義搬到 `LBTypes.m`。它的兄弟錯誤 `Undefined symbols for architecture arm64: "_LBFormatCents", referenced from: ...` 是反過來：有宣告、沒定義——忘了寫函式本體，或 `.m` 沒勾進 target 的 Compile Sources（File inspector 右側 Target Membership）。這兩種錯誤都看 Report navigator（⌘9）的完整 log 最清楚。
+</Crash>
+
+## 小結
+
+- 不需要 `self` 的純計算寫 C 函式，加前綴、大駝峰，先宣告再用。
+- 檔案層級 `static` = 這個 `.m` 私有；函式內 `static` = 只初始化一次、全部呼叫共用。
+- 字串常數寫 `NSString * const X`，`const` 緊貼變數名；`const NSString *` 是錯的。
+- 全域常數標準寫法：`.h` `extern NSString * const LBErrorDomain;`、`.m` `NSString * const LBErrorDomain = @"...";`。
+- duplicate symbol = 定義寫進 `.h` 了；undefined symbol = 有宣告沒定義或檔案沒進 target。

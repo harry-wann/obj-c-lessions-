@@ -1,0 +1,19 @@
+id: m04-4-4-parsons-1
+chapter: "4.4"
+type: parsons
+title: 排出 ARC 下正確的 dealloc
+minutes: 2
+prompt: 這個類別有 block 版 timer `_timer`、通知 token `_token`、對 ledger 的 KVO 觀察。排出 ARC 下正確的 dealloc（有干擾行）。
+lines:
+  - "- (void)dealloc {"
+  - "    [_timer invalidate];"
+  - "    [NSNotificationCenter.defaultCenter removeObserver:_token];"
+  - "    [_ledger removeObserver:self forKeyPath:@\"transactions\"];"
+  - "}"
+distractors:
+  - "    [super dealloc];"
+  - "    self.timer = nil;"
+  - "    __weak typeof(self) weakSelf = self;"
+  - "    [_ledger release];"
+solution_note: 只做 ARC 管不到的清理：invalidate、移除通知 token、移除 KVO。`[super dealloc]` 與 `release` 是編譯錯誤；`self.timer = nil` 走 setter 且多餘（ivar 會自動釋放）；在 dealloc 裡建立 weak self 會執行期中止。三行清理的順序彼此無關，這裡依宣告順序排。
+hints: ["哪些是 ARC 禁止的？哪些是多餘的？", "dealloc 裡能不能建 weak self？"]

@@ -1,0 +1,41 @@
+id: m04-4-3-spot-3
+chapter: "4.3"
+type: spot
+title: 看程式碼判斷：block 捕獲 self 版
+minutes: 3
+prompt: 兩個方法各有一個 block。只有一個會造成循環參考。點出有問題的行並選原因。
+code: |
+  - (void)setup {
+      self.onChange = ^{
+          [self.tableView reloadData];
+      };
+  }
+
+  - (void)saveInBackground {
+      dispatch_async(self.queue, ^{
+          [self.ledger persist];
+      });
+  }
+bug_lines: [3]
+reasons:
+  - "self 持有 onChange，onChange 捕獲 self → 循環；dispatch_async 的 block 只被佇列持有到執行完，self 沒持有它，不循環"
+  - "兩個 block 都捕獲 self，兩個都要 weakSelf"
+  - "dispatch_async 的 block 會永遠持有 self，第 9 行才是問題"
+  - "block 內用點語法會造成循環參考"
+answer_reason: 0
+fix: |
+  - (void)setup {
+      __weak typeof(self) weakSelf = self;
+      self.onChange = ^{
+          __strong typeof(weakSelf) strongSelf = weakSelf;
+          if (!strongSelf) { return; }
+          [strongSelf.tableView reloadData];
+      };
+  }
+  // saveInBackground 維持原樣：短暫持有 self 到存檔完成，正是我們要的
+solution_note: 判斷標準只有一條：self 有沒有（直接或間接）持有這個 block？屬性、ivar、self 持有的陣列 / 字典裡的 block → 有，要 weakSelf。傳給 GCD、UIView 動畫、NSURLSession completion 的 block → 沒有，不需要；加了 weakSelf 反而可能讓背景工作在 self 釋放後什麼都沒做。
+hints: ["self.onChange = 這個賦值做了什麼？誰持有 block？", "dispatch_async 執行完 block 之後，佇列還留著它嗎？"]
+feedback:
+  "1": "到處灑 weakSelf 是常見的過度修正。GCD block 不會循環。"
+  "2": "佇列執行完 block 就釋放它，self 的計數回到原狀。"
+  "3": "點語法只是 getter 呼叫，問題在捕獲 self 本身。"

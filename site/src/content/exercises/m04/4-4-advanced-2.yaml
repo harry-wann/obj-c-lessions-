@@ -1,0 +1,35 @@
+id: m04-4-4-advanced-2
+chapter: "4.4"
+type: code
+tier: advanced
+title: 進階：快慢指標找中點
+mobile: false
+minutes: 8
+prompt: 實作 `LBNode *LBMiddle(LBNode *head)`，一次走訪找出單向鏈結串列的中間節點（偶數長度回傳後半的第一個）。用快慢指標：慢的一次走一步，快的一次走兩步。
+starter: |
+  LBNode *LBMiddle(LBNode *head) {
+
+  }
+checks:
+  - must_match: 'LBNode\s*\*\s*LBMiddle\s*\(\s*LBNode\s*\*\s*head\s*\)'
+    message: 函式簽名要是 LBNode *LBMiddle(LBNode *head)
+  - must_match: 'while\s*\('
+    message: 用 while 迴圈
+  - must_match: '\.next\s*\.next|\.next\]\s*\.next|next\.next'
+    message: 快指標要一次走兩步（.next.next）
+  - must_match: 'return\s+\w+\s*;'
+    message: 要回傳慢指標
+  - brackets_balanced: true
+solution: |
+  LBNode *LBMiddle(LBNode *head) {
+      LBNode *slow = head;
+      LBNode *fast = head;
+      while (fast && fast.next) {
+          slow = slow.next;
+          fast = fast.next.next;
+      }
+      return slow;
+  }
+solution_note: |
+  快指標到底時慢指標剛好在中間。迴圈條件 `fast && fast.next` 兩個都要判：fast 為 nil 時 `fast.next` 在 Objective-C 不會 crash（對 nil 送訊息回 nil），但邏輯上會多走一步。1→2→3→4→5 回傳 3；1→2→3→4 回傳 3（後半第一個）。O(n) 時間、O(1) 空間。同一招的變形：找倒數第 k 個（快的先走 k 步）、環偵測（下一題）。
+hints: ["兩個指標都從 head 出發。", "快指標什麼時候停？它或它的 next 為 nil。", "慢指標停在哪就回傳哪。"]

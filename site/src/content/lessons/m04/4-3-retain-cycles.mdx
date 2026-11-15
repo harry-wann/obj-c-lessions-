@@ -61,7 +61,7 @@ executor.addListener(this);   // this 被 executor 一直抓著
 </Fragment>
 <Fragment slot="ts">
 ```ts
-// 循環參考 GC 照收；洩漏的是忘記解除的監聯
+// 循環參考 GC 照收；洩漏的是忘記解除的監聽
 window.addEventListener("resize", () => this.layout());  // 閉包抓著 this
 // 元件卸載時忘了 removeEventListener → this 永遠活著
 ```

@@ -1,0 +1,220 @@
+---
+title: 命名慣例與前綴
+module: 2
+chapter: "2.8"
+order: 8
+minutes: 20
+prereq: ["2.7"]
+objectives:
+  - 說出為什麼 Objective-C 類別要加三字母前綴，以及哪些東西也要前綴
+  - 依 Apple Coding Guidelines 為方法、屬性、常數、分類方法命名
+  - 知道 new / copy / init 開頭的方法名會改變 ARC 的行為
+summary: 沒有命名空間所以類別加 LB 前綴；方法像英文句子；getter 不加 get；布林屬性 isX getter；分類方法加 lb_；常數與列舉的 LBXxx 寫法；Apple Coding Guidelines 摘要；方法名開頭會影響 ARC。
+terms:
+  - { en: prefix, tw: 前綴, cn: 前缀, jp: プレフィックス }
+  - { en: namespace, tw: 命名空間, cn: 命名空间, jp: 名前空間 }
+  - { en: camel case, tw: 駝峰式命名, cn: 驼峰命名, jp: キャメルケース }
+  - { en: method family, tw: 方法家族, cn: 方法族, jp: メソッドファミリー }
+appProgress: 小帳本所有類別、常數、分類方法都依 LB / lb_ 前綴命名，之後的模組照這套規則加東西。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// 模組就是命名空間，撞名用模組名區分
+import LittleBookKit
+let tx = LittleBookKit.Transaction(amount: 120)
+var isReconciled: Bool                  // 布林屬性 is 開頭
+extension Array { func lbTotal() -> Decimal { … } }   // 擴充方法通常不加前綴
+let errorDomain = "com.littlebook.error"
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+package com.littlebook.model            // package 是命名空間
+class Transaction(val amount: BigDecimal)
+val isReconciled: Boolean               // 布林 is 開頭
+fun List<Transaction>.total(): BigDecimal = …   // 擴充函式不用前綴
+const val ERROR_DOMAIN = "com.littlebook.error"  // 常數全大寫
+```
+</Fragment>
+<Fragment slot="java">
+```java
+package com.littlebook.model;
+public class Transaction {
+    public BigDecimal getAmount() { … }     // getter 加 get
+    public boolean isReconciled() { … }     // 布林 getter 加 is
+    public static final String ERROR_DOMAIN = "com.littlebook.error";
+}
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// 模組（檔案）就是命名空間；可以 import { Transaction as LBTransaction }
+export class Transaction {
+  get amount(): number { … }                // accessor 不加 get 字樣
+  isReconciled = false;
+}
+export const ERROR_DOMAIN = "com.littlebook.error";
+```
+</Fragment>
+四個語言都有 package / module 當<Term en="namespace" tw="命名空間" cn="命名空间" jp="名前空間" />，兩個叫 `Transaction` 的類別可以和平共處。Objective-C **沒有**，所有類別名在整個程式裡是一張平的表，所以才有 `NSString`、`UIView`、`CGRect` 這些前綴——它們是人工的命名空間。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 類別一定要有前綴
+
+```objc
+@interface LBTransaction : NSObject @end   // LB = LittleBook
+@interface LBCategory : NSObject @end
+@interface LBLedger : NSObject @end
+```
+
+Objective-C 的 runtime 用類別名字串查類別，兩個 framework 各自定義一個 `Category`，載入時就會撞在一起（見崩潰現場）。所以慣例是每個類別名前面加 2–3 個大寫字母的<Term en="prefix" tw="前綴" cn="前缀" jp="プレフィックス" />：Apple 用光了大多數兩字母組合（`NS`、`UI`、`CG`、`CA`、`AV`、`CL`、`MK`、`WK`…），**第三方與 App 一律用三字母**。小帳本用 `LB`——只有兩個字母，是教學方便；上班寫的專案請用三字母，像 `AFNetworking` 的 `AF`、`SDWebImage` 的 `SD` 是歷史遺留，不是榜樣。
+
+前綴不只給類別。協定（`LBLedgerObserver`）、全域函式（`LBFormatCents`）、全域常數（`LBErrorDomain`）、列舉型別與每個 case（`LBTransactionKind`、`LBTransactionKindExpense`）、通知名（`LBLedgerDidChangeNotification`）、`typedef` 的 block 型別（`LBCompletionHandler`），全部要。規則很單純：**任何會進到全域符號表的名字都要前綴**。方法名和屬性名不會進全域表，所以不用。
+
+### 方法名像英文句子
+
+```objc
+- (void)insertObject:(id)object atIndex:(NSUInteger)index;         // NSMutableArray
+- (void)addTransaction:(LBTransaction *)transaction;
+- (BOOL)removeTransactionWithIdentifier:(NSUUID *)identifier;
+- (NSArray<LBTransaction *> *)transactionsGroupedByMonth;
+- (void)ledger:(LBLedger *)ledger didAddTransaction:(LBTransaction *)tx;  // delegate
+```
+
+Apple Coding Guidelines 的核心是「唸出來要像句子」：`[array insertObject:tx atIndex:0]` 唸成 "array, insert object tx at index 0"。幾個具體規則：
+
+- 第一個標籤說明**動作與第一個參數**（`insertObject:`），後續標籤說明各參數的角色（`atIndex:`），介系詞放在標籤裡，不放在參數名裡。
+- 不縫寫，除了業界通用的 `max`、`min`、`URL`、`ID`、`UTF8`、`PDF`、`HTML`。`transactionsGroupedByMonth` 不寫 `txGrpByMon`。
+- 回傳值是 `BOOL` 的動作用動詞開頭（`removeTransactionWithIdentifier:` 回傳是否成功）；回傳物件的查詢用名詞（`transactionWithIdentifier:`）。
+- delegate 方法第一個參數永遠是送訊息的物件（`ledger:didAddTransaction:`），過去式 `did`、未來式 `will`、詢問用 `should`。
+- 全部<Term en="camel case" tw="駝峰式命名" cn="驼峰命名" jp="キャメルケース" />：類別名大寫開頭，方法、屬性、變數小寫開頭。沒有底線分字，底線只給 ivar 開頭與分類方法前綴。
+
+### getter 不加 get，布林用 is
+
+```objc
+@property (nonatomic, copy, readonly) NSString *note;           // getter 叫 note，不叫 getNote
+@property (nonatomic, assign, getter=isReconciled) BOOL reconciled;
+// 用法：tx.reconciled 與 [tx isReconciled] 都可以；點語法用名詞，訊息用 is
+```
+
+Java 的 `getNote()` 搬到 Objective-C 要變成 `note`。`get` 在 Cocoa 裡有**特定意思**：方法透過指標參數「把值填回去」，像 `-[NSData getBytes:length:]`、`-[NSColor getRed:green:blue:alpha:]`。寫 `getNote` 會讓老手以為它要傳一個 `NSString **` 進去。布林屬性的屬性名是形容詞（`reconciled`、`enabled`、`hidden`），getter 用 `getter=isX` 改成 `isReconciled`，和 `UIView` 的 `hidden` / `isHidden` 一致；Swift 匯入時會自動變成 `isReconciled`。
+
+### 分類方法加小寫前綴
+
+```objc
+@interface NSArray (LBFunctional)
+- (NSArray *)lb_map:(id (^)(id))transform;
+- (NSArray *)lb_filter:(BOOL (^)(id))predicate;
+@end
+
+@interface NSDecimalNumber (LBFormatting)
+- (NSString *)lb_currencyString;
+@end
+```
+
+分類（模組 5）把方法加到你不擁有的類別上。Apple 每年都在 `NSArray`、`NSString` 上加新方法，如果你的分類叫 `firstObject`（iOS 7 以前很多人這樣做），Apple 一加，兩個實作撞在一起，哪個生效是未定義的。方法名加 `lb_` 前綴，Apple 永遠不會用小寫前綴加底線，就不會撞。這是 Apple 文件明寫的建議，也是 code review 必檢項目。
+
+### 常數、列舉、通知
+
+```objc
+// LBTypes.h
+extern NSString * const LBErrorDomain;                      // 全域常數：前綴 + 駝峰
+extern NSNotificationName const LBLedgerDidChangeNotification;  // 通知：類別 + Did/Will + 事件 + Notification
+typedef NS_ENUM(NSInteger, LBTransactionKind) {             // 列舉：型別名當每個 case 的前綴
+    LBTransactionKindExpense,
+    LBTransactionKindIncome,
+};
+static const NSUInteger LBLedgerMaxTransactions = 10000;    // 檔案內常數也照樣命名
+```
+
+Objective-C 的常數不用全大寫加底線（那是 C 巨集的風格，`#define` 時才用），而是前綴 + 駝峰。列舉的每個 case 都以型別名開頭，`switch` 時才知道它屬於哪個列舉——這也是為什麼 Swift 匯入後能自動縮成 `.expense`：它把 `LBTransactionKind` 這段前綴剝掉了。
+
+### 命名會影響 ARC
+
+```objc
+- (LBTransaction *)newTransaction;        // ARC 認為回傳 +1（呼叫端擁有）
+- (LBTransaction *)copyOfTransaction;     // 同上：copy 開頭
+- (LBTransaction *)transaction;           // ARC 認為回傳 +0（autorelease）
+```
+
+這是 Objective-C 獨有的規則：方法名的**第一個單字**決定記憶體管理語意。`alloc`、`new`、`copy`、`mutableCopy`、`init` 開頭的方法屬於<Term en="method family" tw="方法家族" cn="方法族" jp="メソッドファミリー" />，ARC 假設它們回傳一個呼叫端擁有的物件。你命名一個方法叫 `newEntry` 但內部只是回傳一個既有物件，ARC 會在呼叫端多釋放一次——模組 4 會講原理，現在先記住：**不要用 `new`、`copy`、`init` 當方法名開頭**，除非你真的在實作那個家族的語意。`newsFeed` 這種剛好以 `new` 開頭的名字也會中招（ARC 看的是單字邊界：`new` 後面接大寫才算，`newsFeed` 的 `s` 是小寫所以安全，但 `newEntry` 不安全）。
+
+<Tip title="Apple Coding Guidelines 一頁摘要">
+類別、協定、常數、列舉、函式、通知加前綴；方法像句子，介系詞放標籤裡；getter 不加 `get`；布林 getter 用 `isX`；分類方法加 `xx_`；不縫寫；駝峰式；`init…` 開頭的是初始化器、`…With…:` 是帶參數的工廠；delegate 方法第一個參數是送訊息者。原文在 Apple 開發者網站搜 "Coding Guidelines for Cocoa"，20 分鐘可以讀完。
+</Tip>
+
+<Pitfall title="分類方法沒加前綴，被系統更新撞掉">
+<Fragment slot="bad">
+```objc
+@interface NSArray (Helpers)
+- (id)firstObject;          // iOS 7 Apple 自己加了同名方法
+@end
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+@interface NSArray (LBHelpers)
+- (id)lb_firstObject;
+@end
+```
+</Fragment>
+2013 年 iOS 7 把 `firstObject` 加進 `NSArray` 時，數不清的 App 因為自己的分類與系統撞名而行為怪異——哪個實作被用是未定義的，而且 debug 時完全看不出來。分類名（括號裡的）也要前綴，兩個 framework 都有 `NSArray (Helpers)` 時 linker 會抱怨。
+</Pitfall>
+
+<Pitfall title="把 Java 的 getX 帶過來">
+<Fragment slot="bad">
+```objc
+- (NSString *)getNote;
+- (BOOL)getReconciled;
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+@property (nonatomic, copy, readonly) NSString *note;
+@property (nonatomic, assign, getter=isReconciled) BOOL reconciled;
+```
+</Fragment>
+`getNote` 不只是風格問題：點語法 `tx.note` 找的是 `-note`，KVC `valueForKey:@"note"` 也依 `note` / `isNote` 的順序找（它會先試 `getNote`，所以勉強能動，但 Interface Builder 與 Swift 端的屬性匯入都不會把它當屬性）。照慣例命名，所有工具鏈才會把它當成屬性。
+</Pitfall>
+
+<Pitfall title="方法名以 new 開頭卻回傳既有物件">
+<Fragment slot="bad">
+```objc
+- (LBCategory *)newDefaultCategory {
+    return self.categories.firstObject;    // ARC 以為呼叫端拿到 +1，會多 release 一次
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (LBCategory *)defaultCategory {
+    return self.categories.firstObject;
+}
+```
+</Fragment>
+Clang 會對這種情況給警告 `Property follows Cocoa naming convention for returning 'owned' objects`（屬性）或在 ARC 下插入錯誤的 release（方法）。症狀是物件莫名被釋放、`EXC_BAD_ACCESS`，而且離命名的地方很遠。真的想表達「建立新的」用 `make…` 或 `…WithX:` 工廠，把 `new` 留給方法家族。
+</Pitfall>
+
+<Crash message={`objc[48213]: Class Category is implemented in both
+/System/Library/Frameworks/Foundation.framework/Foundation (0x1e2a3c4d8)
+and /private/var/containers/Bundle/Application/…/LittleBook.app/LittleBook (0x1046f8e20).
+One of the two will be used. Which one is undefined.`}>
+這一行不是 crash，是 App 啟動時 runtime 印在 console 的警告，但接下來發生的 crash 幾乎都是它造成的：`-[Category addChild:]: unrecognized selector`（用到了另一個 `Category`）、`EXC_BAD_ACCESS`（ivar 排版不同）、或是莫名其妙的行為。讀法：類別 `Category` 在兩個 binary 都有定義，runtime 隨便挑一個。修法只有一個：**改名加前綴**。第三方 framework 撞名改不了的話，看能不能換成有前綴的版本，或是用 `-ObjC` / 連結順序去賭——別賭，改名。這則訊息也是 code review 要求前綴最有力的證據。
+</Crash>
+
+## 小結
+
+- Objective-C 沒有命名空間：類別、協定、函式、常數、列舉、通知全部加 2–3 字母前綴（App 用三字母）。
+- 方法名像英文句子，介系詞放標籤；不縫寫、駝峰式；delegate 方法第一個參數是送訊息者。
+- getter 不加 `get`（`get` 代表透過指標回填），布林屬性用 `getter=isX`。
+- 分類方法加 `lb_` 小寫前綴，避免被 Apple 未來新增的方法撞掉。
+- `alloc` / `new` / `copy` / `mutableCopy` / `init` 開頭的方法名會改變 ARC 的擁有權假設，別亂用。

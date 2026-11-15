@@ -1,0 +1,13 @@
+id: m04-4-1-interview-1
+chapter: "4.1"
+type: flash
+tier: interview
+title: 面試題：為什麼不能靠 retainCount 偵錯？
+minutes: 2
+front: "面試官：MRC 專案裡有人用 `[obj retainCount]` 印計數來找洩漏。這個方法可靠嗎？為什麼？"
+back: |
+  不可靠，Apple 文件明講不要用。原因：
+  1. autorelease 池裡尚未生效的 −1 不會反映在數字上，你看到的比實際多。
+  2. 字串字面值、單例、tagged pointer（小整數的 NSNumber）回傳的是極大值或常數，根本沒有計數。
+  3. 系統框架內部會暫時 retain（集合列舉、KVO、autorelease），數字隨時在變。
+  正確做法：在 dealloc 加 NSLog / 斷點、用 __weak 變數觀察是否歸零、Memory Graph Debugger、Instruments Leaks / Allocations。ARC 下 retainCount 直接禁止呼叫。

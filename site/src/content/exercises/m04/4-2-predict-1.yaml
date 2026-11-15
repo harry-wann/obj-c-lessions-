@@ -1,0 +1,29 @@
+id: m04-4-2-predict-1
+chapter: "4.2"
+type: predict
+title: weak 變數什麼時候變 nil？
+minutes: 2
+prompt: LBTransaction 的 dealloc 會印 `dealloc <note>`。這段程式印出什麼？（nil 印成 (null)）
+code: |
+  __weak LBTransaction *w = nil;
+  LBTransaction *keep = nil;
+  {
+      LBTransaction *tx = [[LBTransaction alloc] initWithNote:@"午餐"];
+      w = tx;
+      keep = tx;
+  }
+  NSLog(@"A %@", w.note);
+  keep = nil;
+  NSLog(@"B %@", w.note);
+options:
+  - "A 午餐 dealloc 午餐 B (null)"
+  - "dealloc 午餐 A (null) B (null)"
+  - "A 午餐 B 午餐"
+  - "A 午餐 B (null) dealloc 午餐"
+accept: ["A 午餐 dealloc 午餐 B (null)"]
+feedback:
+  "dealloc 午餐 A (null) B (null)": "tx 離開大括號時 keep 還持有物件，計數 1，不會釋放。"
+  "A 午餐 B 午餐": "keep = nil 後沒有任何 strong 參考了，weak 一定歸零。"
+  "A 午餐 B (null) dealloc 午餐": "釋放發生在 keep = nil 那一行，dealloc 的 NSLog 會先於 B 印出。"
+solution_note: weak 不會因為「區塊結束」歸零，它只看 strong 計數。tx 消失時 keep 仍持有；keep = nil 才歸零，dealloc 立刻執行，w 同一瞬間變 nil。
+hints: ["數 strong 參考：tx 與 keep。大括號結束時剩幾個？", "weak 歸零的瞬間 = 最後一個 strong 放手的瞬間。"]

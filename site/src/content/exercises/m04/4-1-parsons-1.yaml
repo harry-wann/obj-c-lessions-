@@ -1,0 +1,18 @@
+id: m04-4-1-parsons-1
+chapter: "4.1"
+type: parsons
+title: 排出一個 MRC 時代的 dealloc
+minutes: 2
+prompt: 你要讀懂舊專案的 dealloc。把下列各行排成 MRC 下正確的 dealloc（有干擾行）。
+lines:
+  - "- (void)dealloc {"
+  - "    [_timer invalidate];"
+  - "    [_ledger release];"
+  - "    _ledger = nil;"
+  - "    [super dealloc];"
+  - "}"
+distractors:
+  - "    [self release];"
+  - "    [_ledger autorelease];"
+solution_note: MRC 的 dealloc：先處理自己的資源（invalidate、release ivar），`[super dealloc]` 一定在最後一行，因為它之後記憶體就沒了。`[self release]` 在 dealloc 裡是多放一次；ivar 用 autorelease 則會讓釋放延到物件死後，是錯的。ARC 下這整段只剩 invalidate。
+hints: ["[super dealloc] 之後物件的記憶體就不存在了，所以它只能在哪裡？", "dealloc 是計數歸零後才呼叫的，裡面不會再對 self 做計數操作。"]

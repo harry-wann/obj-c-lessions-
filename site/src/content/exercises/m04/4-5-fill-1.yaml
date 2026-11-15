@@ -1,0 +1,34 @@
+id: m04-4-5-fill-1
+chapter: "4.5"
+type: fill
+title: 選對橋接轉型
+minutes: 3
+prompt: 依照每一行的擁有權情境，填入正確的橋接寫法。
+code: |
+  // 1. Create 回傳 +1，想交給 ARC 管
+  NSString *idString = ___1___(CFUUIDCreateString(NULL, uuid));
+
+  // 2. 只是把 NSString 借給 C API 看一眼
+  CFIndex len = CFStringGetLength((___2___ CFStringRef)note);
+
+  // 3. 把 ObjC 物件交給 C callback 的 void *context，之後要自己拿回來
+  void *ctx = (void *)___3___(ledger);
+
+  // 4. callback 裡拿回來並歸還那一份 +1
+  LBLedger *ledger = ___4___(ctx);
+blanks:
+  "1": { accept: [CFBridgingRelease, "(__bridge_transfer NSString *)"], chips: [CFBridgingRelease, CFBridgingRetain, __bridge] }
+  "2": { accept: [__bridge], chips: [__bridge, __bridge_transfer, __bridge_retained] }
+  "3": { accept: [CFBridgingRetain, "(__bridge_retained void *)"], chips: [CFBridgingRelease, CFBridgingRetain, __bridge] }
+  "4": { accept: [CFBridgingRelease, "(__bridge_transfer LBLedger *)"], chips: [CFBridgingRelease, CFBridgingRetain, __bridge] }
+hints:
+  - Create 回傳的 +1 要「交出去」給 ARC。
+  - 借用不動擁有權的只有一種。
+  - 交給 C 端要多一份 +1 撐著，拿回來時再還掉。
+feedback:
+  "1=__bridge": "Create 的 +1 沒人還，每呼叫一次漏一個。"
+  "1=CFBridgingRetain": "方向反了，而且會再多一份 +1。"
+  "2=__bridge_transfer": "note 是 ARC 管的 +0 借用，transfer 會多 release 一次。"
+  "3=__bridge": "C 端只是借用，ledger 在 callback 之前被 ARC 釋放的話 ctx 就懸空。"
+  "4=__bridge": "拿回來後 +1 沒人還，洩漏。"
+solution_note: 口訣：CFBridgingRelease = CF 端放手交給 ARC；CFBridgingRetain = CF 端多拿一份、你之後要還；__bridge = 誰的還是誰的。

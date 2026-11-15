@@ -1,0 +1,144 @@
+---
+title: KVC 與集合運算子（選讀）
+module: 3
+chapter: "3.7"
+order: 7
+minutes: 15
+prereq: ["3.6"]
+optional: true
+objectives:
+  - 看懂 valueForKey: / valueForKeyPath: 與 @sum、@max、@distinctUnionOfObjects 在做什麼
+  - 知道它們為什麼好用、為什麼效能與型別安全差、什麼時候可以用
+  - 讀懂 NSUnknownKeyException 並找到打錯的鍵
+summary: KVC 的 valueForKey: / valueForKeyPath:、集合運算子 @sum / @avg / @max / @min / @count / @distinctUnionOfObjects，好用但沒型別檢查、鍵打錯執行期才知道。
+terms:
+  - { en: key-value coding (KVC), tw: 鍵值編碼（KVC）, cn: 键值编码, jp: キー値コーディング }
+  - { en: key path, tw: 鍵路徑, cn: 键路径, jp: キーパス }
+  - { en: collection operator, tw: 集合運算子, cn: 集合运算符, jp: コレクション演算子 }
+  - { en: KVC compliant, tw: 符合 KVC, cn: 符合 KVC, jp: KVC 準拠 }
+appProgress: 沒有新功能；但你看得懂舊專案裡滿地的 valueForKeyPath:，也知道 LBLedger 的加總為什麼不用它。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+let notes = txs.map(\.note)                       // KeyPath 是型別安全的
+let total = txs.reduce(Decimal.zero) { $0 + $1.amount }
+let maxDate = txs.map(\.date).max()
+let kinds = Set(txs.map(\.kind))
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+val notes = txs.map { it.note }
+val total = txs.sumOf { it.amount }               // BigDecimal 也有 sumOf
+val maxDate = txs.maxOfOrNull { it.date }
+val kinds = txs.map { it.kind }.distinct()
+```
+</Fragment>
+<Fragment slot="java">
+```java
+List<String> notes = txs.stream().map(Transaction::getNote).toList();
+BigDecimal total = txs.stream().map(Transaction::getAmount)
+    .reduce(BigDecimal.ZERO, BigDecimal::add);
+Optional<Date> maxDate = txs.stream().map(Transaction::getDate).max(Date::compareTo);
+// 反射版本：BeanUtils.getProperty(tx, "amount") —— 這才是 KVC 的對照
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+const notes = txs.map(t => t.note);
+const total = txs.reduce((s, t) => s + t.amount, 0);
+const maxDate = Math.max(...txs.map(t => t.date.getTime()));
+const kinds = [...new Set(txs.map(t => t.kind))];
+tx["amount"]                                      // 用字串取屬性 —— KVC 就是這個
+```
+</Fragment>
+四個語言都用 `map` / `reduce` 做這些事，型別安全、鍵打錯是編譯錯誤。Objective-C 沒有 `map`（5.3 會自己補），但有另一條路：用**字串**當屬性名去取值，像 TS 的 `obj["amount"]` 或 Java 的反射。這就是 KVC，方便、動態、也完全沒有型別檢查。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### `valueForKey:`：用字串取屬性
+
+範例沿用 3.3 的迷你 `LBTransaction`（有 `note`、`amount`、`date` 三個屬性）。
+
+```objc
+LBTransaction *tx = [LBTransaction note:@"午餐" amount:@"120" daysAgo:1];
+NSLog(@"%@", [tx valueForKey:@"note"]);          // 午餐 —— 等於 tx.note，但鍵是執行期的字串
+NSLog(@"%@", [tx valueForKey:@"amount"]);        // 120
+
+NSArray<LBTransaction *> *txs = @[
+    [LBTransaction note:@"早餐" amount:@"60" daysAgo:2],
+    [LBTransaction note:@"午餐" amount:@"120" daysAgo:1],
+    [LBTransaction note:@"晚餐" amount:@"250" daysAgo:0],
+];
+NSArray<NSString *> *notes = [txs valueForKey:@"note"];
+NSLog(@"%@", [notes componentsJoinedByString:@" "]);   // 早餐 午餐 晚餐 —— 陣列會對每個元素做一次
+```
+
+<Term en="key-value coding (KVC)" tw="鍵值編碼（KVC）" cn="键值编码" jp="キー値コーディング" />是 `NSObject` 內建的機制：`valueForKey:@"note"` 會在執行期找 `-note` 方法、`-isNote`、再找 `_note` 實體變數，找到就回傳；基本型別會自動裝箱成 `NSNumber`。`NSArray` 覆寫了它：對陣列做 `valueForKey:` 等於對每個元素做一次再收成新陣列，這是 ObjC 內建最接近 `map` 的東西（3.3 偷用過）。`setValue:forKey:` 是反方向，Interface Builder 的 User Defined Runtime Attributes、`NSSortDescriptor`、`NSPredicate` 的 `%K`、Core Data 全都靠它。
+
+### `valueForKeyPath:`：用點串起來
+
+```objc
+NSLog(@"%@", [tx valueForKeyPath:@"category.parent.name"]);   // 一路往下取；中途 nil 就回 nil
+```
+
+<Term en="key path" tw="鍵路徑" cn="键路径" jp="キーパス" />是用 `.` 串起來的鍵，每一段對前一段的結果做 `valueForKey:`。中途遇到 nil 會直接回 nil，不會 crash，這點和 Swift 的 `?.` 一樣。
+
+### 集合運算子：`@sum`、`@max`、`@distinctUnionOfObjects`
+
+```objc
+NSLog(@"%@", [txs valueForKeyPath:@"@sum.amount"]);    // 430
+NSLog(@"%@", [txs valueForKeyPath:@"@max.amount"]);    // 250
+NSLog(@"%@", [txs valueForKeyPath:@"@min.date"]);      // 兩天前的那個日期
+NSLog(@"%@", [txs valueForKeyPath:@"@count"]);         // 3
+NSLog(@"%@", [[txs valueForKeyPath:@"@distinctUnionOfObjects.note"]
+              componentsJoinedByString:@" "]);         // 早餐 午餐 晚餐（順序不保證）
+```
+
+<Term en="collection operator" tw="集合運算子" cn="集合运算符" jp="コレクション演算子" />是鍵路徑裡以 `@` 開頭的那一段，Foundation 認得這幾個：
+
+| 運算子 | 做什麼 | 回傳 |
+|---|---|---|
+| `@sum.key` / `@avg.key` | 加總 / 平均，元素先轉成數值 | `NSNumber` |
+| `@max.key` / `@min.key` | 用 `compare:` 找最大 / 最小 | 該屬性的型別 |
+| `@count` | 元素數，右邊的 key 會被忽略 | `NSNumber` |
+| `@unionOfObjects.key` / `@distinctUnionOfObjects.key` | 收集屬性值 / 收集並去重 | `NSArray` |
+| `@unionOfArrays.key` / `@distinctUnionOfArrays.key` | 對「陣列的陣列」攤平後收集 | `NSArray` |
+
+**不能自訂**新的運算子，就這幾個。一行就能算出月結總額看起來很誘人，但小帳本的 `totalForKind:` 還是用 `decimalNumberByAdding:` 迴圈加總，原因在下面。
+
+<Tip title="什麼時候用、什麼時候不用">
+用：讀舊專案時看懂它；偵錯時在 LLDB 裡 `po [txs valueForKeyPath:@"@sum.amount"]` 快速看數字；`NSSortDescriptor` 與 `NSPredicate` 這些本來就吃字串鍵的 API。不用：新寫的業務邏輯、金額計算、效能敏感的路徑。鍵用字串寫，`@"amout"` 這種錯字編譯器不會抓、重新命名屬性時 Xcode 的 Rename 也不會跟著改，上線後才在崩潰回報裡看到。
+</Tip>
+
+<Pitfall title="@sum 的回傳是 NSNumber，不是你的 NSDecimalNumber">
+文件只保證 `@sum` 回傳 `NSNumber`。它確實會對每個元素取 `decimalValue` 來加，大多情況結果精確，但你拿到的是 `NSNumber *`，要再 `[NSDecimalNumber decimalNumberWithDecimal:result.decimalValue]` 轉回來，而且沒有辦法指定 3.2 的 `NSDecimalNumberHandler`。金額的加總規則（進位、幣別、略過作廢交易）本來就不該交給一個通用運算子，寫一個五行的迴圈最清楚。
+</Pitfall>
+
+<Pitfall title="KVC 對基本型別屬性回傳 NSNumber，對 nil 回傳 nil">
+`[tx valueForKey:@"kind"]` 拿到的是 `NSNumber *`（`LBTransactionKind` 被裝箱），不是列舉；`setValue:nil forKey:@"kind"` 對基本型別屬性會丟 `NSInvalidArgumentException`，要覆寫 `setNilValueForKey:` 才接得住。對 `nullable` 的物件屬性則很寬容：nil 進 nil 出。這些規則都在執行期發生，單元測試沒蓋到的鍵就是地雷。
+</Pitfall>
+
+<Pitfall title="KVC 比直接呼叫方法慢得多">
+`valueForKey:` 每次都要把字串轉成 selector、查方法表、必要時裝箱；`@sum.amount` 要對整個陣列做一輪 KVC 再加總。在 `cellForRowAtIndexPath:` 這種每秒跑幾百次的地方，用它和直接 `tx.amount` 差一個數量級。偶爾算一次沒差，熱路徑別碰。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSUnknownKeyException',
+reason: '[<LBTransaction 0x600002d1c2a0> valueForUndefinedKey:]: this class is not key value coding-compliant for the key amout.'`}>
+讀法：`NSUnknownKeyException` 是 KVC 專屬的例外；接收者 `LBTransaction`；`valueForUndefinedKey:` 表示它找遍 `-amout`、`-isAmout`、`_amout` 都沒找到；最後的 `amout` 就是那個打錯的鍵（少了一個 n）。這個鍵可能寫在 `valueForKeyPath:` 的字串裡、`NSSortDescriptor` 的 `sortDescriptorWithKey:`、`NSPredicate` 的格式字串，或 Storyboard 的 User Defined Runtime Attributes 與一條連到已刪除屬性的 IBOutlet——後者的訊息會多一句 `setValue:forUndefinedKey:`，而且發生在畫面載入時。修法：全專案搜尋那個字串；<Term en="KVC compliant" tw="符合 KVC" cn="符合 KVC" jp="KVC 準拠" />的意思就是「有同名的 getter / setter 或 ivar」，把鍵改成屬性真正的名字即可。如果是 Storyboard，打開 Connections Inspector 把黃色驚嘆號的連線刪掉。
+</Crash>
+
+## 小結
+
+- `valueForKey:` 用字串取屬性，`valueForKeyPath:` 用 `.` 串起來，中途 nil 就回 nil；對陣列做會逐元素展開。
+- 集合運算子只有 `@sum` / `@avg` / `@max` / `@min` / `@count` / `@unionOfObjects` / `@distinctUnionOfObjects` / `@unionOfArrays` 那幾個，不能自訂。
+- 好用在偵錯與吃字串鍵的 API；新程式碼、金額、熱路徑不用，因為沒型別檢查、鍵打錯執行期才知道、速度慢。
+- `NSUnknownKeyException` + `valueForUndefinedKey:` 直接告訴你哪個鍵打錯。

@@ -1,0 +1,23 @@
+id: m04-4-3-xcode-1
+chapter: "4.3"
+type: xcode
+title: 用 Memory Graph 找出起始專案埋的 3 個循環參考
+mobile: false
+minutes: 30
+prompt: M04 起始專案故意埋了三個洩漏：一個 NSTimer 的 target、一個 strong 的 delegate、一個捕獲 self 的 block。先用 Memory Graph Debugger 找出來，再修正，最後讓 LBLeakTests 全綠。測試用 `__weak` 變數在 `@autoreleasepool` 結束後 `XCTAssertNil` 驗證物件確實釋放。
+starter: xcode/M04-starter
+steps:
+  - 先不改程式碼：⌘U 跑 LBLeakTests，確認三個測試都紅（它們斷言 weak 參考應為 nil）。
+  - 跑 App，進入並離開會建立這三個物件的畫面兩次，按 Debug bar 的 Debug Memory Graph，篩選「Show only leaked blocks」，記下紫色 ! 物件與持有鏈上每個箭頭的 ivar 名稱。
+  - "timer：找到 `scheduledTimerWithTimeInterval:target:…` 的呼叫。改成 block 版 + weakSelf 並在 dealloc invalidate，或在明確的生命週期點 invalidate。"
+  - "delegate：找到宣告成 strong 的 delegate 屬性，改成 `weak, nullable`。確認 delegate 物件仍有人 strong 持有（否則測試會過但功能失效）。"
+  - "block：找到由 self 持有、又捕獲 self 的 block，套 weakSelf / strongSelf 樣板。注意不要順手改掉傳給 GCD 的 block。"
+  - 再開一次 Memory Graph，確認紫色物件消失；⌘U 跑測試。
+tests:
+  - LBLeakTests/testTimerTargetReleased
+  - LBLeakTests/testDelegateDoesNotRetain
+  - LBLeakTests/testBlockDoesNotRetainSelf
+acceptance:
+  - Memory Graph 篩選「只看洩漏」後沒有自己的類別
+  - 三處修正都沒有改變原本的功能（timer 仍會觸發、delegate 仍收到回呼、block 仍執行）
+solution_note: 通關後打開測試檔讀一次它們怎麼寫：`__weak id weakObj; @autoreleasepool { 建立物件、觸發行為; weakObj = obj; } XCTAssertNil(weakObj);` 這個樣板以後寫自己的洩漏測試直接套。

@@ -1,0 +1,329 @@
+---
+title: 分類與延伸
+module: 5
+chapter: "5.3"
+order: 3
+minutes: 30
+prereq: ["5.2", "2.5"]
+objectives:
+  - 用分類替既有類別（包括 Foundation 的）加方法，檔名與方法名遵守 lb_ 慣例
+  - 知道分類不能加實體變數、為什麼要用關聯物件補救、以及覆寫既有方法的危險
+  - 用 NSArray+LBFunctional 的 lb_map: / lb_filter: / lb_reduce:initial: 找回 map / filter / reduce 的手感
+summary: "分類（category）與類別延伸：@interface X (Name)、檔名 X+Name.h、不能加 ivar、關聯物件、同名方法的連結順序問題、lb_ 前綴；順手寫出 NSArray+LBFunctional。"
+terms:
+  - { en: category, tw: 分類（category）, cn: 分类, jp: カテゴリ }
+  - { en: class extension, tw: 類別延伸, cn: 类扩展, jp: クラスエクステンション }
+  - { en: associated object, tw: 關聯物件, cn: 关联对象, jp: 関連オブジェクト }
+  - { en: static dispatch, tw: 靜態派送, cn: 静态分派, jp: 静的ディスパッチ }
+  - { en: prefix, tw: 前綴, cn: 前缀, jp: プレフィックス }
+appProgress: NSDecimalNumber 會用 lb_currencyString 印出「1,280.00」；NSArray 有了 lb_map: / lb_filter: / lb_reduce:initial:。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+extension Decimal {
+    var currencyString: String {            // 可以加計算屬性，不能加儲存屬性
+        formatted(.number.precision(.fractionLength(2)))
+    }
+}
+let total: Decimal = 1280
+print(total.currencyString)                 // 1,280.00
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+fun BigDecimal.currencyString(): String =   // extension function
+    DecimalFormat("#,##0.00").format(this)
+
+BigDecimal("1280").currencyString()         // 1,280.00
+// 靜態派送：編譯成 CurrencyKt.currencyString(x)，不會真的進 BigDecimal
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// Java 沒有擴充既有類別的語法，只能寫工具類別
+final class DecimalUtils {
+    static String currencyString(BigDecimal d) {
+        return new DecimalFormat("#,##0.00").format(d);
+    }
+}
+DecimalUtils.currencyString(new BigDecimal("1280"));
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// 正統做法：declaration merging + prototype
+declare global { interface Number { currencyString(): string } }
+Number.prototype.currencyString = function () {
+  return this.toLocaleString("en-US", { minimumFractionDigits: 2 });
+};
+(1280).currencyString();                    // 1,280.00
+// 或者 TS 社群更常見：寫獨立函式 currencyString(n)
+```
+</Fragment>
+Swift 的 `extension` 與 Kotlin 的 extension function 看起來最像，但機制不同：Kotlin 擴充是編譯期的靜態函式，呼叫哪個版本看變數的**宣告型別**；Objective-C 的分類是在程式載入時真的把方法加進類別的方法列表，**執行期全域生效**，連字串字面值 `@"abc"` 都會得到你新加的方法。TypeScript 改 `prototype` 是最接近的類比。Java 沒有對應語法。
+</Compare>
+
+## Objective-C 怎麼寫
+
+<Term en="category" tw="分類" cn="分类" jp="カテゴリ" />（category）讓你替**任何**既有類別加方法，包括你沒有原始碼的 `NSString`、`NSDecimalNumber`、`UIView`。不需要繼承，不需要改原來的類別，加完之後整個程式裡那個類別的所有實體都有新方法。
+
+### 語法與檔名
+
+```objc
+// NSDecimalNumber+LBFormatting.h
+#import <Foundation/Foundation.h>
+
+@interface NSDecimalNumber (LBFormatting)
+- (NSString *)lb_currencyString;
+@end
+
+// NSDecimalNumber+LBFormatting.m
+#import "NSDecimalNumber+LBFormatting.h"
+
+@implementation NSDecimalNumber (LBFormatting)
+- (NSString *)lb_currencyString {
+    static NSNumberFormatter *fmt;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        fmt = [NSNumberFormatter new];
+        fmt.numberStyle = NSNumberFormatterDecimalStyle;
+        fmt.minimumFractionDigits = 2;
+        fmt.maximumFractionDigits = 2;
+    });
+    return [fmt stringFromNumber:self];
+}
+@end
+```
+
+三條慣例，全部跟著 Apple 自己的寫法：
+
+1. **宣告**：`@interface 類別名 (分類名)`。括號裡是分類名，不是父類別。分類名用專案前綴加用途，例如 `LBFormatting`。
+2. **檔名**：`類別名+分類名.h / .m`，加號是慣例的一部分，Xcode 的 New File 範本就會這樣命名。看到檔名就知道這是分類不是類別。
+3. **方法名加前綴** `lb_`：`lb_currencyString` 而不是 `currencyString`。原因下面講，先記住：**分類加到別人的類別上的方法，一律加前綴**，沒有例外。
+
+使用時只要 import 標頭檔：
+
+```objc
+#import "NSDecimalNumber+LBFormatting.h"
+NSDecimalNumber *n = [NSDecimalNumber decimalNumberWithString:@"1280"];
+NSLog(@"%@", [n lb_currencyString]);     // 1,280.00
+```
+
+### 分類不能加實體變數
+
+分類只能加方法。寫 `@property` 進去是合法的，但編譯器只會替你宣告 getter / setter，**不會合成實體變數**，因為類別的記憶體配置在編譯時就定了，分類是之後才掛上去的。
+
+```objc
+@interface LBTransaction (LBUI)
+@property (nonatomic, copy) NSString *lb_displayColor;   // 只有宣告
+@end
+// 警告：property 'lb_displayColor' requires method 'lb_displayColor'
+// to be defined - use @dynamic or provide a method implementation
+// 執行時呼叫 → unrecognized selector
+```
+
+真的需要在分類裡「存一個值」，有三個選擇，依序考慮：（1）改用子類別或在原類別加屬性，如果類別是你的；（2）用<Term en="associated object" tw="關聯物件" cn="关联对象" jp="関連オブジェクト" />；（3）重新想想這個狀態是不是該放在這裡。
+
+### 關聯物件：runtime 幫你掛一個字典
+
+```objc
+#import <objc/runtime.h>
+
+@implementation LBTransaction (LBUI)
+- (void)setLb_displayColor:(NSString *)color {
+    objc_setAssociatedObject(self, @selector(lb_displayColor),
+                             color, OBJC_ASSOCIATION_COPY_NONATOMIC);
+}
+- (NSString *)lb_displayColor {
+    return objc_getAssociatedObject(self, @selector(lb_displayColor));
+}
+@end
+```
+
+`objc_setAssociatedObject(物件, key, 值, 策略)` 把值掛在物件上，物件釋放時一起釋放。key 只要是唯一的位址就行，用 `@selector(getter 名)` 是最省事的慣例（selector 位址全程式唯一）。策略對應屬性修飾詞：`OBJC_ASSOCIATION_RETAIN_NONATOMIC` 是 `strong`、`OBJC_ASSOCIATION_COPY_NONATOMIC` 是 `copy`、`OBJC_ASSOCIATION_ASSIGN` 是 `assign`（沒有 weak）。這是 UIKit 第三方函式庫替 `UIView` 掛額外資訊的標準手法；效能比真實體變數差，別放在每幀都存取的路徑上。
+
+### 類別延伸 `()` 回顧
+
+2.5 教過的類別延伸是「沒有名字的分類」：
+
+```objc
+// LBLedger.m
+@interface LBLedger ()                      // 括號空的
+@property (nonatomic, strong) NSMutableArray<LBTransaction *> *items;
+@end
+```
+
+它跟分類有一個關鍵差異：類別延伸必須跟主 `@implementation` 在同一個編譯單位，所以編譯器知道完整的記憶體配置，**可以合成實體變數**。這就是為什麼私有屬性放類別延伸、公開的工具方法放分類。
+
+| | 分類 `(Name)` | 類別延伸 `()` |
+|---|---|---|
+| 可加在誰身上 | 任何類別，含系統類別 | 只有自己有 `.m` 的類別 |
+| 加方法 | 可以 | 可以 |
+| 加屬性 / ivar | 只能宣告，不合成 | 完整合成 |
+| 放哪 | 獨立的 `X+Name.h/.m` | 原類別的 `.m` 頂端 |
+| 用途 | 擴充、拆檔、工具方法 | 私有介面、對內 readwrite |
+
+### `NSArray+LBFunctional`：把 map / filter / reduce 找回來
+
+TypeScript、Kotlin、Swift 寫資料處理都是 `.map().filter().reduce()` 一路串下去，Foundation 沒給你這些（有 `filteredArrayUsingPredicate:` 與 `enumerateObjectsUsingBlock:`，但手感差很多）。用分類自己補。下面的方法參數是 block，語法 5.4 才會詳細講，這裡先照抄，把它當成「一個可以呼叫的匿名函式」：
+
+```objc
+// NSArray+LBFunctional.h
+@interface NSArray<ObjectType> (LBFunctional)
+- (NSArray *)lb_map:(id (^)(ObjectType obj))transform;
+- (NSArray<ObjectType> *)lb_filter:(BOOL (^)(ObjectType obj))predicate;
+- (id)lb_reduce:(id (^)(id acc, ObjectType obj))reducer initial:(id)initial;
+@end
+
+// NSArray+LBFunctional.m
+@implementation NSArray (LBFunctional)
+- (NSArray *)lb_map:(id (^)(id obj))transform {
+    NSMutableArray *out = [NSMutableArray arrayWithCapacity:self.count];
+    for (id obj in self) {
+        id mapped = transform(obj);
+        [out addObject:mapped ?: [NSNull null]];   // 陣列不能放 nil
+    }
+    return [out copy];
+}
+- (NSArray *)lb_filter:(BOOL (^)(id obj))predicate {
+    NSMutableArray *out = [NSMutableArray array];
+    for (id obj in self) {
+        if (predicate(obj)) [out addObject:obj];
+    }
+    return [out copy];
+}
+- (id)lb_reduce:(id (^)(id acc, id obj))reducer initial:(id)initial {
+    id acc = initial;
+    for (id obj in self) {
+        acc = reducer(acc, obj);
+    }
+    return acc;
+}
+@end
+```
+
+兩個細節值得記：`NSArray` 不能放 `nil`，所以 `lb_map:` 的 block 回傳 `nil` 時用 `NSNull` 佔位（或者你也可以選擇直接略過，重點是文件要寫清楚）；`@interface NSArray<ObjectType> (LBFunctional)` 的輕量泛型讓呼叫端的 block 參數有正確型別，`@implementation` 裡不能寫泛型參數，所以退回 `id`。
+
+### 完整範例（可貼進 Scratch）
+
+```objc
+#import <Foundation/Foundation.h>
+
+@interface NSArray<ObjectType> (LBFunctional)
+- (NSArray *)lb_map:(id (^)(ObjectType obj))transform;
+- (NSArray<ObjectType> *)lb_filter:(BOOL (^)(ObjectType obj))predicate;
+- (id)lb_reduce:(id (^)(id acc, ObjectType obj))reducer initial:(id)initial;
+@end
+
+@implementation NSArray (LBFunctional)
+- (NSArray *)lb_map:(id (^)(id obj))transform {
+    NSMutableArray *out = [NSMutableArray arrayWithCapacity:self.count];
+    for (id obj in self) [out addObject:transform(obj) ?: [NSNull null]];
+    return [out copy];
+}
+- (NSArray *)lb_filter:(BOOL (^)(id obj))predicate {
+    NSMutableArray *out = [NSMutableArray array];
+    for (id obj in self) if (predicate(obj)) [out addObject:obj];
+    return [out copy];
+}
+- (id)lb_reduce:(id (^)(id acc, id obj))reducer initial:(id)initial {
+    id acc = initial;
+    for (id obj in self) acc = reducer(acc, obj);
+    return acc;
+}
+@end
+
+@interface NSDecimalNumber (LBFormatting)
+- (NSString *)lb_currencyString;
+@end
+@implementation NSDecimalNumber (LBFormatting)
+- (NSString *)lb_currencyString {
+    NSNumberFormatter *fmt = [NSNumberFormatter new];
+    fmt.numberStyle = NSNumberFormatterDecimalStyle;
+    fmt.minimumFractionDigits = 2;
+    fmt.maximumFractionDigits = 2;
+    return [fmt stringFromNumber:self];
+}
+@end
+
+int main(void) {
+    @autoreleasepool {
+        NSArray<NSString *> *raw = @[@"120", @"-45", @"1280", @"-3.5"];
+        NSArray<NSDecimalNumber *> *amounts = [raw lb_map:^id(NSString *s) {
+            return [NSDecimalNumber decimalNumberWithString:s];
+        }];
+        NSArray<NSDecimalNumber *> *expenses =
+            [amounts lb_filter:^BOOL(NSDecimalNumber *n) {
+                return [n compare:[NSDecimalNumber zero]] == NSOrderedAscending;
+            }];
+        NSDecimalNumber *total =
+            [expenses lb_reduce:^id(NSDecimalNumber *acc, NSDecimalNumber *n) {
+                return [acc decimalNumberByAdding:n];
+            } initial:[NSDecimalNumber zero]];
+        NSLog(@"支出筆數 %lu", (unsigned long)expenses.count);
+        NSLog(@"支出合計 %@", [total lb_currencyString]);
+        NSLog(@"%@", [@"abc" respondsToSelector:@selector(lb_map:)] ? @"字串沒有" : @"OK");
+        NSLog(@"%d", [@[] respondsToSelector:@selector(lb_map:)]);
+    }
+    return 0;
+}
+// 預期輸出：
+// 支出筆數 2
+// 支出合計 -48.50
+// OK
+// 1
+```
+
+最後一行印 `1`：`@[]` 這個字面值陣列也有 `lb_map:`，證明分類是真的加進 `NSArray` 類別（含它的所有私有子類別如 `__NSArray0`），不是編譯期的語法糖。
+
+<Tip title="分類的其他用途：拆檔與對 Swift 隱藏">
+大型類別可以用分類拆成幾個 `.m`：`LBLedger+Import.m`、`LBLedger+Export.m`，各自負責一塊，`.h` 可以共用或分開。另一個用法是「只給 ObjC 看的介面」：放在 `LBLedger+Private.h` 的分類不進 bridging header，Swift 端就看不到。
+</Tip>
+
+<Pitfall title="兩個分類加了同名方法，哪個生效看連結順序">
+<Fragment slot="bad">
+```objc
+// 你的 NSString+Utils.m
+- (NSString *)md5 { return 十六進位字串; }
+// 某第三方 SDK 的 NSString+Crypto.m
+- (NSData *)md5 { return 原始 bytes; }
+// 沒有編譯錯誤、沒有連結錯誤。執行時哪個被叫到取決於
+// 哪個 .o 後載入，換個連結順序或升級 SDK 就變了。
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+// 你的 NSString+LBUtils.m
+- (NSString *)lb_md5;      // 前綴讓撞名機率趨近於零
+```
+</Fragment>
+runtime 把分類方法加進類別時，同名的直接覆蓋，不會比對回傳型別、不會報錯。你永遠不知道隔壁 SDK 替 `NSString` 加了什麼。`lb_` 前綴是唯一可靠的防護。Apple 在文件裡明寫：分類方法沒加前綴等著出事。
+</Pitfall>
+
+<Pitfall title="用分類覆寫既有方法：沒有 super、沒有回頭路">
+分類裡寫一個跟類別原本同名的方法（例如替 `NSDecimalNumber` 加 `description`）會**取代**原本的實作，而且分類方法裡呼叫 `[super description]` 叫到的是父類別的版本，不是被你蓋掉的那個。原實作從此在這個程式裡消失，所有用到它的框架程式碼一起變行為。想「在原方法前後加東西」要用子類別，或是模組 6 的 method swizzling，兩者都比分類覆寫可控。
+</Pitfall>
+
+<Pitfall title="Kotlin 的直覺會害你：分類沒有靜態派送">
+Kotlin 裡 `fun Any.describe()` 跟 `fun String.describe()` 可以共存，呼叫哪個看變數宣告型別。Objective-C 的 `id obj = @"abc"; [obj lb_describe]` 永遠走 `NSString` 的分類（如果有），因為是執行期依實際類別找方法。另一個方向也成立：在 `NSObject` 上寫分類，**所有**物件都得到那個方法，包括 UIKit 內部物件；加前綴的理由又多一條。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: '-[NSConcreteMutableData uppercaseString]: unrecognized selector sent to instance 0x600003a1c0f0'`}>
+程式碼寫的是 `[[password md5] uppercaseString]`，你的分類 `NSString (Utils)` 宣告 `md5` 回傳 `NSString *`，編譯器相信你，所以沒有警告。但執行時被叫到的是某個 SDK 同名分類的 `md5`，回傳 `NSData`，接著對 `NSData` 呼叫 `uppercaseString` 就是這行訊息。讀法：收到訊息的類別（`NSConcreteMutableData`）跟你以為的型別（`NSString`）對不上，就是「有人換掉了方法」。在 Xcode 的 Build log 裡搜 `md5` 常能找到另一份實作。修法：自己的方法全部改成 `lb_` 前綴，重新命名後編譯器會替你找出所有呼叫點。
+</Crash>
+
+## 小結
+
+- 分類 `@interface X (Name)` 替任何類別加方法；檔名 `X+Name.h / .m`；方法名一律 `lb_` 前綴。
+- 分類不能合成實體變數；真的要存值用關聯物件 `objc_setAssociatedObject`，key 用 `@selector(getter)`。
+- 同名方法沒有編譯錯誤，誰生效看載入順序；不要用分類覆寫既有方法。
+- 類別延伸 `()` 在 `.m` 裡、可以合成屬性，是放私有介面的地方。
+- 分類是執行期真的加進類別，不是 Kotlin 的靜態派送。

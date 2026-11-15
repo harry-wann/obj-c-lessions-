@@ -1,0 +1,20 @@
+id: m04-4-1-quiz-1
+chapter: "4.1"
+section: quiz
+type: quiz
+title: 誰負責 release？
+minutes: 1
+prompt: 依照擁有權規則，下列哪些方式拿到的物件是「你擁有、你負責放手」的？（可複選）
+multi: true
+options:
+  - "`[[LBTransaction alloc] init]`"
+  - "`[NSString stringWithFormat:@\"%@\", note]`"
+  - "`[tx copy]`"
+  - "`[ledger transactionWithIdentifier:uuid]`"
+  - "`[tx retain]`（MRC 檔案裡）"
+answer: [0, 2, 4]
+explain: alloc / new / copy / mutableCopy 開頭的方法與 retain 給你 +1；其他方法（stringWithFormat:、自訂的查詢方法）回傳 +0 的物件，想留住要自己 retain（ARC 下賦給 strong 變數就是）。
+hints: ["四句話的第一、二句講了哪幾個字開頭的方法？", "stringWithFormat: 不是 alloc / new / copy 開頭。"]
+feedback:
+  "1": "stringWithFormat: 回傳的是 autoreleased 的 +0 物件，你不擁有它。"
+  "3": "自訂查詢方法沿用慣例回傳 +0；它的名字也不是 alloc / new / copy 開頭。"

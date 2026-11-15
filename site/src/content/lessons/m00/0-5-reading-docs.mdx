@@ -1,0 +1,204 @@
+---
+title: 怎麼讀 Apple 文件與舊程式碼
+module: 0
+chapter: "0.5"
+order: 5
+minutes: 25
+prereq: ["0.4"]
+objectives:
+  - 把任何方法簽名拆成「實體 / 類別、回傳型別、selector、參數」四部分
+  - 看到 NS / UI / CF / CG 前綴就知道來自哪一層、是 C 還是 Objective-C
+  - 讀懂 Deprecated 與 API_AVAILABLE 標記，知道要不要處理
+summary: 方法簽名的讀法、NS / UI / CF / CG 前綴的由來、Deprecated 與 API_AVAILABLE、文件頁面切換 Swift / Objective-C。
+terms:
+  - { en: method, tw: 方法, cn: 方法, jp: メソッド }
+  - { en: selector, tw: 選擇器（selector）, cn: 选择器, jp: セレクタ }
+  - { en: class method / instance method, tw: 類別方法 / 實體方法, cn: 类方法 / 实例方法, jp: クラスメソッド / インスタンスメソッド }
+  - { en: parameter / argument, tw: 參數 / 引數, cn: 形参 / 实参, jp: 仮引数 / 実引数 }
+  - { en: return value, tw: 回傳值, cn: 返回值, jp: 戻り値 }
+  - { en: deprecated, tw: 已棄用, cn: 已废弃, jp: 非推奨 }
+appProgress: 開 LittleBook 範本產生的 AppDelegate.h，每一行都能讀懂。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// Apple 文件切到 Swift 看到的樣子
+mutating func insert(_ newElement: Element, at i: Int)
+@available(iOS, introduced: 2.0, deprecated: 9.0, message: "Use UIAlertController")
+class UIAlertView
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+fun add(index: Int, element: E)
+@Deprecated("Use addTransaction", ReplaceWith("addTransaction(tx)"))
+fun add(tx: Transaction)
+```
+</Fragment>
+<Fragment slot="java">
+```java
+void add(int index, E element);
+@Deprecated
+public void add(Transaction tx) { /* … */ }
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+splice(start: number, deleteCount: number, ...items: T[]): T[];
+/** @deprecated Use addTransaction instead */
+add(tx: Transaction): void;
+```
+</Fragment>
+四個語言的參數名都黏在方法名後面的括號裡，方法名是一個單字。Objective-C 把參數「拆進」方法名裡：名字是 `insertObject:atIndex:`，一段一個冒號，讀起來像一句英文。Deprecated 標記四個語言都有，Objective-C 用 C 的 attribute 巨集，資訊更多（哪一版開始、哪一版棄用、換成什麼）。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 拆一行方法簽名
+
+Apple 文件、標頭檔、crash log 裡的方法都長這樣：
+
+```objc
+- (void)insertObject:(id)anObject atIndex:(NSUInteger)index;
+```
+
+從左到右四段：
+
+1. **`-` 或 `+`**：`-` 是<Term en="class method / instance method" tw="實體方法" cn="实例方法" jp="インスタンスメソッド" />，對物件呼叫；`+` 是類別方法，對類別呼叫，像 `+ (instancetype)arrayWithCapacity:`。對應 Swift 的 `func` 與 `static func`。
+2. **`(void)`**：<Term en="return value" tw="回傳值" cn="返回值" jp="戻り値" />型別，用括號包著。`instancetype` 表示「回傳呼叫者自己的類別」，`id` 表示「任何物件」。
+3. **`insertObject:atIndex:`**：這整串才是方法的名字，Objective-C 叫它<Term en="selector" tw="選擇器（selector）" cn="选择器" jp="セレクタ" />。數冒號就知道有幾個<Term en="parameter / argument" tw="參數" cn="形参" jp="引数" />。`insertObject` 與 `insertObject:` 是兩個不同的方法，冒號是名字的一部分。
+4. **`(id)anObject`、`(NSUInteger)index`**：每個冒號後面接參數的型別與名字。文件裡參數說明會用這些名字（anObject、index）。
+
+呼叫時把方括號包起來、引數填進冒號後面：`[notes insertObject:@"lunch" atIndex:0];`。Swift 看到的 `insert(_:at:)` 是 Apple 自動改寫的結果：第一段動詞保留、名詞省略、介詞變成參數標籤。所以**在 Swift 文件裡查不到 Objective-C 方法的原名**，要切回來看。
+
+```objc
+@import Foundation;
+
+int main(int argc, const char * argv[]) {
+    @autoreleasepool {
+        // 文件：- (void)insertObject:(id)anObject atIndex:(NSUInteger)index;
+        NSMutableArray<NSString *> *notes = [NSMutableArray array];   // + 類別方法
+        [notes addObject:@"dinner"];                                 // - 實體方法
+        [notes insertObject:@"lunch" atIndex:0];
+        NSLog(@"%@", notes);
+        // 輸出：(
+        //     lunch,
+        //     dinner
+        // )
+
+        // selector 是可以拿在手上的值；名字含冒號
+        SEL sel = @selector(insertObject:atIndex:);
+        NSLog(@"%@", NSStringFromSelector(sel));
+        // 輸出：insertObject:atIndex:
+        NSLog(@"%d", [notes respondsToSelector:sel]);
+        // 輸出：1
+
+        // 你宣告的是 NSMutableArray，實際的類別是私有子類別
+        NSLog(@"%@", NSStringFromClass([notes class]));
+        // 輸出：__NSArrayM
+    }
+    return 0;
+}
+```
+
+### 文件要切到 Objective-C
+
+developer.apple.com 的每一頁右上角有語言切換（或在網址加 `?language=objc`），預設是 Swift。切過去之後方法名、屬性型別、nullability 都會變成 Objective-C 的寫法。Xcode 裡更快：⌥-點擊符號看快速說明、⇧⌘0 開文件視窗、**⌘-點擊跳到標頭檔**。標頭檔是最準的文件：註解、可用版本、nullability、哪個初始化器是指定初始化器，全部寫在裡面，而且與你手上的 SDK 版本完全一致。
+
+### 前綴：NS、UI、CF、CG
+
+Objective-C 沒有命名空間，所有類別名活在同一個全域空間，靠前綴避免撞名：
+
+| 前綴 | 來源 | 層 | 例 |
+|---|---|---|---|
+| `NS` | NeXTSTEP（1989 年 NeXT 公司的作業系統，Cocoa 的前身） | Foundation、AppKit；Objective-C 物件 | `NSString`、`NSArray`、`NSObject` |
+| `UI` | UIKit（2007 iPhone） | iOS 介面層；Objective-C 物件 | `UIView`、`UITableView` |
+| `CF` | Core Foundation | **C API**，型別以 `Ref` 結尾、函式以前綴開頭 | `CFStringRef`、`CFRelease()` |
+| `CG` | Core Graphics（Quartz） | **C API**；幾何 struct 與繪圖 | `CGRect`、`CGFloat`、`CGContextRef` |
+| `CA`、`AV`、`CL`、`MK`、`WK` | Core Animation、AVFoundation、Core Location、MapKit、WebKit | 各框架 | `CALayer`、`CLLocation` |
+| `__` 或 `_` 開頭 | 私有 | 不要直接用；crash log 裡會出現 | `__NSArrayM`、`_UITableViewCellSeparatorView` |
+
+看到 `CF` 或 `CG` 就知道那是 C：沒有方括號、沒有 `description`、記憶體要自己 `CFRelease`（4.5 的橋接）。`NSString` 與 `CFStringRef` 其實是同一塊記憶體的兩種看法，這叫 toll-free bridging，模組 4 再講。你自己的類別也要有前綴，本課程用 `LB`（LittleBook）；Apple 保留所有兩個字母的前綴給自己，寫框架給別人用時建議三個字母以上。
+
+### Deprecated 與 API_AVAILABLE
+
+打開舊專案第一眼看到的是幾百個黃色警告，大多是這種：
+
+```text
+'UIAlertView' is deprecated: first deprecated in iOS 9.0 -
+UIAlertView is deprecated. Use UIAlertController with a preferredStyle of
+UIAlertControllerStyleAlert instead
+```
+
+它來自標頭檔上的巨集 `API_DEPRECATED("Use UIAlertController…", ios(2.0, 9.0))`：從 iOS 2.0 可用、iOS 9.0 起<Term en="deprecated" tw="已棄用" cn="已废弃" jp="非推奨" />。**Deprecated 不等於壞掉**，Apple 很少真的移除，但它表示「新系統上行為可能退化、沒人修 bug」。舊程式碼還會看到前輩寫法：`NS_DEPRECATED_IOS(2_0, 9_0)`、`DEPRECATED_ATTRIBUTE`、`__attribute__((deprecated))`，意思一樣。
+
+反方向的標記是 `API_AVAILABLE(ios(17.0))`：這個 API 從 iOS 17 才有。當你的部署目標低於它，編譯器會警告 `'xxx' is only available on iOS 17.0 or newer`，要用 `@available` 包起來：
+
+```objc
+@import Foundation;
+
+int main(int argc, const char * argv[]) {
+    @autoreleasepool {
+        // Scratch 是 macOS 程式，所以這裡寫 macOS；App 裡換成 iOS 17.0
+        if (@available(macOS 14.0, *)) {
+            NSLog(@"macOS 14 以上，可以用新 API");
+        } else {
+            NSLog(@"舊系統，走替代路徑");
+        }
+        // 輸出（Sonoma 以上）：macOS 14 以上，可以用新 API
+    }
+    return 0;
+}
+```
+
+舊程式碼在 `@available`（Xcode 9 才有）出現之前，用的是 `[[UIDevice currentDevice].systemVersion floatValue] >= 9.0` 或 `[obj respondsToSelector:@selector(newMethod)]` 來判斷，看到不要驚訝，那是當年唯一的辦法。
+
+<Tip title="讀舊程式碼的三個速查">
+`NS_ASSUME_NONNULL_BEGIN / END` 之間的指標預設都是 nonnull（3.6）；`@synthesize foo = _foo;` 是 2012 年前手寫的屬性合成，現在編譯器自動做；`#pragma mark - 區段名` 只是給 Xcode 跳轉列看的分隔線，沒有語意。模組 11 有完整的舊語法對照表。
+</Tip>
+
+<Pitfall title="拿 Swift 文件直接翻回 Objective-C">
+<Fragment slot="bad">
+```objc
+[notes insert:@"lunch" at:0];
+// error: No visible @interface for 'NSMutableArray'
+//        declares the selector 'insert:at:'
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+[notes insertObject:@"lunch" atIndex:0];   // 文件切到 Objective-C 看原名
+```
+</Fragment>
+Swift 的 `insert(_:at:)`、`removeAll()`、`count` 都是改寫過的名字；原名是 `insertObject:atIndex:`、`removeAllObjects`、`count`（這個剛好一樣）。查文件時先切語言，否則連 selector 都拼不出來。
+</Pitfall>
+
+<Pitfall title="冒號是名字的一部分">
+`addObject` 與 `addObject:` 是不同的 selector；`@selector(insertObject:atIndex)` 少一個冒號就對不到任何方法，編譯器只會警告 `undeclared selector`，執行期才 `unrecognized selector`。搜尋文件、搜尋程式碼、寫 `@selector` 時，一律把冒號寫全。Xcode 的 ⇧⌘O 可以直接貼 `insertObject:atIndex:` 搜。
+</Pitfall>
+
+<Pitfall title="Deprecated 警告：全部關掉或全部急著修都不對">
+舊專案一開有三百個 deprecated 警告，兩種反應都常見：全專案 `-Wno-deprecated-declarations` 關掉眼不見為淨，或花兩週全部改掉結果改出新 bug。正確做法是分級：先處理「在部署目標上已經失效或行為改變」的（讀警告訊息裡的替代建議），其次是 Apple 明說要移除的，純粹「有新方法」的留著。單點壓警告用 `#pragma clang diagnostic push / ignored "-Wdeprecated-declarations" / pop` 包住那幾行，並留註解寫原因。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: '*** -[__NSArrayM insertObject:atIndex:]: object cannot be nil'
+*** First throw call stack:
+(0x1805d7e38 0x18028f8d8 0x1804c2f40 0x1004a1c10 ...)
+Thread 1: signal SIGABRT`}>
+用這一章的讀法拆：`-` 實體方法；`__NSArrayM` 是 `NSMutableArray` 的私有具體類別（前綴表那一行）；`insertObject:atIndex:` 是收到的 selector；「object cannot be nil」是訊息內容：第一個參數 `anObject` 是 nil。切到 Objective-C 的文件看這個方法，參數說明寫著 anObject「This value must not be nil」，下面還有一行 Important：傳 nil 會 raise `NSInvalidArgumentException`。這就是為什麼文件要讀參數說明，不只讀簽名。修法：找到堆疊中第一個自己的 frame（`0x1004a1c10` 這種以 `0x1` 開頭、位址較小的多半是你的 App），在插入前判斷 nil；更根本的是回頭看為什麼那個值會是 nil（通常是字典取值 `dict[@"key"]` 鍵名打錯）。
+</Crash>
+
+## 小結
+
+- 方法簽名四段：`-` / `+`、`(回傳型別)`、selector（含冒號）、每個參數的 `(型別)名字`；數冒號就是數參數。
+- 文件右上角切到 Objective-C，或直接 ⌘-點擊進標頭檔；Swift 名字是改寫過的。
+- `NS` NeXTSTEP、`UI` UIKit 是 Objective-C 物件；`CF`、`CG` 是 C API；底線開頭是私有類別。
+- `API_DEPRECATED` 不等於壞掉，分級處理；`API_AVAILABLE` 新 API 要用 `@available` 包。
+- crash log 的 `-[類別 selector]: 原因` 用同一套讀法就能拆。

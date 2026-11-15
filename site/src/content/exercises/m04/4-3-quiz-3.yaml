@@ -1,0 +1,17 @@
+id: m04-4-3-quiz-3
+chapter: "4.3"
+section: quiz
+type: quiz
+title: Memory Graph 裡的紫色驚嘆號
+minutes: 1
+prompt: 在 Memory Graph Debugger 的 Debug navigator 裡，一個物件左邊有紫色 ! 標記，點進去看到箭頭 `_timer` 從它指出去、箭頭 `target` 又指回它。這代表？
+options:
+  - 這個物件正在被釋放
+  - Xcode 判定它洩漏了；箭頭繞成一圈表示有循環參考，箭頭上的文字是持有它的 ivar 名稱
+  - 這個物件是 nil
+  - 這個物件被多 release 了一次
+answer: 1
+explain: 紫色 ! 是 Xcode 的洩漏判定（沒有任何從根出發的路徑到達它）。持有鏈的每個箭頭是一份 strong 參考，標籤是 ivar 名；繞一圈就是循環。這裡是 self → _timer → target → self，典型的 NSTimer 問題。
+hints: ["紫色在 Memory Graph 裡代表什麼？", "箭頭上的文字從哪裡來？"]
+feedback:
+  "3": "多 release 會 crash，不會留在 Memory Graph 裡被你看到。"

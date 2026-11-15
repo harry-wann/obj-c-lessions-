@@ -1,0 +1,19 @@
+id: m04-4-1-quiz-3
+chapter: "4.1"
+section: quiz
+type: quiz
+title: 算一下 MRC 程式碼的計數
+minutes: 2
+prompt: 這段 MRC 程式碼跑完第 4 行後，`tx` 指向的物件計數是多少？（`addTransaction:` 內部會 retain 傳入的物件）
+code: |
+  LBTransaction *tx = [[LBTransaction alloc] initWithNote:@"午餐"];
+  [ledger addTransaction:tx];
+  LBTransaction *same = [tx retain];
+  [tx release];
+options: ["0，已經釋放", "1", "2", "3"]
+answer: 2
+explain: alloc → 1；ledger retain → 2；[tx retain] → 3；[tx release] → 2。物件還活著，由 ledger 與 same 持有。
+hints: ["一行一行加減：alloc +1、retain +1、release −1。", "ledger 內部那一次 retain 也要算。"]
+feedback:
+  "1": "別忘了 same = [tx retain] 那一行也加了 1。"
+  "3": "最後一行 release 要減回去。"

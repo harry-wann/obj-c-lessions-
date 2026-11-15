@@ -1,0 +1,45 @@
+id: m04-4-3-spot-4
+chapter: "4.3"
+type: spot
+title: 看程式碼判斷：通知 block 版
+minutes: 3
+prompt: 這個物件用 block 版 API 訂閱通知，並在 dealloc 移除。它仍然永不釋放。點出問題行並選原因。
+code: |
+  - (void)observe {
+      self.token = [NSNotificationCenter.defaultCenter
+          addObserverForName:LBLedgerDidChangeNotification
+                      object:nil
+                       queue:NSOperationQueue.mainQueue
+                  usingBlock:^(NSNotification *note) {
+                      [self reload];
+                  }];
+  }
+
+  - (void)dealloc {
+      [NSNotificationCenter.defaultCenter removeObserver:self];
+  }
+bug_lines: [7, 12]
+reasons:
+  - "block 捕獲 self，通知中心（永不釋放的單例）持有 block → self 永不釋放，dealloc 跑不到；而且 removeObserver: 傳的應是 token 不是 self"
+  - "block 版 API 本身就會洩漏，應該改成 selector 版"
+  - "queue: 應該傳 nil"
+  - "self.token 應該宣告成 weak"
+answer_reason: 0
+fix: |
+  __weak typeof(self) weakSelf = self;
+  self.token = [NSNotificationCenter.defaultCenter
+      addObserverForName:LBLedgerDidChangeNotification
+                  object:nil
+                   queue:NSOperationQueue.mainQueue
+              usingBlock:^(NSNotification *note) {
+                  [weakSelf reload];
+              }];
+
+  - (void)dealloc {
+      [NSNotificationCenter.defaultCenter removeObserver:_token];
+  }
+solution_note: 這不是嚴格的循環，是「被長壽物件抓著」：NSNotificationCenter → block → self。結果一樣是永不釋放。兩個修正都要做：block 內用 weakSelf 讓 dealloc 有機會執行；dealloc 裡 remove 的是 addObserverForName: 回傳的 token。selector 版 iOS 9 之後不用手動移除，但 block 版永遠要。
+hints: ["通知中心什麼時候會釋放？它持有的 block 呢？", "addObserverForName: 回傳了什麼？removeObserver: 要收什麼？"]
+feedback:
+  "1": "block 版沒問題，問題在捕獲與移除的方式。"
+  "3": "token 是一個不透明的觀察者物件，只有你持有它；改 weak 會讓它立刻釋放，之後無法移除。"

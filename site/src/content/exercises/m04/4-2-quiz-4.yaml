@@ -1,0 +1,13 @@
+id: m04-4-2-quiz-4
+chapter: "4.2"
+section: quiz
+type: quiz
+title: 屬性修飾詞對應哪個變數修飾？
+minutes: 1
+prompt: "`@property (nonatomic, assign) id<LBLedgerObserver> observer;` 合成出來的 ivar `_observer`，實際上等於哪種變數修飾？"
+options: ["__strong", "__weak", "__unsafe_unretained", "__autoreleasing"]
+answer: 2
+explain: 物件上的 `assign`（或 `unsafe_unretained`）就是 `__unsafe_unretained`：不持有、釋放後不歸零。這是 2.4 說「assign 用在物件上會變懸空指標」的根本原因。看到就改成 weak。
+hints: ["assign 對基本型別只是「直接賦值」；對物件呢？不持有，也不歸零。", "哪個修飾的名字裡有 unsafe？"]
+feedback:
+  "1": "weak 才對應 __weak。assign 不會幫你歸零，這正是它危險的地方。"

@@ -1,0 +1,17 @@
+id: m04-4-2-quiz-2
+chapter: "4.2"
+section: quiz
+type: quiz
+title: __weak 與 __unsafe_unretained 的差別
+minutes: 1
+prompt: 物件被釋放後，`__weak` 變數和 `__unsafe_unretained` 變數各會變成什麼？
+options:
+  - 兩者都自動變 nil
+  - "__weak 變 nil；__unsafe_unretained 維持原位址，變成懸空指標"
+  - "__weak 維持原位址；__unsafe_unretained 變 nil"
+  - 兩者都維持原位址，差別只在編譯器警告
+answer: 1
+explain: 兩者都不持有物件；差別在釋放後的行為。`__weak` 是歸零（zeroing）弱參考，runtime 幫你清成 nil；`__unsafe_unretained` 名字就寫了 unsafe，指標不動，之後存取就是 EXC_BAD_ACCESS。Swift 的 unowned 對應後者。
+hints: ["兩個名字裡各有一個關鍵字：weak 的「歸零」、unsafe 的「不安全」。", "哪一個對應 Swift 的 unowned？"]
+feedback:
+  "0": "如果 __unsafe_unretained 也會歸零，就不會叫 unsafe 了。"

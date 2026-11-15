@@ -1,0 +1,279 @@
+---
+title: 相等、雜湊、描述與複製
+module: 2
+chapter: "2.7"
+order: 7
+minutes: 35
+prereq: ["2.6"]
+objectives:
+  - 分清 ==、isEqual: 與 isEqualToString: 等特化版，正確覆寫 isEqual: 與 hash
+  - 覆寫 description 讓 NSLog 與 po 印出有用的資訊
+  - 讓 LBTransaction 遵循 NSCopying，知道不可變物件的 copy 可以怎麼偷懶
+summary: == 比位址、isEqual: 比內容；覆寫 isEqual: 必須一起覆寫 hash；description / debugDescription 與 po；NSCopying 與 copyWithZone:；NSMutableCopying。Kotlin data class 一行生出來的東西這章全部手寫。
+terms:
+  - { en: equality, tw: 相等, cn: 相等, jp: 等価性 }
+  - { en: hash, tw: 雜湊, cn: 哈希, jp: ハッシュ }
+  - { en: hash table, tw: 雜湊表, cn: 哈希表, jp: ハッシュテーブル }
+  - { en: description, tw: 描述, cn: 描述, jp: 説明文字列 }
+  - { en: copy, tw: 複製, cn: 拷贝, jp: コピー }
+  - { en: mutable / immutable, tw: 可變 / 不可變, cn: 可变 / 不可变, jp: ミュータブル / イミュータブル }
+appProgress: LBTransaction 有了 isEqual: / hash / description / NSCopying；LBTransactionTests 全綠，資料模型完成。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+struct Transaction: Hashable, CustomStringConvertible {
+    let amount: Decimal
+    let note: String
+    // == 與 hash(into:) 由編譯器合成
+    var description: String { "\(amount) \(note)" }
+}
+let a = Transaction(amount: 120, note: "午餐")
+var b = a                 // struct：賦值就是複製
+a == b                    // true
+Set([a, b]).count         // 1
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+data class Transaction(val amount: BigDecimal, val note: String)
+// equals / hashCode / toString / copy 四個全部自動生成
+
+val a = Transaction(BigDecimal(120), "午餐")
+val b = a.copy(note = "便當")
+a == b                    // false（內容）
+a === b                   // false（位址）
+setOf(a, a.copy()).size   // 1
+```
+</Fragment>
+<Fragment slot="java">
+```java
+public record Transaction(BigDecimal amount, String note) {}
+// record 幫你生 equals / hashCode / toString；沒有 copy
+
+// 傳統類別要手寫，而且合約一樣：equals 相等 → hashCode 必須相等
+@Override public boolean equals(Object o) { /* … */ }
+@Override public int hashCode() { return Objects.hash(amount, note); }
+@Override public String toString() { return amount + " " + note; }
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+class Transaction {
+  constructor(readonly amount: number, readonly note: string) {}
+  toString() { return `${this.amount} ${this.note}`; }
+}
+const a = new Transaction(120, "午餐"), b = new Transaction(120, "午餐");
+a === b                            // false：物件只比位址
+new Set([a, b]).size               // 2：Set 也只看位址，沒有 equals 可覆寫
+const c = { ...a };                // 淺複製，而且不再是 Transaction
+```
+</Fragment>
+Kotlin 一行 `data class` 生出的四樣東西——`equals`、`hashCode`、`toString`、`copy`——Objective-C **全部手寫**，而且規則和 Java 的傳統類別一字不差。這一章就是在做這件事，寫完一次之後你會發現每個 model 類別都是同一個樣板。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### == 比位址，isEqual: 比內容
+
+```objc
+NSString *a = [NSString stringWithFormat:@"午%@", @"餐"];
+NSString *b = @"午餐";
+a == b;                      // NO：兩個不同的物件
+[a isEqual:b];               // YES：內容相同
+[a isEqualToString:b];       // YES：NSString 的特化版，快一點
+```
+
+<Term en="equality" tw="相等" cn="相等" jp="等価性" />在 Objective-C 有兩層。`==` 比較的是兩個指標的值，也就是「是不是同一個物件」，對應 Kotlin 的 `===`、Java 對物件的 `==`。`isEqual:` 是 `NSObject` 的方法，預設實作就是 `==`，Foundation 的 `NSString`、`NSNumber`、`NSArray`、`NSDate`、`NSDecimalNumber` 都覆寫成比內容。各類別另外提供「特化版」：`isEqualToString:`、`isEqualToNumber:`、`isEqualToArray:`、`isEqualToDate:`——參數型別已知，省掉類別檢查，但**參數不能是 nil**（文件說結果未定義，實務上回 NO 但別賭）。不確定對方型別時用 `isEqual:`，它會先檢查類別。
+
+### 覆寫 isEqual: 的樣板
+
+```objc
+- (BOOL)isEqual:(id)object {
+    if (self == object) return YES;                        // 1. 同一個物件
+    if (![object isKindOfClass:[LBTransaction class]]) return NO;  // 2. 類別不同
+    return [self isEqualToTransaction:(LBTransaction *)object];
+}
+
+- (BOOL)isEqualToTransaction:(LBTransaction *)other {
+    if (!other) return NO;
+    return [self.identifier isEqual:other.identifier]
+        && [self.amount isEqual:other.amount]
+        && self.kind == other.kind
+        && [self.date isEqual:other.date]
+        && [self.note isEqual:other.note];
+}
+```
+
+三步：先用 `==` 短路同一個物件；再用 `isKindOfClass:` 排除別的類別（參數型別是 `id`，傳什麼進來都有可能，連 nil 都可能）；最後逐欄位比對。欄位是物件就用 `isEqual:`，是基本型別或 enum 就用 `==`。順便寫一個特化版 `isEqualToTransaction:`，和 Foundation 的慣例一致。
+
+### hash 合約
+
+```objc
+- (NSUInteger)hash {
+    return self.identifier.hash ^ (self.amount.hash << 1) ^ (self.note.hash << 2);
+}
+```
+
+<Term en="hash" tw="雜湊" cn="哈希" jp="ハッシュ" />的合約和 Java 一模一樣：**`isEqual:` 回 YES 的兩個物件，`hash` 必須相等**；反過來不要求（不同物件可以撞同一個 hash）。`NSSet`、`NSDictionary` 的鍵、`NSCountedSet`、`removeObject:`、`indexOfObject:` 全靠這個合約——它們先用 `hash` 決定<Term en="hash table" tw="雜湊表" cn="哈希表" jp="ハッシュテーブル" />的格子，再在格子裡用 `isEqual:` 確認。你只覆寫 `isEqual:` 不覆寫 `hash`，預設的 `hash` 是位址，兩個內容相等的物件會落在不同格子，集合就會「找不到明明在裡面的東西」（見陷阱）。
+
+寫法上，把參與 `isEqual:` 的欄位的 `hash` 用 XOR 和位移混起來就夠；不要把**沒**參與 `isEqual:` 的欄位混進來，否則會違反合約。不可變物件可以把結果快取起來，可變物件的 `hash` 則會隨內容變——這就是為什麼 `NSMutableArray` 放進 `NSSet` 之後再改它是未定義行為。
+
+### description 與 po
+
+```objc
+- (NSString *)description {
+    return [NSString stringWithFormat:@"<%@ %p amount=%@ note=%@>",
+            NSStringFromClass([self class]), self, self.amount, self.note];
+}
+```
+
+`NSLog(@"%@", tx)` 和字串格式化的 `%@` 都會呼叫 `description`，lldb 的 `po tx` 呼叫的是 `debugDescription`（預設轉呼叫 `description`）。`NSObject` 預設的<Term en="description" tw="描述" cn="描述" jp="説明文字列" />是 `<LBTransaction: 0x600001a3c0f0>`，只有位址，debug 時一點用都沒有。慣例是保留尖括號、類別名與位址（位址在 lldb 裡可以直接拿去用），後面接關鍵欄位。`debugDescription` 只在你想讓 `po` 印得比 `NSLog` 更囉唆時才另外覆寫，大多數類別不需要。
+
+### NSCopying 與 copyWithZone:
+
+```objc
+@interface LBTransaction : NSObject <NSCopying>
+@end
+
+@implementation LBTransaction
+- (id)copyWithZone:(NSZone *)zone {
+    return [[[self class] allocWithZone:zone] initWithAmount:self.amount
+                                                        kind:self.kind
+                                                        date:self.date
+                                                        note:self.note
+                                                    category:self.category];
+}
+@end
+```
+
+`[tx copy]` 其實是 `[tx copyWithZone:nil]`，沒遵循 `NSCopying` 協定的類別呼叫 `copy` 會 crash（見崩潰現場）。`NSZone` 是 1990 年代記憶體分區的遺跡，現在永遠是 nil，照樣板傳下去就好。用 `[self class]` 而不是 `LBTransaction`，子類別的 `copy` 才會得到子類別。
+
+有一個合法的捷徑：**不可變物件的 `copy` 可以直接 `return self`**。既然沒人能改它，共用同一個實體完全安全，`NSString` 的不可變實作就是這麼做的。但 `LBTransaction` 的 `identifier` 參與 `isEqual:`，兩種寫法在測試 `testCopyReturnsEqualObject` 都會過；選擇「真的複製」的理由是以後若有人加了可變子類別，樣板仍然正確。
+
+<Tip title="NSMutableCopying 與 copy 的方向">
+`copy` 永遠回傳**不可變**版本、`mutableCopy` 永遠回傳**可變**版本，不管接收者原本是哪一種：`[mutableArray copy]` 是 `NSArray`，`[array mutableCopy]` 是 `NSMutableArray`。這就是 2.4 說 `NSString` 屬性用 `copy` 可以切斷外部修改的原因。自己的類別要支援 `mutableCopy` 就遵循 `NSMutableCopying`、實作 `mutableCopyWithZone:`；小帳本的 model 全部不可變，用不到。
+</Tip>
+
+### 完整範例：貼進 Scratch 跑一次
+
+```objc
+@import Foundation;
+
+@interface LBTransaction : NSObject <NSCopying>
+@property (nonatomic, strong, readonly) NSDecimalNumber *amount;
+@property (nonatomic, copy, readonly) NSString *note;
+- (instancetype)initWithAmount:(NSDecimalNumber *)amount note:(NSString *)note;
+@end
+
+@implementation LBTransaction
+- (instancetype)initWithAmount:(NSDecimalNumber *)amount note:(NSString *)note {
+    if (self = [super init]) { _amount = amount; _note = [note copy]; }
+    return self;
+}
+- (BOOL)isEqual:(id)object {
+    if (self == object) return YES;
+    if (![object isKindOfClass:[LBTransaction class]]) return NO;
+    LBTransaction *other = object;
+    return [self.amount isEqual:other.amount] && [self.note isEqual:other.note];
+}
+- (NSUInteger)hash { return self.amount.hash ^ (self.note.hash << 1); }
+- (NSString *)description {
+    return [NSString stringWithFormat:@"<%@ %p %@ %@>",
+            NSStringFromClass([self class]), self, self.amount, self.note];
+}
+- (id)copyWithZone:(NSZone *)zone {
+    return [[[self class] allocWithZone:zone] initWithAmount:self.amount note:self.note];
+}
+@end
+
+int main(int argc, const char *argv[]) {
+    @autoreleasepool {
+        NSDecimalNumber *n = [NSDecimalNumber decimalNumberWithString:@"120"];
+        LBTransaction *a = [[LBTransaction alloc] initWithAmount:n note:@"午餐"];
+        LBTransaction *b = [[LBTransaction alloc] initWithAmount:n note:@"午餐"];
+        LBTransaction *c = [a copy];
+
+        NSLog(@"%d %d", a == b, [a isEqual:b]);          // 0 1
+        NSLog(@"%d %d", a == c, [a isEqual:c]);          // 0 1
+        NSLog(@"%d", a.hash == b.hash);                  // 1
+        NSLog(@"%lu", (unsigned long)[NSSet setWithObjects:a, b, c, nil].count);  // 1
+        NSLog(@"%@", a);   // <LBTransaction 0x6000…(位址每次不同) 120 午餐>
+    }
+    return 0;
+}
+```
+
+<Pitfall title="只覆寫 isEqual: 沒覆寫 hash">
+<Fragment slot="bad">
+```objc
+- (BOOL)isEqual:(id)object { /* 比內容 */ }
+// 沒有 hash
+
+NSMutableSet *seen = [NSMutableSet set];
+[seen addObject:a];
+[seen containsObject:b];     // NO！明明 [a isEqual:b] 是 YES
+[seen addObject:b];          // 集合裡現在有兩個「相等」的物件
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (BOOL)isEqual:(id)object { /* 比內容 */ }
+- (NSUInteger)hash { return self.amount.hash ^ (self.note.hash << 1); }
+```
+</Fragment>
+`containsObject:` 先用 `hash` 找格子，`a` 和 `b` 預設的 `hash` 是各自的位址，落在不同格子，根本不會拿去 `isEqual:` 比。症狀通常不是 crash，是「去重沒去乾淨」「字典取不到值」「`indexOfObject:` 回 `NSNotFound`」這種慢性病，而且只在資料量大到剛好不同格子時出現。規則一句話：**覆寫 `isEqual:` 的那一刻就順手覆寫 `hash`**。
+</Pitfall>
+
+<Pitfall title="isEqual: 寫成遞迴">
+```objc
+- (BOOL)isEqual:(id)object {
+    if (![object isKindOfClass:[LBCategory class]]) return NO;
+    return [self.name isEqual:[object name]]
+        && [self.parent isEqual:[object parent]];    // parent 的 isEqual: 又比 children…
+}
+```
+`LBCategory` 的 `isEqual:` 比 `parent`、`parent` 的 `isEqual:` 比 `children`、`children` 裡又有自己——無窮遞迴，最後 `EXC_BAD_ACCESS (code=2)` 堆疊溢位，堆疊視窗裡有幾千層 `-[LBCategory isEqual:]`。有雙向參考的物件，相等性只比**身分**（`identifier`）或只比單向的欄位，不要把反向參考拉進來。同理，`description` 也不要印 `parent` 又印 `children`。
+</Pitfall>
+
+<Pitfall title="用 == 比 NSString，測試過了上線掛">
+```objc
+if (tx.note == @"午餐") { … }   // 有時 YES 有時 NO
+```
+編譯期就寫死的字串常值（`@"午餐"`）會被合併成同一個物件，所以兩個常值用 `==` 比常常剛好是 YES，單元測試也就過了。等字串從 JSON、使用者輸入、`stringWithFormat:` 來，就是另一個物件，`==` 永遠 NO。字串一律 `isEqualToString:`，Clang 的 `-Wobjc-literal-compare` 警告會抓這種寫法，不要關掉它。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: '-[LBCategory copyWithZone:]: unrecognized selector sent to instance 0x600000d04c60'
+*** First throw call stack:
+(
+	3   CoreFoundation   -[NSObject(NSObject) doesNotRecognizeSelector:] + 116
+	4   CoreFoundation   -[NSObject copy] + 28
+	5   LittleBook       -[LBTransaction setCategory:] + 64
+	6   LittleBook       -[LBTransaction initWithAmount:kind:date:note:category:] + 212
+)`}>
+你沒寫過 `copyWithZone:` 卻看到它出現，先往下看堆疊：第 4 行 `-[NSObject copy]`、第 5 行是 `setCategory:`——有人把 `category` 屬性宣告成 `copy`，setter 就會對傳入的 `LBCategory` 送 `copy`，而 `LBCategory` 沒遵循 `NSCopying`，於是 crash 在第一次設值。這是 2.4 「`copy` 用在 `NSString` / `NSArray`」規則的反面：自己的類別**沒有**實作 `NSCopying` 之前，屬性不能標 `copy`。修法二選一：`category` 改成 `strong`（`LBTransaction` 介面本來就是這樣定的），或讓 `LBCategory` 遵循 `NSCopying`。同一則訊息也會出現在 `NSDictionary` 用自訂類別當鍵的時候——字典會 `copy` 鍵。
+</Crash>
+
+<Steps title="Xcode 任務：LBTransaction 的相等、描述與複製">
+<ol>
+<li>在 <code>LBTransaction.h</code> 宣告 <code>&lt;NSCopying&gt;</code>。</li>
+<li>在 <code>LBTransaction.m</code> 覆寫 <code>isEqual:</code>（比 identifier、amount、kind、date、note）、<code>hash</code>（同一組欄位 XOR）、<code>description</code>（要包含 amount）、<code>copyWithZone:</code>（用 <code>[self class]</code> 建新物件並沿用 identifier）。</li>
+<li>⌘U 跑 <code>LBTransactionTests/testEqualityAndHash</code>、<code>testCopyReturnsEqualObject</code>、<code>testDescriptionContainsAmount</code>。三個全綠，M2 里程碑完成。</li>
+</ol>
+</Steps>
+
+## 小結
+
+- `==` 比位址、`isEqual:` 比內容、`isEqualToString:` 等特化版省掉型別檢查但參數不能 nil。
+- `isEqual:` 樣板：`==` 短路 → `isKindOfClass:` → 逐欄位比；覆寫它的同時**必須**覆寫 `hash`，合約是相等則 hash 相等。
+- `description` 餵 `%@` 與 `NSLog`，`debugDescription` 餵 `po`；保留尖括號、類別名、位址再加關鍵欄位。
+- `copy` 需要遵循 `NSCopying` 並實作 `copyWithZone:`，用 `[self class]` 建新物件；不可變物件可以 `return self`。
+- `copy` 回不可變、`mutableCopy` 回可變；自訂類別沒實作 `NSCopying` 前屬性不能標 `copy`。

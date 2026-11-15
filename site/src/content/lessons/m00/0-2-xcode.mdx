@@ -1,0 +1,196 @@
+---
+title: Xcode 快速導覽
+module: 0
+chapter: "0.2"
+order: 2
+minutes: 25
+prereq: ["0.1"]
+objectives:
+  - 分得清專案、target、scheme、建置設定與組態各管什麼
+  - 用快捷鍵在導覽器、編輯器、偵錯區之間切換
+  - 建好 Scratch 草稿本與 LittleBook 專案，兩個都跑起來
+summary: 專案 / target / scheme / 建置設定 / 模擬器 / 導覽器各面板；Playground 不支援 Objective-C，用 Scratch Command Line Tool 當草稿本；XcodeGen 產生專案。
+terms:
+  - { en: project, tw: 專案, cn: 项目, jp: プロジェクト }
+  - { en: target, tw: 目標（target）, cn: 目标, jp: ターゲット }
+  - { en: scheme, tw: 方案（scheme）, cn: 方案, jp: スキーム }
+  - { en: build, tw: 建置, cn: 构建, jp: ビルド }
+  - { en: simulator, tw: 模擬器, cn: 模拟器, jp: シミュレータ }
+  - { en: deployment target, tw: 部署目標, cn: 最低支持版本, jp: デプロイメントターゲット }
+  - { en: debug, tw: 偵錯, cn: 调试, jp: デバッグ }
+appProgress: Scratch 草稿本可以印字；空白的 LittleBook App 可以在模擬器啟動。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare title="你已經會的：建置系統的名詞">
+<Fragment slot="swift">
+```swift
+// Package.swift
+let package = Package(
+    name: "LittleBook",
+    targets: [
+        .target(name: "LittleBookCore"),            // 一個產出物
+        .testTarget(name: "LittleBookCoreTests",
+                    dependencies: ["LittleBookCore"]),
+    ]
+)
+// swift build -c release   ← configuration
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// settings.gradle.kts：根專案含多個 module
+include(":app", ":core")
+// app/build.gradle.kts
+android { buildTypes { debug { } ; release { isMinifyEnabled = true } } }
+// ./gradlew :app:assembleDebug   ← 哪個 module、哪個 buildType
+```
+</Fragment>
+<Fragment slot="java">
+```xml
+<!-- pom.xml：modules 對應多個產出物，profiles 對應組態 -->
+<modules><module>core</module><module>app</module></modules>
+<profiles><profile><id>release</id>…</profile></profiles>
+<!-- mvn -P release package -->
+```
+</Fragment>
+<Fragment slot="ts">
+```jsonc
+// package.json 的 scripts ≈ scheme；tsconfig.json ≈ 建置設定
+{ "scripts": { "dev": "vite", "build": "tsc -p tsconfig.prod.json" } }
+```
+</Fragment>
+Gradle 的 module、SwiftPM 的 target、Maven 的 module 都是「一個可以獨立產出的東西」，Xcode 叫它 target；`assembleDebug` 這種「對哪個東西、用哪組設定、做什麼」的組合，Xcode 叫 scheme。名詞對上了，Xcode 就沒那麼陌生。
+</Compare>
+
+## Objective-C 怎麼寫：先認得 Xcode 的六個名詞
+
+Xcode 是你唯一的工具鏈：編譯器（clang）、偵錯器（lldb）、模擬器、介面編輯器全部在裡面。打開一個 `.xcodeproj`，左邊的導覽器最上面那個藍色圖示就是<Term en="project" tw="專案" cn="项目" jp="プロジェクト" />，點開後中間會出現一張表，上面是 PROJECT、下面是 TARGETS。這張表就是所有設定的入口。
+
+| 名詞 | 是什麼 | 對應到你熟的 |
+|---|---|---|
+| 專案（project） | 一個 `.xcodeproj`，裝著檔案清單與多個 target | Gradle 根專案、`package.json` |
+| 目標（target） | 一個產出物：App、測試 bundle、extension、framework。各有自己的檔案清單與設定 | Gradle module、SwiftPM target |
+| 組態（configuration） | 一組建置設定的「版本」，預設有 Debug 與 Release | buildType、`-c release` |
+| 建置設定（build settings） | 幾百個鍵值：部署目標、前置處理器定義、搜尋路徑、警告等級 | `tsconfig` compilerOptions、編譯器旗標 |
+| 方案（scheme） | 「用哪個 target、哪個組態、做 Run / Test / Profile / Archive」的一組選擇 | `gradlew :app:assembleDebug`、npm script |
+| 工作區（workspace） | `.xcworkspace`，把多個專案裝在一起；CocoaPods 會幫你產生一個 | monorepo 根目錄 |
+
+小帳本的專案 `LittleBook` 有兩個 target：App `LittleBook` 與測試 `LittleBookTests`。按 ⌘R 時用的是 scheme 的 Run 動作，預設套 Debug 組態；⌘U 是 Test 動作；上架時的 Archive 才套 Release。**同一份程式碼，Debug 與 Release 會跑出不同行為**，這是之後很多「本機好好的、上線就壞」的根源。
+
+<Tip title="建置設定有三層，看 Levels 才知道誰生效">
+在 Build Settings 頁上方把 Combined 切成 Levels，會看到每個設定從右到左有 Default → Project → Target 三欄，**最左邊（target）有值就以它為準**。改了 project 層卻沒生效，九成是 target 層早就覆寫了。
+</Tip>
+
+### 導覽器、編輯器、偵錯區
+
+Xcode 視窗分三塊：左邊導覽器（⌘0 收合）、中間編輯器、下面偵錯區（⇧⌘Y 收合），右邊還有檢閱器（⌥⌘0）。導覽器上方一排圖示對應 ⌘1 到 ⌘9，前幾個天天用：
+
+- ⌘1 專案導覽器：檔案樹。檔案變紅色代表「專案裡有紀錄，但磁碟上找不到」。
+- ⌘4 搜尋：全專案搜尋，支援正規表達式與「只搜定義」。
+- ⌘5 問題導覽器：編譯錯誤與警告都在這裡列成一排，點一下跳到該行。
+- ⌘6 測試導覽器：每個測試旁邊有菱形，點了就單跑那一個。
+- ⌘7 偵錯導覽器：crash 當下的執行緒與堆疊追蹤（stack trace）在這裡看。
+
+編輯器常用的四個快捷鍵：⇧⌘O 快速開啟任何檔案或符號、⌃⌘↑ 在 `.h` 與 `.m` 之間切換、⌘-點擊符號跳到定義、⌥-點擊看快速說明。偵錯區左半是變數、右半是主控台，`NSLog` 的輸出在右半。
+
+### 模擬器
+
+工具列中間選「要跑在哪裡」。模擬器是一個 macOS 程序，用 Mac 的 CPU 直接執行你的程式，所以速度與記憶體行為**不等於真機**：效能問題一律在真機驗（模組 10 會要你量數字）。模擬器常用的三個動作：⇧⌘H 回主畫面、⌘K 切換軟體鍵盤、Device 選單裡可以模擬記憶體警告。部署目標（deployment target）決定最低可安裝的 iOS 版本，小帳本設 iOS 17，所以你選的模擬器要是 iOS 17 以上。
+
+### Playground 不支援 Objective-C：用 Scratch 當草稿本
+
+這是整門課最重要的環境事實：**Xcode Playground 只接受 Swift**，iPad 上的 Swift Playgrounds 也一樣。所以我們用一個 macOS Command Line Tool 專案 `Scratch` 當草稿本：全站所有範例都能貼進它的 `main.m` 執行，手機上讀到的範例回 Mac 貼一下就能驗證。
+
+<Steps title="建立 Scratch 草稿本">
+1. 方法一（repo 已附 `xcode/Scratch/project.yml`）：`brew install xcodegen`，然後在 `xcode/Scratch` 目錄執行 `xcodegen generate`，打開產生的 `Scratch.xcodeproj`。
+2. 方法二（手動）：File → New → Project，選 macOS → Command Line Tool，Product Name 填 `Scratch`，**Language 選 Objective-C**，存到任何地方。
+3. 打開 `main.m`，把 `NSLog(@"Hello, World!");` 改成 `NSLog(@"Hello, 小帳本");`。
+4. ⌘R。偵錯區右半應出現一行帶時間戳的 `Hello, 小帳本`。
+</Steps>
+
+本課程的專案都用 XcodeGen 的 `project.yml` 描述，`.xcodeproj` 由它產生、不進版控，這樣多人協作不會為了 `project.pbxproj` 的合併衝突浪費時間。你只要記得：改了檔案結構就重跑一次 `xcodegen generate`。一份最小的 `project.yml` 大致長這樣：
+
+```yaml
+name: Scratch
+targets:
+  Scratch:
+    type: tool
+    platform: macOS
+    sources: [Scratch]
+```
+
+把下面這段貼進 `main.m`，順便驗證組態與 scheme 的關係：
+
+```objc
+@import Foundation;
+
+int main(int argc, const char * argv[]) {
+    @autoreleasepool {
+#if DEBUG
+        NSLog(@"這是 Debug 組態（scheme 的 Run 預設用它）");
+#else
+        NSLog(@"這是 Release 組態");
+#endif
+        NSLog(@"引數個數：%d，第一個是執行檔路徑：%s", argc, argv[0]);
+        NSLog(@"Hello, 小帳本");
+        // 輸出：這是 Debug 組態（scheme 的 Run 預設用它）
+        // 輸出：引數個數：1，第一個是執行檔路徑：/Users/.../Scratch
+        // 輸出：Hello, 小帳本
+    }
+    return 0;
+}
+```
+
+`DEBUG` 這個巨集來自 Debug 組態的 Preprocessor Macros 設定（`DEBUG=1`），Release 沒有它。在 scheme 編輯器（⌘&lt;）把 Run 的 Build Configuration 改成 Release 再跑一次，第一行就會變。這就是「同一份程式碼、不同組態、不同行為」。
+
+<Steps title="建立 LittleBook App 專案">
+1. File → New → Project，選 iOS → App。Product Name `LittleBook`，Organization Identifier `com.littlebook`，**Interface 選 Storyboard，Language 選 Objective-C**，勾 Include Tests。
+2. 存到 `xcode/` 底下。Xcode 會產生 `AppDelegate`、`SceneDelegate`、`ViewController` 三組 `.h` / `.m`，以及 `LittleBookTests` target。
+3. 工具列選一台 iOS 17 以上的模擬器，⌘R。看到白畫面、沒有紅字，M0 的 App 部分就完成了。
+4. 模組 8 之前我們會把 Storyboard 啟動改成程式碼啟動；現在先留著。
+</Steps>
+
+<Pitfall title="用 Finder 把檔案丟進資料夾，不等於加進專案">
+<Fragment slot="bad">
+```text
+Finder 把 LBLedger.h / LBLedger.m 拖進 LittleBook/ 資料夾
+→ Xcode 導覽器看不到它，#import 時 file not found
+```
+</Fragment>
+<Fragment slot="good">
+```text
+在 Xcode 導覽器上按右鍵 → Add Files to "LittleBook"…
+勾 Copy items if needed、Add to targets: LittleBook
+```
+</Fragment>
+Xcode 認的是 `project.pbxproj` 裡的檔案清單與 Target Membership，不是磁碟上的資料夾。反過來也一樣：從導覽器刪檔案時選 Remove Reference 只是移出清單，檔案還在磁碟上。用 XcodeGen 的專案例外：它掃資料夾產生清單，加了檔案重跑 `xcodegen generate` 即可。
+</Pitfall>
+
+<Pitfall title="只在 Debug 跑得到的程式碼">
+`#if DEBUG` 裡的假資料、測試用後門、關掉憑證檢查的程式碼，Release 一律不存在。反過來，Release 開了最佳化（`-Os`）之後，Debug 看不到的競態與未初始化變數會冒出來。上線前至少用 Release 組態在真機跑一輪：scheme 編輯器把 Run 改成 Release，或直接用 Profile 動作（它預設就是 Release）。
+</Pitfall>
+
+<Pitfall title="以為模擬器上好好的就沒事">
+模擬器用 Mac 的 CPU 與記憶體，Metal 與多數硬體感測器也與真機不同。三類問題一定要真機才看得到：效能（掉幀、啟動時間）、記憶體壓力（模擬器幾乎不會收到真正的記憶體警告）、檔案系統大小寫（模擬器跟著 Mac 預設不分大小寫，真機分）。小帳本模組 10 的所有數字都要在真機量。
+</Pitfall>
+
+<Crash title="建置失敗現場" message={`/Users/you/xcode/LittleBook/LittleBook/LBViewController.m:3:9: fatal error: 'LBLedger.h' file not found
+#import "LBLedger.h"
+        ^~~~~~~~~~~~
+1 error generated.`}>
+這不是執行期 crash，是建置失敗，但你上工第一天就會碰到。讀法：`檔名:行:欄` 之後是嚴重度與訊息，底下 `^` 指出有問題的位置。「file not found」有三個常見原因，依機率排：（1）檔案在磁碟上，但沒加進專案（上面第一個陷阱）；（2）檔案屬於另一個 target 或另一個專案，例如寫在 framework 裡的標頭要用 `#import <LittleBookCore/LBLedger.h>` 的角括號寫法；（3）檔名打錯或大小寫不符，CI 的檔案系統分大小寫時尤其會中。在 ⌘1 導覽器裡找這個檔：紅色表示專案有紀錄但磁碟沒檔案；完全找不到表示沒加進專案。修好後 ⇧⌘K 清除再 ⌘B。
+</Crash>
+
+## 小結
+
+- 專案裝 target，target 是產出物，scheme 決定「哪個 target、哪個組態、做什麼」；⌘R 用 Debug、Archive 用 Release。
+- 建置設定分 Default / Project / Target 三層，target 層覆寫一切，用 Levels 檢視看誰生效。
+- ⌘1 檔案、⌘5 問題、⌘7 偵錯、⇧⌘Y 主控台、⌃⌘↑ 切 `.h` / `.m`。
+- Playground 不支援 Objective-C；所有範例貼進 `Scratch` 的 `main.m` 跑。
+- 檔案要經由 Xcode（或重跑 `xcodegen generate`）加進專案，否則 `file not found`。

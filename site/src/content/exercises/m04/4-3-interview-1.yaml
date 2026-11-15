@@ -1,0 +1,14 @@
+id: m04-4-3-interview-1
+chapter: "4.3"
+type: flash
+tier: interview
+title: 面試題：__weak 底層怎麼做到歸零？
+minutes: 3
+front: "面試官：`__weak` 變數在物件釋放時會自動變 nil。runtime 是怎麼知道有哪些 weak 變數指著這個物件的？讀取 weak 變數有什麼成本？"
+back: |
+  runtime 維護一張全域的 weak 表（side table 裡的 weak_table_t）：key 是物件位址，value 是所有指向它的 weak 變數的位址清單。
+  - 寫入 `__weak` 變數（objc_storeWeak）：把變數位址登記進該物件的清單。
+  - 物件 dealloc 時（clearDeallocating）：查表，把清單裡每個變數寫成 nil，再刪掉這一筆。
+  - 讀取 `__weak` 變數（objc_loadWeakRetained）：要先確認物件不在釋放中，然後 retain 一下回傳，用完再 release——所以 weak 讀取比 strong 貴，迴圈內大量讀 weak 要先轉成 strong 區域變數。
+  - 物件已經進入 dealloc 時，對它建立新的 weak 參考會直接中止（4.4 崩潰現場）。
+  對照：Swift 的 weak 用 side table 存計數與 weak 數，概念相同；Java 的 WeakReference 則是 GC 在標記階段處理，與 runtime 表無關。

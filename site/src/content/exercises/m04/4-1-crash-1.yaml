@@ -1,0 +1,23 @@
+id: m04-4-1-crash-1
+chapter: "4.1"
+type: crash
+title: 讀懂開了 Zombie 之後的訊息
+minutes: 2
+log: |
+  *** -[LBTransaction note]: message sent to deallocated instance 0x600002b1c3f0
+options:
+  - 某處對一個已經釋放的 LBTransaction 送了 note 訊息；有人多 release 了一次，或用了不歸零的指標
+  - LBTransaction 沒有實作 note 方法
+  - note 屬性是 nil，對 nil 送訊息 crash
+  - 記憶體不足，系統回收了這個物件
+answer: 0
+fix: |
+  // 1. 找堆疊中第一個自己的 frame：是誰對 0x600002b1c3f0 送 note
+  // 2. 往回看這個 LBTransaction 的擁有者：MRC 檔案裡多了一次 release？
+  //    或某個屬性寫成 assign / __unsafe_unretained？
+  // 3. 修正擁有權（補 retain / 刪多餘 release / assign 改 weak 或 strong）
+solution_note: 「message sent to deallocated instance」是 Zombie Objects 的專屬訊息：物件計數已歸零，卻還有指標指著它並送訊息。訊息給了類別、selector、位址，用 Exception Breakpoint 停下來就能看到呼叫點。
+hints: ["「deallocated instance」四個字是關鍵。", "對 nil 送訊息不會 crash（2.2），而且訊息裡有位址，表示指標不是 nil。"]
+feedback:
+  "1": "沒有實作方法會是 unrecognized selector，不是這則訊息。"
+  "2": "對 nil 送訊息安全回傳 nil；這裡指標指向一個「曾經存在」的物件。"

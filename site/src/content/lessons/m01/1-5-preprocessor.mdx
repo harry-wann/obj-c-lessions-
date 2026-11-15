@@ -1,0 +1,204 @@
+---
+title: 前置處理器
+module: 1
+chapter: "1.5"
+order: 5
+minutes: 20
+prereq: ["1.4"]
+objectives:
+  - 看懂 #define、#if、#pragma 在編譯之前做了什麼
+  - 用 #pragma mark 分段、用 #if DEBUG 區隔偵錯程式碼
+  - 知道什麼時候不該寫巨集，改用 static const 與 inline 函式
+summary: 前置處理器是編譯前的文字替換；#define 與括號；#pragma mark -；#if DEBUG / #ifdef；為何現代 Objective-C 少用巨集。
+terms:
+  - { en: preprocessor, tw: 前置處理器, cn: 预处理器, jp: プリプロセッサ }
+  - { en: macro, tw: 巨集, cn: 宏, jp: マクロ }
+  - { en: conditional compilation, tw: 條件編譯, cn: 条件编译, jp: 条件コンパイル }
+  - { en: inline function, tw: 行內函式, cn: 内联函数, jp: インライン関数 }
+  - { en: build configuration, tw: 建置組態, cn: 构建配置, jp: ビルド構成 }
+appProgress: LBTypes.h 用 #pragma mark 分段、LBLog 只在 Debug 印；M1 里程碑完成。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+#if DEBUG
+print("只在 Debug 印")
+#endif
+#if os(iOS) && targetEnvironment(simulator)
+// 模擬器限定
+#endif
+// MARK: - Helpers
+let maxNoteLength = 140      // 沒有 #define；Swift 5.9 的 macro 是另一回事
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+if (BuildConfig.DEBUG) Log.d("LB", "只在 Debug 印")   // 執行期判斷
+const val MAX_NOTE_LENGTH = 140
+// 沒有前置處理器；分段靠 IDE 的 // region 註解
+```
+</Fragment>
+<Fragment slot="java">
+```java
+if (BuildConfig.DEBUG) { Log.d("LB", "只在 Debug 印"); }   // 一樣是執行期 if
+public static final int MAX_NOTE_LENGTH = 140;
+// 編譯器會把 if (false) 的區塊丟掉，但沒有真正的條件編譯
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+if (process.env.NODE_ENV !== "production") console.log("只在開發印");
+// 打包工具做死碼消除，效果類似條件編譯
+export const MAX_NOTE_LENGTH = 140;
+// #region Helpers … #endregion 只是編輯器折疊用
+```
+</Fragment>
+四個語言裡只有 Swift 有真正的 `#if`，而且 Swift 刻意不做文字替換的巨集。C 的前置處理器是**編譯之前的純文字處理**：不懂型別、不懂作用域，只是找字串、換字串。它能做到語言本身做不到的事，麻煩也全出在這裡。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 編譯前的那一步
+
+每個 `#` 開頭的行都是<Term en="preprocessor" tw="前置處理器" cn="预处理器" jp="プリプロセッサ" />指令。流程是：`.m` → 前置處理（展開 `#import`、替換 `#define`、依 `#if` 刪掉不要的區塊）→ 真正的編譯器。想看展開後長什麼樣，Xcode 選單 Product → Perform Action → Preprocess "LBTypes.m"，你會看到幾萬行 Foundation 標頭檔貼在你的程式碼前面——這就是 `#import` 的本質。
+
+`#import` 是 Objective-C 加的，保證同一個檔案只貼一次；C 的 `#include` 沒這個保護，得自己用 `#ifndef` 守衛。Objective-C 專案一律用 `#import`。`@import Foundation;` 是模組化的新寫法，模組 12 混編時會再碰到。
+
+### #define：純文字替換
+
+<Term en="macro" tw="巨集" cn="宏" jp="マクロ" />有兩種：物件式（一個名字換一段文字）和函式式（帶參數）。沒有型別、結尾沒有分號：
+
+```objc
+#import <Foundation/Foundation.h>
+
+#define LBCentsPerDollar 100
+#define LBSquare(x) ((x) * (x))
+#define LBBadSquare(x) x * x
+
+int main(int argc, const char * argv[]) {
+    @autoreleasepool {
+        long long cents = 1280 * LBCentsPerDollar;
+        NSLog(@"%lld", cents);                  // 128000
+        NSLog(@"%d", LBSquare(2 + 1));          // 9
+        NSLog(@"%d", LBBadSquare(2 + 1));       // 5：展開成 2 + 1 * 2 + 1
+        NSLog(@"%s %d", __FILE__, __LINE__);    // /Users/you/.../main.m 13
+        NSLog(@"%s", __PRETTY_FUNCTION__);      // int main(int, const char **)
+    }
+    return 0;
+}
+```
+
+`LBBadSquare(2 + 1)` 不是算 3 的平方，而是把文字 `2 + 1` 原封不動塞進 `x * x`，變成 `2 + 1 * 2 + 1`。這是巨集最經典的坑，規則是：**每個參數包括號，整個結果再包一層**。
+
+最後兩行是編譯器內建的巨集：`__FILE__`、`__LINE__`、`__func__`、`__PRETTY_FUNCTION__`。在方法裡 `__PRETTY_FUNCTION__` 會印 `-[LBLedger addTransaction:]`，偵錯 log 非常好用。
+
+### #pragma mark：給 Xcode 看的分段
+
+```objc
+#pragma mark - Lifecycle
+#pragma mark - Public
+#pragma mark - UITableViewDataSource
+#pragma mark - Private
+```
+
+對編譯器完全沒作用，是給 Xcode 編輯器上方的 jump bar（點方法名那一段會展開的清單）看的：`-` 畫一條分隔線，後面的文字是標題。Swift 的 `// MARK: -` 就是學它。業界的 `.m` 幾乎都用這個順序分段：生命週期、公開方法、各個協定的實作、私有方法。順帶認識 `#pragma clang diagnostic push / ignored / pop`：暫時關掉某個警告，看到知道是什麼就好，自己別亂用。
+
+### 條件編譯：#if DEBUG
+
+<Term en="conditional compilation" tw="條件編譯" cn="条件编译" jp="条件コンパイル" />讓一段程式碼在某些<Term en="build configuration" tw="建置組態" cn="构建配置" jp="ビルド構成" />下根本不存在：
+
+```objc
+#if DEBUG
+#define LBLog(fmt, ...) NSLog((@"%s " fmt), __PRETTY_FUNCTION__, ##__VA_ARGS__)
+#else
+#define LBLog(fmt, ...)
+#endif
+
+// 用法跟 NSLog 一樣：
+LBLog(@"加入 %@", tx);
+// Debug：-[LBLedger addTransaction:] 加入 <LBTransaction: 0x6000…>
+// Release：這一行不存在，連字串都不會進 binary
+```
+
+Xcode 的專案範本在 Debug 組態的 Preprocessor Macros 設了 `DEBUG=1`，Release 沒設。`#if DEBUG` 看的是**值**（沒定義時當 0），`#ifdef DEBUG` 看的是**有沒有定義**。Apple 範本兩種都成立，但有些專案在 Release 設 `DEBUG=0`，`#ifdef` 就會誤判——所以寫 `#if DEBUG`。其他常見的：`#if TARGET_OS_SIMULATOR`、`#if TARGET_OS_IOS`、`#if __has_feature(objc_arc)`。還有兩個好用的指令：`#warning TODO: 接 API 後移除假資料` 會在 Xcode 顯示黃色警告，`#error` 直接讓編譯失敗，用來擋「這個檔案不該在這個組態被編譯」。
+
+### 為什麼現在少寫巨集
+
+巨集的四個問題：沒有型別檢查（`LBSquare(@"x")` 能通過前置處理，到編譯器才爆出看不懂的錯）；參數可能被算兩次（`LBSquare(i++)` 展開成 `(i++) * (i++)`）；偵錯器進不去，斷點停不住，變數看不到；Swift 只匯入「名字等於一個字面值」的簡單巨集，函式式巨集 Swift 端完全看不見。現代寫法：
+
+```objc
+// 常數：有型別、Swift 看得到、偵錯器看得到
+static const long long LBCentsPerDollar = 100;
+
+// 小函式：static inline 讓編譯器直接展開，零成本
+static inline long long LBSquare(long long x) { return x * x; }
+
+// Foundation 提供的同義寫法
+NS_INLINE long long LBCube(long long x) { return x * x * x; }
+```
+
+<Term en="inline function" tw="行內函式" cn="内联函数" jp="インライン関数" />寫在 `.h` 裡要加 `static`，否則每個 `.m` 都會定義一份、連結器又要抱怨（上一章）。巨集剩下的正當用途：條件編譯、需要 `__LINE__` / `__FILE__` 這類「呼叫點資訊」的 log 巨集、`NS_ENUM` 這種改變語法的東西、以及 `NSAssert`。其他一律先想 `static const` 和 `static inline`。
+
+<Pitfall title="巨集沒加括號">
+<Fragment slot="bad">
+```objc
+#define LBCentsToDollars(c) c / 100
+long long d = LBCentsToDollars(100 + 50);    // 100 + 50 / 100 = 100
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+#define LBCentsToDollars(c) ((c) / 100)
+long long d = LBCentsToDollars(100 + 50);    // (100 + 50) / 100 = 1
+```
+</Fragment>
+前置處理器不知道「參數」是什麼，它只做文字替換。參數包括號、整體包括號，兩層都要。更好的做法是不寫巨集，改成 `static inline` 函式，連這條規則都不用記。
+</Pitfall>
+
+<Pitfall title="#define 結尾加了分號">
+<Fragment slot="bad">
+```objc
+#define LBMaxNoteLength 140;
+if (note.length > LBMaxNoteLength) { ... }
+// 展開成 if (note.length > 140;) → error: Expected ')'
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+#define LBMaxNoteLength 140
+// 或根本不用巨集：
+static const NSUInteger LBMaxNoteLength = 140;
+```
+</Fragment>
+分號會跟著一起被貼進每個使用處，錯誤訊息指到的是使用那一行，而不是 `#define` 那一行，常常找半天。Java / Kotlin 的 `;` 直覺在這裡要關掉。
+</Pitfall>
+
+<Pitfall title="MAX 和 MIN 是巨集，參數會被算兩次">
+```objc
+NSInteger i = 0;
+NSInteger m = MAX(i++, 5);    // 展開後 i++ 出現兩次：i 變 2，不是 1
+NSLog(@"%ld %ld", (long)i, (long)m);
+```
+Foundation 的 `MAX` / `MIN` / `ABS` 都是巨集（clang 版本有做保護，但你不能假設每個環境都有）。規則：巨集的參數永遠傳**沒有副作用**的運算式——變數、常數、純計算；`i++`、方法呼叫、有 `NSLog` 的 block 都不要塞進去。
+</Pitfall>
+
+<Crash message={`LBLedgerViewController.m:87:9: error: use of undeclared identifier 'debugBadgeCount'
+        debugBadgeCount += 1;
+        ^
+** ARCHIVE FAILED **`}>
+Debug 跑了一個星期都好好的，按 Product → Archive 準備上傳才爆。原因：`debugBadgeCount` 宣告在 `#if DEBUG ... #endif` 裡面，使用它的第 87 行在外面；Release 組態沒有 `DEBUG`，宣告被前置處理器整段刪掉，第 87 行就變成用了一個不存在的名字。修法有兩種：使用處也包進 `#if DEBUG`，或把宣告移到外面、只把會動它的程式碼包起來。預防：每隔幾天用 Release 跑一次——Edit Scheme → Run → Build Configuration 切成 Release 建置（記得切回來）。順帶一提，Release 的最佳化也會讓某些 bug 只在 Release 出現：沒初始化的區域變數、對 `nil` 的假設、資料競爭。「Debug 沒事、Archive 才爆」這類問題，第一個該懷疑的就是 `#if DEBUG`。
+</Crash>
+
+## 小結
+
+- 前置處理器在編譯前做純文字替換：`#import` 貼檔案、`#define` 換文字、`#if` 刪區塊。
+- 函式式巨集每個參數包括號、整體再包一層；結尾不加分號；不傳有副作用的參數。
+- `#pragma mark -` 給 Xcode 分段；`.m` 依生命週期、公開、協定、私有的順序排。
+- 寫 `#if DEBUG` 不寫 `#ifdef DEBUG`；宣告和使用要在同一側，否則 Archive 才會爆。
+- 常數用 `static const`、小函式用 `static inline`；巨集留給條件編譯和需要 `__LINE__` 的 log。

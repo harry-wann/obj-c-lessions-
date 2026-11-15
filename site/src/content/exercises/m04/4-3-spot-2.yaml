@@ -1,0 +1,32 @@
+id: m04-4-3-spot-2
+chapter: "4.3"
+type: spot
+title: 看程式碼判斷：delegate 版
+minutes: 2
+prompt: LBLedgerViewController 持有 ledger，並把自己設成 ledger 的 delegate。關掉畫面後 Memory Graph 顯示兩個物件都紫色。點出問題行並選原因。
+code: |
+  @interface LBLedger : NSObject
+  @property (nonatomic, strong) id<LBLedgerObserver> delegate;
+  @end
+
+  @implementation LBLedgerViewController
+  - (void)viewDidLoad {
+      [super viewDidLoad];
+      self.ledger = [[LBLedger alloc] init];
+      self.ledger.delegate = self;
+  }
+  @end
+bug_lines: [2]
+reasons:
+  - "delegate 宣告成 strong：VC → ledger → delegate(VC) 繞成一圈"
+  - "self.ledger 應該用 weak 持有"
+  - "delegate 不能在 viewDidLoad 設定"
+  - "LBLedger 應該用 copy 持有 delegate"
+answer_reason: 0
+fix: |
+  @property (nonatomic, weak, nullable) id<LBLedgerObserver> delegate;
+solution_note: VC strong 持有 ledger（合理，VC 是擁有者），ledger 若 strong 持有 delegate（就是 VC）就是循環。delegate 永遠 weak，沒有例外；接著確認 delegate 物件有別人 strong 持有（這裡 VC 由導覽控制器持有，沒問題）。
+hints: ["畫兩個方框、兩個箭頭，看有沒有繞成圈。", "delegate 屬性的慣例修飾詞是什麼？"]
+feedback:
+  "1": "VC 是 ledger 的擁有者，ledger 若沒人 strong 持有就建完即釋放。該斷開的是往回指的那條線。"
+  "3": "copy 一個 delegate 會得到另一個物件（如果它能 copy），完全不是這個問題的解法。"

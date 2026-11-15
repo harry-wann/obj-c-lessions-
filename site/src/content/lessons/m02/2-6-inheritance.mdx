@@ -1,0 +1,327 @@
+---
+title: 繼承、覆寫與多型
+module: 2
+chapter: "2.6"
+order: 6
+minutes: 30
+prereq: ["2.5"]
+objectives:
+  - 寫出子類別、覆寫方法並正確決定要不要呼叫 super
+  - 用 doesNotRecognizeSelector: 模擬抽象類別，知道 Objective-C 沒有 final 時怎麼辦
+  - 分辨 isKindOfClass: 與 isMemberOfClass:，知道類別叢集會讓後者出乎意料
+summary: 單一繼承、覆寫不需要關鍵字、super 的意義、覆寫要不要呼叫 super 看文件、抽象類別的模擬、isKindOfClass: vs isMemberOfClass:、沒有 final 但有 objc_subclassing_restricted。
+terms:
+  - { en: inheritance, tw: 繼承, cn: 继承, jp: 継承 }
+  - { en: override, tw: 覆寫, cn: 重写, jp: オーバーライド }
+  - { en: polymorphism, tw: 多型, cn: 多态, jp: ポリモーフィズム }
+  - { en: abstract class, tw: 抽象類別, cn: 抽象类, jp: 抽象クラス }
+  - { en: introspection, tw: 內省, cn: 内省, jp: イントロスペクション }
+  - { en: class cluster, tw: 類別叢集, cn: 类簇, jp: クラスクラスタ }
+appProgress: LBCategory 有了遞迴走訪的 flattened；LBCategoryTests 只剩相等與複製的測試未過。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+class Exporter {
+    func export(_ amount: Decimal) -> String { fatalError("subclass must override") }
+}
+final class CSVExporter: Exporter {                 // final：不能再被繼承
+    override func export(_ amount: Decimal) -> String { "\(amount)," }
+}
+let e: Exporter = CSVExporter()
+e.export(120)                                        // 動態派送到子類別
+e is CSVExporter                                     // true
+type(of: e) == CSVExporter.self                      // true
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+abstract class Exporter {
+    abstract fun export(amount: BigDecimal): String   // 子類別必須實作
+}
+class CsvExporter : Exporter() {                      // class 預設 final，要 open 才能繼承
+    override fun export(amount: BigDecimal) = "$amount,"
+}
+val e: Exporter = CsvExporter()
+e is CsvExporter                                      // true
+e::class == CsvExporter::class                        // true
+```
+</Fragment>
+<Fragment slot="java">
+```java
+abstract class Exporter {
+    abstract String export(BigDecimal amount);
+}
+final class CsvExporter extends Exporter {
+    @Override String export(BigDecimal amount) { return amount + ","; }
+}
+Exporter e = new CsvExporter();
+e instanceof CsvExporter;                 // true（含子類別）
+e.getClass() == CsvExporter.class;        // true（剛好是這個類別）
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+abstract class Exporter {
+  abstract export(amount: number): string;
+}
+class CsvExporter extends Exporter {
+  override export(amount: number) { return `${amount},`; }
+}
+const e: Exporter = new CsvExporter();
+e instanceof CsvExporter;                 // true
+e.constructor === CsvExporter;            // true
+```
+</Fragment>
+四個語言都有 `abstract`、`override`、`final`（或等價物）三個關鍵字。Objective-C **一個都沒有**：覆寫是「再寫一次同名方法」、抽象是「丟例外」、final 要靠編譯器屬性。能做的事一樣，只是全靠慣例。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 單一繼承與覆寫
+
+```objc
+@interface LBExporter : NSObject
+- (NSString *)exportAmount:(NSDecimalNumber *)amount;
+- (NSString *)header;
+@end
+
+@interface LBCSVExporter : LBExporter           // 只能繼承一個父類別
+@end
+
+@implementation LBCSVExporter
+- (NSString *)header {
+    return [[super header] stringByAppendingString:@",amount"];   // 延伸父類別的結果
+}
+- (NSString *)exportAmount:(NSDecimalNumber *)amount {
+    return [NSString stringWithFormat:@"%@,", amount];            // 完全取代
+}
+@end
+```
+
+<Term en="inheritance" tw="繼承" cn="继承" jp="継承" />只有單一繼承，冒號後面只能寫一個類別；要「同時是很多種東西」靠協定（模組 5）。<Term en="override" tw="覆寫" cn="重写" jp="オーバーライド" />沒有關鍵字：子類別 `@implementation` 裡寫一個 selector 相同的方法，執行期查表時就會先找到子類別的版本。好處是不用改父類別、不用宣告；壞處是手滑打錯一個字母就變成「新增了一個沒人呼叫的方法」而不是覆寫，編譯器完全不會提醒。
+
+`super` 不是一個物件，是一個關鍵字：`[super header]` 的意思是「用 `self` 這個物件，但從**父類別**的方法表開始找 `header`」。所以父類別的方法裡若再呼叫 `[self exportAmount:]`，仍會派送到子類別的版本——這就是<Term en="polymorphism" tw="多型" cn="多态" jp="ポリモーフィズム" />在 Objective-C 的全部機制，沒有虛擬函式表、沒有 `virtual`，每個方法天生都是虛擬的。
+
+### 覆寫要不要呼叫 super？
+
+沒有通則，**看文件**。Apple 的規則大致是：
+
+- 生命週期類方法（`viewDidLoad`、`viewWillAppear:`、`awakeFromNib`、`layoutSubviews`）：文件說「必須呼叫 super」，而且通常在第一行。這類方法在標頭檔會標 `NS_REQUIRES_SUPER`，忘了呼叫會有編譯警告。
+- 純回傳值的方法（`description`、`hash`、`isEqual:`、`drawRect:`）：你是在**取代**行為，不用也不該呼叫 super。
+- `dealloc`：ARC 下編譯器自動幫你插入 `[super dealloc]`，手寫會編譯錯誤。
+- 初始化器：永遠呼叫父類別的**指定**初始化器（2.3）。
+
+你自己寫的父類別若有「子類別一定要呼叫 super」的方法，在 `.h` 加 `NS_REQUIRES_SUPER`，把慣例變成警告。
+
+### 模擬抽象類別
+
+Objective-C 沒有 `abstract`，<Term en="abstract class" tw="抽象類別" cn="抽象类" jp="抽象クラス" />的慣例是：父類別的方法體主動丟出「不認得這個 selector」。
+
+```objc
+@implementation LBExporter
+- (NSString *)exportAmount:(NSDecimalNumber *)amount {
+    [self doesNotRecognizeSelector:_cmd];     // _cmd 是當前方法的 selector
+    return nil;                               // 永遠執行不到，但編譯器要看到回傳
+}
+@end
+```
+
+`doesNotRecognizeSelector:` 就是 2.2 那則 `unrecognized selector` crash 的來源方法，這裡故意呼叫它，讓「忘了覆寫」在第一次呼叫時就炸出清楚的訊息，而不是安靜地回 nil。另一種寫法是 `NSAssert(NO, @"subclass must override")`，但 Release 建置會拔掉斷言，所以 `doesNotRecognizeSelector:` 比較常見。
+
+### isKindOfClass: 與 isMemberOfClass:
+
+```objc
+LBExporter *e = [[LBCSVExporter alloc] init];
+[e isKindOfClass:[LBExporter class]];       // YES：是它或它的子類別
+[e isMemberOfClass:[LBExporter class]];     // NO：剛好是這個類別才算
+[e isMemberOfClass:[LBCSVExporter class]];  // YES
+[e class];                                  // LBCSVExporter
+NSStringFromClass([e class]);               // @"LBCSVExporter"
+```
+
+這組<Term en="introspection" tw="內省" cn="内省" jp="イントロスペクション" />方法對應 Java 的 `instanceof` 與 `getClass() ==`。工作上 99% 用 `isKindOfClass:`：你想問的通常是「它能不能當成 X 來用」，而不是「它是不是正好 X」。`isMemberOfClass:` 幾乎只在單元測試或 debug 時用，而且對 Foundation 的類別會踩雷（見陷阱）。還有第三種問法 `respondsToSelector:`，它不問血統只問能力，是 Objective-C 更道地的寫法（2.2）。
+
+### 沒有 final，但有替代品
+
+```objc
+__attribute__((objc_subclassing_restricted))
+@interface LBTransaction : NSObject
+@end
+
+@interface LBSpecialTransaction : LBTransaction   // error: cannot subclass a class
+@end                                               //        that was declared with the
+                                                   //        'objc_subclassing_restricted' attribute
+```
+
+Objective-C 的類別預設全部可繼承（像 Java，和 Kotlin 預設 final 相反）。想禁止，在 `@interface` 前加 `__attribute__((objc_subclassing_restricted))`；Swift 匯入時會把它看成 `final`。不可變的 model 類別（`LBTransaction`）適合這樣標。另一個方向，`NS_REQUIRES_SUPER` 保護「可以繼承但必須呼叫 super」的方法。
+
+### 完整範例：貼進 Scratch 跑一次
+
+這個範例同時示範多型與**遞迴走訪**——`LBCategory` 的 `flattened` 要深度優先列出自己與所有子孫，和 Xcode 任務是同一題。
+
+```objc
+@import Foundation;
+
+@interface LBExporter : NSObject
+- (NSString *)exportAmount:(NSDecimalNumber *)amount;
+@end
+@implementation LBExporter
+- (NSString *)exportAmount:(NSDecimalNumber *)amount {
+    [self doesNotRecognizeSelector:_cmd];
+    return nil;
+}
+@end
+
+@interface LBCSVExporter : LBExporter
+@end
+@implementation LBCSVExporter
+- (NSString *)exportAmount:(NSDecimalNumber *)amount {
+    return [NSString stringWithFormat:@"%@,", amount];
+}
+@end
+
+@interface LBMarkdownExporter : LBExporter
+@end
+@implementation LBMarkdownExporter
+- (NSString *)exportAmount:(NSDecimalNumber *)amount {
+    return [NSString stringWithFormat:@"| %@ |", amount];
+}
+@end
+
+@interface LBCategory : NSObject
+@property (nonatomic, copy, readonly) NSString *name;
+@property (nonatomic, copy, readonly) NSArray<LBCategory *> *children;
+- (instancetype)initWithName:(NSString *)name;
+- (void)addChild:(LBCategory *)child;
+- (NSArray<LBCategory *> *)flattened;
+@end
+@interface LBCategory ()
+@property (nonatomic, strong) NSMutableArray<LBCategory *> *mutableChildren;
+@end
+@implementation LBCategory
+- (instancetype)initWithName:(NSString *)name {
+    if (self = [super init]) { _name = [name copy]; _mutableChildren = [NSMutableArray array]; }
+    return self;
+}
+- (NSArray<LBCategory *> *)children { return [self.mutableChildren copy]; }
+- (void)addChild:(LBCategory *)child { [self.mutableChildren addObject:child]; }
+- (NSArray<LBCategory *> *)flattened {
+    NSMutableArray *result = [NSMutableArray arrayWithObject:self];   // 先放自己
+    for (LBCategory *child in self.mutableChildren) {
+        [result addObjectsFromArray:[child flattened]];               // 再放每個子樹
+    }
+    return [result copy];
+}
+@end
+
+int main(int argc, const char *argv[]) {
+    @autoreleasepool {
+        NSDecimalNumber *amount = [NSDecimalNumber decimalNumberWithString:@"120"];
+        NSArray<LBExporter *> *exporters = @[[LBCSVExporter new], [LBMarkdownExporter new]];
+        for (LBExporter *e in exporters) {
+            NSLog(@"%@ → %@", NSStringFromClass([e class]), [e exportAmount:amount]);
+        }
+        // LBCSVExporter → 120,
+        // LBMarkdownExporter → | 120 |
+
+        NSLog(@"%d %d", [exporters[0] isKindOfClass:[LBExporter class]],
+                        [exporters[0] isMemberOfClass:[LBExporter class]]);   // 1 0
+
+        LBCategory *food = [[LBCategory alloc] initWithName:@"飲食"];
+        LBCategory *lunch = [[LBCategory alloc] initWithName:@"午餐"];
+        [food addChild:lunch];
+        [lunch addChild:[[LBCategory alloc] initWithName:@"便當"]];
+        [food addChild:[[LBCategory alloc] initWithName:@"晚餐"]];
+        NSLog(@"%@", [[food flattened] valueForKey:@"name"]);
+        // ( 飲食, 午餐, 便當, 晚餐 )   ← 深度優先，含自己
+    }
+    return 0;
+}
+```
+
+<Pitfall title="覆寫了生命週期方法卻忘記呼叫 super">
+<Fragment slot="bad">
+```objc
+- (void)viewDidLoad {
+    [self setupTable];      // UIViewController 自己的 viewDidLoad 沒跑
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (void)viewDidLoad {
+    [super viewDidLoad];    // 第一行
+    [self setupTable];
+}
+```
+</Fragment>
+症狀五花八門：`viewWillAppear:` 沒呼叫 super 會讓導覽列狀態亂掉、`layoutSubviews` 沒呼叫 super 子視圖不排版、`awakeFromNib` 沒呼叫 super 讓某些 outlet 沒接上。Xcode 的程式碼片段會自動補 `[super …]`，刪掉它之前先查文件；標了 `NS_REQUIRES_SUPER` 的方法忘了呼叫會有警告，沒標的就只能靠自己。
+</Pitfall>
+
+<Pitfall title="isMemberOfClass: 遇到類別叢集">
+```objc
+NSString *s = @"午餐";
+[s isMemberOfClass:[NSString class]];      // NO！實際類別是 __NSCFConstantString
+[s isKindOfClass:[NSString class]];        // YES
+
+NSArray *a = @[@1];
+NSStringFromClass([a class]);              // @"__NSArrayI"，不是 NSArray
+```
+`NSString`、`NSArray`、`NSDictionary`、`NSNumber` 都是<Term en="class cluster" tw="類別叢集" cn="类簇" jp="クラスクラスタ" />：公開的類別只是介面，`alloc` / `init` 回傳的是某個私有子類別。所以 `isMemberOfClass:` 對它們永遠是 NO，`[obj class] == [NSString class]` 這種比法也一樣錯。用 `isKindOfClass:`，或更好的是只問 `respondsToSelector:`。這也是為什麼不該繼承 `NSString` / `NSArray`——你繼承的是空殼，所有方法都在私有子類別裡。
+</Pitfall>
+
+<Pitfall title="同時覆寫 getter 和 setter 之後 ivar 不見了">
+<Fragment slot="bad">
+```objc
+@property (nonatomic, copy) NSString *name;
+
+- (NSString *)name { return _name ?: @"未命名"; }
+- (void)setName:(NSString *)name { _name = [name copy]; }
+// error: use of undeclared identifier '_name'
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+@synthesize name = _name;     // 手動要求合成 ivar
+
+- (NSString *)name { return _name ?: @"未命名"; }
+- (void)setName:(NSString *)name { _name = [name copy]; }
+```
+</Fragment>
+自動合成的規則是：只要 getter 和 setter**都**由你提供（readonly 屬性則是只要 getter 由你提供），編譯器就假設你要自己管儲存，不再合成 `_name`。只覆寫其中一個時 ivar 還在。2.5 的 `children` getter 就是這種情況，當時我們不需要 ivar 所以沒事；需要的話補一行 `@synthesize`。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: '-[LBPDFExporter exportAmount:]: unrecognized selector sent to instance 0x600003b48120'
+*** First throw call stack:
+(
+	2   CoreFoundation   -[NSObject(NSObject) doesNotRecognizeSelector:] + 116
+	3   LittleBook       -[LBExporter exportAmount:] + 52
+	4   LittleBook       -[LBReportBuilder buildWithExporter:] + 180
+)`}>
+和 2.2 的訊息長得一樣，但原因不同：堆疊第 3 行是**父類別** `LBExporter` 自己的 `exportAmount:`，表示這個方法確實存在、確實被呼叫了，然後它主動丟 `doesNotRecognizeSelector:`——這是「抽象方法未實作」的訊號。訊息裡的類別是 `LBPDFExporter`（接收者的實際類別），所以修法是去 `LBPDFExporter.m` 補上 `exportAmount:` 的覆寫，不是去改 `LBExporter`。區分兩種情況的訣竅：看 `doesNotRecognizeSelector:` 的**上一行**是 `___forwarding___`（真的沒這個方法）還是自己專案的方法（抽象方法故意丟的）。
+</Crash>
+
+<Steps title="Xcode 任務：LBCategory 的 flattened">
+<ol>
+<li>在 <code>LBCategory.m</code> 實作 <code>flattened</code>：先放 <code>self</code>，再依序對每個子節點遞迴呼叫 <code>flattened</code> 並接上結果，回傳不可變陣列。</li>
+<li>確認 <code>children</code> 的順序就是 <code>addChild:</code> 的順序，測試會比對整個陣列。</li>
+<li>⌘U 跑 <code>LBCategoryTests/testFlattened</code>。</li>
+</ol>
+</Steps>
+
+## 小結
+
+- 單一繼承；覆寫沒有關鍵字，同名方法就是覆寫，打錯字不會有提醒。
+- `super` 是「同一個 self，從父類別的方法表開始找」；每個方法天生都是動態派送，這就是多型。
+- 覆寫要不要呼叫 super 看文件：生命週期方法要、純回傳值的不要、`dealloc` ARC 自動加。
+- 抽象方法用 `[self doesNotRecognizeSelector:_cmd]` 模擬；`final` 用 `__attribute__((objc_subclassing_restricted))`。
+- 99% 用 `isKindOfClass:`；`isMemberOfClass:` 對類別叢集（`NSString`、`NSArray`）永遠是 NO。

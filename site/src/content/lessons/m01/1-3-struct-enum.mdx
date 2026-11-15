@@ -1,0 +1,240 @@
+---
+title: struct 與 enum
+module: 1
+chapter: "1.3"
+order: 3
+minutes: 30
+prereq: ["1.2"]
+objectives:
+  - 看懂並操作 CGRect、NSRange 這類 struct，知道它們是值型別
+  - 用 NS_ENUM / NS_OPTIONS 宣告自己的列舉與旗標，命名合乎 Apple 慣例
+  - 用位元運算組合、測試、移除旗標；switch 配 enum 不寫 default
+summary: CGRect / CGPoint / CGSize / NSRange 與 CGRectMake；NS_ENUM / NS_OPTIONS 的寫法與命名；位元旗標的 | & ~ ^；switch 的規矩。
+terms:
+  - { en: struct, tw: 結構, cn: 结构体, jp: 構造体 }
+  - { en: enum, tw: 列舉, cn: 枚举, jp: 列挙型 }
+  - { en: value type, tw: 值型別, cn: 值类型, jp: 値型 }
+  - { en: bit flag, tw: 位元旗標, cn: 位标志, jp: ビットフラグ }
+  - { en: bitwise operator, tw: 位元運算子, cn: 位运算符, jp: ビット演算子 }
+appProgress: LBTypes.h 有了 LBTransactionKind 與 LBTransactionFlags；LBTypesTests 前兩個測試綠燈。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+struct Point { var x: Double; var y: Double }       // 值型別
+enum Kind: Int { case expense = 0, income }
+struct Flags: OptionSet {
+    let rawValue: UInt
+    static let reconciled = Flags(rawValue: 1 << 0)
+    static let recurring  = Flags(rawValue: 1 << 1)
+}
+var f: Flags = [.reconciled, .recurring]
+switch kind { case .expense: break; case .income: break }   // 必須窮舉
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+data class Point(val x: Double, val y: Double)      // 參考型別，但有值語意
+enum class Kind { EXPENSE, INCOME }
+const val RECONCILED = 1 shl 0
+const val RECURRING  = 1 shl 1
+var flags = RECONCILED or RECURRING
+when (kind) { Kind.EXPENSE -> {}; Kind.INCOME -> {} }   // when 也能配字串
+```
+</Fragment>
+<Fragment slot="java">
+```java
+record Point(double x, double y) {}
+enum Kind { EXPENSE, INCOME }
+EnumSet<Flag> flags = EnumSet.of(Flag.RECONCILED, Flag.RECURRING);
+switch (kind) { case EXPENSE -> {} case INCOME -> {} }   // 字串也可以 switch
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+interface Point { x: number; y: number }
+enum Kind { Expense = 0, Income }
+enum Flags { None = 0, Reconciled = 1 << 0, Recurring = 1 << 1 }
+let f = Flags.Reconciled | Flags.Recurring;
+switch (kind) { case Kind.Expense: break; case Kind.Income: break; }
+```
+</Fragment>
+C 的 struct 和 Swift 的 struct 一樣是值型別，整包複製；C 的 enum 只是「有名字的整數」，沒有方法、沒有關聯值，比四個語言都簡陋。位元旗標的寫法最接近 TypeScript 的數字 enum。先記一件事：Kotlin 的 `when` 和 Java 17 的 `switch` 可以配字串，**C 的 `switch` 只能配整數**。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### struct：一包放在一起的值
+
+<Term en="struct" tw="結構" cn="结构体" jp="構造体" />把幾個欄位打包成一個<Term en="value type" tw="值型別" cn="值类型" jp="値型" />。它不是物件：住在堆疊上、沒有星號、不用 `alloc`、不受 ARC 管、用 `.` 取欄位，賦值就是整包複製。UIKit 到處都是它：`CGPoint`（x, y）、`CGSize`（width, height）、`CGRect`（origin + size）、`NSRange`（location + length）。
+
+```objc
+#import <Foundation/Foundation.h>
+
+typedef struct {
+    NSInteger year;
+    NSInteger month;
+} LBYearMonth;
+
+int main(int argc, const char * argv[]) {
+    @autoreleasepool {
+        LBYearMonth ym = { 2026, 11 };
+        LBYearMonth copy = ym;                     // 整包複製
+        copy.month = 12;
+        NSLog(@"%ld/%ld %ld/%ld", (long)ym.year, (long)ym.month,
+              (long)copy.year, (long)copy.month);  // 2026/11 2026/12
+
+        CGRect frame = CGRectMake(0, 44, 375, 56);
+        NSLog(@"%g %g %g %g", frame.origin.x, frame.origin.y,
+              frame.size.width, frame.size.height); // 0 44 375 56
+        NSLog(@"%g", CGRectGetMaxY(frame));           // 100
+        NSLog(@"%d", CGRectEqualToRect(frame, CGRectZero));   // 0
+
+        NSRange r = NSMakeRange(3, 2);
+        NSLog(@"%@", NSStringFromRange(r));                   // {3, 2}
+        NSLog(@"%@", [@"午餐 120 元" substringWithRange:r]);  // 12
+    }
+    return 0;
+}
+```
+
+幾何 struct 一律用 `XxxMake` 建立（`CGRectMake`、`CGPointMake`、`NSMakeRange`），用 `CGRectGetWidth` / `CGRectGetMinX` / `CGRectGetMaxY` / `CGRectGetMidX` 讀邊界，用 `CGRectEqualToRect`、`NSEqualRanges` 比較——struct **不能用 `==`**，會編譯錯誤。還有一組常數 `CGRectZero`、`CGPointZero`、`CGSizeZero`。在 UIKit 專案裡 `NSStringFromCGRect` 可以把 `CGRect` 印成字串，Scratch（macOS）裡沒有，所以上面用 `%g` 逐欄位印。
+
+### enum：NS_ENUM
+
+<Term en="enum" tw="列舉" cn="枚举" jp="列挙型" />在 C 裡就是一組有名字的整數常數。原生的 `enum { ... }` 底層型別不確定、Swift 匯入後是一堆散落的全域常數，所以 Apple 定了巨集 `NS_ENUM(底層型別, 名稱)`：
+
+```objc
+typedef NS_ENUM(NSInteger, LBTransactionKind) {
+    LBTransactionKindExpense = 0,
+    LBTransactionKindIncome  = 1,
+};
+```
+
+三條慣例：底層型別用 `NSInteger`；型別名當每個 case 的前綴（Swift 會自動削掉前綴，看到的是 `.expense` / `.income`）；每個值都明確寫數字，之後存檔、傳 API 才不會因為有人在中間插了一個 case 而全部位移。
+
+`switch` 配 enum 的規矩是**窮舉、不寫 `default`**：
+
+```objc
+NSString *LBKindName(LBTransactionKind kind) {
+    switch (kind) {
+        case LBTransactionKindExpense: return @"支出";
+        case LBTransactionKindIncome:  return @"收入";
+    }
+    return @"?";      // 理論上到不了；給編譯器一個回傳路徑
+}
+```
+
+好處是：將來加了 `LBTransactionKindTransfer` 卻忘了處理，編譯器會警告 `Enumeration value 'LBTransactionKindTransfer' not handled in switch`（`-Wswitch`，預設開）。一旦寫了 `default`，這個警告就永遠不會出現。另外兩個 C 的 `switch` 老規矩：每個 `case` 結尾要 `break`（或 `return`），不然會直接掉進下一個 case；在 `case` 裡宣告變數要包大括號 `case X: { ... break; }`。
+
+### NS_OPTIONS：位元旗標
+
+一筆交易可以同時「已對帳」又「定期」，用 enum 存不下。<Term en="bit flag" tw="位元旗標" cn="位标志" jp="ビットフラグ" />的做法是每個選項占一個二進位位元，一個整數就能同時裝好幾個：
+
+```objc
+typedef NS_OPTIONS(NSUInteger, LBTransactionFlags) {
+    LBTransactionFlagsNone       = 0,
+    LBTransactionFlagsReconciled = 1 << 0,   // 0b001 = 1
+    LBTransactionFlagsRecurring  = 1 << 1,   // 0b010 = 2
+    LBTransactionFlagsDeleted    = 1 << 2,   // 0b100 = 4
+};
+```
+
+`1 << n` 是「把 1 往左推 n 格」，得到 1、2、4、8……彼此不重疊。底層用 `NSUInteger`（無號，位移不會碰到符號位）；`NS_OPTIONS` 告訴 Swift 這是 `OptionSet`。四個<Term en="bitwise operator" tw="位元運算子" cn="位运算符" jp="ビット演算子" />涵蓋所有操作：
+
+```objc
+LBTransactionFlags flags = LBTransactionFlagsNone;
+flags |= LBTransactionFlagsReconciled;                   // 加上：|
+flags |= LBTransactionFlagsRecurring;
+NSLog(@"%lu", (unsigned long)flags);                     // 3
+
+BOOL isRecurring = (flags & LBTransactionFlagsRecurring) != 0;   // 測試：&
+NSLog(@"%d", isRecurring);                               // 1
+
+flags &= ~LBTransactionFlagsReconciled;                  // 移除：& ~
+NSLog(@"%lu", (unsigned long)flags);                     // 2
+
+flags ^= LBTransactionFlagsDeleted;                      // 切換：^
+NSLog(@"%lu", (unsigned long)flags);                     // 6
+```
+
+`~` 是「每個位元反過來」，`& ~X` 就是「保留除了 X 以外的所有位元」。這組運算在 UIKit 隨處可見：`UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight`、`UIControlEventTouchUpInside`、`NSJSONWritingPrettyPrinted`。
+
+<Tip title="enum 還是 options？">
+互斥的狀態（一筆交易只能是支出或收入）用 `NS_ENUM`，可以疊加的屬性（可以同時已對帳又定期）用 `NS_OPTIONS`。Swift 端一個變 `enum`、一個變 `OptionSet`，用錯了 Swift 同事會很痛苦。
+</Tip>
+
+<Pitfall title="switch 不能配字串或物件">
+<Fragment slot="bad">
+```objc
+switch (kindName) {                  // kindName 是 NSString *
+    case @"支出": ...                // error: Statement requires expression
+}                                    //        of integer type
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+if ([kindName isEqualToString:@"支出"]) { ... }
+else if ([kindName isEqualToString:@"收入"]) { ... }
+
+// 更好：在邊界把字串轉成 enum，之後都 switch enum
+NSDictionary *map = @{ @"支出": @(LBTransactionKindExpense),
+                       @"收入": @(LBTransactionKindIncome) };
+LBTransactionKind kind = [map[kindName] integerValue];
+```
+</Fragment>
+Kotlin `when` 和 Swift `switch` 慣出來的直覺，在 C 裡會直接吃編譯錯誤：`switch` 只接整數（含 `char` 與 enum）。字串用 `isEqualToString:` 串 `if`，或在 JSON 解析那一層就轉成 enum，程式其他地方只看 enum。
+</Pitfall>
+
+<Pitfall title="struct 是值，改 view.frame.origin.x 改不到任何東西">
+<Fragment slot="bad">
+```objc
+view.frame.origin.x = 10;            // error: Expression is not assignable
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+CGRect f = view.frame;               // 1. 複製一份出來
+f.origin.x = 10;                     // 2. 改複本
+view.frame = f;                      // 3. 整包塞回去（走 setter）
+```
+</Fragment>
+`view.frame` 是 getter，回傳的是一份**複本**；對複本的欄位賦值編譯器知道沒意義，直接擋下。這也是為什麼 struct 屬性用 `assign` 不用 `strong`：沒有參考計數可談。Swift 的 `view.frame.origin.x = 10` 能過，是因為 Swift 編譯器幫你做了這三步。
+</Pitfall>
+
+<Pitfall title="測旗標的運算子與括號">
+<Fragment slot="bad">
+```objc
+if (flags == LBTransactionFlagsRecurring) { ... }    // 同時有別的旗標就不成立
+if (flags & LBTransactionFlagsRecurring == 0) { ... } // == 先算：永遠錯
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+if (flags & LBTransactionFlagsRecurring) { ... }
+if ((flags & LBTransactionFlagsRecurring) == 0) { ... }
+```
+</Fragment>
+第一行：旗標是集合，`==` 問的是「剛好只有這一個」。第二行更陰：C 的優先順序 `==` 高於 `&`，所以它算的是 `flags & (Recurring == 0)` → `flags & 0` → 永遠 0。只要同一個運算式裡有 `&` 和比較運算，就加括號；clang 會給警告 `& has lower precedence than ==`，別忽略。
+</Pitfall>
+
+<Crash message={`*** Assertion failure in -[LBLedger titleForKind:], LBLedger.m:42
+*** Terminating app due to uncaught exception 'NSInternalInconsistencyException', reason: '未知的 kind 7'
+libc++abi: terminating due to uncaught exception of type NSException
+Thread 1: signal SIGABRT`}>
+`SIGABRT` 不是記憶體錯誤，是程式自己呼叫 `abort()` 結束：Objective-C 例外沒人接、`NSAssert` 失敗、Foundation 的參數檢查不過，最後都走到這。訊息讀法：第一行說斷言在哪個方法、哪一行失敗；第二行的 `reason` 才是重點（這裡是我們自己在 `default:` 寫的 `NSAssert(NO, @"未知的 kind %ld", (long)kind)`）；後面兩行是系統在收尾。怎麼看堆疊追蹤（stack trace）：Debug navigator 最上面是 `__pthread_kill`、`abort`、`objc_exception_throw`……這些系統 frame 是灰色的，往下找第一個黑色、屬於你專案的 frame（這裡是 `-[LBLedger titleForKind:]`），點進去就是出事的行。想在例外丟出的那一刻就停下來，加一個 Exception Breakpoint（Breakpoint navigator 左下角 + → Exception Breakpoint），之後每次 crash 都會停在真正的現場而不是 `main`。這次的根因：有人把 JSON 讀到的整數 7 直接轉型成 `LBTransactionKind`——C 的 enum 不會擋你，轉型前要自己驗範圍。
+</Crash>
+
+## 小結
+
+- struct 是值型別：賦值整包複製、用 `.` 取欄位、用 `CGRectMake` 建立、用 `CGRectEqualToRect` 比較，不能 `==`。
+- `view.frame.origin.x = 10` 不能編譯；複製出來、改、塞回去。
+- 互斥狀態用 `NS_ENUM(NSInteger, ...)`，可疊加的用 `NS_OPTIONS(NSUInteger, ...)`，case 以型別名為前綴、值明確寫出。
+- 旗標：`|` 加、`&` 測、`& ~` 移除、`^` 切換；測試時加括號。
+- `switch` 只配整數；配 enum 窮舉、不寫 `default`，讓編譯器幫你抓漏。

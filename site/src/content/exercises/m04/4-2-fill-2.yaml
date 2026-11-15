@@ -1,0 +1,23 @@
+id: m04-4-2-fill-2
+chapter: "4.2"
+type: fill
+title: 讓 weak 變數真的派上用場
+minutes: 2
+prompt: 這段程式想在物件釋放後觀察 weak 變數歸零。填入修飾詞與第 4 行的值，讓註解的輸出成立。
+code: |
+  LBTransaction *tx = [[LBTransaction alloc] initWithNote:@"午餐"];
+  ___1___ LBTransaction *observer = tx;
+  NSLog(@"%@", observer.note);      // 午餐
+  tx = ___2___;                     // dealloc 午餐
+  NSLog(@"%@", observer);           // (null)
+blanks:
+  "1": { accept: [__weak], chips: [__weak, __strong, __unsafe_unretained] }
+  "2": { accept: [nil, NULL, "0"], chips: [nil, observer, tx] }
+hints:
+  - 第 5 行要印 (null)，observer 必須是會歸零的那種。
+  - 要讓 dealloc 發生，最後一個 strong 參考得放手。
+feedback:
+  "1=__strong": "observer 若是 strong，tx = nil 後物件仍被 observer 持有，不會 dealloc。"
+  "1=__unsafe_unretained": "物件會釋放，但 observer 不會歸零，第 5 行印的是垃圾或直接 crash。"
+  "2=observer": "把 weak 賦回 strong，tx 又重新持有物件，不會釋放。"
+solution_note: 唯一的 strong 是 tx；設成 nil 時計數歸零、立刻 dealloc，同一瞬間所有 __weak 參考歸零。

@@ -1,0 +1,34 @@
+id: m04-4-5-code-1
+chapter: "4.5"
+type: code
+title: 寫一個安全的 CF 字串格式化函式
+mobile: false
+minutes: 6
+prompt: 實作 `NSString *LBFormatCentsCF(long long cents)`：用 `CFStringCreateWithFormat` 建立字串（格式 `CFSTR("%lld")`），把擁有權交給 ARC 後回傳。Create 回傳的 +1 不能洩漏、不能多放、要處理可能回傳 NULL 的情況。
+starter: |
+  NSString *LBFormatCentsCF(long long cents) {
+      CFStringRef s = CFStringCreateWithFormat(kCFAllocatorDefault, NULL,
+                                               CFSTR("%lld"), cents);
+
+  }
+checks:
+  - must_match: 'CFStringCreateWithFormat'
+    message: 要用 CFStringCreateWithFormat 建立字串
+  - must_match: 'CFBridgingRelease\s*\(|__bridge_transfer'
+    message: Create 回傳的 +1 要用 CFBridgingRelease（或 __bridge_transfer）交給 ARC
+  - must_not_match: 'CFRelease\s*\(\s*s\s*\)'
+    message: 已經交給 ARC 就不能再 CFRelease(s)，會多放一次
+  - must_match: 'if\s*\(\s*!\s*s\s*\)|if\s*\(\s*s\s*==\s*NULL\s*\)|if\s*\(\s*s\s*\)'
+    message: 要判斷 s 是否為 NULL
+  - must_match: 'return'
+    message: 要回傳 NSString
+  - brackets_balanced: true
+solution: |
+  NSString *LBFormatCentsCF(long long cents) {
+      CFStringRef s = CFStringCreateWithFormat(kCFAllocatorDefault, NULL,
+                                               CFSTR("%lld"), cents);
+      if (!s) { return @""; }               // CF 沒有 nil 安全，先判
+      return CFBridgingRelease(s);          // +1 交給 ARC，之後不碰 s
+  }
+solution_note: 三件事：Create → 我擁有；CFBridgingRelease → 交給 ARC，回傳的 NSString 由呼叫端的 strong 變數接手；NULL 檢查放在 bridge 之前，因為 CFBridgingRelease(NULL) 回傳 nil 沒事，但如果你之後對 s 做任何 CF 呼叫就會 crash。
+hints: ["Create 回傳的 +1 要交給誰？", "CFBridgingRelease 之後還能 CFRelease 嗎？", "CFStringCreateWithFormat 可能回傳 NULL。"]

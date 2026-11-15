@@ -1,0 +1,212 @@
+---
+title: 檔案結構
+module: 0
+chapter: "0.4"
+order: 4
+minutes: 25
+prereq: ["0.3"]
+objectives:
+  - 說出 .h / .m / .mm 各放什麼、誰看得到
+  - 分辨 #import、#include、@import 的差別並選對
+  - 用 @class 前置宣告切斷標頭檔之間的循環引用
+summary: .h 公開介面 / .m 實作 / .mm Objective-C++；#import vs #include vs @import；@class 前置宣告解循環；一個類別一對檔案。
+terms:
+  - { en: header file, tw: 標頭檔, cn: 头文件, jp: ヘッダファイル }
+  - { en: implementation file, tw: 實作檔, cn: 实现文件, jp: 実装ファイル }
+  - { en: interface, tw: 介面, cn: 接口, jp: インターフェース }
+  - { en: implementation, tw: 實作, cn: 实现, jp: 実装 }
+  - { en: preprocessor, tw: 前置處理器, cn: 预处理器, jp: プリプロセッサ }
+  - { en: declaration / definition, tw: 宣告 / 定義, cn: 声明 / 定义, jp: 宣言 / 定義 }
+  - { en: linker, tw: 連結器, cn: 链接器, jp: リンカ }
+appProgress: 知道 LittleBook 裡 AppDelegate.h / .m 這些成對檔案是怎麼分工的。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+// Transaction.swift：一個檔案，宣告與實作在一起
+public final class Transaction {
+    public let amount: Decimal
+    private var raw: String      // 可見性靠存取控制，不靠檔案
+    init(amount: Decimal, raw: String) { self.amount = amount; self.raw = raw }
+}
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// Transaction.kt
+package com.littlebook.model     // 命名空間靠 package
+import java.math.BigDecimal
+class Transaction(val amount: BigDecimal)
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// Transaction.java：一個 public 類別一個檔，檔名必須等於類別名
+package com.littlebook.model;
+import java.math.BigDecimal;
+public class Transaction { private final BigDecimal amount; /* … */ }
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// transaction.ts：模組系統管可見性
+import { Category } from "./category";
+export class Transaction { constructor(readonly category: Category) {} }
+```
+</Fragment>
+四個語言都是「一個檔案 = 宣告 + 實作」，可見性靠 `public` / `private` / `export`，命名空間靠 package 或模組路徑。Objective-C 繼承 C：**公開的宣告放 `.h`，實作放 `.m`，誰 `#import` 了你的 `.h` 誰就看得到。** 沒有 package，所以類別名要加前綴（0.5）。
+</Compare>
+
+## Objective-C 怎麼寫
+
+一個類別兩個檔案，這是 Objective-C 的慣例，也是 Xcode「New File → Cocoa Touch Class」替你產生的東西：
+
+```text
+LBTransaction.h     公開介面（@interface … @end）：別人需要知道的
+LBTransaction.m     實作（@implementation … @end）＋ 私有宣告
+```
+
+<Term en="header file" tw="標頭檔" cn="头文件" jp="ヘッダファイル" /> `.h` 是對外的合約：類別名、父類別、公開屬性、公開方法。<Term en="implementation file" tw="實作檔" cn="实现文件" jp="実装ファイル" /> `.m` 第一行 `#import` 自己的 `.h`，然後寫方法本體；只有這個檔自己要用的東西（私有屬性、輔助函式）也寫在 `.m` 裡，外面看不到。這就是 Objective-C 的封裝：**沒寫進 `.h` 的，就是 private**（2.5 會教類別延伸）。
+
+`.mm` 是 Objective-C++：同一個檔案可以混寫 C++。只有在要呼叫 C++ 函式庫（例如遊戲引擎、OpenCV）時才用，而且會「傳染」：`.m` 一旦 `#import` 了含 C++ 的標頭就編不過，得改名成 `.mm`。小帳本不會用到，但舊專案的影像、加解密模組常見。
+
+### 範例：兩個互相認識的類別
+
+為了能貼進 `Scratch` 執行，下面把四個檔案的內容放進同一個 `main.m`，註解標出每段原本屬於哪個檔案。重點看 `@class` 與 `#import` 出現的位置：
+
+```objc
+@import Foundation;
+
+// ===== LBCategory.h =====
+@class LBTransaction;             // 前置宣告：只說「有這個類別」
+
+@interface LBCategory : NSObject
+@property (nonatomic, copy) NSString *name;
+- (void)attach:(LBTransaction *)tx;   // 只用到指標，不必知道細節
+@end
+
+// ===== LBTransaction.h =====
+@class LBCategory;
+
+@interface LBTransaction : NSObject
+@property (nonatomic, copy) NSString *note;
+@property (nonatomic, strong) LBCategory *category;
+@end
+
+// ===== LBCategory.m =====
+// #import "LBCategory.h"
+// #import "LBTransaction.h"      // .m 裡才真正 import：要碰它的屬性
+@implementation LBCategory
+- (void)attach:(LBTransaction *)tx {
+    tx.category = self;           // 需要完整宣告，所以 .m 要 import
+    NSLog(@"%@ 掛到 %@", tx.note, self.name);
+}
+@end
+
+// ===== LBTransaction.m =====
+// #import "LBTransaction.h"
+@implementation LBTransaction
+@end
+
+int main(int argc, const char * argv[]) {
+    @autoreleasepool {
+        LBCategory *food = [LBCategory new];
+        food.name = @"餐飲";
+        LBTransaction *tx = [LBTransaction new];
+        tx.note = @"午餐";
+        [food attach:tx];
+        // 輸出：午餐 掛到 餐飲
+    }
+    return 0;
+}
+```
+
+`LBCategory.h` 的方法簽名用到 `LBTransaction *`，但它只需要知道「這是個類別的指標」，所以 `@class LBTransaction;` 就夠了，不必 `#import "LBTransaction.h"`。到了 `LBCategory.m` 要寫 `tx.category = self`，編譯器得知道 `LBTransaction` 有 `category` 這個屬性，這時才 `#import`。**原則：`.h` 用 `@class`，`.m` 用 `#import`。** 協定也有同樣的前置宣告：`@protocol LBLedgerObserver;`。
+
+### `#include`、`#import`、`@import`
+
+三個都是「把別處的宣告拿進來」，差在機制：
+
+| 寫法 | 來源 | 機制 | 用在哪 |
+|---|---|---|---|
+| `#include "x.h"` | C | <Term en="preprocessor" tw="前置處理器" cn="预处理器" jp="プリプロセッサ" />純文字貼上；同一個檔被貼兩次就重複定義 | 幾乎不用；純 C 函式庫的標頭 |
+| `#import "x.h"` | Objective-C | 同 `#include`，但同一個編譯單元只貼一次 | 自己的 `.h`、沒有模組化的第三方標頭 |
+| `@import Foundation;` | Clang modules（2013 起） | 載入預先編譯好的模組，順便自動連結框架 | 系統框架、模組化的第三方框架 |
+
+`#import "LBLedger.h"` 的雙引號表示先在專案裡找；`#import <UIKit/UIKit.h>` 的角括號表示到框架與系統路徑找。開了 modules 的專案（Xcode 預設）會把 `#import <Foundation/Foundation.h>` 自動當成 `@import Foundation;` 處理，所以兩種寫法你都會在同一個專案看到，不用改。你**不能** `@import` 自己 App 裡的類別：App target 不是模組，自己的檔案一律 `#import "..."`。
+
+<Tip title="為什麼 .h 裡 import 越少越好">
+`#import` 是文字貼上：`A.h` 引了 `B.h`，所有引 `A.h` 的 `.m` 都得重新處理 `B.h`。一個 `.h` 引十個標頭、被一百個 `.m` 引用，就是一千次處理。大型舊專案改一個標頭要等幾分鐘，多半是這個原因。`.h` 只 `#import` 父類別與要實作的協定，其他全部 `@class`。
+</Tip>
+
+### 一個類別一對檔案，檔名就是類別名
+
+Xcode 的搜尋、⌃⌘↑ 切換、⇧⌘O 快速開啟，全都假設「檔名 = 類別名」。延伸的慣例：分類（category）用 `NSArray+LBFunctional.h / .m`（5.3）；只給同模組看的私有標頭用 `LBLedger+Private.h` 或 `LBLedger_Private.h`；一個 `.m` 裡藏第二個小類別可以，但它就沒有 `.h`，外面用不到它，這是刻意的封裝。舊專案常見的 `Prefix.pch`（前置標頭）會自動 `#import` 進每個檔案，看到它就知道為什麼有些 `.m` 沒 import 任何東西也能用 UIKit。
+
+<Pitfall title=".h 裡 #import 一堆，最後繞成循環">
+<Fragment slot="bad">
+```objc
+// LBTransaction.h
+#import "LBCategory.h"      // 只為了 LBCategory *category
+#import "LBLedger.h"        // 只為了方法參數
+#import <UIKit/UIKit.h>     // 其實 Foundation 就夠
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+// LBTransaction.h
+@import Foundation;
+@class LBCategory, LBLedger;   // 可以一行宣告多個
+```
+</Fragment>
+`.h` 裡 `#import` 另一個自己的 `.h`，只在兩種情況下必要：繼承它（父類別的完整宣告不能用 `@class` 代替）、採用它宣告的協定或用到它的 `enum` / `struct`。其他情況一律 `@class`，否則兩個互相引用的標頭就會出現下面的崩潰現場。
+</Pitfall>
+
+<Pitfall title="#import 了 .m">
+<Fragment slot="bad">
+```objc
+#import "LBLedger.m"    // 自動完成選錯了，看起來也能編譯……
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+#import "LBLedger.h"
+```
+</Fragment>
+`.m` 被貼進另一個 `.m`，同一個類別的實作就編了兩份，到<Term en="linker" tw="連結器" cn="链接器" jp="リンカ" />那一步才爆：
+```text
+duplicate symbol '_OBJC_CLASS_$_LBLedger' in:
+    .../LBLedger.o
+    .../LBViewController.o
+ld: 2 duplicate symbols for architecture arm64
+clang: error: linker command failed with exit code 1
+```
+看到 `duplicate symbol` 加類別名，先搜整個專案有沒有 `#import "...m"`，其次才是「同名類別寫了兩次」或「同一個檔加進專案兩次」。
+</Pitfall>
+
+<Pitfall title="標頭檔裡的 C++ 害 .m 編不過">
+第三方 SDK 的 `.h` 裡出現 `#include <vector>` 或 `namespace`，任何 `#import` 它的 `.m` 都會得到 `'vector' file not found` 或 `Unknown type name 'namespace'`。兩個解法：把引用它的檔案改名成 `.mm`（會連鎖），或更好的做法是自己寫一層純 Objective-C 的包裝類別，`.h` 不含任何 C++，只有包裝的 `.mm` 碰 C++。另外 `.mm` 裡 `class`、`new`、`template` 變成 C++ 關鍵字，用它們當變數名的舊程式碼改名後會壞。
+</Pitfall>
+
+<Crash title="建置失敗現場" message={`In file included from LBCategory.m:1:
+In file included from ./LBCategory.h:2:
+./LBTransaction.h:7:31: error: unknown type name 'LBCategory'
+@property (nonatomic, strong) LBCategory *category;
+                              ^
+1 error generated.`}>
+`LBCategory.h` 第 2 行 `#import "LBTransaction.h"`，而 `LBTransaction.h` 又 `#import "LBCategory.h"`。編譯 `LBCategory.m` 時：先處理 `LBCategory.h` → 進入 `LBTransaction.h` → 想再進 `LBCategory.h`，但 `#import` 發現它「正在處理中」就跳過 → `LBTransaction.h` 用到 `LBCategory` 時，它的宣告還沒出現。讀法：從上往下的 `In file included from` 鏈告訴你引用路徑，最後一行才是真正出錯的地方。修法：兩個 `.h` 都改成 `@class`，`#import` 移到各自的 `.m`。若錯誤變成 `Cannot find interface declaration for 'LBCategory', superclass of 'LBSpecialCategory'`，表示那是繼承關係，父類別的 `.h` 必須 `#import`，循環要從別處切。
+</Crash>
+
+## 小結
+
+- `.h` 是公開合約，`.m` 是實作與私有；`.mm` 只在要混 C++ 時用。
+- `#include` 純貼上、`#import` 只貼一次、`@import` 載入模組；自己的檔案用 `#import "..."`，系統框架用 `@import`。
+- `.h` 裡用 `@class` / `@protocol` 前置宣告，`.m` 裡才 `#import`；只有父類別與協定例外。
+- 一個類別一對檔，檔名等於類別名；分類用 `類別+前綴名稱`。
+- `unknown type name` 多半是循環引用；`duplicate symbol` 多半是 `#import` 了 `.m`。

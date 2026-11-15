@@ -1,4 +1,16 @@
 ---
 import Base from '../../layouts/Base.astro';
+import Exercise from '../../components/exercises/Exercise';
+import { allExercises } from '../../lib/content';
+const all = await allExercises();
+const cards = all.filter(e => e.type === 'flash' && e.tier === 'interview');
+const main = cards.filter(e => e.chapter === '12.6');
+const others = cards.filter(e => e.chapter !== '12.6');
 ---
-<Base title="面試題" nav="cheatsheet" back={{ href: import.meta.env.BASE_URL + 'cheatsheet', label: '速查' }}><h1 class="text-2xl font-bold mb-3">面試題 20 題</h1><p class="muted">Phase 2（模組 12）上線，以速記卡形式呈現。</p></Base>
+<Base title="面試題" nav="cheatsheet" back={{ href: import.meta.env.BASE_URL + 'cheatsheet', label: '速查' }}>
+  <h1 class="text-2xl font-bold mb-1">面試題速記卡</h1>
+  <p class="muted text-sm mb-3">翻面看標準答案，自評「會了 / 還不熟」；不熟的會進首頁的今日複習。共 {cards.length} 張。</p>
+  {main.length === 0 && <div class="card p-4 muted">模組 12 的 20 題尚未上線。</div>}
+  {main.length > 0 && <section><h2 class="font-bold text-lg mb-1">上工必備 20 題（模組 12）</h2>{main.map((e, i) => <Exercise client:visible ex={e} index={i + 1} />)}</section>}
+  {others.length > 0 && <section class="mt-6"><h2 class="font-bold text-lg mb-1">各章的面試等級題（{others.length}）</h2>{others.map((e, i) => <Exercise client:visible ex={e} index={i + 1} />)}</section>}
+</Base>

@@ -1,7 +1,7 @@
 id: m07-7-6-code-1
 chapter: "7.6"
 type: code
-title: 寫完 fetchRatesForBase:completion:
+title: "寫完 fetchRatesForBase:completion:"
 mobile: false
 minutes: 12
 prompt: "補完 completionHandler 與最後一步。依序：`error` 非 nil → `deliver(nil, error)`；把 `response` 轉成 `NSHTTPURLResponse`，狀態碼不在 200–299 → 用 `LBErrorDomain` / `LBErrorCodeHTTPStatus` 建 NSError（`userInfo` 要有 `NSLocalizedDescriptionKey`）交給 `deliver`；都過了才呼叫 `+[LBRateService ratesFromJSONData:error:]` 解析並 `deliver`。`deliver` 已經寫好，它會切回主佇列。別忘了讓 task 開始。"

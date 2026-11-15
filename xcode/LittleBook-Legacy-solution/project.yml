@@ -1,0 +1,63 @@
+# XcodeGen 專案描述檔：在此資料夾執行 `xcodegen generate` 產生 LittleBookLegacy.xcodeproj
+# 之後再 `pod install`，從此開 LittleBookLegacy.xcworkspace（見 README.md）
+#
+# 這是 M11 的「老派版」小帳本：整個專案 MRC、Storyboard 啟動、.pch、靜態庫、CocoaPods。
+name: LittleBookLegacy
+options:
+  bundleIdPrefix: com.littlebook
+  deploymentTarget:
+    iOS: "12.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    # 整個專案都是手動參考計數（MRC）：retain / release / autorelease 自己來
+    CLANG_ENABLE_OBJC_ARC: NO
+    CLANG_ENABLE_OBJC_WEAK: NO
+    CLANG_ENABLE_MODULES: YES
+    GCC_WARN_UNDECLARED_SELECTOR: YES
+    # 若 Xcode 抱怨 signing，取消下一行註解並填入你的 Team ID（模擬器通常不需要）
+    # DEVELOPMENT_TEAM: ABCDE12345
+targets:
+  LBLegacyKit:
+    # 2013 年從另一個專案搬過來的共用小工具，編成靜態庫 libLBLegacyKit.a
+    type: library.static
+    platform: iOS
+    sources:
+      - path: LBLegacyKit
+        headerVisibility: project
+    settings:
+      base:
+        PRODUCT_NAME: LBLegacyKit
+        SKIP_INSTALL: YES
+  LittleBookLegacy:
+    type: application
+    platform: iOS
+    sources:
+      - path: LittleBookLegacy
+        excludes:
+          - "Info.plist"
+    dependencies:
+      - target: LBLegacyKit
+    info:
+      path: LittleBookLegacy/Info.plist
+      properties:
+        CFBundleDisplayName: 小帳本老派版
+        UIMainStoryboardFile: Main
+        UILaunchStoryboardName: LaunchScreen
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        # 匯率 API：GET {LBLegacyRateBaseURL}/TWD → {"rates":{"USD":0.0312,...}}
+        LBLegacyRateBaseURL: https://open.er-api.com/v6/latest
+        # 沒有 UIApplicationSceneManifest：老派的 AppDelegate + window，不用 SceneDelegate
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1"
+        GCC_PREFIX_HEADER: LittleBookLegacy/LittleBookLegacy-Prefix.pch
+        GCC_PRECOMPILE_PREFIX_HEADER: YES
+        HEADER_SEARCH_PATHS:
+          - "$(inherited)"
+          - "$(SRCROOT)/LBLegacyKit"
+        OTHER_LDFLAGS:
+          - "$(inherited)"
+          - "-ObjC"   # 雷 5：靜態庫裡只有 category 的 .o 也要拉進來

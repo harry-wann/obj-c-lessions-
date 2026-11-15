@@ -4,3 +4,5 @@ site/.astro/
 .DS_Store
 xcode/**/*.xcodeproj/
 xcode/**/DerivedData/
+xcode/**/*.xcworkspace/
+xcode/**/Pods/

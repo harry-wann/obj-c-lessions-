@@ -1,0 +1,33 @@
+id: m07-7-7-crash-2
+chapter: "7.7"
+type: crash
+title: "-[NSNull length]: unrecognized selector"
+minutes: 3
+prompt: "`rateWithJSON:` 裡有一行 `if (code.length == 0) return nil;`，作者以為這樣已經擋掉缺欄位。某天收到這段 crash。原因是？"
+log: |
+  *** Terminating app due to uncaught exception 'NSInvalidArgumentException', reason: '-[NSNull length]: unrecognized selector sent to instance 0x1f2a4c8e0'
+  *** First throw call stack:
+  (
+      0   CoreFoundation    __exceptionPreprocess + 164
+      1   libobjc.A.dylib   objc_exception_throw + 60
+      2   CoreFoundation    -[NSObject(NSObject) doesNotRecognizeSelector:] + 136
+      3   CoreFoundation    ___forwarding___ + 1324
+      4   CoreFoundation    _CF_forwarding_prep_0 + 96
+      5   LittleBook        +[LBRate rateWithJSON:] + 88
+      6   LittleBook        +[LBRateService ratesFromJSONData:error:] + 276
+  )
+options:
+  - "伺服器送了 \"code\": null，取出來是 NSNull 物件不是 nil；code.length 只對 nil 安全，對 NSNull 會 crash"
+  - "code 是 nil，對 nil 送 length 會 crash"
+  - "NSJSONSerialization 要加 NSJSONReadingMutableContainers 才會把 null 轉成 nil"
+  - 應該用 [code valueForKey:@"length"] 取代 code.length
+answer: 0
+fix: |
+  NSString *code = json[@"code"];
+  if (![code isKindOfClass:[NSString class]] || code.length == 0) return nil;
+solution_note: "缺欄位（nil）時 `code.length` 回 0，所以作者測不出問題；值是 null 時拿到 NSNull 單例，對它送 length 就是這段 crash。先 isKindOfClass: 再看 length，一句同時擋 nil、NSNull、數字與陣列。`||` 會短路，左邊為真就不會執行右邊的 length。"
+hints: ["JSON 的 null 解析後是什麼？", "對 nil 送 length 會怎樣？對 NSNull 呢？"]
+feedback:
+  "1": 對 nil 送訊息安全，會回 0。這個 crash 的物件是 NSNull。
+  "2": 沒有任何選項會把 null 轉成 nil，NSNull 一定要自己處理。
+  "3": KVC 一樣會對 NSNull 送訊息，而且更慢；解法是型別檢查。

@@ -195,7 +195,7 @@ typedef NS_ERROR_ENUM(LBErrorDomain, LBErrorCode) { LBErrorCodeMalformedJSON = 1
 // Podfile：Masonry（編輯頁改寫一次）；use_frameworks! 不用（靜態）
 // LittleBook-Legacy/：獨立專案（MRC、全 Storyboard、NSURLConnection、UIAlertView、CocoaPods），埋雷 6 處：
 //   1 LBLegacyTransaction over-release（dealloc 多 release）2 setter 漏 release 洩漏 3 LBLegacyListViewController 一條 IBOutlet 斷線
-//   4 segue identifier 打錯 5 category 在靜態庫未加 -ObjC 6 NSURLConnection delegate 未在 dealloc 取消
+//   4 segue identifier 打錯 5 category 在靜態庫未加 -ObjC 6 NSURLConnection delegate 未在 dealloc 取消（類別名以課文為準：LBLegacyRateService、NSString+LBUtils、LBLegacyLedgerManager；詳見 LittleBook-Legacy/SOLUTIONS.md）
 // LegacyAudit.plist：6 個 BOOL 勾選；LBLegacyAuditTests 讀它（學生修完後手動勾）
 
 // M12 ----------------------------------------------------------------

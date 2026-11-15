@@ -1,0 +1,77 @@
+id: m07-7-7-advanced-1
+chapter: "7.7"
+type: code
+tier: advanced
+title: 進階：用二元堆積排程預算提醒
+mobile: false
+minutes: 15
+prompt: "補完最小堆積 `LBBinaryHeap` 的 `insert:` 與 `extract`。`_compare(a, b)` 回 `NSOrderedAscending` 代表 a 該排在前面（例如 fireDate 較早）。`insert:` 放到尾端往上浮（父節點 `(i - 1) / 2`）；`extract` 拿走頂端、把最後一個搬到頂端往下沉（子節點 `2 * i + 1` 與 `2 * i + 2`）。兩者都要 O(log n)：不准整個陣列重新排序。"
+starter: |
+  @implementation LBBinaryHeap {
+      NSMutableArray *_items;
+      NSComparator _compare;
+  }
+  - (void)insert:(id)obj {
+
+  }
+  - (nullable id)extract {
+
+  }
+  @end
+checks:
+  - must_match: '\[\s*_items\s+addObject\s*:\s*obj\s*\]'
+    message: insert 先把 obj 加到尾端
+  - must_match: '\(\s*\w+\s*-\s*1\s*\)\s*/\s*2'
+    message: 父節點索引是 (i - 1) / 2
+  - must_match: 'while\s*\(\s*\w+\s*>\s*0\s*\)'
+    message: 上浮迴圈：while (i > 0)
+  - must_match: '2\s*\*\s*\w+\s*\+\s*1'
+    message: 左子節點索引是 2 * i + 1
+  - must_match: 'exchangeObjectAtIndex\s*:\s*\w+\s+withObjectAtIndex\s*:'
+    message: "用 exchangeObjectAtIndex:withObjectAtIndex: 交換"
+  - must_match: '_compare\s*\('
+    message: 用 _compare 比較，不要寫死欄位
+  - must_match: 'if\s*\(\s*_items\.count\s*==\s*0\s*\)\s*(\{\s*)?return\s+nil|if\s*\(\s*!\s*_items\.count\s*\)\s*(\{\s*)?return\s+nil'
+    message: extract 時堆積是空的要回 nil
+  - must_match: 'removeLastObject'
+    message: extract 用 removeLastObject 拿掉尾端（O(1)），再把它放到頂端
+  - must_not_match: 'sortUsing|sortedArrayUsing|removeObjectAtIndex\s*:\s*0|insertObject\s*:'
+    message: 不要排序整個陣列、不要刪頭或插入（都是 O(n) 以上）
+  - brackets_balanced: true
+solution: |
+  @implementation LBBinaryHeap {
+      NSMutableArray *_items;
+      NSComparator _compare;
+  }
+  - (void)insert:(id)obj {
+      [_items addObject:obj];
+      NSUInteger i = _items.count - 1;
+      while (i > 0) {                                        // 上浮
+          NSUInteger parent = (i - 1) / 2;
+          if (_compare(_items[i], _items[parent]) != NSOrderedAscending) break;
+          [_items exchangeObjectAtIndex:i withObjectAtIndex:parent];
+          i = parent;
+      }
+  }
+  - (nullable id)extract {
+      if (_items.count == 0) return nil;
+      id top = _items.firstObject;
+      id last = _items.lastObject;
+      [_items removeLastObject];
+      if (_items.count > 0) {
+          _items[0] = last;
+          NSUInteger i = 0, n = _items.count;
+          while (YES) {                                      // 下沉
+              NSUInteger l = 2 * i + 1, r = l + 1, best = i;
+              if (l < n && _compare(_items[l], _items[best]) == NSOrderedAscending) best = l;
+              if (r < n && _compare(_items[r], _items[best]) == NSOrderedAscending) best = r;
+              if (best == i) break;
+              [_items exchangeObjectAtIndex:i withObjectAtIndex:best];
+              i = best;
+          }
+      }
+      return top;
+  }
+  @end
+solution_note: "樹高是 log n，上浮與下沉最多走一條從根到葉的路徑。extract 不能用 removeObjectAtIndex:0（O(n) 而且整棵樹的父子關係全亂），而是把尾端搬到頂端再下沉。下沉時要跟「兩個子節點中較小的」交換，否則換上去的那個可能比另一個子節點大。排程用法：comparator 比 `[a.fireDate compare:b.fireDate]`，每次 extract 就是下一個要發的提醒。"
+hints: ["insert：addObject: 之後 i = count - 1，跟父節點比，比較小就交換。", "extract：先存頂端，removeLastObject 拿到最後一個，放到索引 0。", "下沉：在 i、2i+1、2i+2 三個裡找最小的，不是 i 就交換繼續。"]

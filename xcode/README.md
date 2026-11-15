@@ -28,6 +28,8 @@ open LittleBook.xcodeproj        # 選一台 iOS 17 模擬器
 | `Scratch/` | macOS Command Line Tool（Objective-C）草稿本。Playground 不支援 ObjC，用它試語法 |
 | `M01-starter/` … `M05-starter/` | 起始專案：含前面里程碑的完成程式碼 ＋ 本里程碑的空殼（`// TODO: M0X`）＋ 已寫好、目前會失敗的測試 |
 | `M01-solution/` … `M05-solution/` | 解答專案：全部實作完成，所有測試應通過 |
+| `LittleBook-Legacy/` | M11 老派版：MRC + Storyboard + NSURLConnection + CocoaPods，埋雷 6 處（見其 README） |
+| `LittleBook-Legacy-solution/` | 六雷修好的版本，由 `scripts/assemble-legacy.sh` 產生 |
 | `src/`、`scripts/assemble.sh` | 上面 10 個資料夾的來源與組裝腳本（見下） |
 
 M00 沒有專案：0.2 用 `Scratch` 與 `M01-starter` 的空 App 即可。

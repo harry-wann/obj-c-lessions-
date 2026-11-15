@@ -1,0 +1,39 @@
+id: m07-7-7-crash-1
+chapter: "7.7"
+type: crash
+title: "-[__NSCFNumber length]: unrecognized selector"
+minutes: 3
+prompt: 後端更新後，App 一開匯率頁就閃退。原因是？
+log: |
+  *** Terminating app due to uncaught exception 'NSInvalidArgumentException', reason: '-[__NSCFNumber length]: unrecognized selector sent to instance 0x8f3c2a1b4d5e6071'
+  *** First throw call stack:
+  (
+      0   CoreFoundation    __exceptionPreprocess + 164
+      1   libobjc.A.dylib   objc_exception_throw + 60
+      2   CoreFoundation    -[NSObject(NSObject) doesNotRecognizeSelector:] + 136
+      3   CoreFoundation    ___forwarding___ + 1324
+      4   CoreFoundation    _CF_forwarding_prep_0 + 96
+      5   Foundation        -[NSDecimalNumber initWithString:locale:] + 48
+      6   LittleBook        +[LBRate rateWithJSON:] + 132
+      7   LittleBook        +[LBRateService ratesFromJSONData:error:] + 276
+  )
+options:
+  - "rate 欄位原本是字串 \"31.25\"，後端改成數字 31.25；程式用 NSString * 接、丟進 decimalNumberWithString:，它對 NSNumber 送了 length"
+  - NSDecimalNumber 的 bug，換成 NSNumber 就好
+  - "後端回的 JSON 格式壞了，應該在 ratesFromJSONData:error: 外面包 @try"
+  - 記憶體被提前釋放，開 Zombie Objects 就能看到
+answer: 0
+fix: |
+  id raw = json[@"rate"];
+  NSDecimalNumber *rate = nil;
+  if ([raw isKindOfClass:[NSNumber class]]) {
+      rate = [NSDecimalNumber decimalNumberWithDecimal:[raw decimalValue]];
+  } else if ([raw isKindOfClass:[NSString class]]) {
+      rate = [NSDecimalNumber decimalNumberWithString:raw];
+  }
+solution_note: "讀法：`-[__NSCFNumber length]` 說物件是 NSNumber（JSON 的數字）、被當成 NSString 用了（length）。frame 5 是 Foundation 內部，往下第一個自己的 frame（`+[LBRate rateWithJSON:]`）就是沒做型別檢查的地方。宣告成 `NSString *` 只是對編譯器的承諾，不會轉換也不會檢查。後端改型別不會通知你，所以一律用 id 接、isKindOfClass: 分流。"
+hints: ["__NSCFNumber 是哪個公開類別的私有子類別？", "length 是誰的方法？", "第一個 LittleBook 的 frame 是哪一個？"]
+feedback:
+  "1": crash 的是對 NSNumber 送 length，跟 NSDecimalNumber 本身無關。
+  "2": "JSON 本身是合法的，NSJSONSerialization 解析成功了；而且 7.2 說過 unrecognized selector 是程式錯誤，不該接住。"
+  "3": "Zombie 的訊息是 message sent to deallocated instance；這裡的物件活得好好的，只是型別不對。"

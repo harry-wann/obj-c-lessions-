@@ -16,5 +16,5 @@ answer: [0, 1, 3]
 explain: 最外層可能是陣列，合法 JSON 也可能不是你要的形狀；輸出只接受 NSDictionary / NSArray / NSString / NSNumber / NSNull，塞 NSDate 會 raise；要可變集合得傳 NSJSONReadingMutableContainers。
 hints: ["合法 JSON 一定是字典嗎？", "輸出時接受哪五種類別？"]
 feedback:
-  "2": 會 raise NSInvalidArgumentException。日期先轉 ISO 8601 字串，輸出前用 isValidJSONObject: 檢查。
+  "2": "會 raise NSInvalidArgumentException。日期先轉 ISO 8601 字串，輸出前用 isValidJSONObject: 檢查。"
   "4": 預設是不可變的，要可變要加 NSJSONReadingMutableContainers 選項。

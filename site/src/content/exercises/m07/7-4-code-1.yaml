@@ -15,7 +15,7 @@ checks:
   - must_match: '__weak\s+[^;]*\b(\w+)\s*=\s*op\s*;'
     message: 先宣告一個指向 op 的 __weak 變數
   - must_match: 'addExecutionBlock\s*:\s*\^'
-    message: 用 addExecutionBlock: 加入 block
+    message: "用 addExecutionBlock: 加入 block"
   - must_match: 'for\s*\([^)]*\bin\s+rows\s*\)\s*\{\s*if\s*\(\s*(\w+\.isCancelled|\[\s*\w+\s+isCancelled\s*\])\s*\)\s*(return\s*;|\{\s*return\s*;\s*\})'
     message: 迴圈每一圈的第一件事就是檢查 isCancelled，取消就 return
   - must_not_match: '\bop\.isCancelled|\[\s*op\s+isCancelled\s*\]'

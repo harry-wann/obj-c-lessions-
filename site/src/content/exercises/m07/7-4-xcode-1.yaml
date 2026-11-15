@@ -4,7 +4,7 @@ type: xcode
 title: 實作 LBSyncQueue 離線待同步佇列
 mobile: false
 minutes: 30
-prompt: 完成 LBSyncQueue：離線時的操作排成 FIFO，一個做完才做下一個；flushWithCompletion: 等全部完成後在主佇列回呼。
+prompt: "完成 LBSyncQueue：離線時的操作排成 FIFO，一個做完才做下一個；flushWithCompletion: 等全部完成後在主佇列回呼。"
 starter: xcode/M07-starter
 steps:
   - "打開 `LBSyncQueue.h`，介面固定：`enqueueTask:`（task 收到一個 `done` block，做完時呼叫）、`flushWithCompletion:`、readonly `pendingCount`。"

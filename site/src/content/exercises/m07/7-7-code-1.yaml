@@ -1,0 +1,70 @@
+id: m07-7-7-code-1
+chapter: "7.7"
+type: code
+title: 把不安全的 JSON 解析改成防禦版
+mobile: false
+minutes: 12
+prompt: "starter 的 `+[LBRate rateWithJSON:]` 是照著「伺服器文件」寫的，遇到註解裡那四筆真實資料會 crash 或算錯。改寫成防禦版：`json` 不是字典回 nil；`code` 必須是非空 `NSString`；`rate` 接受 `NSNumber`（走 `decimalValue`）或字串（`decimalNumberWithString:`，結果是 `notANumber` 要當失敗），其他都回 nil；`updated_at` 是可選欄位，只有是字串才交給 formatter，否則當 nil。不准用 `@try`，不准經過 `doubleValue`。"
+starter: |
+  // 伺服器實際回過的資料：
+  // {"code": "USD", "rate": 0.031, "updated_at": "2024-05-01T08:30:00Z"}
+  // {"code": "JPY", "rate": "4.85", "updated_at": null}
+  // {"code": null, "rate": 0.029}
+  // {"code": "EUR", "rate": [1, 2]}
+  + (nullable instancetype)rateWithJSON:(NSDictionary *)json {
+      NSString *code = json[@"code"];
+      NSString *rateText = json[@"rate"];
+      NSDecimalNumber *rate = [NSDecimalNumber decimalNumberWithString:rateText];
+      NSDate *updatedAt = [[self iso8601Formatter] dateFromString:json[@"updated_at"]];
+      return [[self alloc] initWithCode:code rate:rate updatedAt:updatedAt];
+  }
+checks:
+  - must_match: 'if\s*\(\s*!\s*\[\s*json\s+isKindOfClass\s*:\s*\[\s*NSDictionary\s+class\s*\]\s*\]\s*\)'
+    message: 第一步：json 不是 NSDictionary 就回 nil
+  - must_match: 'isKindOfClass\s*:\s*\[\s*NSString\s+class\s*\]\s*\]\s*\|\|\s*(\w+\.length\s*==\s*0|\[\s*\w+\s+length\s*\]\s*==\s*0)'
+    message: code 要檢查是 NSString 而且 length 不為 0
+  - must_match: 'isKindOfClass\s*:\s*\[\s*NSNumber\s+class\s*\]'
+    message: rate 是 NSNumber 的分支
+  - must_match: 'decimalNumberWithDecimal\s*:\s*\[\s*\w+\s+decimalValue\s*\]'
+    message: NSNumber 用 decimalNumberWithDecimal:[raw decimalValue] 轉
+  - must_match: 'notANumber'
+    message: 字串解析失敗會得到 notANumber，要當成失敗
+  - must_match: '(isKindOfClass\s*:\s*\[\s*NSString\s+class\s*\][\s\S]*){3}'
+    message: code、rate 的字串分支、updated_at 三處都要檢查是不是 NSString
+  - must_match: 'return\s+nil\s*;'
+    message: 不合格時回 nil
+  - must_not_match: 'NSString\s*\*\s*\w+\s*=\s*json\s*\[\s*@"rate"\s*\]'
+    message: rate 不能用 NSString * 接，用 id 接再分流
+  - must_not_match: 'dateFromString\s*:\s*json\s*\['
+    message: updated_at 要先確認是字串，不能直接丟進 formatter
+  - must_not_match: 'doubleValue|initWithDouble|numberWithDouble'
+    message: 金額不要經過 double
+  - must_not_match: '@try|@catch'
+    message: 用型別檢查，不要用例外
+  - brackets_balanced: true
+solution: |
+  + (nullable instancetype)rateWithJSON:(NSDictionary *)json {
+      if (![json isKindOfClass:[NSDictionary class]]) return nil;
+
+      NSString *code = json[@"code"];
+      if (![code isKindOfClass:[NSString class]] || code.length == 0) return nil;
+
+      id rawRate = json[@"rate"];
+      NSDecimalNumber *rate = nil;
+      if ([rawRate isKindOfClass:[NSNumber class]]) {
+          rate = [NSDecimalNumber decimalNumberWithDecimal:[rawRate decimalValue]];
+      } else if ([rawRate isKindOfClass:[NSString class]]) {
+          rate = [NSDecimalNumber decimalNumberWithString:rawRate];
+          if ([rate isEqual:[NSDecimalNumber notANumber]]) rate = nil;
+      }
+      if (rate == nil) return nil;
+
+      NSDate *updatedAt = nil;
+      id rawDate = json[@"updated_at"];
+      if ([rawDate isKindOfClass:[NSString class]]) {
+          updatedAt = [[self iso8601Formatter] dateFromString:rawDate];
+      }
+      return [[self alloc] initWithCode:code rate:rate updatedAt:updatedAt];
+  }
+solution_note: "對照四筆資料：USD 正常；JPY 的 rate 是字串、updated_at 是 null，原版 dateFromString:NSNull 會 crash，新版當 nil；第三筆 code 是 null，原版會建出 code 為 NSNull 的物件，之後某處 -[NSNull length]；EUR 的 rate 是陣列，原版 -[__NSArrayI length]。注意 `code.length == 0` 放在 `||` 右邊：左邊確認是字串之後才會執行，NSNull 不會走到 length。"
+hints: ["四件事：型別不對、NSNull、數字給字串、缺欄位。isKindOfClass: 對 nil 回 NO。", "rate 用 id 接，NSNumber 與 NSString 兩個分支。", "updated_at 是可選的：不是字串就當 nil，不讓整筆失敗。"]

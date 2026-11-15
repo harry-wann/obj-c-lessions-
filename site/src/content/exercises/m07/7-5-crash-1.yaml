@@ -13,7 +13,7 @@ log: |
   6   Foundation    -[NSBlockOperation main] + 104
   7   Foundation    __NSOPERATION_IS_INVOKING_MAIN__ + 20
 options:
-  - 在 importFinished: 的 block 裡，把 reloadData 包進 dispatch_async(dispatch_get_main_queue(), ...) 或 [[NSOperationQueue mainQueue] addOperationWithBlock:]
+  - "在 importFinished: 的 block 裡，把 reloadData 包進 dispatch_async(dispatch_get_main_queue(), ...) 或 [[NSOperationQueue mainQueue] addOperationWithBlock:]"
   - 到 Scheme → Diagnostics 把 Main Thread Checker 關掉
   - 把匯入的 NSOperationQueue 的 maxConcurrentOperationCount 設成 1
   - 用 @synchronized (self.tableView) 包住 reloadData

@@ -1,0 +1,29 @@
+//
+//  LittleBookLegacy-Prefix.pch
+//  LittleBookLegacy
+//
+//  Prefix header for all source files of the 'LittleBookLegacy' target
+//
+
+#import <Availability.h>
+
+#ifndef __IPHONE_5_0
+#warning "This project uses features only available in iOS SDK 5.0 and later."
+#endif
+
+#ifdef __OBJC__
+    #import <UIKit/UIKit.h>
+    #import <Foundation/Foundation.h>
+    // 下面這行讓全專案「隱含」看得到 lb_ 系列方法（來自 LBLegacyKit 靜態庫）
+    #import "NSString+LBUtils.h"
+    // #import <AFNetworking/AFNetworking.h>   // 2016：改用 AF 的計畫做到一半
+
+    #define LBColorPrimary [UIColor colorWithRed:0.2 green:0.5 blue:0.9 alpha:1.0]
+    #define kLBRateBaseURLKey @"LBLegacyRateBaseURL"
+
+    #ifdef DEBUG
+        #define DLog(fmt, ...) NSLog((@"%s " fmt), __PRETTY_FUNCTION__, ##__VA_ARGS__)
+    #else
+        #define DLog(...)
+    #endif
+#endif

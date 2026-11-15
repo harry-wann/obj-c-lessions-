@@ -23,7 +23,7 @@ bug_lines: [9, 10, 11]
 reasons:
   - "NSURLSession 的回呼在背景的 delegate queue 上；第 10、11 行碰了 UIKit，第 9 行改了 table 資料源讀的屬性，三行都要包進 dispatch_async(dispatch_get_main_queue(), ...)"
   - 第 8 行解析 JSON 也必須回主執行緒做
-  - 第 13 行的 resume 應該寫在 dataTaskWithURL: 之前
+  - "第 13 行的 resume 應該寫在 dataTaskWithURL: 之前"
   - "第 7 行應該改成 if (!data) return;"
 answer_reason: 0
 fix: |

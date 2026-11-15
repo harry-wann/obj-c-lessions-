@@ -1,0 +1,26 @@
+id: m07-7-7-xcode-1
+chapter: "7.7"
+type: xcode
+title: "完成 ratesFromJSONData:error: 與 LBRate"
+mobile: false
+minutes: 30
+prompt: 把匯率 JSON 解析成 NSDecimalNumber 字典，壞資料回 NSError 不 crash；再加上防禦式的 +[LBRate rateWithJSON:]。
+starter: xcode/M07-starter
+steps:
+  - "打開 `LittleBookTests/Fixtures/rates.json`（stub 檔），看清楚形狀：`{\"base\": \"TWD\", \"date\": \"...\", \"rates\": {\"USD\": 0.031, ...}}`。"
+  - "`+[LBRateService ratesFromJSONData:error:]`：`JSONObjectWithData:` 後先 `isKindOfClass:[NSDictionary class]`，不是就 `LBErrorCodeMalformedJSON`（把 JSON 錯誤放進 `NSUnderlyingErrorKey`）。"
+  - "取 `root[@\"rates\"]`，不是字典就 `LBErrorCodeUnexpectedType`。"
+  - "逐一走訪 rates：值不是 `NSNumber` 就整批失敗（`LBErrorCodeUnexpectedType`，訊息帶幣別代碼）；是的話用 `decimalNumberWithDecimal:[raw decimalValue]` 轉，不經過 double。回傳 `[result copy]`。"
+  - "寫一個 `static void LBSetError(NSError **error, LBErrorCode code, NSString *desc, NSError *underlying)` 小函式，裡面先 `if (!error) return;`，三個失敗分支共用。"
+  - "`LBRate.m` 實作 `+rateWithJSON:`：四件事（型別、NSNull、數字給字串、缺欄位）都回 nil；`updated_at` 用 `dispatch_once` 共用的 `NSISO8601DateFormatter`。"
+  - "⌘U 跑三個解析測試，再跑一次 7.6 的 testCompletionCalledOnMainQueue，確認 stub 的 JSON 走完整條流程。"
+tests:
+  - LBRateServiceTests/testParsesRatesFromStubJSON
+  - LBRateServiceTests/testReportsErrorOnMalformedJSON
+  - LBRateServiceTests/testReportsErrorWhenRateIsNotNumber
+acceptance:
+  - "testParsesRatesFromStubJSON：`rates[@\"USD\"]` 是 NSDecimalNumber，`stringValue` 等於 `0.031`，沒有 double 尾數。"
+  - "testReportsErrorOnMalformedJSON：餵 `{rates: oops}` 與 `[1, 2]` 兩種，都回 nil，error.domain 是 LBErrorDomain、code 是 LBErrorCodeMalformedJSON。"
+  - "testReportsErrorWhenRateIsNotNumber：`\"USD\": \"abc\"` 與 `\"USD\": null` 都回 LBErrorCodeUnexpectedType，而且不 crash。"
+  - 呼叫端傳 error:NULL 時也不 crash（LBSetError 先檢查指標）。
+solution_note: "這個方法是純函式，不碰網路、不碰執行緒，所以三個測試直接餵 NSData 就好。嚴格策略（一筆壞整批失敗）是產品決策，測試要的是嚴格版；LBRate 的可選欄位則採寬鬆策略。兩種策略並存很常見，重點是有意識地選。"

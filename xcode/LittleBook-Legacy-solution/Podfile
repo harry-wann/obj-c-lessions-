@@ -1,0 +1,12 @@
+# Podfile（CocoaPods）—— 先 `xcodegen generate` 再 `pod install`，之後一律開 .xcworkspace
+# 每次重跑 xcodegen generate 都會蓋掉 CocoaPods 對 .xcodeproj 的修改，要再 pod install 一次
+platform :ios, '12.0'
+
+project 'LittleBookLegacy.xcodeproj'
+
+# 純 ObjC 專案不加 use_frameworks!：pod 都編成靜態庫
+target 'LittleBookLegacy' do
+  pod 'AFNetworking', '~> 4.0'
+  pod 'Masonry'
+  pod 'SDWebImage'
+end

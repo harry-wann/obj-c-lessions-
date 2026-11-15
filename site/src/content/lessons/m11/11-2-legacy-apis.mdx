@@ -166,12 +166,14 @@ dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
     [self.delegate rateService:self didFailWithError:error];
 }
 - (void)dealloc {
-    [_connection cancel];          // 埋雷 6：少了這行會回呼到死掉的 self
+    [_connection cancel];          // 埋雷 6 的一半
     [_connection release];
     [_buffer release];
     [super dealloc];
 }
 ```
+
+埋雷 6 其實有兩半。`NSURLConnection` 會 retain 它的 delegate，所以請求還在跑時 service 根本不會 dealloc；真正先死掉的是 service 那個 `assign` 的 delegate，也就是已經被 pop 掉的明細頁。所以明細頁的 `dealloc` 也要寫 `_rateService.delegate = nil; [_rateService cancel];`，兩邊都補才算修好（詳見 `LittleBook-Legacy/SOLUTIONS.md`）。
 
 新版用 `NSURLSession` 的 data task，整個回應一次交到 block 裡；回呼預設在**背景佇列**，要自己切回主佇列（M07 的 `testCompletionCalledOnMainQueue` 就是測這個）：
 

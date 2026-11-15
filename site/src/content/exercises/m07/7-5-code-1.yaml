@@ -44,7 +44,7 @@ checks:
   - must_not_match: 'DISPATCH_QUEUE_SERIAL'
     message: 不再需要串列佇列
   - must_match: 'dispatch_barrier_async\s*\(\s*(self->)?_queue\s*,\s*\^\s*\{[^}]*addObject\s*:\s*tx'
-    message: addTransaction: 用 dispatch_barrier_async 寫入
+    message: "addTransaction: 用 dispatch_barrier_async 寫入"
   - must_match: 'dispatch_barrier_async\s*\(\s*(self->)?_queue\s*,\s*\^\s*\{[^}]*removeAllObjects'
     message: removeAllTransactions 也要用 dispatch_barrier_async
   - must_match: 'dispatch_sync\s*\(\s*(self->)?_queue\s*,\s*\^\s*\{[^}]*copy'

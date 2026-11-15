@@ -14,6 +14,6 @@ answer: 1
 explain: atomic 只保護「存取屬性那一下」。拿到陣列之後對陣列做的事、讀改寫、先檢查再動作，都是兩次以上的存取，中間都能被插隊。所以實務上屬性幾乎都寫 nonatomic，用佇列或鎖保護整個操作。
 hints: ["atomic 保護的是屬性存取，還是屬性指向的物件？", "self.count = self.count + 1 呼叫了幾次存取方法？"]
 feedback:
-  "0": getter 是原子的，但拿到 NSMutableArray 之後的 addObject: 不在保護範圍，可變集合本身不是執行緒安全的。
+  "0": "getter 是原子的，但拿到 NSMutableArray 之後的 addObject: 不在保護範圍，可變集合本身不是執行緒安全的。"
   "2": 這是一次 getter 加一次 setter，中間可以被另一條執行緒插隊，兩次加一可能只加了一。
   "3": 檢查與動作是兩步，中間陣列可能已經被清空。

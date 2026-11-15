@@ -26,7 +26,7 @@ checks:
   - must_match: 'dispatch_group_t\s+\w+\s*=\s*dispatch_group_create\s*\(\s*\)'
     message: 先用 dispatch_group_create() 建一個 group
   - must_match: 'dispatch_group_enter\s*\(\s*\w+\s*\)\s*;\s*\[\s*self\.fetcher\s+fetchRate'
-    message: 每次呼叫 fetchRate:completion: 之前先 dispatch_group_enter
+    message: "每次呼叫 fetchRate:completion: 之前先 dispatch_group_enter"
   - must_match: 'if\s*\(\s*error\s*\)\s*\{[^}]*dispatch_group_leave\s*\([^)]*\)\s*;\s*return\s*;'
     message: error 分支在 return 之前也要 dispatch_group_leave
   - must_match: 'rates\s*\[\s*code\s*\]\s*=\s*rate\s*;\s*\}\s*\)\s*;\s*dispatch_group_leave'

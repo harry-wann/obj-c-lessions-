@@ -31,42 +31,19 @@
 - (LBLinkedListNode *)appendObject:(id)object {
     NSParameterAssert(object != nil);
     LBLinkedListNode *node = [[LBLinkedListNode alloc] initWithObject:object];
-    [self linkNodeAtBack:node];
-    return node;
-}
-
-- (LBLinkedListNode *)prependObject:(id)object {
-    NSParameterAssert(object != nil);
-    LBLinkedListNode *node = [[LBLinkedListNode alloc] initWithObject:object];
-    [self linkNodeAtFront:node];
-    return node;
-}
-
-- (void)linkNodeAtBack:(LBLinkedListNode *)node {
     if (_tail == nil) {
-        _head = node;
+        _head = node;           // 空串列：頭尾都是它
         _tail = node;
     } else {
-        node.prev = _tail;
-        _tail.next = node;
+        node.prev = _tail;      // weak：不會多一個強參考
+        _tail.next = node;      // strong：串列真正「持有」節點的路徑
         _tail = node;
     }
     _count += 1;
+    return node;
 }
 
-- (void)linkNodeAtFront:(LBLinkedListNode *)node {
-    if (_head == nil) {
-        _head = node;
-        _tail = node;
-    } else {
-        node.next = _head;
-        _head.prev = node;
-        _head = node;
-    }
-    _count += 1;
-}
-
-#pragma mark - 移除與搬移
+#pragma mark - 移除
 
 - (void)removeNode:(LBLinkedListNode *)node {
     NSParameterAssert(node != nil);
@@ -86,15 +63,6 @@
     node.prev = nil;
     node.next = nil;
     _count -= 1;
-}
-
-- (void)moveNodeToFront:(LBLinkedListNode *)node {
-    NSParameterAssert(node != nil);
-    if (node == _head) {
-        return;
-    }
-    [self removeNode:node];
-    [self linkNodeAtFront:node];
 }
 
 #pragma mark - 列舉

@@ -17,15 +17,16 @@
     XCTAssertTrue(list.head == a && list.tail == a, @"只有一個節點時頭尾相同");
 
     LBLinkedListNode *b = [list appendObject:@"b"];
-    LBLinkedListNode *c = [list prependObject:@"c"];
+    LBLinkedListNode *c = [list appendObject:@"c"];
     XCTAssertEqual(list.count, (NSUInteger)3);
-    XCTAssertTrue(list.head == c);
-    XCTAssertTrue(list.tail == b);
-    XCTAssertTrue(c.next == a && a.next == b);
-    XCTAssertTrue(b.prev == a && a.prev == c);
-    XCTAssertNil(c.prev);
-    XCTAssertNil(b.next);
+    XCTAssertTrue(list.head == a);
+    XCTAssertTrue(list.tail == c);
+    XCTAssertTrue(a.next == b && b.next == c);
+    XCTAssertTrue(c.prev == b && b.prev == a);
+    XCTAssertNil(a.prev);
+    XCTAssertNil(c.next);
     XCTAssertEqualObjects(a.object, @"a");
+    XCTAssertEqualObjects(c.object, @"c");
 }
 
 - (void)testRemoveNode {
@@ -49,11 +50,12 @@
     XCTAssertNil(list.head);
     XCTAssertNil(list.tail);
 
-    // 搬到最前面
+    // 清空後可以繼續用：移除 + 重新加到尾端（LRU 會用這招把節點搬到 tail）
     LBLinkedListNode *x = [list appendObject:@"x"];
     LBLinkedListNode *y = [list appendObject:@"y"];
-    [list moveNodeToFront:y];
-    XCTAssertTrue(list.head == y && list.tail == x);
+    [list removeNode:x];
+    LBLinkedListNode *x2 = [list appendObject:x.object];
+    XCTAssertTrue(list.head == y && list.tail == x2);
     XCTAssertEqual(list.count, (NSUInteger)2);
 }
 

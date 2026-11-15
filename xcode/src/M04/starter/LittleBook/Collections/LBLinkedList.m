@@ -26,17 +26,8 @@
     return nil;
 }
 
-- (LBLinkedListNode *)prependObject:(id)object {
-    // TODO: M04 — 建節點、接在 _head 前面、count + 1
-    return nil;
-}
-
 - (void)removeNode:(LBLinkedListNode *)node {
     // TODO: M04 — 把 prev.next 接到 next、next.prev 接到 prev；處理頭尾；count - 1
-}
-
-- (void)moveNodeToFront:(LBLinkedListNode *)node {
-    // TODO: M04 — 已是頭就不動；否則先移除再接到最前面
 }
 
 - (void)enumerateObjectsUsingBlock:(void (^)(id object, NSUInteger idx, BOOL *stop))block {

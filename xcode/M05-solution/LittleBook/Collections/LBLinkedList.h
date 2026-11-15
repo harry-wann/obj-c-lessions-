@@ -22,14 +22,8 @@ NS_ASSUME_NONNULL_BEGIN
 /// 加到尾端，回傳新節點（之後可用它 O(1) 移除）。
 - (LBLinkedListNode *)appendObject:(ObjectType)object;
 
-/// 加到頭端，回傳新節點。
-- (LBLinkedListNode *)prependObject:(ObjectType)object;
-
-/// 移除節點；node 必須屬於這個串列。
+/// 移除節點；node 必須屬於這個串列。移除後 node 的 prev / next 都是 nil。
 - (void)removeNode:(LBLinkedListNode *)node;
-
-/// 把既有節點搬到最前面（LRU 會用到）。
-- (void)moveNodeToFront:(LBLinkedListNode *)node;
 
 /// 從頭到尾列舉；*stop = YES 可提前結束。
 - (void)enumerateObjectsUsingBlock:(void (^)(ObjectType object, NSUInteger idx, BOOL *stop))block;

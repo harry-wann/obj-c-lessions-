@@ -11,7 +11,7 @@
 @end
 
 @implementation LBLRUCache {
-    LBLinkedList<LBLRUCacheEntry *> *_order;                     // 頭 = 最近用過
+    LBLinkedList<LBLRUCacheEntry *> *_order;                     // head = 最久沒用，tail = 最近用過
     NSMutableDictionary<id, LBLinkedListNode *> *_nodesByKey;    // key → 節點
 }
 
@@ -35,8 +35,8 @@
     if (node == nil) {
         return nil;
     }
-    [_order moveNodeToFront:node];   // 剛用過 → 搬到最前面
     LBLRUCacheEntry *entry = node.object;
+    [self touchEntry:entry node:node];   // 剛用過 → 搬到 tail
     return entry.object;
 }
 
@@ -47,29 +47,37 @@
     if (existing != nil) {
         LBLRUCacheEntry *entry = existing.object;
         entry.object = object;
-        [_order moveNodeToFront:existing];
+        [self touchEntry:entry node:existing];
         return;
     }
 
     LBLRUCacheEntry *entry = [[LBLRUCacheEntry alloc] init];
     entry.key = [key copyWithZone:nil];
     entry.object = object;
-    LBLinkedListNode *node = [_order prependObject:entry];
-    _nodesByKey[entry.key] = node;
+    _nodesByKey[entry.key] = [_order appendObject:entry];
 
     if (_order.count > _capacity) {
         [self evictLeastRecentlyUsed];
     }
 }
 
-- (void)evictLeastRecentlyUsed {
-    LBLinkedListNode *tail = _order.tail;
-    if (tail == nil) {
+/// 把節點移到 tail：先 removeNode: 再 appendObject:，字典改指向新節點。都是 O(1)。
+- (void)touchEntry:(LBLRUCacheEntry *)entry node:(LBLinkedListNode *)node {
+    if (node == _order.tail) {
         return;
     }
-    LBLRUCacheEntry *victim = tail.object;
+    [_order removeNode:node];
+    _nodesByKey[entry.key] = [_order appendObject:entry];
+}
+
+- (void)evictLeastRecentlyUsed {
+    LBLinkedListNode *head = _order.head;   // head 是最久沒用的
+    if (head == nil) {
+        return;
+    }
+    LBLRUCacheEntry *victim = head.object;
     [_nodesByKey removeObjectForKey:victim.key];
-    [_order removeNode:tail];
+    [_order removeNode:head];
 }
 
 - (void)removeObjectForKey:(id)key {

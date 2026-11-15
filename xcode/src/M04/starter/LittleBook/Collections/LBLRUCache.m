@@ -11,7 +11,7 @@
 @end
 
 @implementation LBLRUCache {
-    LBLinkedList<LBLRUCacheEntry *> *_order;                     // 頭 = 最近用過
+    LBLinkedList<LBLRUCacheEntry *> *_order;                     // head = 最久沒用，tail = 最近用過
     NSMutableDictionary<id, LBLinkedListNode *> *_nodesByKey;    // key → 節點
 }
 
@@ -29,13 +29,13 @@
 }
 
 - (id)objectForKey:(id)key {
-    // TODO: M04 — 從字典找節點；命中就 moveNodeToFront: 再回傳 entry.object
+    // TODO: M04 — 從字典找節點；命中就 removeNode: 再 appendObject:（搬到 tail），回傳 entry.object
     return nil;
 }
 
 - (void)setObject:(id)object forKey:(id<NSCopying>)key {
-    // TODO: M04 — 已存在就覆寫並搬到最前；否則 prependObject: 並記進字典；
-    // 超過 capacity 就把 tail 從串列與字典一起移除。
+    // TODO: M04 — 已存在就覆寫並搬到 tail；否則 appendObject: 並把節點記進字典；
+    // 超過 capacity 就把 head（最久沒用）從串列與字典一起移除。
 }
 
 - (void)removeObjectForKey:(id)key {

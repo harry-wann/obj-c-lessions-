@@ -1,0 +1,149 @@
+---
+title: 屬性 @property
+module: 2
+chapter: "2.4"
+order: 4
+minutes: 25
+prereq: ["2.3"]
+objectives:
+  - 看懂任何 @property 宣告的每個修飾詞
+  - 知道什麼時候用 copy、什麼時候用 weak
+  - 知道點語法在做什麼
+summary: 屬性修飾詞全解、自動合成、點語法只是語法糖、NSString 為什麼要 copy。
+terms:
+  - { en: property, tw: 屬性, cn: 属性, jp: プロパティ }
+  - { en: attribute, tw: 修飾詞, cn: 修饰符, jp: 属性（修飾子） }
+  - { en: instance variable, tw: 實體變數, cn: 实例变量, jp: インスタンス変数 }
+  - { en: getter / setter, tw: 取值方法 / 設值方法, cn: 存取器, jp: ゲッター / セッター }
+  - { en: weak reference, tw: 弱參考, cn: 弱引用, jp: 弱参照 }
+appProgress: LBTransaction 有了對外唯讀、內部可寫的完整屬性。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+class Transaction {
+    var note: String                  // 可讀可寫，值型別，拷貝語意
+    let amount: Decimal               // 唯讀
+    weak var delegate: TransactionDelegate?
+}
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+class Transaction(val amount: BigDecimal) {
+    var note: String = ""             // String 本來就不可變
+    // Kotlin 沒有 weak；靠 GC
+}
+```
+</Fragment>
+<Fragment slot="java">
+```java
+public class Transaction {
+    private final BigDecimal amount;  // 要自己寫 getter
+    private String note;
+    public String getNote() { return note; }
+    public void setNote(String n) { note = n; }
+}
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+class Transaction {
+  readonly amount: number;
+  note = "";
+  get upperNote() { return this.note.toUpperCase(); }   // accessor
+}
+```
+</Fragment>
+四個語言的「屬性」都是直接宣告一個欄位。Objective-C 的 `@property` 比較像 Java 的「欄位 + getter + setter」三件組，只是編譯器幫你生。
+</Compare>
+
+## Objective-C 怎麼寫
+
+```objc
+@interface LBTransaction : NSObject
+
+@property (nonatomic, copy) NSString *note;
+@property (nonatomic, strong, readonly) NSDecimalNumber *amount;
+@property (nonatomic, weak, nullable) id<LBTransactionDelegate> delegate;
+@property (nonatomic, assign, getter=isReconciled) BOOL reconciled;
+
+@end
+```
+
+一個 `@property` 宣告，編譯器會幫你做三件事：產生一個<Term en="instance variable" tw="實體變數" cn="实例变量" jp="インスタンス変数" /> `_note`、一個 getter `- (NSString *)note`、一個 setter `- (void)setNote:(NSString *)note`。這叫**自動合成**（auto-synthesize）。括號裡的<Term en="attribute" tw="修飾詞" cn="修饰符" jp="修飾子" />決定這三樣東西怎麼產生：
+
+| 修飾詞 | 意思 | 什麼時候用 |
+|---|---|---|
+| `nonatomic` | setter / getter 不加鎖 | **幾乎永遠**。`atomic` 是預設值但沒人想要（慢，而且不是真的執行緒安全，7.5 會講） |
+| `strong` | 持有物件（ARC 預設） | 一般物件屬性 |
+| `weak` | 不持有，物件釋放後自動變 nil | delegate、IBOutlet、避免循環參考 |
+| `copy` | setter 存入的是 `[value copy]` | `NSString` / `NSArray` / `NSDictionary` / block |
+| `assign` | 直接賦值，不管參考計數 | 基本型別（`BOOL`、`NSInteger`、`CGFloat`、struct） |
+| `readonly` | 只產生 getter | 對外不可改的值 |
+| `getter=isX` | 自訂 getter 名稱 | 布林屬性的慣例 |
+| `nullable` / `nonnull` | 可否為 nil | 影響 Swift 端是 `?` 還是 `!`（3.6） |
+
+<Tip title="點語法沒有魔法">
+`tx.note = @"午餐";` **完全等於** `[tx setNote:@"午餐"];`，`NSString *n = tx.note;` 等於 `[tx note]`。點語法只是 getter / setter 的語法糖。所以 `self.reload` 雖然能編譯（它會呼叫 `-reload`），但 code review 會被打回：點語法只用在屬性。
+</Tip>
+
+### `_ivar` 還是 `self.prop`？
+
+```objc
+- (instancetype)initWithNote:(NSString *)note {
+    if (self = [super init]) {
+        _note = [note copy];          // init 裡直接用 ivar
+    }
+    return self;
+}
+
+- (void)rename:(NSString *)note {
+    self.note = note;                 // 其他地方走 setter（會觸發 KVO、子類別覆寫）
+}
+```
+
+Apple 的建議：`init` 與 `dealloc` 裡直接用 `_ivar`，其他地方用 `self.prop`。理由是 `init` 時物件還沒建好，走 setter 可能觸發子類別覆寫的 setter 或 KVO 通知，拿到半成品。
+
+<Pitfall title="NSString 為什麼要 copy 不要 strong">
+<Fragment slot="bad">
+```objc
+@property (nonatomic, strong) NSString *note;
+
+NSMutableString *draft = [NSMutableString stringWithString:@"午"];
+tx.note = draft;            // 合法：NSMutableString 是 NSString 的子類別
+[draft appendString:@"餐"];
+NSLog(@"%@", tx.note);      // 印出「午餐」—— 你的屬性被外面改掉了
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+@property (nonatomic, copy) NSString *note;
+
+// setter 存的是 [draft copy]，得到不可變的 NSString，
+// 外面怎麼改都不影響
+```
+</Fragment>
+Kotlin / Java 的 `String` 本來就不可變，你沒遇過這個問題；Objective-C 的 `NSString` 有可變子類別，所以在物件邊界上要用 `copy` 切斷。`NSArray` / `NSDictionary` 同理。
+</Pitfall>
+
+<Pitfall title="weak 不能修飾基本型別">
+`@property (nonatomic, weak) NSInteger count;` 編譯錯誤：weak 只對物件指標有意義。基本型別一律 `assign`（也是它們的預設值，可以不寫）。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: '-[LBTransaction setAmount:]: unrecognized selector sent to instance 0x6000021c4a80'`}>
+`amount` 宣告成 `readonly`，所以沒有 setter。某處（通常是 KVC `setValue:forKey:` 或 Storyboard）試圖設定它。讀法：類別 `LBTransaction`、selector `setAmount:`、找堆疊中第一個自己的 frame 就是呼叫點。解法：在 `.m` 的類別延伸裡重新宣告為 `readwrite`（2.5 會教），或改用初始化器傳入。
+</Crash>
+
+## 小結
+
+- `@property` = ivar + getter + setter，修飾詞決定行為。
+- 物件用 `strong`，有可變子類別的用 `copy`，delegate 用 `weak`，基本型別用 `assign`。
+- 點語法是語法糖；`init` / `dealloc` 用 `_ivar`。

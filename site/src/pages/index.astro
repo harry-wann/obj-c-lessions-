@@ -1,0 +1,27 @@
+---
+import Base from '../layouts/Base.astro';
+import HomeDash from '../components/HomeDash';
+import { url } from '../lib/base';
+import { allLessons, allExercises, allModules, lessonHref, exerciseHref } from '../lib/content';
+const lessons = await allLessons(); const exercises = await allExercises(); const modules = await allModules();
+const lessonMeta = lessons.map(l => ({ id: l.id, title: l.data.title, chapter: l.data.chapter, href: lessonHref(l) }));
+const exMeta = exercises.map(e => ({ id: e.id, title: e.title, chapter: e.chapter, href: exerciseHref(e, lessons), type: e.type }));
+---
+<Base title="首頁" nav="home">
+  <div class="mb-4">
+    <h1 class="text-2xl font-bold">Objective-C 速成</h1>
+    <p class="muted text-[0.9375rem]">給有 Swift / Kotlin / TypeScript / Java 基礎的人。16 天，做完一支完整的記帳 App「小帳本」，進入工作。</p>
+  </div>
+  <HomeDash client:load lessons={lessonMeta} exercises={exMeta} total={lessons.length} />
+  <h2 class="font-bold text-lg mt-6 mb-2">學習路徑</h2>
+  <div class="grid gap-2">{modules.map(m => { const n = lessons.filter(l => l.data.module === m.number).length; return <a href={url('/lessons') + `#m${String(m.number).padStart(2, '0')}`} class="card p-3 no-underline text-[color:var(--fg)] flex items-center gap-3 border-[0.5px] border-[color:var(--line)]"><span class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm text-white" style={`background:${n ? 'var(--color-tint)' : 'var(--fg2)'}`}>{m.number}</span><span class="flex-1"><span class="font-semibold">{m.title}</span><span class="block text-xs muted">{m.days}{n ? ` · ${n} 章` : ' · Phase 2'}</span></span></a>; })}</div>
+  <div class="card p-4 mt-6 border-[0.5px] border-[color:var(--line)] text-[0.9375rem]">
+    <div class="font-bold mb-1">怎麼用這個網站</div>
+    <ul class="list-disc ml-5 space-y-1">
+      <li>📱 通勤時讀課文、做網頁題；💻 Xcode 任務先「加入回 Mac 待辦」，坐到 Mac 一次做完。</li>
+      <li>每章結尾按「標記本章完成」，首頁會記住進度；答錯的題會進「今日複習」。</li>
+      <li>程式碼區塊右上角可「換行」「複製」；設定頁可調字級與深色模式。</li>
+      <li>Xcode Playground 不支援 Objective-C，課文範例請貼進 <code>xcode/Scratch</code> 專案的 <code>main.m</code> 執行。</li>
+    </ul>
+  </div>
+</Base>

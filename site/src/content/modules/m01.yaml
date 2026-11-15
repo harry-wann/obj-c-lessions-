@@ -1,0 +1,5 @@
+number: 1
+title: C 語言地基
+days: 1 天
+blurb: Objective-C 是 C 的超集。基本型別、指標、struct 與 enum、函式與常數、前置處理器。
+milestone: LBTypes、全域常數、金額格式化函式；LBTypesTests 全綠

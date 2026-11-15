@@ -1,0 +1,194 @@
+# 語法速查卡
+
+一頁看完工作上最常寫的東西。每段都可以貼進 Scratch 專案執行。
+
+## 類別：標頭檔與實作檔
+
+```objc
+// LBTransaction.h
+@import Foundation;
+@class LBCategory;                                  // 前置宣告，避免循環 #import
+
+NS_ASSUME_NONNULL_BEGIN
+
+@interface LBTransaction : NSObject <NSCopying>
+
+@property (nonatomic, copy, readonly) NSString *note;
+@property (nonatomic, strong, readonly) NSDecimalNumber *amount;
+@property (nonatomic, strong, nullable) LBCategory *category;
+
+- (instancetype)initWithAmount:(NSDecimalNumber *)amount
+                          note:(NSString *)note NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)transactionWithAmount:(NSDecimalNumber *)amount note:(NSString *)note;
+
+@end
+
+NS_ASSUME_NONNULL_END
+```
+
+```objc
+// LBTransaction.m
+#import "LBTransaction.h"
+#import "LBCategory.h"
+
+@interface LBTransaction ()                          // 類別延伸：對內可寫、私有方法
+@property (nonatomic, copy, readwrite) NSString *note;
+@property (nonatomic, strong, readwrite) NSDecimalNumber *amount;
+@end
+
+@implementation LBTransaction
+
+- (instancetype)initWithAmount:(NSDecimalNumber *)amount note:(NSString *)note {
+    if (self = [super init]) {
+        _amount = amount;                            // init 裡直接用 ivar
+        _note = [note copy];
+    }
+    return self;
+}
+
++ (instancetype)transactionWithAmount:(NSDecimalNumber *)amount note:(NSString *)note {
+    return [[self alloc] initWithAmount:amount note:note];
+}
+
+- (id)copyWithZone:(NSZone *)zone {
+    return [[[self class] allocWithZone:zone] initWithAmount:self.amount note:self.note];
+}
+
+- (BOOL)isEqual:(id)object {
+    if (self == object) return YES;
+    if (![object isKindOfClass:[LBTransaction class]]) return NO;
+    LBTransaction *other = object;
+    return [self.amount isEqual:other.amount] && [self.note isEqualToString:other.note];
+}
+
+- (NSUInteger)hash { return self.amount.hash ^ self.note.hash; }
+
+- (NSString *)description {
+    return [NSString stringWithFormat:@"<%@ %p amount=%@ note=%@>", NSStringFromClass([self class]), self, self.amount, self.note];
+}
+
+@end
+```
+
+## 屬性修飾詞
+
+| 修飾詞 | 用在 |
+|---|---|
+| `nonatomic` | 幾乎永遠 |
+| `strong` | 一般物件 |
+| `weak` | delegate、IBOutlet、避免循環參考 |
+| `copy` | `NSString` / `NSArray` / `NSDictionary` / block |
+| `assign` | 基本型別、struct |
+| `readonly` | 對外不可改，在 `.m` 類別延伸改回 `readwrite` |
+| `nullable` / `nonnull` | 可否為 nil（影響 Swift 端） |
+
+## 容器與字面值
+
+```objc
+NSArray<NSString *> *names = @[@"午餐", @"捷運"];
+NSDictionary<NSString *, NSNumber *> *counts = @{@"飲食": @128, @"交通": @64};
+NSNumber *n = @(3 + 4);                 // 裝箱
+NSString *first = names.firstObject;    // 不會越界；objectAtIndex:0 會
+for (NSString *name in names) { }       // 快速列舉：不可在裡面修改 names
+NSMutableArray *m = [names mutableCopy];
+NSArray *sorted = [names sortedArrayUsingComparator:^NSComparisonResult(NSString *a, NSString *b) {
+    return [a compare:b];
+}];
+```
+
+## 協定與委派
+
+```objc
+@protocol LBLedgerObserver <NSObject>
+- (void)ledger:(LBLedger *)ledger didAddTransaction:(LBTransaction *)tx;
+@optional
+- (void)ledgerDidReset:(LBLedger *)ledger;
+@end
+
+@property (nonatomic, weak, nullable) id<LBLedgerObserver> delegate;   // 一定 weak
+
+if ([self.delegate respondsToSelector:@selector(ledgerDidReset:)]) {    // optional 要先檢查
+    [self.delegate ledgerDidReset:self];
+}
+```
+
+## 分類
+
+```objc
+// NSDecimalNumber+LBFormatting.h
+@interface NSDecimalNumber (LBFormatting)
+- (NSString *)lb_currencyString;          // 分類方法加前綴，避免撞名
+@end
+```
+
+## Block
+
+```objc
+typedef void (^LBCompletion)(BOOL ok, NSError * _Nullable error);
+
+- (void)saveWithCompletion:(LBCompletion)completion;        // 參數
+@property (nonatomic, copy, nullable) LBCompletion onDone;  // 屬性用 copy
+
+__weak typeof(self) weakSelf = self;
+[self.service fetchWithCompletion:^(id result, NSError *error) {
+    __strong typeof(weakSelf) strongSelf = weakSelf;
+    if (!strongSelf) return;
+    [strongSelf handle:result];
+}];
+
+__block NSInteger count = 0;            // 想在 block 裡改外部變數
+void (^inc)(void) = ^{ count++; };
+inc();
+if (completion) completion(YES, nil);   // 呼叫前判 nil
+```
+
+## 錯誤處理
+
+```objc
+- (BOOL)saveToURL:(NSURL *)url error:(NSError **)error;
+
+NSError *error = nil;
+if (![store saveToURL:url error:&error]) {     // 先看回傳值，再看 error
+    NSLog(@"save failed: %@", error.localizedDescription);
+}
+```
+
+## GCD
+
+```objc
+dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+    NSArray *result = [self heavyWork];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self render:result];                       // UI 一定在主執行緒
+    });
+});
+
+static dispatch_once_t onceToken;                 // 單例
+dispatch_once(&onceToken, ^{ shared = [[self alloc] init]; });
+
+// 讀寫鎖：串列佇列 + barrier
+dispatch_queue_t q = dispatch_queue_create("com.littlebook.ledger", DISPATCH_QUEUE_CONCURRENT);
+dispatch_sync(q, ^{ /* 讀 */ });
+dispatch_barrier_async(q, ^{ /* 寫 */ });
+```
+
+## 格式指定子
+
+| 型別 | 寫法 |
+|---|---|
+| 物件 | `%@` |
+| `NSInteger` | `%ld` + `(long)x` |
+| `NSUInteger` | `%lu` + `(unsigned long)x` |
+| `int` | `%d` |
+| `CGFloat` / `double` | `%f`、`%.2f` |
+| `BOOL` | `%d`（印 1 / 0），或 `x ? @"YES" : @"NO"` |
+| 指標 | `%p` |
+| `SEL` | `%@` + `NSStringFromSelector(sel)` |
+
+## 命名慣例
+
+- 類別三字母前綴 `LB`；分類方法 `lb_`；常數 `LBErrorDomain`；通知 `LBLedgerDidChangeNotification`。
+- 方法像英文句子：`insertObject:atIndex:`，不是 `insert:index:`。
+- getter 不加 `get`；布林屬性 `getter=isEnabled`。
+- delegate 方法以來源物件開頭：`ledger:didAddTransaction:`。

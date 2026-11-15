@@ -1,0 +1,1523 @@
+[
+ {
+  "section": "語言與物件導向",
+  "en": "object",
+  "tw": "物件",
+  "star": true,
+  "cn": "对象",
+  "jp": "オブジェクト",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "class",
+  "tw": "類別",
+  "star": true,
+  "cn": "类",
+  "jp": "クラス",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "instance",
+  "tw": "實體 / 實例",
+  "star": false,
+  "cn": "实例",
+  "jp": "インスタンス",
+  "note": "本站用「實體」"
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "instance variable (ivar)",
+  "tw": "實體變數",
+  "star": false,
+  "cn": "实例变量 / 成员变量",
+  "jp": "インスタンス変数",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "method",
+  "tw": "方法",
+  "star": false,
+  "cn": "方法",
+  "jp": "メソッド",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "class method / instance method",
+  "tw": "類別方法 / 實體方法",
+  "star": false,
+  "cn": "类方法 / 实例方法",
+  "jp": "クラスメソッド / インスタンスメソッド",
+  "note": "`+` / `-`"
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "property",
+  "tw": "屬性",
+  "star": false,
+  "cn": "属性",
+  "jp": "プロパティ",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "attribute（@property 修飾）",
+  "tw": "修飾詞",
+  "star": false,
+  "cn": "修饰符",
+  "jp": "属性（修飾子）",
+  "note": "本站用「修飾詞」"
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "protocol",
+  "tw": "協定",
+  "star": true,
+  "cn": "协议",
+  "jp": "プロトコル",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "delegate",
+  "tw": "委派（delegate）★",
+  "star": true,
+  "cn": "代理 / 委托",
+  "jp": "デリゲート",
+  "note": "台灣 iOS 圈多直接講英文"
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "data source",
+  "tw": "資料來源",
+  "star": false,
+  "cn": "数据源",
+  "jp": "データソース",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "category",
+  "tw": "分類（category）",
+  "star": false,
+  "cn": "分类",
+  "jp": "カテゴリ",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "class extension",
+  "tw": "類別延伸",
+  "star": false,
+  "cn": "类扩展",
+  "jp": "クラスエクステンション（拡張）",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "extension (Swift)",
+  "tw": "擴充 / 延伸",
+  "star": false,
+  "cn": "扩展",
+  "jp": "エクステンション（拡張）",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "inheritance",
+  "tw": "繼承",
+  "star": false,
+  "cn": "继承",
+  "jp": "継承",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "override",
+  "tw": "覆寫",
+  "star": true,
+  "cn": "重写 / 覆盖",
+  "jp": "オーバーライド",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "overload",
+  "tw": "多載",
+  "star": true,
+  "cn": "重载",
+  "jp": "オーバーロード",
+  "note": "ObjC 沒有"
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "polymorphism",
+  "tw": "多型",
+  "star": true,
+  "cn": "多态",
+  "jp": "ポリモーフィズム（多態性）",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "encapsulation",
+  "tw": "封裝",
+  "star": false,
+  "cn": "封装",
+  "jp": "カプセル化",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "interface",
+  "tw": "介面",
+  "star": true,
+  "cn": "接口",
+  "jp": "インターフェース",
+  "note": "`@interface`"
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "implementation",
+  "tw": "實作",
+  "star": true,
+  "cn": "实现",
+  "jp": "実装",
+  "note": "`@implementation`"
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "initializer / constructor",
+  "tw": "初始化器 / 建構子",
+  "star": false,
+  "cn": "初始化方法 / 构造函数",
+  "jp": "イニシャライザ / コンストラクタ",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "designated initializer",
+  "tw": "指定初始化器",
+  "star": false,
+  "cn": "指定初始化方法",
+  "jp": "指定イニシャライザ",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "singleton",
+  "tw": "單例",
+  "star": false,
+  "cn": "单例",
+  "jp": "シングルトン",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "message passing",
+  "tw": "訊息傳遞",
+  "star": true,
+  "cn": "消息传递 / 消息发送",
+  "jp": "メッセージ送信（メッセージパッシング）",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "selector",
+  "tw": "選擇器（selector）",
+  "star": false,
+  "cn": "选择器",
+  "jp": "セレクタ",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "runtime",
+  "tw": "執行期",
+  "star": true,
+  "cn": "运行时",
+  "jp": "ランタイム（実行時）",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "compile time",
+  "tw": "編譯期",
+  "star": false,
+  "cn": "编译期 / 编译时",
+  "jp": "コンパイル時",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "dynamic / static typing",
+  "tw": "動態 / 靜態型別",
+  "star": true,
+  "cn": "动态 / 静态类型",
+  "jp": "動的型付け / 静的型付け",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "type",
+  "tw": "型別",
+  "star": true,
+  "cn": "类型",
+  "jp": "型",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "cast",
+  "tw": "轉型",
+  "star": false,
+  "cn": "类型转换 / 强转",
+  "jp": "キャスト（型変換）",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "generics",
+  "tw": "泛型",
+  "star": false,
+  "cn": "泛型",
+  "jp": "ジェネリクス",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "nullability",
+  "tw": "可為空性",
+  "star": false,
+  "cn": "可空性",
+  "jp": "Null 許容性（Nullability）",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "enum",
+  "tw": "列舉",
+  "star": true,
+  "cn": "枚举",
+  "jp": "列挙型（enum）",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "struct",
+  "tw": "結構",
+  "star": false,
+  "cn": "结构体",
+  "jp": "構造体",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "block",
+  "tw": "區塊（block）★",
+  "star": true,
+  "cn": "块 / Block",
+  "jp": "ブロック",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "closure",
+  "tw": "閉包",
+  "star": false,
+  "cn": "闭包",
+  "jp": "クロージャ",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "callback",
+  "tw": "回呼",
+  "star": true,
+  "cn": "回调",
+  "jp": "コールバック",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "completion handler",
+  "tw": "完成處理器（completion）",
+  "star": false,
+  "cn": "完成回调",
+  "jp": "完了ハンドラ",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "introspection",
+  "tw": "內省",
+  "star": false,
+  "cn": "内省 / 自省",
+  "jp": "イントロスペクション",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "reflection",
+  "tw": "反射",
+  "star": false,
+  "cn": "反射",
+  "jp": "リフレクション",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "method swizzling",
+  "tw": "方法交換（swizzling）",
+  "star": false,
+  "cn": "方法交换 / 黑魔法",
+  "jp": "メソッドスウィズリング",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "associated object",
+  "tw": "關聯物件",
+  "star": false,
+  "cn": "关联对象",
+  "jp": "関連オブジェクト",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "KVC / KVO",
+  "tw": "鍵值編碼 / 鍵值觀察",
+  "star": false,
+  "cn": "键值编码 / 键值观察",
+  "jp": "キー値コーディング / キー値監視",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "notification",
+  "tw": "通知",
+  "star": false,
+  "cn": "通知",
+  "jp": "通知（ノーティフィケーション）",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "observer",
+  "tw": "觀察者",
+  "star": false,
+  "cn": "观察者 / 监听者",
+  "jp": "オブザーバ",
+  "note": ""
+ },
+ {
+  "section": "語言與物件導向",
+  "en": "nil / null",
+  "tw": "nil / 空",
+  "star": false,
+  "cn": "nil / 空",
+  "jp": "nil / ヌル",
+  "note": ""
+ },
+ {
+  "section": "記憶體與指標",
+  "en": "memory",
+  "tw": "記憶體",
+  "star": true,
+  "cn": "内存",
+  "jp": "メモリ",
+  "note": ""
+ },
+ {
+  "section": "記憶體與指標",
+  "en": "pointer",
+  "tw": "指標",
+  "star": true,
+  "cn": "指针",
+  "jp": "ポインタ",
+  "note": ""
+ },
+ {
+  "section": "記憶體與指標",
+  "en": "dereference",
+  "tw": "解參考",
+  "star": false,
+  "cn": "解引用",
+  "jp": "参照外し（デリファレンス）",
+  "note": ""
+ },
+ {
+  "section": "記憶體與指標",
+  "en": "reference",
+  "tw": "參考 / 引用",
+  "star": true,
+  "cn": "引用",
+  "jp": "参照",
+  "note": "本站「參考計數」「強參考」"
+ },
+ {
+  "section": "記憶體與指標",
+  "en": "reference counting",
+  "tw": "參考計數",
+  "star": true,
+  "cn": "引用计数",
+  "jp": "参照カウント",
+  "note": ""
+ },
+ {
+  "section": "記憶體與指標",
+  "en": "strong / weak reference",
+  "tw": "強參考 / 弱參考",
+  "star": false,
+  "cn": "强引用 / 弱引用",
+  "jp": "強参照 / 弱参照",
+  "note": ""
+ },
+ {
+  "section": "記憶體與指標",
+  "en": "retain cycle",
+  "tw": "循環參考",
+  "star": true,
+  "cn": "循环引用",
+  "jp": "循環参照",
+  "note": ""
+ },
+ {
+  "section": "記憶體與指標",
+  "en": "ownership",
+  "tw": "擁有權",
+  "star": false,
+  "cn": "所有权",
+  "jp": "所有権",
+  "note": ""
+ },
+ {
+  "section": "記憶體與指標",
+  "en": "release / deallocate",
+  "tw": "釋放",
+  "star": false,
+  "cn": "释放",
+  "jp": "解放",
+  "note": ""
+ },
+ {
+  "section": "記憶體與指標",
+  "en": "memory leak",
+  "tw": "記憶體洩漏",
+  "star": true,
+  "cn": "内存泄漏",
+  "jp": "メモリリーク",
+  "note": ""
+ },
+ {
+  "section": "記憶體與指標",
+  "en": "dangling pointer",
+  "tw": "懸空指標",
+  "star": false,
+  "cn": "野指针 / 悬垂指针",
+  "jp": "ダングリングポインタ",
+  "note": ""
+ },
+ {
+  "section": "記憶體與指標",
+  "en": "zombie object",
+  "tw": "殭屍物件",
+  "star": false,
+  "cn": "僵尸对象",
+  "jp": "ゾンビオブジェクト",
+  "note": ""
+ },
+ {
+  "section": "記憶體與指標",
+  "en": "autorelease pool",
+  "tw": "自動釋放池",
+  "star": false,
+  "cn": "自动释放池",
+  "jp": "自動解放プール（オートリリースプール）",
+  "note": ""
+ },
+ {
+  "section": "記憶體與指標",
+  "en": "garbage collection",
+  "tw": "垃圾回收",
+  "star": false,
+  "cn": "垃圾回收",
+  "jp": "ガベージコレクション",
+  "note": ""
+ },
+ {
+  "section": "記憶體與指標",
+  "en": "stack / heap（記憶體區）",
+  "tw": "堆疊 / 堆積",
+  "star": true,
+  "cn": "栈 / 堆",
+  "jp": "スタック / ヒープ",
+  "note": "台灣「堆疊」= stack、「堆積」= heap"
+ },
+ {
+  "section": "記憶體與指標",
+  "en": "bridging",
+  "tw": "橋接",
+  "star": false,
+  "cn": "桥接",
+  "jp": "ブリッジ",
+  "note": ""
+ },
+ {
+  "section": "並行與執行",
+  "en": "thread",
+  "tw": "執行緒",
+  "star": true,
+  "cn": "线程",
+  "jp": "スレッド",
+  "note": ""
+ },
+ {
+  "section": "並行與執行",
+  "en": "main thread",
+  "tw": "主執行緒",
+  "star": false,
+  "cn": "主线程",
+  "jp": "メインスレッド",
+  "note": ""
+ },
+ {
+  "section": "並行與執行",
+  "en": "process",
+  "tw": "行程 / 處理程序",
+  "star": true,
+  "cn": "进程",
+  "jp": "プロセス",
+  "note": ""
+ },
+ {
+  "section": "並行與執行",
+  "en": "queue",
+  "tw": "佇列",
+  "star": true,
+  "cn": "队列",
+  "jp": "キュー",
+  "note": ""
+ },
+ {
+  "section": "並行與執行",
+  "en": "serial / concurrent queue",
+  "tw": "串列 / 並行佇列",
+  "star": true,
+  "cn": "串行 / 并发队列",
+  "jp": "シリアルキュー / 並行キュー",
+  "note": ""
+ },
+ {
+  "section": "並行與執行",
+  "en": "asynchronous / synchronous",
+  "tw": "非同步 / 同步",
+  "star": true,
+  "cn": "异步 / 同步",
+  "jp": "非同期 / 同期",
+  "note": ""
+ },
+ {
+  "section": "並行與執行",
+  "en": "concurrency / parallelism",
+  "tw": "並行 / 平行",
+  "star": false,
+  "cn": "并发 / 并行",
+  "jp": "並行処理 / 並列処理",
+  "note": ""
+ },
+ {
+  "section": "並行與執行",
+  "en": "deadlock",
+  "tw": "死結",
+  "star": true,
+  "cn": "死锁",
+  "jp": "デッドロック",
+  "note": ""
+ },
+ {
+  "section": "並行與執行",
+  "en": "race condition",
+  "tw": "競態條件",
+  "star": false,
+  "cn": "竞态条件",
+  "jp": "競合状態（レースコンディション）",
+  "note": ""
+ },
+ {
+  "section": "並行與執行",
+  "en": "data race",
+  "tw": "資料競爭",
+  "star": false,
+  "cn": "数据竞争",
+  "jp": "データ競合",
+  "note": ""
+ },
+ {
+  "section": "並行與執行",
+  "en": "thread-safe",
+  "tw": "執行緒安全",
+  "star": false,
+  "cn": "线程安全",
+  "jp": "スレッドセーフ",
+  "note": ""
+ },
+ {
+  "section": "並行與執行",
+  "en": "lock / mutex",
+  "tw": "鎖 / 互斥鎖",
+  "star": false,
+  "cn": "锁 / 互斥锁",
+  "jp": "ロック / ミューテックス",
+  "note": ""
+ },
+ {
+  "section": "並行與執行",
+  "en": "semaphore",
+  "tw": "號誌 / 信號量",
+  "star": false,
+  "cn": "信号量",
+  "jp": "セマフォ",
+  "note": ""
+ },
+ {
+  "section": "並行與執行",
+  "en": "read-write lock",
+  "tw": "讀寫鎖",
+  "star": false,
+  "cn": "读写锁",
+  "jp": "読み書きロック（リーダーライターロック）",
+  "note": ""
+ },
+ {
+  "section": "並行與執行",
+  "en": "priority inversion",
+  "tw": "優先權反轉",
+  "star": false,
+  "cn": "优先级反转",
+  "jp": "優先度逆転",
+  "note": ""
+ },
+ {
+  "section": "並行與執行",
+  "en": "run loop",
+  "tw": "執行迴圈（RunLoop）",
+  "star": false,
+  "cn": "运行循环",
+  "jp": "ランループ",
+  "note": ""
+ },
+ {
+  "section": "並行與執行",
+  "en": "dispatch",
+  "tw": "派送",
+  "star": false,
+  "cn": "派发 / 调度",
+  "jp": "ディスパッチ",
+  "note": ""
+ },
+ {
+  "section": "並行與執行",
+  "en": "frame rate / frame drop",
+  "tw": "幀率 / 掉幀",
+  "star": true,
+  "cn": "帧率 / 掉帧",
+  "jp": "フレームレート / コマ落ち（フレーム落ち）",
+  "note": ""
+ },
+ {
+  "section": "並行與執行",
+  "en": "throttle / debounce",
+  "tw": "節流 / 防抖",
+  "star": false,
+  "cn": "节流 / 防抖",
+  "jp": "スロットル / デバウンス",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "array",
+  "tw": "陣列",
+  "star": true,
+  "cn": "数组",
+  "jp": "配列",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "string",
+  "tw": "字串",
+  "star": true,
+  "cn": "字符串",
+  "jp": "文字列",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "character",
+  "tw": "字元",
+  "star": true,
+  "cn": "字符",
+  "jp": "文字",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "dictionary / map",
+  "tw": "字典 / 映射",
+  "star": false,
+  "cn": "字典 / 映射",
+  "jp": "辞書（ディクショナリ）/ マップ",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "hash table",
+  "tw": "雜湊表",
+  "star": true,
+  "cn": "哈希表 / 散列表",
+  "jp": "ハッシュテーブル",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "hash",
+  "tw": "雜湊",
+  "star": true,
+  "cn": "哈希 / 散列",
+  "jp": "ハッシュ",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "set",
+  "tw": "集合",
+  "star": false,
+  "cn": "集合",
+  "jp": "集合（セット）",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "linked list",
+  "tw": "鏈結串列",
+  "star": true,
+  "cn": "链表",
+  "jp": "連結リスト（リンクリスト）",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "stack（資料結構）",
+  "tw": "堆疊",
+  "star": true,
+  "cn": "栈",
+  "jp": "スタック",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "queue",
+  "tw": "佇列",
+  "star": true,
+  "cn": "队列",
+  "jp": "キュー",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "ring buffer",
+  "tw": "環狀緩衝區",
+  "star": false,
+  "cn": "环形缓冲区",
+  "jp": "リングバッファ",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "tree / binary tree",
+  "tw": "樹 / 二元樹",
+  "star": true,
+  "cn": "树 / 二叉树",
+  "jp": "木 / 二分木",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "heap / priority queue",
+  "tw": "堆積 / 優先佇列",
+  "star": true,
+  "cn": "堆 / 优先队列",
+  "jp": "ヒープ / 優先度付きキュー",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "graph",
+  "tw": "圖",
+  "star": false,
+  "cn": "图",
+  "jp": "グラフ",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "traversal",
+  "tw": "走訪",
+  "star": true,
+  "cn": "遍历",
+  "jp": "走査（巡回）",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "recursion",
+  "tw": "遞迴",
+  "star": true,
+  "cn": "递归",
+  "jp": "再帰",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "iteration / enumeration",
+  "tw": "迭代 / 列舉",
+  "star": false,
+  "cn": "迭代 / 遍历",
+  "jp": "反復（イテレーション）/ 列挙",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "sort / search",
+  "tw": "排序 / 搜尋",
+  "star": true,
+  "cn": "排序 / 查找",
+  "jp": "ソート / 探索",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "binary search",
+  "tw": "二元搜尋",
+  "star": true,
+  "cn": "二分查找",
+  "jp": "二分探索",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "time complexity",
+  "tw": "時間複雜度",
+  "star": false,
+  "cn": "时间复杂度",
+  "jp": "時間計算量",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "amortized",
+  "tw": "攤銷",
+  "star": false,
+  "cn": "平摊 / 摊还",
+  "jp": "償却（ならし）",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "cache",
+  "tw": "快取",
+  "star": true,
+  "cn": "缓存",
+  "jp": "キャッシュ",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "mutable / immutable",
+  "tw": "可變 / 不可變",
+  "star": false,
+  "cn": "可变 / 不可变",
+  "jp": "ミュータブル / イミュータブル（可変 / 不変）",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "index",
+  "tw": "索引",
+  "star": false,
+  "cn": "索引 / 下标",
+  "jp": "インデックス（添字）",
+  "note": ""
+ },
+ {
+  "section": "資料結構與演算法",
+  "en": "out of bounds",
+  "tw": "越界",
+  "star": false,
+  "cn": "越界",
+  "jp": "範囲外",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "program / code",
+  "tw": "程式 / 程式碼",
+  "star": true,
+  "cn": "程序 / 代码",
+  "jp": "プログラム / コード",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "source code",
+  "tw": "原始碼",
+  "star": true,
+  "cn": "源代码 / 源码",
+  "jp": "ソースコード",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "file",
+  "tw": "檔案",
+  "star": true,
+  "cn": "文件",
+  "jp": "ファイル",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "header file",
+  "tw": "標頭檔",
+  "star": true,
+  "cn": "头文件",
+  "jp": "ヘッダファイル",
+  "note": "`.h`"
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "implementation file",
+  "tw": "實作檔",
+  "star": false,
+  "cn": "实现文件",
+  "jp": "実装ファイル",
+  "note": "`.m`"
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "project",
+  "tw": "專案",
+  "star": true,
+  "cn": "项目 / 工程",
+  "jp": "プロジェクト",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "build",
+  "tw": "建置",
+  "star": true,
+  "cn": "构建 / 编译",
+  "jp": "ビルド",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "compile / compiler",
+  "tw": "編譯 / 編譯器",
+  "star": false,
+  "cn": "编译 / 编译器",
+  "jp": "コンパイル / コンパイラ",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "link / linker",
+  "tw": "連結 / 連結器",
+  "star": true,
+  "cn": "链接 / 链接器",
+  "jp": "リンク / リンカ",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "debug",
+  "tw": "偵錯",
+  "star": true,
+  "cn": "调试",
+  "jp": "デバッグ",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "breakpoint",
+  "tw": "斷點",
+  "star": false,
+  "cn": "断点",
+  "jp": "ブレークポイント",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "stack trace",
+  "tw": "堆疊追蹤",
+  "star": false,
+  "cn": "堆栈 / 调用栈",
+  "jp": "スタックトレース",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "crash",
+  "tw": "當掉 / 閃退（crash）",
+  "star": false,
+  "cn": "崩溃 / 闪退",
+  "jp": "クラッシュ（強制終了）",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "exception",
+  "tw": "例外",
+  "star": true,
+  "cn": "异常",
+  "jp": "例外",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "error",
+  "tw": "錯誤",
+  "star": false,
+  "cn": "错误",
+  "jp": "エラー",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "warning",
+  "tw": "警告",
+  "star": false,
+  "cn": "警告",
+  "jp": "警告（ワーニング）",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "assertion",
+  "tw": "斷言",
+  "star": false,
+  "cn": "断言",
+  "jp": "アサーション",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "unit test",
+  "tw": "單元測試",
+  "star": false,
+  "cn": "单元测试",
+  "jp": "単体テスト（ユニットテスト）",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "stub / mock",
+  "tw": "測試替身（stub / mock）",
+  "star": false,
+  "cn": "测试替身 / 桩 / 模拟",
+  "jp": "スタブ / モック",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "deprecated",
+  "tw": "已棄用",
+  "star": false,
+  "cn": "已废弃 / 过时",
+  "jp": "非推奨",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "dependency",
+  "tw": "相依性",
+  "star": true,
+  "cn": "依赖",
+  "jp": "依存関係",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "package / library / framework",
+  "tw": "套件 / 函式庫 / 框架",
+  "star": true,
+  "cn": "包 / 库 / 框架",
+  "jp": "パッケージ / ライブラリ / フレームワーク",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "module",
+  "tw": "模組",
+  "star": true,
+  "cn": "模块",
+  "jp": "モジュール",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "macro",
+  "tw": "巨集",
+  "star": true,
+  "cn": "宏",
+  "jp": "マクロ",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "preprocessor",
+  "tw": "前置處理器",
+  "star": true,
+  "cn": "预处理器",
+  "jp": "プリプロセッサ",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "function",
+  "tw": "函式",
+  "star": true,
+  "cn": "函数",
+  "jp": "関数",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "parameter / argument",
+  "tw": "參數 / 引數",
+  "star": false,
+  "cn": "形参 / 实参",
+  "jp": "仮引数 / 実引数（引数）",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "return value",
+  "tw": "回傳值",
+  "star": true,
+  "cn": "返回值",
+  "jp": "戻り値（返り値）",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "variable / constant",
+  "tw": "變數 / 常數",
+  "star": true,
+  "cn": "变量 / 常量",
+  "jp": "変数 / 定数",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "loop",
+  "tw": "迴圈",
+  "star": true,
+  "cn": "循环",
+  "jp": "ループ（繰り返し）",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "condition",
+  "tw": "條件",
+  "star": false,
+  "cn": "条件",
+  "jp": "条件",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "boolean",
+  "tw": "布林值",
+  "star": true,
+  "cn": "布尔值",
+  "jp": "真偽値（ブール値）",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "integer / float",
+  "tw": "整數 / 浮點數",
+  "star": false,
+  "cn": "整数 / 浮点数",
+  "jp": "整数 / 浮動小数点数",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "default",
+  "tw": "預設",
+  "star": true,
+  "cn": "默认",
+  "jp": "デフォルト（既定）",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "comment",
+  "tw": "註解",
+  "star": true,
+  "cn": "注释",
+  "jp": "コメント",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "declaration / definition",
+  "tw": "宣告 / 定義",
+  "star": true,
+  "cn": "声明 / 定义",
+  "jp": "宣言 / 定義",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "syntax",
+  "tw": "語法",
+  "star": false,
+  "cn": "语法",
+  "jp": "構文（シンタックス）",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "literal",
+  "tw": "字面值",
+  "star": false,
+  "cn": "字面量",
+  "jp": "リテラル",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "format specifier",
+  "tw": "格式指定子",
+  "star": false,
+  "cn": "格式说明符 / 占位符",
+  "jp": "書式指定子",
+  "note": "`%@`"
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "persistence",
+  "tw": "持久化",
+  "star": false,
+  "cn": "持久化",
+  "jp": "永続化",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "serialization",
+  "tw": "序列化",
+  "star": false,
+  "cn": "序列化",
+  "jp": "シリアライズ（直列化）",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "parse",
+  "tw": "解析",
+  "star": false,
+  "cn": "解析",
+  "jp": "パース（解析）",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "network request",
+  "tw": "網路請求",
+  "star": true,
+  "cn": "网络请求",
+  "jp": "ネットワークリクエスト（通信）",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "user",
+  "tw": "使用者",
+  "star": true,
+  "cn": "用户",
+  "jp": "ユーザー",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "user interface",
+  "tw": "使用者介面",
+  "star": false,
+  "cn": "用户界面",
+  "jp": "ユーザーインターフェース（UI）",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "view / view controller",
+  "tw": "視圖 / 視圖控制器",
+  "star": false,
+  "cn": "视图 / 视图控制器",
+  "jp": "ビュー / ビューコントローラ",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "table view / cell",
+  "tw": "表格視圖 / 儲存格",
+  "star": false,
+  "cn": "表视图 / 单元格",
+  "jp": "テーブルビュー / セル",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "constraint",
+  "tw": "約束",
+  "star": false,
+  "cn": "约束",
+  "jp": "制約",
+  "note": "Auto Layout"
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "storyboard",
+  "tw": "Storyboard",
+  "star": false,
+  "cn": "故事板",
+  "jp": "ストーリーボード",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "simulator",
+  "tw": "模擬器",
+  "star": false,
+  "cn": "模拟器",
+  "jp": "シミュレータ",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "deploy / deployment target",
+  "tw": "部署 / 部署目標",
+  "star": false,
+  "cn": "部署 / 最低支持版本",
+  "jp": "デプロイ / デプロイメントターゲット",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "optimization",
+  "tw": "最佳化",
+  "star": true,
+  "cn": "优化",
+  "jp": "最適化",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "performance",
+  "tw": "效能",
+  "star": true,
+  "cn": "性能",
+  "jp": "パフォーマンス（性能）",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "robustness",
+  "tw": "強健性",
+  "star": false,
+  "cn": "健壮性",
+  "jp": "堅牢性",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "refactor",
+  "tw": "重構",
+  "star": false,
+  "cn": "重构",
+  "jp": "リファクタリング",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "version control",
+  "tw": "版本控制",
+  "star": false,
+  "cn": "版本控制",
+  "jp": "バージョン管理",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "repository",
+  "tw": "儲存庫（repo）",
+  "star": false,
+  "cn": "仓库",
+  "jp": "リポジトリ",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "commit / merge conflict",
+  "tw": "提交 / 合併衝突",
+  "star": false,
+  "cn": "提交 / 合并冲突",
+  "jp": "コミット / マージコンフリクト（競合）",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "code review",
+  "tw": "程式碼審查",
+  "star": false,
+  "cn": "代码审查 / 代码评审",
+  "jp": "コードレビュー",
+  "note": ""
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "specification",
+  "tw": "規格",
+  "star": false,
+  "cn": "规格 / 需求",
+  "jp": "仕様（スペック）",
+  "note": "日本職場高頻詞"
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "bug / defect",
+  "tw": "錯誤（bug）",
+  "star": false,
+  "cn": "缺陷 / bug",
+  "jp": "バグ（不具合）",
+  "note": "日本職場常用「不具合」"
+ },
+ {
+  "section": "開發工具與流程",
+  "en": "estimate / man-hour",
+  "tw": "估時 / 工時",
+  "star": false,
+  "cn": "工时 / 排期",
+  "jp": "見積もり / 工数",
+  "note": "日本職場高頻詞"
+ }
+]

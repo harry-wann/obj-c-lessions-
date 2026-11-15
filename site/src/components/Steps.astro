@@ -1,0 +1,6 @@
+---
+// 💻 Xcode 操作步驟清單（在手機上讀、回 Mac 做）
+interface Props { title?: string }
+const { title = 'Xcode 操作' } = Astro.props;
+---
+<div class="callout" style="--c: #30b0c7"><div class="callout-title">💻 {title}</div><slot /></div>

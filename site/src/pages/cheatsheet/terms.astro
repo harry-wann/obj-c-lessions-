@@ -1,0 +1,15 @@
+---
+import Base from '../../layouts/Base.astro';
+import terms from '../../data/terms.json';
+const sections = [...new Set(terms.map(t => t.section))];
+---
+<Base title="術語對照表" nav="cheatsheet" back={{ href: import.meta.env.BASE_URL + 'cheatsheet', label: '速查' }}>
+  <h1 class="text-2xl font-bold mb-1">術語對照表</h1>
+  <p class="muted text-sm mb-3">全站以台灣用語為主。★ 表示三方差異大、最容易混淆。</p>
+  <input id="q" class="code mb-3" placeholder="輸入英文或任一語言的詞…" autocapitalize="off" />
+  {sections.map(s => <section class="mb-4" data-section><h2 class="font-bold text-lg mb-1">{s}</h2><div class="card border-[0.5px] border-[color:var(--line)] divide-y divide-[color:var(--line)]">{terms.filter(t => t.section === s).map(t => <div class="px-3 py-2 text-[0.9375rem]" data-row data-text={`${t.en} ${t.tw} ${t.cn} ${t.jp}`.toLowerCase()}><div class="flex items-baseline gap-2"><span class="font-mono text-sm muted">{t.en}</span><span class="font-semibold">{t.tw}{t.star && ' ★'}</span></div><div class="text-xs muted">中國大陸：{t.cn}　日本：{t.jp}{t.note && `　· ${t.note}`}</div></div>)}</div></section>)}
+  <script>
+    const q = document.getElementById('q') as HTMLInputElement; const rows = document.querySelectorAll<HTMLElement>('[data-row]');
+    q.addEventListener('input', () => { const v = q.value.trim().toLowerCase(); rows.forEach(r => (r.hidden = !!v && !(r.dataset.text || '').includes(v))); document.querySelectorAll<HTMLElement>('[data-section]').forEach(s => (s.hidden = [...s.querySelectorAll<HTMLElement>('[data-row]')].every(r => r.hidden))); });
+  </script>
+</Base>

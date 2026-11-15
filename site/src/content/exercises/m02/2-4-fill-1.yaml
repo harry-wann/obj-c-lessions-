@@ -1,0 +1,29 @@
+id: m02-2-4-fill-1
+chapter: "2.4"
+type: fill
+title: 為 LBCategory 的屬性選擇正確修飾詞
+minutes: 3
+prompt: 依照本章的慣例，填入每個屬性括號內缺少的參考修飾詞。
+code: |
+  @interface LBCategory : NSObject
+  @property (nonatomic, ___1___) NSString *name;
+  @property (nonatomic, ___2___) LBCategory *parent;
+  @property (nonatomic, ___3___) NSArray<LBCategory *> *children;
+  @property (nonatomic, ___4___) NSInteger sortOrder;
+  @property (nonatomic, ___5___) void (^onChange)(void);
+  @end
+blanks:
+  "1": { accept: [copy], chips: [strong, weak, copy, assign] }
+  "2": { accept: [weak], chips: [strong, weak, copy, assign] }
+  "3": { accept: [copy], chips: [strong, weak, copy, assign] }
+  "4": { accept: [assign], chips: [strong, weak, copy, assign] }
+  "5": { accept: [copy], chips: [strong, weak, copy, assign] }
+hints:
+  - 想想哪些型別有「可變子類別」會從外面被改。
+  - 樹的子節點持有父節點、父節點也持有子節點，會怎樣？
+  - block 屬性的慣例修飾詞是什麼？
+feedback:
+  "2=strong": 父節點 strong 持有子節點、子節點又 strong 持有父節點 → 循環參考，整棵樹永遠不釋放（4.3）。
+  "1=strong": 傳入 NSMutableString 後外部修改會影響你的屬性（本章陷阱）。
+  "3=strong": NSArray 有 NSMutableArray 子類別，同樣要 copy 切斷。
+solution_note: 字串、陣列、block 用 copy；指回父節點用 weak；基本型別用 assign。

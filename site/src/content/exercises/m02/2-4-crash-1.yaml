@@ -1,0 +1,22 @@
+id: m02-2-4-crash-1
+chapter: "2.4"
+type: crash
+title: 讀懂這則崩潰訊息
+minutes: 2
+log: |
+  *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+  reason: '-[LBTransaction setNote:]: unrecognized selector sent to instance 0x600000d1c2a0'
+options:
+  - note 屬性宣告為 readonly，沒有 setter，卻有人呼叫 setNote:
+  - note 的值是 nil，對 nil 送訊息會 crash
+  - LBTransaction 沒有 import 正確的標頭檔
+  - 記憶體不足
+answer: 0
+fix: |
+  // LBTransaction.m
+  @interface LBTransaction ()
+  @property (nonatomic, copy, readwrite) NSString *note;
+  @end
+solution_note: unrecognized selector 表示「這個物件沒有這個方法」。readonly 屬性只合成 getter；對內要改就在類別延伸裡重新宣告 readwrite。
+hints: ["訊息裡的 selector 是 setNote:，想想什麼情況下一個屬性會「沒有 setter」。", "對 nil 送訊息不會 crash，這是 2.2 教過的。"]
+feedback: { "1": "對 nil 送訊息會安靜地回傳 nil / 0，不會丟例外。而且訊息裡有實體位址，表示物件存在。" }

@@ -1,0 +1,9 @@
+---
+import Base from '../../layouts/Base.astro';
+import { url } from '../../lib/base';
+const items = [['/cheatsheet/syntax', '語法速查卡', '類別、屬性、方法、block、GCD、NSError 的標準寫法一頁看完'], ['/cheatsheet/crashes', '崩潰訊息排查表', '看到訊息 → 常見原因 → 修法'], ['/cheatsheet/compare', '四語言對照總表', 'Objective-C ↔ Swift / Kotlin / Java / TypeScript'], ['/cheatsheet/terms', '術語對照表', '台灣 / 中國大陸 / 日本 IT 界用語'], ['/cheatsheet/interview', '面試題 20 題', 'Phase 2 上線']];
+---
+<Base title="速查" nav="cheatsheet">
+  <h1 class="text-2xl font-bold mb-3">速查</h1>
+  <div class="grid gap-2">{items.map(i => <a href={url(i[0])} class="card p-4 no-underline text-[color:var(--fg)] border-[0.5px] border-[color:var(--line)]"><div class="font-bold">{i[1]}</div><div class="text-sm muted">{i[2]}</div></a>)}</div>
+</Base>

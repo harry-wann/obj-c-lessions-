@@ -1,0 +1,18 @@
+---
+import Base from '../../layouts/Base.astro';
+import ModuleProgress from '../../components/ModuleProgress';
+import { allLessons, allModules, lessonHref } from '../../lib/content';
+const lessons = await allLessons(); const modules = await allModules();
+---
+<Base title="課程" nav="lessons">
+  <h1 class="text-2xl font-bold mb-1">課程</h1>
+  <p class="muted text-sm mb-4">12 個模組。每章：你已經會的 → 概念與語法 → 實務陷阱 → 崩潰現場 → 小測驗 → 練習 → 小帳本進度。</p>
+  {modules.map(m => { const ls = lessons.filter(l => l.data.module === m.number); return (
+    <section id={`m${String(m.number).padStart(2, '0')}`} class="card p-4 my-3 border-[0.5px] border-[color:var(--line)]">
+      <div class="flex items-baseline justify-between"><h2 class="font-bold text-lg">模組 {m.number} · {m.title}</h2><span class="text-xs muted">⏱ {m.days}</span></div>
+      <p class="text-sm muted mt-1">{m.blurb}</p>
+      {ls.length > 0 ? <><div class="my-2"><ModuleProgress client:load ids={ls.map(l => l.id)} /></div><ul class="space-y-1">{ls.map(l => <li><a href={lessonHref(l)} class="flex items-center gap-2 min-h-11 no-underline text-[color:var(--fg)]"><span class="font-mono text-sm muted w-9">{l.data.chapter}</span><span class="flex-1">{l.data.title}{l.data.optional && <span class="muted text-xs">（選讀）</span>}</span><span class="text-xs muted">{l.data.minutes} 分</span></a></li>)}</ul></>
+        : <div class="text-sm muted mt-2">Phase 2 撰寫中。</div>}
+      {m.milestone && <div class="text-xs mt-2 text-[color:var(--color-income)]">📱 里程碑：{m.milestone}</div>}
+    </section>); })}
+</Base>

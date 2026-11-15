@@ -1,0 +1,30 @@
+id: m02-2-4-code-1
+chapter: "2.4"
+type: code
+title: 宣告 LBRate 的屬性
+mobile: false
+minutes: 5
+prompt: 宣告一個 LBRate 類別的 @interface，包含三個屬性：幣別代碼 code（字串、對外唯讀）、匯率 value（NSDecimalNumber、對外唯讀）、更新時間 updatedAt（NSDate、可為 nil、可讀寫）。全部 nonatomic。
+starter: |
+  @interface LBRate : NSObject
+
+  @end
+checks:
+  - must_match: '@interface LBRate : NSObject'
+    message: "要宣告 @interface LBRate : NSObject"
+  - property_attrs: { name: code, attrs: [nonatomic, copy, readonly] }
+    message: code 要 nonatomic、copy、readonly（NSString 用 copy）
+  - property_attrs: { name: value, attrs: [nonatomic, strong, readonly] }
+    message: value 要 nonatomic、strong、readonly
+  - property_attrs: { name: updatedAt, attrs: [nonatomic, strong, nullable] }
+    message: updatedAt 要 nonatomic、strong、nullable
+  - must_match: '@end'
+  - brackets_balanced: true
+solution: |
+  @interface LBRate : NSObject
+  @property (nonatomic, copy, readonly) NSString *code;
+  @property (nonatomic, strong, readonly) NSDecimalNumber *value;
+  @property (nonatomic, strong, nullable) NSDate *updatedAt;
+  @end
+solution_note: code 是 NSString 所以 copy；value 是不可變物件用 strong；updatedAt 可為 nil 標 nullable（沒標在 Swift 端會變成 `Date!`）。
+hints: ["NSString 屬性的慣例修飾詞是什麼？", "readonly 與 nullable 都寫在同一個括號裡，用逗號分隔。"]

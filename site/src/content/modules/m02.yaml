@@ -1,0 +1,5 @@
+number: 2
+title: 物件、類別與訊息傳遞
+days: 1.5 天
+blurb: 類別宣告、訊息傳遞、初始化器、屬性、封裝、繼承、相等與複製、命名慣例。
+milestone: LBTransaction / LBCategory 完整 model；LBTransactionTests 全綠

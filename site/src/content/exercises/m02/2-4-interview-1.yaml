@@ -1,0 +1,11 @@
+id: m02-2-4-interview-1
+chapter: "2.4"
+type: flash
+tier: interview
+title: 面試題：atomic 保證了什麼？
+minutes: 2
+front: "面試官：@property 的 atomic 修飾詞保證了什麼？為什麼大家都寫 nonatomic？"
+back: |
+  atomic 只保證「單次 getter / setter 的完整性」：不會讀到寫到一半的值。
+  它不保證複合操作（讀-改-寫、對 NSMutableArray addObject:）的執行緒安全，也不保證多個屬性之間的一致性。
+  代價是每次存取都加鎖，UIKit 的屬性全部是 nonatomic。真正的執行緒安全要靠串列佇列或鎖（模組 7、10）。

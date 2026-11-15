@@ -1,0 +1,7 @@
+---
+// 術語小標：<Term en="protocol" tw="協定" cn="协议" jp="プロトコル" />
+interface Props { en: string; tw: string; cn?: string; jp?: string }
+const { en, tw, cn, jp } = Astro.props;
+const tip = [cn && `中國大陸：${cn}`, jp && `日本：${jp}`].filter(Boolean).join('　');
+---
+<span class="term" title={tip || en}>{tw}<sup>{en}</sup></span>

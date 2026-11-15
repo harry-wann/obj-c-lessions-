@@ -1,0 +1,15 @@
+---
+import Base from '../../layouts/Base.astro';
+const rows = [
+  ['類別宣告', '@interface / @implementation 兩檔', 'class 單檔', 'class', 'class', 'class'], ['建構', '[[X alloc] init]', 'X()', 'X()', 'new X()', 'new X()'], ['方法呼叫', '[obj do:a with:b]', 'obj.do(a, with: b)', 'obj.do(a, b)', 'obj.do(a, b)', 'obj.do(a, b)'],
+  ['空值', 'nil（送訊息安全）', 'Optional', '? / ?.', 'null（NPE）', 'null / undefined'], ['可為空標注', 'nullable / nonnull', '型別系統', '型別系統', '@Nullable', 'string | null'], ['相等', 'isEqual:（== 比位址）', '== 呼叫 Equatable', '== 呼叫 equals', 'equals（== 比位址）', '==='],
+  ['介面', '@protocol', 'protocol', 'interface', 'interface', 'interface'], ['擴充既有類別', '分類 category', 'extension', 'extension function', '無', 'prototype'], ['閉包', 'block ^{}', 'closure', 'lambda', 'lambda', 'arrow function'], ['閉包捕獲', '值拷貝（物件 retain）', '參考', '參考', '事實上 final', '參考'],
+  ['弱參考', '__weak / weak', 'weak', '無（GC）', 'WeakReference', 'WeakRef'], ['單例', '+shared + dispatch_once', 'static let', 'object', 'enum / holder', 'module'], ['列舉', 'NS_ENUM（整數）', 'enum（可帶值）', 'enum class / sealed', 'enum', 'enum / union'], ['泛型', '輕量泛型（編譯期提示）', '真泛型', '真泛型（抹除）', '真泛型（抹除）', '結構型別'],
+  ['錯誤', 'NSError **', 'throws', 'exception / Result', 'checked exception', 'throw'], ['非同步', 'block 回呼 / GCD', 'async-await / GCD', 'coroutines', 'CompletableFuture', 'Promise'], ['字串格式', 'stringWithFormat:@"%@"', '"\\(x)"', '"$x"', 'String.format', '`${x}`'], ['私有', '類別延伸 ()', 'private', 'private', 'private', 'private / #x'],
+  ['反射', 'runtime（常用）', '幾乎無', 'reflection', 'reflection', '動態語言'], ['存取屬性', 'obj.name = [obj name]', 'obj.name', 'obj.name', 'obj.getName()', 'obj.name'], ['鎖', '@synchronized / NSLock / 串列佇列', 'actor / NSLock', 'Mutex / synchronized', 'synchronized / ReentrantLock', '無（單執行緒）'],
+];
+---
+<Base title="四語言對照總表" nav="cheatsheet" back={{ href: import.meta.env.BASE_URL + 'cheatsheet', label: '速查' }}>
+  <h1 class="text-2xl font-bold mb-3">四語言對照總表</h1>
+  <div class="space-y-2">{rows.map(r => <div class="card p-3 border-[0.5px] border-[color:var(--line)]"><div class="font-bold mb-1">{r[0]}</div><div class="grid grid-cols-[5rem_1fr] gap-x-2 gap-y-0.5 text-[0.875rem] font-mono"><span class="muted">ObjC</span><span class="font-semibold">{r[1]}</span><span class="muted">Swift</span><span>{r[2]}</span><span class="muted">Kotlin</span><span>{r[3]}</span><span class="muted">Java</span><span>{r[4]}</span><span class="muted">TS</span><span>{r[5]}</span></div></div>)}</div>
+</Base>

@@ -1,0 +1,5 @@
+number: 4
+title: 記憶體管理與 ARC
+days: 1 天
+blurb: 參考計數心智模型、ARC 規則、循環參考、dealloc 與 autoreleasepool、Core Foundation 橋接。
+milestone: 無循環參考；LBLinkedList、LBLRUCache；洩漏測試全綠

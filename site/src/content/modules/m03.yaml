@@ -1,0 +1,5 @@
+number: 3
+title: Foundation 容器與字串
+days: 1 天
+blurb: NSString、NSNumber、NSArray、NSDictionary、可變與不可變、輕量泛型與 nullability、KVC。
+milestone: LBLedger 核心邏輯；LBHashMap；對應測試全綠

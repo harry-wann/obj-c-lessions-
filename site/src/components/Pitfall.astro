@@ -1,0 +1,15 @@
+---
+// ⚠️ 實務陷阱。可選 slot：bad / good 並排（手機上下排）。
+interface Props { title: string }
+const { title } = Astro.props;
+---
+<div class="callout pitfall">
+  <div class="callout-title">⚠️ 實務陷阱：{title}</div>
+  <slot />
+  {(Astro.slots.has('bad') || Astro.slots.has('good')) && (
+    <div class="badgood mt-2">
+      {Astro.slots.has('bad') && <div class="bad"><div class="text-xs font-bold text-[color:var(--color-expense)] mt-1">✗ 錯誤寫法</div><slot name="bad" /></div>}
+      {Astro.slots.has('good') && <div class="good"><div class="text-xs font-bold text-[color:var(--color-income)] mt-1">✓ 正確寫法</div><slot name="good" /></div>}
+    </div>
+  )}
+</div>

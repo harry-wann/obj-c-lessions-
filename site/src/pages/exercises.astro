@@ -1,0 +1,12 @@
+---
+import Base from '../layouts/Base.astro';
+import ExerciseFilter from '../components/ExerciseFilter';
+import { allLessons, allExercises, exerciseHref } from '../lib/content';
+const lessons = await allLessons(); const exercises = await allExercises();
+const rows = exercises.map(e => ({ id: e.id, title: e.title, chapter: e.chapter, href: exerciseHref(e, lessons), type: e.type, mobile: e.mobile, tier: e.tier, minutes: e.minutes }));
+---
+<Base title="練習" nav="exercises">
+  <h1 class="text-2xl font-bold mb-1">練習</h1>
+  <p class="muted text-sm mb-3">🌐 網頁驗證題當場給結果；💻 Xcode 任務以 XCTest 全綠為通關。練習題做在各章頁面裡，這裡是總覽與篩選。</p>
+  <ExerciseFilter client:load rows={rows} />
+</Base>

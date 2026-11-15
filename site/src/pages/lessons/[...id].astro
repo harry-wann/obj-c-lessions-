@@ -1,0 +1,12 @@
+---
+import { render } from 'astro:content';
+import Lesson from '../../layouts/Lesson.astro';
+import { allLessons, allExercises, allModules } from '../../lib/content';
+export async function getStaticPaths() {
+  const lessons = await allLessons(); const exercises = await allExercises(); const modules = await allModules();
+  return lessons.map((lesson, i) => ({ params: { id: lesson.id }, props: { lesson, prev: lessons[i - 1], next: lessons[i + 1], exercises: exercises.filter(e => e.chapter === lesson.data.chapter), moduleTitle: modules.find(m => m.number === lesson.data.module)?.title || '', siblings: lessons.filter(l => l.data.module === lesson.data.module) } }));
+}
+const { lesson, prev, next, exercises, moduleTitle, siblings } = Astro.props;
+const { Content } = await render(lesson);
+---
+<Lesson lesson={lesson} prev={prev} next={next} exercises={exercises} moduleTitle={moduleTitle} siblings={siblings}><Content /></Lesson>

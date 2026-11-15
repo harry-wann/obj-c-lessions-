@@ -1,0 +1,29 @@
+---
+import Base from '../layouts/Base.astro';
+import { url } from '../lib/base';
+const screens = [
+  ['01', '帳本 · 交易列表', 'LBTransactionListViewController', '8.4'], ['02', '帳本 · 空狀態', '同上', '8.4'], ['03', '帳本 · 搜尋中', 'UISearchController', '10.6'],
+  ['04', '新增 / 編輯交易', 'LBTransactionEditorViewController', '8.5、8.6'], ['05', '分類選擇（樹狀）', 'LBCategoryPickerViewController', '8.4'], ['06', '統計（Swift）', 'StatsViewController.swift', '12.1、6.4'],
+  ['07', '幣別與匯率', 'LBCurrencyPickerViewController', '7.6、10.5'], ['08', '設定（Storyboard）', 'LBSettingsViewController', '9.2、11.3'], ['09', '滑動刪除與確認', 'UIAlertController', '8.4'], ['10', '效能面板', 'LBPerformanceViewController', '10.1–10.5'],
+];
+const milestones = [
+  ['M0', '空白 App 可啟動；Scratch 草稿本可印字', '模擬器啟動無錯'], ['M1', '型別、常數、金額格式化函式', 'LBTypesTests 全綠'], ['M2', 'LBTransaction / LBCategory 完整 model', 'LBTransactionTests、LBCategoryTests 全綠'],
+  ['M3', 'LBLedger 核心邏輯；LBHashMap', 'LBLedgerTests、LBHashMapTests 全綠'], ['M4', '無循環參考；LBLinkedList、LBLRUCache', '洩漏測試全綠；Memory Graph 無 !'], ['M5', '協定 / 委派、分類、LBUndoStack、NSArray+LBFunctional', '對應測試全綠'],
+  ['M6', 'KVO 總額；字串路由', 'LBLedgerKVOTests 全綠'], ['M7', 'LBRateService（stub）、LBSyncQueue', '非同步測試全綠'], ['M8', '可以用了：畫面 01、02、04、05、09', '手動驗收 12 項'], ['M9', '持久化、設定頁', 'LBPersistenceTests 全綠'],
+  ['M10', '畫面 03、07、10；讀寫鎖；匯入 100,000 筆；FPS 監視器', '效能指標達標；TSan 零警告'], ['M11', '設定頁改 Storyboard；XIB cell；CocoaPods；Legacy 修完', '兩版都能建置'], ['M12', 'Swift 統計頁；全測試；Analyze 零警告', '全綠 + -Werror 可建置'],
+];
+---
+<Base title="專案" nav="project">
+  <h1 class="text-2xl font-bold mb-1">小帳本 LittleBook</h1>
+  <p class="muted text-[0.9375rem]">一支簡單但完整的記帳 App。每個模組的 Xcode 任務都是它的一塊，做完模組 12 就是成品。</p>
+  <a href="https://www.figma.com/design/4d6HGy38x11n2uOfkzOBzj" target="_blank" rel="noopener" class="btn w-full mt-3 no-underline">打開 Figma 設計稿 ↗</a>
+  <p class="text-xs muted mt-1">規範、19 個元件、10 張淺色 + 4 張深色畫面、導覽流程。顏色對應 UIColor 系統色，字型用系統字即可。</p>
+  <h2 class="font-bold text-lg mt-6 mb-2">畫面</h2>
+  <div class="card border-[0.5px] border-[color:var(--line)] divide-y divide-[color:var(--line)]">{screens.map(s => <div class="px-3 py-2 flex items-center gap-3 min-h-12"><span class="font-mono text-sm muted">{s[0]}</span><span class="flex-1"><span class="font-semibold">{s[1]}</span><span class="block text-xs muted font-mono">{s[2]}</span></span><span class="text-xs muted">{s[3]}</span></div>)}</div>
+  <h2 class="font-bold text-lg mt-6 mb-2">里程碑</h2>
+  <div class="card border-[0.5px] border-[color:var(--line)] divide-y divide-[color:var(--line)]">{milestones.map(m => <div class="px-3 py-2 min-h-12"><div class="flex items-baseline gap-2"><span class="font-mono font-bold text-[color:var(--color-tint)]">{m[0]}</span><span>{m[1]}</span></div><div class="text-xs muted">通關：{m[2]}</div></div>)}</div>
+  <h2 class="font-bold text-lg mt-6 mb-2">起始專案</h2>
+  <p class="text-[0.9375rem]">每個里程碑在 repo 的 <code>xcode/</code> 下有 <code>M0x-starter</code>（含會失敗的測試）與 <code>M0x-solution</code>。專案用 XcodeGen 描述（<code>project.yml</code>），在 Mac 上執行 <code>xcodegen generate</code> 產生 <code>.xcodeproj</code>。詳見 <a href={url('/lessons/m00/0-2-xcode')}>0.2 Xcode 快速導覽</a>。</p>
+  <h2 class="font-bold text-lg mt-6 mb-2">效能驗收指標（模組 10）</h2>
+  <ul class="list-disc ml-5 text-[0.9375rem] space-y-1"><li>列表捲動全程 ≥ 58 FPS，無離屏渲染</li><li>單幀主執行緒 &lt; 8 ms</li><li>匯入 100,000 筆期間 UI 可操作、記憶體峰值 &lt; 150 MB</li><li>搜尋 10 萬筆 &lt; 100 ms，舊結果不覆蓋新結果</li><li>50 個並行請求限流 4，執行緒數 &lt; 10</li><li>Thread Sanitizer 零警告</li></ul>
+</Base>

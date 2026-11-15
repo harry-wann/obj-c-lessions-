@@ -1,0 +1,17 @@
+id: m02-2-4-xcode-1
+chapter: "2.4"
+type: xcode
+title: 補齊 LBTransaction 的屬性宣告
+mobile: false
+minutes: 15
+prompt: 打開 M02 起始專案，把 LBTransaction.h / .m 的屬性宣告補齊：對外唯讀、內部可寫，note 用 copy。
+starter: xcode/M02-starter
+steps:
+  - 在 LBTransaction.h 宣告 identifier、amount、kind、date、note、category、flags 七個屬性，全部 readonly。
+  - 在 LBTransaction.m 的類別延伸把需要內部修改的屬性改成 readwrite。
+  - 在 initWithAmount:kind:date:note:category: 裡用 _ivar 賦值，note 要 copy。
+  - ⌘U 跑測試。
+tests:
+  - LBTransactionTests/testNoteIsCopied
+  - LBTransactionTests/testPropertiesAreReadonlyFromOutside
+solution_note: 通關後把 M02-solution 的 LBTransaction.m 與你的版本 diff 一次，看慣例上的差異。

@@ -1,0 +1,6 @@
+site/node_modules/
+site/dist/
+site/.astro/
+.DS_Store
+xcode/**/*.xcodeproj/
+xcode/**/DerivedData/

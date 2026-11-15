@@ -1,0 +1,27 @@
+id: m02-2-4-spot-1
+chapter: "2.4"
+type: spot
+title: 找出這個類別的問題
+minutes: 3
+prompt: 這段宣告能編譯，但上線後會出事。點選有問題的行並選出原因。
+code: |
+  @interface LBMonthSection : NSObject
+  @property (nonatomic, strong) NSString *title;
+  @property (nonatomic, strong) NSArray<LBTransaction *> *transactions;
+  @property (nonatomic, assign) NSDecimalNumber *total;
+  @property (nonatomic, weak) id<LBSectionDelegate> delegate;
+  @end
+bug_lines: [2, 3, 4]
+reasons:
+  - title 與 transactions 應該用 copy，total 是物件不能用 assign（會變懸空指標）
+  - delegate 應該用 strong，否則會被釋放
+  - transactions 應該用 weak，避免循環參考
+  - 全部屬性都應該用 atomic 才安全
+answer_reason: 0
+fix: |
+  @property (nonatomic, copy) NSString *title;
+  @property (nonatomic, copy) NSArray<LBTransaction *> *transactions;
+  @property (nonatomic, strong) NSDecimalNumber *total;
+solution_note: assign 用在物件上，物件釋放後指標不會歸零（不像 weak），之後存取就是 EXC_BAD_ACCESS。
+hints: ["有可變子類別的型別要怎麼處理？", "assign 可以用在物件上嗎？物件釋放後會發生什麼？"]
+feedback: { "1": "delegate 用 weak 是正確的，反而 strong 會循環參考。", "3": "atomic 不會讓集合變執行緒安全，而且會變慢。" }

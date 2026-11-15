@@ -1,0 +1,27 @@
+---
+import Base from '../../layouts/Base.astro';
+const rows = [
+  ['-[LBTransaction amout]: unrecognized selector sent to instance 0x…', '呼叫了不存在的方法：打錯方法名、optional 協定方法沒檢查、物件型別不是你以為的（JSON 數字被當字串）、靜態庫 category 未連結（-ObjC）', '看訊息裡的類別名與 selector；堆疊中找到第一個自己的 frame；`respondsToSelector:` / `isKindOfClass:` 防禦；檢查 Other Linker Flags', '2.2、5.1、6.2、7.7、11.6'],
+  ['EXC_BAD_ACCESS (code=1, address=0x…)', '存取已釋放的物件（懸空指標）、解參考 NULL、多執行緒同時寫可變集合、MRC over-release', '開 Zombie Objects 重現，訊息會變成 message sent to deallocated instance；開 Address Sanitizer；檢查 weak / unsafe_unretained', '1.2、4.4、10.4、11.1'],
+  ['*** -[__NSArrayI objectAtIndex:]: index 3 beyond bounds [0 .. 2]', '索引越界；資料與 UI 數量不同步', '用 `firstObject` / `lastObject`；先判 `count`；table view 更新要同步改資料來源', '3.3、8.4'],
+  ['attempt to insert nil object from objects[1]', '把 nil 放進 NSArray / NSDictionary 字面值', '用 `NSNull` 表示空值；建構前判 nil', '3.3'],
+  ['Collection <__NSArrayM: 0x…> was mutated while being enumerated.', '快速列舉中修改同一個集合（常見於多執行緒）', '先 copy 一份再列舉；或收集索引後再刪；多執行緒用串列佇列保護', '3.3、10.4'],
+  ["this class is not key value coding-compliant for the key amountLabel", 'Storyboard / XIB 的 IBOutlet 連到不存在的屬性（改名、刪除後沒斷線）', '在 IB 的 Connections Inspector 找到黃色警告的連線並移除或重接', '6.4、8.7、11.3'],
+  ['unable to dequeue a cell with identifier LBTransactionCell', '沒有 `registerClass:` / `registerNib:` 或 identifier 打錯', '在 viewDidLoad 註冊；identifier 用常數', '8.4'],
+  ['Invalid update: invalid number of rows in section 0…', '`insertRows` / `deleteRows` 的數量與資料來源變化不一致', '先改資料再更新；或用 `performBatchUpdates:`；不確定就 `reloadData`', '8.4'],
+  ['Unable to simultaneously satisfy constraints.（警告）', '約束衝突；常見是忘了 `translatesAutoresizingMaskIntoConstraints = NO`', '在列出的約束中找 NSAutoresizingMaskLayoutConstraint；用 `UIView.constraintsAffectingLayout` 看衝突組', '8.3'],
+  ['Main Thread Checker: UI API called on a background thread', '在背景執行緒更新 UI（NSURLSession 回呼預設在背景）', '`dispatch_async(dispatch_get_main_queue(), ^{ … })`', '7.5、7.6'],
+  ['-[__NSCFNumber length]: unrecognized selector / -[NSNull length]', 'JSON 欄位型別與假設不同（數字當字串、null）', '解析時 `isKindOfClass:` 防禦；`NSNull` 判斷', '7.7'],
+  ['An instance 0x… of class LBLedger was deallocated while key value observers were still registered', 'KVO 觀察者沒在 dealloc 移除', '`removeObserver:forKeyPath:context:` 成對；用 context 區分', '6.4'],
+  ['Attempt to set a non-property-list object … as an NSUserDefaults value', 'NSUserDefaults 只能存 plist 型別', '先序列化成 NSData / JSON；大資料改存檔', '9.2'],
+  ['Exception Code: 0x8badf00d（watchdog）', '主執行緒卡住太久被系統殺：同步 I/O、死結、啟動時做太多事', '在 crash log 找主執行緒堆疊；把工作移到背景；啟動懶載入', '10.1、10.4'],
+  ['ThreadSanitizer: data race', '兩條執行緒同時讀寫同一變數', '讀 TSan 兩段堆疊各指向哪一行；用串列佇列或鎖保護', '10.4、10.5'],
+  ['Could not load NIB in bundle … with name LBTransactionCell', 'XIB 檔名或 target membership 錯', '確認檔名、target、`nibWithNibName:bundle:`', '11.4'],
+  ["Receiver has no segue with identifier 'showPerformance'", 'segue identifier 打錯或沒設', '在 IB 的 Attributes Inspector 設 identifier；用常數', '11.3'],
+];
+---
+<Base title="崩潰訊息排查表" nav="cheatsheet" back={{ href: import.meta.env.BASE_URL + 'cheatsheet', label: '速查' }}>
+  <h1 class="text-2xl font-bold mb-1">崩潰訊息排查表</h1>
+  <p class="muted text-sm mb-3">進入工作後最先遇到的不是語法，是別人留下的 crash。看到訊息 → 常見原因 → 修法 → 對應章節。</p>
+  <div class="space-y-2">{rows.map(r => <div class="card p-3 border-[0.5px] border-[color:var(--line)]"><pre class="code-plain text-[color:var(--color-expense)]" style="white-space:pre-wrap;word-break:break-all;margin:0 0 .5rem">{r[0]}</pre><div class="text-[0.9375rem]"><span class="font-bold">原因：</span>{r[1]}</div><div class="text-[0.9375rem]"><span class="font-bold">修法：</span>{r[2]}</div><div class="text-xs muted mt-1">章節 {r[3]}</div></div>)}</div>
+</Base>

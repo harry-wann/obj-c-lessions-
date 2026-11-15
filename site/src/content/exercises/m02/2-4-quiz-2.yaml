@@ -1,0 +1,10 @@
+id: m02-2-4-quiz-2
+chapter: "2.4"
+section: quiz
+type: quiz
+title: 哪個屬性應該用 weak？
+minutes: 1
+options: ["NSString *title", "id<UITableViewDelegate> delegate", "NSArray *items", "NSDecimalNumber *amount"]
+answer: 1
+explain: delegate 的持有者通常也被 delegate 持有（ViewController 持有 tableView，tableView 的 delegate 是 ViewController），用 strong 會循環參考。
+hints: ["想想誰持有誰。", "哪一個最可能「反過來」也持有這個物件？"]

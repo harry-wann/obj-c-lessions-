@@ -1,0 +1,11 @@
+id: m02-2-4-quiz-3
+chapter: "2.4"
+section: quiz
+type: quiz
+title: 點語法會呼叫哪個方法？
+minutes: 1
+code: "self.note = @\"午餐\";"
+options: ["-note", "-setNote:", "-note:", "直接寫入 _note，不呼叫方法"]
+answer: 1
+explain: 點語法在等號左邊就是 setter `-setNote:`，在右邊就是 getter `-note`。它不會繞過 setter 直接寫 ivar。
+hints: ["等號左邊是「設定」。", "setter 的命名規則是 set + 首字大寫的屬性名 + 冒號。"]

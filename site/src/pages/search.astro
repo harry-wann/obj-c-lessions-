@@ -1,0 +1,12 @@
+---
+import Base from '../layouts/Base.astro';
+import { url } from '../lib/base';
+---
+<Base title="搜尋" nav="home">
+  <h1 class="text-2xl font-bold mb-3">搜尋</h1>
+  <link rel="stylesheet" href={url('/pagefind/pagefind-ui.css')} />
+  <div id="search"></div>
+  <script is:inline define:vars={{ base: url('/pagefind/') }}>
+    const s = document.createElement('script'); s.src = base + 'pagefind-ui.js'; s.onload = () => { new PagefindUI({ element: '#search', showSubResults: true, translations: { placeholder: '搜尋課程、陷阱、崩潰訊息…', zero_results: '找不到「[SEARCH_TERM]」', clear_search: '清除', load_more: '更多結果' } }); }; s.onerror = () => { document.getElementById('search').textContent = '搜尋索引只在正式建置後可用（npm run build）。'; }; document.head.appendChild(s);
+  </script>
+</Base>

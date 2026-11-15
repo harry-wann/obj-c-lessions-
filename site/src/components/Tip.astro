@@ -1,0 +1,5 @@
+---
+interface Props { title?: string }
+const { title = '重點' } = Astro.props;
+---
+<div class="callout tip"><div class="callout-title">💡 {title}</div><slot /></div>

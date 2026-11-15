@@ -1,0 +1,10 @@
+---
+// 💥 崩潰現場：message 為真實錯誤訊息；內文說明怎麼讀、原因、修法。
+interface Props { message: string; title?: string }
+const { message, title = '崩潰現場' } = Astro.props;
+---
+<div class="callout crash">
+  <div class="callout-title">💥 {title}</div>
+  <pre class="code-plain text-[color:var(--color-expense)]" style="white-space: pre-wrap; word-break: break-all;">{message}</pre>
+  <slot />
+</div>

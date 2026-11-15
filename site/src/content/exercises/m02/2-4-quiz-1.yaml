@@ -1,0 +1,12 @@
+id: m02-2-4-quiz-1
+chapter: "2.4"
+section: quiz
+type: quiz
+title: 基本型別屬性的參考修飾詞
+minutes: 1
+prompt: "`@property (nonatomic) NSInteger count;` 沒寫參考修飾詞，實際上等於哪一個？"
+options: ["strong", "weak", "assign", "copy"]
+answer: 2
+explain: 基本型別（NSInteger、BOOL、CGFloat、struct）的預設是 assign；物件型別的預設才是 strong。
+hints: ["NSInteger 不是物件。", "沒有參考計數的東西談不上 strong / weak。"]
+feedback: { "0": "strong 只對物件指標有意義，NSInteger 是 C 的整數。", "1": "weak 不能修飾基本型別，寫了會編譯錯誤。" }

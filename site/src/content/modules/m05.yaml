@@ -1,0 +1,5 @@
+number: 5
+title: 協定、委派、分類與區塊
+days: 1.5 天
+blurb: "@protocol、delegate 模式、category 與 extension、block 語法與捕獲語意、非同步 API 慣例、通知。"
+milestone: 協定與 delegate、兩個分類、LBUndoStack；對應測試全綠

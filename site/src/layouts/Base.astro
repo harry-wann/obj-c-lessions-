@@ -1,0 +1,77 @@
+---
+import '../styles/global.css';
+import { url } from '../lib/base';
+interface Props { title: string; description?: string; nav?: 'lessons' | 'exercises' | 'project' | 'cheatsheet' | 'home'; back?: { href: string; label: string }; }
+const { title, description = '', nav = 'home', back } = Astro.props;
+const path = Astro.url.pathname;
+const navItems = [
+  { key: 'lessons', label: '課程', href: url('/lessons'), icon: 'M4 6h16M4 12h16M4 18h16' },
+  { key: 'exercises', label: '練習', href: url('/exercises'), icon: 'm5 12 5 5 9-10' },
+  { key: 'project', label: '專案', href: url('/project'), icon: 'M5 20V10M12 20V4M19 20v-7' },
+  { key: 'cheatsheet', label: '速查', href: url('/cheatsheet'), icon: 'M4 4h16v16H4zM8 9h8M8 13h8' },
+];
+---
+<!doctype html>
+<html lang="zh-Hant-TW" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+    <title>{title} · Objective-C 速成</title>
+    <meta name="description" content={description} />
+    <script is:inline>
+      (function(){try{var p=JSON.parse(localStorage.getItem('lb-progress-v1')||'{}');var s=(p.settings)||{};var h=document.documentElement;h.style.setProperty('--fs',String(s.fontScale||1));if(s.wrapCode)h.classList.add('code-wrap');var t=s.theme||'system';if(t==='system')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';h.setAttribute('data-theme',t);}catch(e){}})();
+    </script>
+  </head>
+  <body class="safe-bottom">
+    <div class="readbar" id="readbar"></div>
+    <header class="sticky top-0 z-30 border-b-[0.5px]" style="background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(12px); border-color: var(--line)">
+      <div class="mx-auto max-w-3xl flex items-center gap-2 px-3 h-12">
+        {back ? <a href={back.href} class="flex items-center gap-1 text-[color:var(--color-tint)] no-underline text-[15px] min-h-11 pr-2"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="m15 18-6-6 6-6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="truncate max-w-[9rem]">{back.label}</span></a> : <a href={url('/')} class="font-bold no-underline text-[color:var(--fg)] text-[15px] min-h-11 flex items-center">ObjC 速成</a>}
+        <div class="flex-1 truncate text-center text-[15px] font-semibold">{title}</div>
+        <a href={url('/search')} aria-label="搜尋" class="min-h-11 min-w-11 flex items-center justify-center text-[color:var(--fg)]"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></a>
+        <a href={url('/settings')} aria-label="設定" class="min-h-11 min-w-11 flex items-center justify-center text-[color:var(--fg)]"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></a>
+      </div>
+    </header>
+    <main class="mx-auto max-w-3xl px-4 py-4">
+      <slot />
+    </main>
+    <nav class="bottomnav">
+      <div class="mx-auto max-w-3xl grid grid-cols-4">
+        {navItems.map(n => <a href={n.href} aria-current={nav === n.key ? 'page' : undefined}><svg viewBox="0 0 24 24" fill="none"><path d={n.icon} stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>{n.label}</a>)}
+      </div>
+    </nav>
+    <script>
+      // 程式碼區塊工具列：複製 / 換行；閱讀進度條
+      const BASE = document.documentElement;
+      document.querySelectorAll('pre.astro-code').forEach((pre) => {
+        if (pre.parentElement?.classList.contains('codewrap')) return;
+        const wrap = document.createElement('div'); wrap.className = 'codewrap';
+        pre.parentNode!.insertBefore(wrap, pre); wrap.appendChild(pre);
+        const lang = pre.getAttribute('data-language') || '';
+        if (lang && lang !== 'plaintext') { const l = document.createElement('span'); l.className = 'code-lang'; l.textContent = lang === 'objective-c' || lang === 'objc' ? 'Objective-C' : lang; wrap.appendChild(l); }
+        const tools = document.createElement('div'); tools.className = 'code-tools';
+        const copy = document.createElement('button'); copy.textContent = '複製'; copy.type = 'button';
+        copy.onclick = async () => { try { await navigator.clipboard.writeText(pre.textContent || ''); copy.textContent = '已複製'; setTimeout(() => (copy.textContent = '複製'), 1200); } catch {} };
+        const wrapBtn = document.createElement('button'); wrapBtn.type = 'button'; wrapBtn.textContent = BASE.classList.contains('code-wrap') ? '不換行' : '換行';
+        wrapBtn.onclick = () => { BASE.classList.toggle('code-wrap'); const on = BASE.classList.contains('code-wrap'); document.querySelectorAll('.code-tools button[data-wrap]').forEach(b => (b.textContent = on ? '不換行' : '換行')); try { const p = JSON.parse(localStorage.getItem('lb-progress-v1') || '{}'); p.settings = { ...(p.settings || {}), wrapCode: on }; p.version = 1; localStorage.setItem('lb-progress-v1', JSON.stringify(p)); } catch {} };
+        wrapBtn.setAttribute('data-wrap', '1');
+        tools.append(wrapBtn, copy); wrap.appendChild(tools);
+      });
+      const bar = document.getElementById('readbar');
+      const onScroll = () => { const h = document.documentElement; const max = h.scrollHeight - h.clientHeight; if (bar) bar.style.width = max > 0 ? `${Math.min(100, (h.scrollTop / max) * 100)}%` : '0'; };
+      addEventListener('scroll', onScroll, { passive: true }); onScroll();
+      // compare tabs
+      document.querySelectorAll('.compare').forEach((c) => {
+        const tabs = c.querySelectorAll<HTMLButtonElement>('.tabs button'); const panels = c.querySelectorAll<HTMLElement>('.panel');
+        const pick = (k: string) => { tabs.forEach(t => t.setAttribute('aria-selected', String(t.dataset.k === k))); panels.forEach(p => (p.hidden = p.dataset.k !== k)); try { localStorage.setItem('lb-compare', k); } catch {} };
+        tabs.forEach(t => t.addEventListener('click', () => pick(t.dataset.k!)));
+        let def = 'swift'; try { def = localStorage.getItem('lb-compare') || 'swift'; } catch {}
+        if (![...tabs].some(t => t.dataset.k === def)) def = tabs[0]?.dataset.k || 'swift';
+        pick(def);
+      });
+    </script>
+  </body>
+</html>

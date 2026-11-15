@@ -1,0 +1,38 @@
+---
+import Base from './Base.astro';
+import Exercise from '../components/exercises/Exercise';
+import ChapterDone from '../components/ChapterDone';
+import { url } from '../lib/base';
+import type { Lesson } from '../lib/content';
+import { lessonHref } from '../lib/content';
+interface Props { lesson: Lesson; prev?: Lesson; next?: Lesson; exercises: any[]; moduleTitle: string; siblings: Lesson[] }
+const { lesson, prev, next, exercises, moduleTitle, siblings } = Astro.props;
+const d = lesson.data;
+const quiz = exercises.filter(e => e.section === 'quiz');
+const practice = exercises.filter(e => e.section !== 'quiz' && e.tier === 'basic');
+const extra = exercises.filter(e => e.section !== 'quiz' && e.tier !== 'basic');
+const web = (xs: any[]) => xs.filter(e => e.type !== 'xcode'); const xc = (xs: any[]) => xs.filter(e => e.type === 'xcode');
+---
+<Base title={`${d.chapter} ${d.title}`} description={d.summary} nav="lessons" back={{ href: url('/lessons') + `#m${String(d.module).padStart(2, '0')}`, label: `模組 ${d.module}` }}>
+  <article class="prose" data-pagefind-body>
+    <div class="text-xs muted mb-1">模組 {d.module} · {moduleTitle}{d.optional && ' · 選讀'}</div>
+    <h1>{d.chapter} {d.title}</h1>
+    <div class="card p-3 text-[0.9375rem] my-3 border-[0.5px] border-[color:var(--line)]">
+      <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm muted mb-1"><span>⏱ 約 {d.minutes} 分鐘</span>{d.prereq.length > 0 && <span>前置：{d.prereq.join('、')}</span>}</div>
+      {d.objectives.length > 0 && <div><div class="font-bold">學習目標</div><ul class="!my-1">{d.objectives.map(o => <li>{o}</li>)}</ul></div>}
+    </div>
+    <slot />
+    {quiz.length > 0 && <section><h2 id="quiz">小測驗</h2><p class="muted text-sm">手機可做，點選即可。</p>{quiz.map((e, i) => <Exercise client:visible ex={e} index={i + 1} />)}</section>}
+    {practice.length > 0 && <section><h2 id="practice">練習</h2>
+      {web(practice).length > 0 && <><h3>🌐 網頁驗證</h3>{web(practice).map((e, i) => <Exercise client:visible ex={e} index={i + 1} />)}</>}
+      {xc(practice).length > 0 && <><h3>💻 Xcode 任務</h3><p class="muted text-sm">需要 Mac。在手機上先讀步驟、加入待辦，回 Mac 再做；通關條件是列出的測試全綠。</p>{xc(practice).map((e, i) => <Exercise client:visible ex={e} index={i + 1} />)}</>}
+    </section>}
+    {extra.length > 0 && <details class="fold card p-3 my-4 border-[0.5px] border-[color:var(--line)]"><summary>想多練？進階 / 面試等級（{extra.length} 題，不計入主線進度）</summary>{extra.map((e, i) => <Exercise client:visible ex={e} index={i + 1} />)}</details>}
+    {d.appProgress && <div class="callout" style="--c: var(--color-income)"><div class="callout-title">📱 小帳本進度</div><p>{d.appProgress}</p></div>}
+    {d.terms.length > 0 && <details class="fold card p-3 my-4 border-[0.5px] border-[color:var(--line)]"><summary>本章術語（台灣 / 中國大陸 / 日本）</summary><table class="mt-2"><thead><tr><th>英文</th><th>台灣</th><th>中國大陸</th><th>日本</th></tr></thead><tbody>{d.terms.map(t => <tr><td>{t.en}</td><td>{t.tw}</td><td>{t.cn || '—'}</td><td>{t.jp || '—'}</td></tr>)}</tbody></table></details>}
+    <div class="hr my-6"></div>
+    <ChapterDone client:load id={lesson.id} nextHref={next ? lessonHref(next) : undefined} nextTitle={next ? `${next.data.chapter} ${next.data.title}` : undefined} />
+    <div class="flex justify-between text-sm mt-3">{prev ? <a href={lessonHref(prev)} class="no-underline">← {prev.data.chapter} {prev.data.title}</a> : <span />}{next ? <a href={lessonHref(next)} class="no-underline text-right">{next.data.chapter} {next.data.title} →</a> : <span />}</div>
+  </article>
+  <details class="fold card p-3 mt-6 border-[0.5px] border-[color:var(--line)] text-[0.9375rem]"><summary>本模組章節</summary><ul class="mt-2 space-y-1">{siblings.map(s => <li><a href={lessonHref(s)} class={`no-underline ${s.id === lesson.id ? 'font-bold' : ''}`}>{s.data.chapter} {s.data.title}{s.data.optional && <span class="muted text-xs">（選讀）</span>}</a></li>)}</ul></details>
+</Base>

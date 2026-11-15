@@ -2,7 +2,7 @@ id: m02-2-7-fill-1
 chapter: "2.7"
 section: quiz
 type: fill
-title: 補齊 hash 與 copyWithZone:
+title: "補齊 hash 與 copyWithZone:"
 minutes: 2
 code: |
   - (NSUInteger)___1___ {

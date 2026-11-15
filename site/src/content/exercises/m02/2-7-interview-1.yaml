@@ -2,7 +2,7 @@ id: m02-2-7-interview-1
 chapter: "2.7"
 type: flash
 tier: interview
-title: 面試題：為什麼覆寫 isEqual: 就必須覆寫 hash？
+title: "面試題：為什麼覆寫 isEqual: 就必須覆寫 hash？"
 minutes: 2
 front: "面試官：覆寫 isEqual: 卻沒覆寫 hash，具體會在哪裡出問題？怎麼寫一個好的 hash？"
 back: |

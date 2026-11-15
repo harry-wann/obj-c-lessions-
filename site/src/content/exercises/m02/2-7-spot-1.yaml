@@ -1,7 +1,7 @@
 id: m02-2-7-spot-1
 chapter: "2.7"
 type: spot
-title: 這個 isEqual: 哪裡會爆？
+title: "這個 isEqual: 哪裡會爆？"
 minutes: 3
 prompt: "這個 isEqual: 在單元測試裡都過，上線後在 `[array indexOfObject:@\"x\"]` 時 crash。點選有問題的行並選出原因。"
 code: |

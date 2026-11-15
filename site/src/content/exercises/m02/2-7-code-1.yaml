@@ -1,7 +1,7 @@
 id: m02-2-7-code-1
 chapter: "2.7"
 type: code
-title: 覆寫 isEqual: 與 hash
+title: "覆寫 isEqual: 與 hash"
 mobile: false
 minutes: 6
 prompt: "為 `LBTransaction`（屬性 `amount`、`note`）寫出 `isEqual:` 與 `hash`。`isEqual:` 照三步樣板：同物件短路、`isKindOfClass:` 檢查、逐欄位比較；`hash` 用同一組欄位。"

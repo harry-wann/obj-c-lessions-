@@ -6,10 +6,10 @@ order: 7
 minutes: 35
 prereq: ["2.6"]
 objectives:
-  - 分清 ==、isEqual: 與 isEqualToString: 等特化版，正確覆寫 isEqual: 與 hash
+  - "分清 ==、isEqual: 與 isEqualToString: 等特化版，正確覆寫 isEqual: 與 hash"
   - 覆寫 description 讓 NSLog 與 po 印出有用的資訊
   - 讓 LBTransaction 遵循 NSCopying，知道不可變物件的 copy 可以怎麼偷懶
-summary: == 比位址、isEqual: 比內容；覆寫 isEqual: 必須一起覆寫 hash；description / debugDescription 與 po；NSCopying 與 copyWithZone:；NSMutableCopying。Kotlin data class 一行生出來的東西這章全部手寫。
+summary: "== 比位址、isEqual: 比內容；覆寫 isEqual: 必須一起覆寫 hash；description / debugDescription 與 po；NSCopying 與 copyWithZone:；NSMutableCopying。Kotlin data class 一行生出來的東西這章全部手寫。"
 terms:
   - { en: equality, tw: 相等, cn: 相等, jp: 等価性 }
   - { en: hash, tw: 雜湊, cn: 哈希, jp: ハッシュ }
@@ -17,7 +17,7 @@ terms:
   - { en: description, tw: 描述, cn: 描述, jp: 説明文字列 }
   - { en: copy, tw: 複製, cn: 拷贝, jp: コピー }
   - { en: mutable / immutable, tw: 可變 / 不可變, cn: 可变 / 不可变, jp: ミュータブル / イミュータブル }
-appProgress: LBTransaction 有了 isEqual: / hash / description / NSCopying；LBTransactionTests 全綠，資料模型完成。
+appProgress: "LBTransaction 有了 isEqual: / hash / description / NSCopying；LBTransactionTests 全綠，資料模型完成。"
 ---
 import Compare from '../../../components/Compare.astro';
 import Pitfall from '../../../components/Pitfall.astro';

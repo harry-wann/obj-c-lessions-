@@ -2,7 +2,7 @@ id: m02-2-7-quiz-2
 chapter: "2.7"
 section: quiz
 type: quiz
-title: 覆寫 isEqual: 之後一定要一起覆寫？
+title: "覆寫 isEqual: 之後一定要一起覆寫？"
 minutes: 1
 options: ["`hash`：isEqual: 為 YES 的兩個物件 hash 必須相等，否則 NSSet / NSDictionary 會找不到它", "`description`：否則 NSLog 印不出內容", "`copyWithZone:`：否則不能複製", "`isEqualToString:`：否則字串比較會錯"]
 answer: 0

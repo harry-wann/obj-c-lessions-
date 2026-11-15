@@ -1,7 +1,7 @@
 id: m02-2-5-xcode-1
 chapter: "2.5"
 type: xcode
-title: LBCategory 的 addChild: 與 weak parent
+title: "LBCategory 的 addChild: 與 weak parent"
 mobile: false
 minutes: 15
 prompt: "為 LBCategory 補上類別延伸、addChild:、children 快照與 depth；parent 對外唯讀、weak。"

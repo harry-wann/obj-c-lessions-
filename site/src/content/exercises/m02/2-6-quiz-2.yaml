@@ -2,7 +2,7 @@ id: m02-2-6-quiz-2
 chapter: "2.6"
 section: quiz
 type: quiz
-title: isMemberOfClass: 與字串常值
+title: "isMemberOfClass: 與字串常值"
 minutes: 1
 code: |
   NSString *s = @"午餐";

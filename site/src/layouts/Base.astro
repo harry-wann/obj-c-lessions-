@@ -21,11 +21,14 @@ const navItems = [
     <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
     <title>{title} · Objective-C 速成</title>
     <meta name="description" content={description} />
+    <link rel="icon" href={url('/icon.svg')} type="image/svg+xml" />
+    <link rel="apple-touch-icon" href={url('/icon.svg')} />
     <script is:inline>
       (function(){try{var p=JSON.parse(localStorage.getItem('lb-progress-v1')||'{}');var s=(p.settings)||{};var h=document.documentElement;h.style.setProperty('--fs',String(s.fontScale||1));if(s.wrapCode)h.classList.add('code-wrap');var t=s.theme||'system';if(t==='system')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';h.setAttribute('data-theme',t);}catch(e){}})();
     </script>
   </head>
   <body class="safe-bottom">
+    <script>import { pwaInfo } from 'virtual:pwa-info'; if (pwaInfo && 'serviceWorker' in navigator) { import('virtual:pwa-register').then(({ registerSW }) => registerSW({ immediate: true })); }</script>
     <div class="readbar" id="readbar"></div>
     <header class="sticky top-0 z-30 border-b-[0.5px]" style="background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(12px); border-color: var(--line)">
       <div class="mx-auto max-w-3xl flex items-center gap-2 px-3 h-12">

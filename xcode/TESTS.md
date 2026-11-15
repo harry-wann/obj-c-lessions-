@@ -205,3 +205,54 @@ typedef NS_ERROR_ENUM(LBErrorDomain, LBErrorCode) { LBErrorCodeMalformedJSON = 1
 // LittleBook-Bridging-Header.h：import LBLedger.h 等；project.yml 加 SWIFT_OBJC_BRIDGING_HEADER、SWIFT_VERSION 5
 // 全部 ObjC 標頭補 NS_ASSUME_NONNULL；NS_SWIFT_NAME 示範至少 2 處；completion handler 方法 Swift 端可 async 呼叫
 ```
+
+## Phase 2 補充介面（M08–M10 實作時為測試 / 頁面新增；名稱同樣固定）
+
+```objc
+// M08 ----------------------------------------------------------------
+// LBTypes.h：LBErrorCodeInvalidAmount = 104（編輯頁金額非正數）
+// LBTransaction：新增指定初始化器（舊的 5 參數版本變成便利初始化器，flags = None）
+- (instancetype)initWithAmount:(NSDecimalNumber *)amount kind:(LBTransactionKind)kind date:(NSDate *)date note:(NSString *)note category:(nullable LBCategory *)category flags:(LBTransactionFlags)flags NS_DESIGNATED_INITIALIZER;
+// LBTransactionCell：+ (NSString *)defaultReuseIdentifier（@"LBTransactionCell"）；readonly iconView / titleLabel / subtitleLabel / amountLabel（測試檢查 prepareForReuse）
+// LBMonthHeaderView：+ (NSString *)defaultReuseIdentifier；readonly titleLabel / summaryLabel
+// LBTransactionListViewController：
+- (void)deleteTransactionAtIndexPath:(NSIndexPath *)indexPath;   // 不經確認直接刪：ledger 移除 + 登記復原 + performBatchUpdates（該月最後一筆連 section 刪）
+- (void)reloadFromLedger;
+// LBTransactionEditorDelegate @optional - editor:didDeleteTransaction:；編輯頁 readonly kindControl / datePicker / noteField / reconciledSwitch / recurringSwitch
+// LBCategoryPickerViewController：readonly rootCategories / selectedCategory
+// 編輯頁的幣別直接讀 NSUserDefaults key @"LBSettings.currencyCode"（與 M09 的 LBSettings 相同，未設定時顯示 TWD）
+
+// M09 ----------------------------------------------------------------
+// LBTransaction 字典 key：LBTransactionKeyIdentifier @"id" / Amount @"amount"（字串）/ Kind @"kind" / Date @"date"（timeIntervalSince1970）/ Note @"note" / Category @"category"（分類路徑，可省略）/ Flags @"flags"
+// LBCategory (LBPath)：- (NSString *)lb_path（@"飲食/午餐"）；+ (nullable LBCategory *)lb_categoryWithPath:（在 defaultTree 找）
+//   存檔不存分類 identifier：defaultTree 每次啟動重建，UUID 會變
+// LBLedger：- (instancetype)initWithTransactions:(NSArray<LBTransaction *> *)transactions;   // 載入用：排序一次、算一次 total、不送通知
+// LBSettings：typedef NS_ENUM(NSInteger, LBAppearance) { LBAppearanceSystem, LBAppearanceLight, LBAppearanceDark };
+//   key：LBSettingsCurrencyCodeKey / LBSettingsShowsCentsKey / LBSettingsAppearanceKey；LBSettingsDidChangeNotification（主執行緒）
+//   readonly userDefaults；+ (NSArray<NSString *> *)supportedCurrencyCodes
+// LBPersistence：LBPersistenceFileName（@"ledger.json"）；+ (NSURL *)defaultDirectoryURL（Application Support/LittleBook）；readonly directoryURL
+// LBSettingsViewController：- initWithSettings:ledger:undoStack:persistence:（M11 改 Storyboard 時改用屬性注入）
+
+// M10 ----------------------------------------------------------------
+// LBLedger：
+- (void)performBatchImport:(NSArray<LBTransaction *> *)batch;   // 一次 dispatch_barrier_async，合併後送 LBLedgerDidImportBatchNotification
+- (void)waitForPendingWrites;                                     // 空的 dispatch_barrier_sync
+extern NSNotificationName const LBLedgerDidImportBatchNotification;   // userInfo[LBLedgerImportedCountKey] = 實際加入筆數
+// LBRingBuffer：readonly capacity；- removeAllValues
+// LBFPSMonitor：typedef NS_ENUM(NSInteger, LBFrameClass) { LBFrameClassNormal, LBFrameClassWarning, LBFrameClassDropped };
+//   readonly running（isRunning）/ droppedFrameCount；LBFPSMonitorDidUpdateNotification（約每 0.5 秒）
+// LBImportService：LBImportCSVHeader = @"timestamp,kind,amount,category,note"
+// LBSearchController：
+@property (nonatomic, assign) NSTimeInterval simulatedLatency;   // 測試用：背景過濾額外等這麼久（模擬慢查詢）
+@property (nonatomic, assign, readonly) NSUInteger generation;   // 世代計數
+@property (nonatomic, assign, readonly) NSTimeInterval lastDuration;
+// LBLockBenchmark：key 常數 LBLockBenchmarkSynchronized / NSLock / UnfairLock / SerialQueue；+ (NSArray<NSString *> *)allKeys
++ (NSDictionary<NSString *, NSNumber *> *)runWithIterations:(NSUInteger)n threads:(NSUInteger)t counts:(NSDictionary<NSString *, NSNumber *> * _Nullable * _Nullable)counts;   // 測試用：回傳每種鎖的最終計數
+// LBTransactionViewModel（快取）：
++ (NSUInteger)formattingCount;   // 真正格式化的次數（測試驗證「只格式化一次」）
++ (void)resetCache;              // 清空快取並歸零；設定改變時也呼叫
++ (NSUInteger)cacheCapacity;     // 1000
+// LBPerformanceViewController：- initWithLedger:；importCount（預設 100,000）
+// LBFrameHistoryView（Views/）：values（毫秒）/ maximumMilliseconds / slotCount
+// 測試用 LBStubURLProtocol（M10 版）：+ setResponseDelay: / + maxConcurrentRequests / + totalRequests / + resetConcurrencyStats
+```

@@ -23,7 +23,8 @@
     UIWindowScene *windowScene = (UIWindowScene *)scene;
 
     self.settings = LBSettings.shared;
-    self.persistence = [[LBPersistence alloc] initWithDirectoryURL:[LBPersistence defaultDirectoryURL]];
+    NSURL *directory = [LBPersistence defaultDirectoryURL];
+    self.persistence = [[LBPersistence alloc] initWithDirectoryURL:directory];
     self.ledger = [self lb_loadLedger];
     self.undoStack = [[LBUndoStack alloc] init];
 

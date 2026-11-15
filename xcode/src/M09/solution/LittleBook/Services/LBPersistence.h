@@ -34,7 +34,8 @@ extern NSString * const LBPersistenceFileName;   // @"ledger.json"
 
 /// 在背景串列佇列寫入，完成後在主佇列呼叫 completion（成功時 error 為 nil）。
 /// 先在呼叫端取快照（ledger.transactions），之後帳本再變動也不影響這次寫入的內容。
-- (void)saveLedger:(LBLedger *)ledger completion:(nullable void (^)(NSError * _Nullable error))completion;
+- (void)saveLedger:(LBLedger *)ledger
+        completion:(nullable void (^)(NSError * _Nullable error))completion;
 
 @end
 

@@ -58,7 +58,9 @@
 
     // view 載入後 toggle 走 insert / delete rows，table 的列數要和 visibleRows 一致
     [picker loadViewIfNeeded];
+    picker.view.frame = CGRectMake(0, 0, 390, 844);
     [picker.tableView reloadData];
+    [picker.tableView layoutIfNeeded];
     [picker toggleExpansionOf:food];
     XCTAssertEqual([picker.tableView numberOfRowsInSection:0], (NSInteger)picker.visibleRows.count);
 

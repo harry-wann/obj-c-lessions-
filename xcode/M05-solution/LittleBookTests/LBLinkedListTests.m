@@ -87,7 +87,7 @@
     }];
     NSArray<NSNumber *> *expected = @[@1, @2, @3, @4, @5];
     XCTAssertEqualObjects(seen, expected);
-    XCTAssertEqualObjects(indexes, @[@0, @1, @2, @3, @4]);
+    XCTAssertEqualObjects(indexes, (@[@0, @1, @2, @3, @4]));   // 字面量有逗號：要再包一層括號
 
     // *stop 提前結束
     NSMutableArray<NSNumber *> *partial = [NSMutableArray array];
@@ -97,7 +97,7 @@
             *stop = YES;
         }
     }];
-    XCTAssertEqualObjects(partial, @[@1, @2]);
+    XCTAssertEqualObjects(partial, (@[@1, @2]));
 }
 
 @end

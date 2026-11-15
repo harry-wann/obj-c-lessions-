@@ -113,7 +113,7 @@ static NSString * const LBTestLatestPath = @"/api/latest";
     NSDictionary *lenient = [LBRateService ratesFromJSONData:[self dataFromString:stringJSON]
                                                        error:&error];
     XCTAssertNil(error);
-    XCTAssertEqualWithAccuracy(lenient[@"TWD"].doubleValue, 32.15, 0.0001);
+    XCTAssertEqualWithAccuracy([lenient[@"TWD"] doubleValue], 32.15, 0.0001);
 }
 
 - (void)testCompletionCalledOnMainQueue {

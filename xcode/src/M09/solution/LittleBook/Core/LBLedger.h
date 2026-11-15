@@ -17,7 +17,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong, readonly) NSDecimalNumber *total;
 
 /// 一次放入大量交易（M09：從存檔載入用）。只排序一次、只算一次 total，不送 delegate 通知；
-/// identifier 重複的只留第一筆。逐筆 addTransaction: 每次都線性找位置 + 重算總額，10 萬筆會慢到不能用。
+/// identifier 重複的只留第一筆。逐筆 addTransaction: 每次都線性找位置 + 重算總額，
+/// 10 萬筆會慢到不能用。
 - (instancetype)initWithTransactions:(NSArray<LBTransaction *> *)transactions;
 
 /// 委派一律 weak：帳本不擁有觀察者，否則容易形成循環參考。

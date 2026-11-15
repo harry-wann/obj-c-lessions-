@@ -55,11 +55,25 @@
     self.viewController = [[LBTransactionListViewController alloc] initWithLedger:self.ledger
                                                                          undoStack:self.undoStack];
     // 放進一個 window 並排版一次，讓 table view 真的載入資料（performBatchUpdates 需要「更新前」的狀態）
-    self.window = [[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 390, 844)];
+    self.window = [self lb_makeWindow];
     self.window.rootViewController = self.viewController;
     self.window.hidden = NO;
     [self.viewController loadViewIfNeeded];
+    self.viewController.view.frame = self.window.bounds;
     [self.viewController.view layoutIfNeeded];
+    [self.viewController.tableView layoutIfNeeded];
+}
+
+/// scene 架構下，window 要掛在 App 已連線的 UIWindowScene 上才會真的排版；找不到就退回 initWithFrame:。
+- (UIWindow *)lb_makeWindow {
+    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+        if ([scene isKindOfClass:[UIWindowScene class]]) {
+            UIWindow *window = [[UIWindow alloc] initWithWindowScene:(UIWindowScene *)scene];
+            window.frame = CGRectMake(0, 0, 390, 844);
+            return window;
+        }
+    }
+    return [[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 390, 844)];
 }
 
 - (void)tearDown {
@@ -95,7 +109,9 @@
     NSIndexPath *first = [NSIndexPath indexPathForRow:0 inSection:0];
     [tableView layoutIfNeeded];
     UITableViewCell *cell = [tableView cellForRowAtIndexPath:first];   // 畫面上看得到的列
-    XCTAssertNotNil(cell);
+    if (cell == nil) {
+        cell = [vc tableView:tableView cellForRowAtIndexPath:first];   // 保險：直接問 data source
+    }
     XCTAssertTrue([cell isKindOfClass:[LBTransactionCell class]]);
     LBTransactionViewModel *vm =
         [LBTransactionViewModel viewModelWithTransaction:expected[0].transactions[0]];

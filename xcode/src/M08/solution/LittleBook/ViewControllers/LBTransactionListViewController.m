@@ -231,7 +231,8 @@ static const CGFloat LBTransactionRowHeight = 64;
         // 該月合計變了：直接更新現有的 header，不用 reloadSections（會和 deleteRows 打架）
         UITableViewHeaderFooterView *header = [tableView headerViewForSection:indexPath.section];
         if ([header isKindOfClass:[LBMonthHeaderView class]]) {
-            [(LBMonthHeaderView *)header configureWithSection:_sections[(NSUInteger)indexPath.section]];
+            LBMonthSection *updated = _sections[(NSUInteger)indexPath.section];
+            [(LBMonthHeaderView *)header configureWithSection:updated];
         }
     }
     [self lb_updateChrome];

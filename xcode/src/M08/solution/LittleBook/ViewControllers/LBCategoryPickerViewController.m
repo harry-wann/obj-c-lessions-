@@ -168,14 +168,13 @@ static const CGFloat LBCategoryIndentWidth = 20;
         [_expanded addObject:category.identifier];
     }
     NSArray<LBCategory *> *after = [self lb_computeVisibleRows];
-    _visibleRows = after;
 
-    if (!self.isViewLoaded) {
-        return;
-    }
     NSUInteger index = [before indexOfObjectIdenticalTo:category];
-    if (index == NSNotFound) {
-        [self.tableView reloadData];   // 這個節點本來就看不到（理論上不會發生），整個重載
+    if (!self.isViewLoaded || index == NSNotFound) {
+        _visibleRows = after;
+        if (self.isViewLoaded) {
+            [self.tableView reloadData];   // 這個節點本來就看不到（理論上不會發生），整個重載
+        }
         return;
     }
     // 變動的列一定緊接在這個節點後面、而且連續：差幾列就 insert / delete 幾列
@@ -186,6 +185,8 @@ static const CGFloat LBCategoryIndentWidth = 20;
     }
     UITableView *tableView = self.tableView;
     [tableView performBatchUpdates:^{
+        // 資料來源在 update block 裡才換：UIKit 取「更新前」的列數時看到的還是 before
+        self->_visibleRows = after;
         if (delta > 0) {
             [tableView insertRowsAtIndexPaths:paths withRowAnimation:UITableViewRowAnimationFade];
         } else if (delta < 0) {

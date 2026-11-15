@@ -1,0 +1,196 @@
+---
+title: NSNumber、NSValue 與 NSDecimalNumber
+module: 3
+chapter: "3.2"
+order: 2
+minutes: 25
+prereq: ["3.1"]
+objectives:
+  - 看懂 @42、@(x)、@YES 的裝箱與 integerValue 的拆箱，知道什麼時候會被截斷
+  - 說出金額為什麼不能用 double，改用 NSDecimalNumber 怎麼加減乘除與四捨五入
+  - 知道 NSValue 是拿來把 struct 塞進集合的
+summary: 裝箱與拆箱、NSNumber 的 == 陷阱、NSValue 包 struct、金額一律 NSDecimalNumber、NSDecimalNumberHandler 控制進位。
+terms:
+  - { en: boxing / unboxing, tw: 裝箱 / 拆箱, cn: 装箱 / 拆箱, jp: ボクシング / アンボクシング }
+  - { en: floating point, tw: 浮點數, cn: 浮点数, jp: 浮動小数点数 }
+  - { en: rounding mode, tw: 進位模式, cn: 舍入模式, jp: 丸めモード }
+  - { en: scale, tw: 小數位數（scale）, cn: 精度 / 小数位, jp: スケール（小数桁数） }
+appProgress: LBTransaction 的金額有了正確的加總與四捨五入方式，月結不會差一分錢。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+let n: Int = 42                       // Int 本身就是物件，可直接放進 [Any]
+let price: Decimal = 0.1 + 0.2        // Decimal 字面值精確
+print(price == 0.3)                   // true
+let rounded = (price as NSDecimalNumber)
+    .rounding(accordingToBehavior: NSDecimalNumberHandler(
+        roundingMode: .bankers, scale: 2, raiseOnExactness: false,
+        raiseOnOverflow: true, raiseOnUnderflow: true, raiseOnDivideByZero: true))
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+val n: Int = 42                       // 放進 List<Any> 時自動裝箱成 Integer
+val price = BigDecimal("0.1") + BigDecimal("0.2")
+println(price == BigDecimal("0.3"))   // true
+val rounded = price.setScale(2, RoundingMode.HALF_EVEN)
+```
+</Fragment>
+<Fragment slot="java">
+```java
+Integer boxed = 42;                   // 自動裝箱；Integer == Integer 只在 -128..127 保證相同
+BigDecimal price = new BigDecimal("0.1").add(new BigDecimal("0.2"));
+price.compareTo(new BigDecimal("0.3")) == 0;   // true
+BigDecimal rounded = price.setScale(2, RoundingMode.HALF_EVEN);
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+const price = 0.1 + 0.2;              // 0.30000000000000004，JS 只有 double
+// 要精確金額得用整數分（cents）或 decimal.js / big.js
+const cents = 10 + 20;                // 30
+```
+</Fragment>
+Java 的 `Integer == Integer` 只在小整數快取範圍內「剛好相等」，Objective-C 的 `NSNumber` 有一模一樣的陷阱。金額部分，Kotlin / Java 的 `BigDecimal`、Swift 的 `Decimal` 和 Objective-C 的 `NSDecimalNumber` 是同一件事；TypeScript 沒有內建十進位型別，所以前端常用整數分數。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 為什麼需要裝箱
+
+`NSArray`、`NSDictionary` 只能裝物件，`NSInteger`、`BOOL`、`double` 這些 C 的基本型別放不進去。<Term en="boxing / unboxing" tw="裝箱 / 拆箱" cn="装箱 / 拆箱" jp="ボクシング / アンボクシング" />就是把基本型別包成 `NSNumber` 物件、再把它拆回來。
+
+```objc
+NSNumber *a = @42;                 // 字面值裝箱：int
+NSNumber *b = @3.5;                // double
+NSNumber *c = @YES;                // BOOL
+NSInteger count = 7;
+NSNumber *d = @(count * 2);        // 任何表達式用 @( )
+NSNumber *e = @(LBTransactionKindExpense);   // 列舉也行
+
+NSLog(@"%@ %@ %@ %@", a, b, c, d);           // 42 3.5 1 14
+NSLog(@"%ld", (long)d.integerValue);         // 14 —— 拆箱
+NSLog(@"%d", c.boolValue);                   // 1
+NSLog(@"%@", @3.0);                          // 3 —— description 會把 .0 吃掉
+```
+
+`@42`、`@YES`、`@(expr)` 都是編譯器幫你呼叫 `[NSNumber numberWithInt:]` 之類方法的語法糖。拆箱時你自己決定要什麼型別：`integerValue`、`doubleValue`、`boolValue`、`unsignedIntegerValue`。要注意拆箱會**轉型**：`@3.7.integerValue` 是 3，`@(300).charValue` 會溢位成 44。`NSNumber` 本身記得自己當初是什麼型別，`[a objCType]` 回傳 `"i"`、`"d"`、`"c"` 這種編碼字串，3.4 的字典取值時偶爾會用到。
+
+### 整數相除的老問題
+
+```objc
+NSNumber *half = @(7 / 2);          // C 的整數除法先發生，再裝箱
+NSLog(@"%@ %.1f", half, half.doubleValue);   // 3 3.0
+NSNumber *real = @(7 / 2.0);
+NSLog(@"%@", real);                          // 3.5
+```
+
+`@( )` 裡面是純 C 表達式，裝箱發生在運算**之後**。
+
+### `NSValue`：把 struct 塞進集合
+
+```objc
+NSRange range = NSMakeRange(2, 5);
+NSValue *boxed = [NSValue valueWithRange:range];
+NSArray *ranges = @[boxed];
+NSRange back = [ranges[0] rangeValue];
+NSLog(@"%lu %lu", (unsigned long)back.location, (unsigned long)back.length);
+// 2 5
+```
+
+`NSNumber` 是 `NSValue` 的子類別，專門裝數字；其他 struct（`NSRange`、`CGPoint`、`CGRect`、`UIEdgeInsets`）用 `NSValue` 的 `valueWithRange:`、`valueWithCGPoint:`（UIKit）包起來，取回時 `rangeValue`、`CGPointValue`。自訂 struct 走 `valueWithBytes:objCType:@encode(LBMoneyRange)`。UIKit 的動畫 API 大量使用它，例如 `CAKeyframeAnimation.values`。
+
+### 金額一律 `NSDecimalNumber`
+
+```objc
+double d = 0.1 + 0.2;
+NSLog(@"%.17g", d);                          // 0.30000000000000004
+NSLog(@"%d", d == 0.3);                      // 0
+
+NSDecimalNumber *x = [NSDecimalNumber decimalNumberWithString:@"0.1"];
+NSDecimalNumber *y = [NSDecimalNumber decimalNumberWithString:@"0.2"];
+NSDecimalNumber *sum = [x decimalNumberByAdding:y];
+NSLog(@"%@", sum);                           // 0.3
+NSLog(@"%d", [sum compare:
+              [NSDecimalNumber decimalNumberWithString:@"0.3"]] == NSOrderedSame);
+// 1
+```
+
+`double` 是二進位<Term en="floating point" tw="浮點數" cn="浮点数" jp="浮動小数点数" />，0.1 在二進位是無窮循環小數，存進去就已經不準了。一筆差 0.00000000000000004 看起來無所謂，但月結加總幾百筆、再乘匯率、再四捨五入，最後對不上發票上的 1 元就是這樣來的。`NSDecimalNumber` 用十進位儲存，最多 38 位有效數字，記帳、電商、匯率全部用它。
+
+它是不可變物件，所有運算都回傳新值，方法名很長但規律：
+
+```objc
+NSDecimalNumber *price = [NSDecimalNumber decimalNumberWithString:@"120"];
+NSDecimalNumber *qty   = [NSDecimalNumber decimalNumberWithString:@"3"];
+NSDecimalNumber *rate  = [NSDecimalNumber decimalNumberWithString:@"0.05"];
+
+NSDecimalNumber *subtotal = [price decimalNumberByMultiplyingBy:qty];   // 360
+NSDecimalNumber *tax      = [subtotal decimalNumberByMultiplyingBy:rate]; // 18
+NSDecimalNumber *total    = [subtotal decimalNumberByAdding:tax];        // 378
+NSDecimalNumber *each     = [total decimalNumberByDividingBy:qty];       // 126
+NSLog(@"%@ %@ %@ %@", subtotal, tax, total, each);   // 360 18 378 126
+NSLog(@"%@", [NSDecimalNumber zero]);                // 0 —— 加總的起始值
+```
+
+比大小用 `compare:`，不要用 `==`，也不要拆成 `doubleValue` 再比。從使用者輸入建立用 `decimalNumberWithString:`；從常數建立也用字串（`@"0.1"`），千萬不要寫 `[NSDecimalNumber decimalNumberWithDecimal:@(0.1).decimalValue]`——0.1 先變 double 就白搭了。
+
+### 四捨五入：`NSDecimalNumberHandler`
+
+```objc
+NSDecimalNumberHandler *cents =
+    [NSDecimalNumberHandler decimalNumberHandlerWithRoundingMode:NSRoundPlain
+                                                           scale:2
+                                                raiseOnExactness:NO
+                                                 raiseOnOverflow:YES
+                                                raiseOnUnderflow:YES
+                                             raiseOnDivideByZero:YES];
+NSDecimalNumber *third = [[NSDecimalNumber decimalNumberWithString:@"100"]
+                          decimalNumberByDividingBy:
+                          [NSDecimalNumber decimalNumberWithString:@"3"]
+                          withBehavior:cents];
+NSLog(@"%@", third);                                 // 33.33
+NSLog(@"%@", [[NSDecimalNumber decimalNumberWithString:@"2.345"]
+              decimalNumberByRoundingAccordingToBehavior:cents]);   // 2.35
+```
+
+<Term en="scale" tw="小數位數（scale）" cn="精度 / 小数位" jp="スケール（小数桁数）" />是保留幾位小數，<Term en="rounding mode" tw="進位模式" cn="舍入模式" jp="丸めモード" />常用三種：`NSRoundPlain` 是一般的四捨五入、`NSRoundBankers` 是銀行家進位（遇到正好 .5 時取偶數，統計上最公平）、`NSRoundDown` 無條件捨去。發票、稅金的進位規則要問產品或會計，寫成一個共用的 handler 常數，整個 App 只用那一個。
+
+<Pitfall title="NSNumber 也不能用 ==">
+```objc
+NSNumber *a = @42, *b = [NSNumber numberWithInteger:42];
+NSLog(@"%d", a == b);          // 1 —— 只是因為 tagged pointer 剛好同位址
+NSNumber *c = @(1e300), *d = @(1e300);
+NSLog(@"%d", c == d);          // 0 —— 放不進指標的值會另外配置物件
+NSLog(@"%d", [c isEqualToNumber:d]);   // 1
+```
+和 3.1 的字串一樣：小整數塞進指標本身所以「剛好相等」，大數字、小數、從 JSON 解出來的就不一定。比 `NSNumber` 用 `isEqualToNumber:` 或 `compare:`。
+</Pitfall>
+
+<Pitfall title="從 JSON 來的 NSNumber 不是你想的型別">
+伺服器回 `{"amount": 120.50}`，`NSJSONSerialization` 解出來是 `NSNumber`（內部是 double），這時候 `[NSDecimalNumber decimalNumberWithDecimal:n.decimalValue]` 已經帶著二進位誤差。正確做法：請後端把金額當**字串**或**整數分**傳，前端用 `decimalNumberWithString:` 或整數除以 100 建立。如果改不了後端，至少用 `[NSDecimalNumber decimalNumberWithString:n.stringValue]`，`stringValue` 走最短表示法，120.5 會得到 `@"120.5"` 而不是一長串。
+</Pitfall>
+
+<Pitfall title="decimalNumberWithString: 看不懂就給你 NaN">
+`[NSDecimalNumber decimalNumberWithString:@"一百"]` 不會回 nil，回的是 `NSDecimalNumber.notANumber`，它會安靜地流到下游，直到參與加減時才丟例外把 App 弄掛。從輸入框建立金額後先檢查 `[n isEqualToNumber:NSDecimalNumber.notANumber]`，或先用 `NSNumberFormatter` 的 `numberFromString:` 驗證格式。另外 `decimalNumberWithString:` 預設用系統地區解析小數點，歐洲使用者輸入 `1,5` 時要帶 `locale:` 參數。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: '-[__NSCFNumber length]: unrecognized selector sent to instance 0xb000000000000543'`}>
+讀法：接收者類別是 `__NSCFNumber`，也就是 `NSNumber` 的實際類別；selector 是 `length`，這是 `NSString` 的方法。翻譯成白話：「你把一個數字當成字串用了」。幾乎都是 JSON 欄位型別和你想的不同：後端把 `"id": "1347"` 改成 `"id": 1347`，你的 `NSString *identifier = json[@"id"]` 編譯照樣過（型別是 `id`，編譯器不會抱怨），執行到 `identifier.length` 就炸。注意位址 `0xb000000000000543`：開頭是 `0xb`、結尾是一小串數字，這就是 tagged pointer 的長相，值直接寫在指標裡（新版 iOS 會把它混淆成亂數位址，但類別名一樣看得出來）。修法：解析 JSON 時用 `isKindOfClass:` 檢查，或統一用 `[json[@"id"] description]` 轉成字串。
+</Crash>
+
+## 小結
+
+- 集合只能裝物件：`@42`、`@(expr)`、`@YES` 裝箱，`integerValue` 等拆箱，拆箱會轉型。
+- `@( )` 裡是 C 表達式，`7 / 2` 先算成 3 再裝箱。
+- struct 用 `NSValue`；`NSNumber` 是它的子類別。
+- 金額一律 `NSDecimalNumber`，從字串建立、用 `compare:` 比較、`decimalNumberBy…` 運算。
+- 進位靠 `NSDecimalNumberHandler`，整個 App 共用一個。

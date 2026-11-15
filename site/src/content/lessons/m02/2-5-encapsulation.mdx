@@ -1,0 +1,309 @@
+---
+title: 封裝與「私有」
+module: 2
+chapter: "2.5"
+order: 5
+minutes: 25
+prereq: ["2.4"]
+objectives:
+  - 用 .m 裡的類別延伸放私有屬性與方法，對外 readonly、對內 readwrite
+  - 用「內部可變、對外回傳不可變快照」的模式守住集合屬性
+  - 說出 Objective-C 的「私有」到底私有到什麼程度
+summary: Objective-C 沒有 private 關鍵字；類別延伸 @interface LBCategory () 放私有東西；readonly 對外 readwrite 對內；內部 NSMutableArray 對外 NSArray；私有只是看不到，執行期仍可呼叫。
+terms:
+  - { en: encapsulation, tw: 封裝, cn: 封装, jp: カプセル化 }
+  - { en: class extension, tw: 類別延伸, cn: 类扩展, jp: クラスエクステンション }
+  - { en: category, tw: 分類（category）, cn: 分类, jp: カテゴリ }
+  - { en: KVC (key-value coding), tw: 鍵值編碼, cn: 键值编码, jp: キー値コーディング }
+appProgress: LBCategory 有了 addChild:；children 對外是不可變陣列，parent 是 weak。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+class Category {
+    private(set) var children: [Category] = []   // 外面只能讀
+    private weak var parentStorage: Category?
+    var parent: Category? { parentStorage }
+
+    func addChild(_ child: Category) {           // 內部可以改
+        child.parentStorage = self
+        children.append(child)
+    }
+    private func validate() {}                   // 外面看不到、也呼叫不到
+}
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+class Category {
+    private val _children = mutableListOf<Category>()
+    val children: List<Category> get() = _children.toList()   // 唯讀快照
+    var parent: Category? = null
+        private set
+
+    fun addChild(child: Category) {
+        child.parent = this
+        _children += child
+    }
+    private fun validate() {}
+}
+```
+</Fragment>
+<Fragment slot="java">
+```java
+public class Category {
+    private final List<Category> children = new ArrayList<>();
+    private Category parent;
+
+    public List<Category> getChildren() {
+        return Collections.unmodifiableList(children);
+    }
+    public void addChild(Category child) {
+        child.parent = this;
+        children.add(child);
+    }
+    private void validate() {}
+}
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+class Category {
+  #children: Category[] = [];          // # 是真正的私有（執行期也拿不到）
+  private parent?: Category;           // private 只是型別檢查，編譯後消失
+
+  get children(): readonly Category[] { return this.#children; }
+  addChild(child: Category) { child.parent = this; this.#children.push(child); }
+}
+```
+</Fragment>
+每個語言都有 `private` 關鍵字（TS 甚至有兩種）。Objective-C **沒有**：它靠「寫在 `.h` 的看得到、寫在 `.m` 的看不到」這一條規則做封裝。Kotlin 的 `_children` + `children` 快照、Java 的 `unmodifiableList`，就是本章要教的同一招。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 類別延伸：.m 裡的第二個 @interface
+
+```objc
+// LBCategory.h —— 對外：全部 readonly
+@interface LBCategory : NSObject
+@property (nonatomic, copy, readonly) NSString *name;
+@property (nonatomic, weak, readonly, nullable) LBCategory *parent;
+@property (nonatomic, copy, readonly) NSArray<LBCategory *> *children;
+- (instancetype)initWithName:(NSString *)name symbolName:(NSString *)symbolName;
+- (void)addChild:(LBCategory *)child;
+@end
+```
+
+```objc
+// LBCategory.m —— 對內：重新宣告成 readwrite，加私有屬性與方法
+@interface LBCategory ()
+@property (nonatomic, weak, readwrite, nullable) LBCategory *parent;
+@property (nonatomic, strong) NSMutableArray<LBCategory *> *mutableChildren;
+- (void)validateChild:(LBCategory *)child;
+@end
+
+@implementation LBCategory
+// …
+@end
+```
+
+`@interface LBCategory ()` 括號裡是空的，這叫<Term en="class extension" tw="類別延伸" cn="类扩展" jp="クラスエクステンション" />。它和 `.h` 的 `@interface` 是**同一個類別的宣告的延續**，只是寫在 `.m` 裡所以別人 import 不到。你可以在這裡：
+
+1. **把 readonly 屬性重新宣告成 readwrite**：編譯器會為 `parent` 合成 setter，但只有 `.m` 裡的程式碼知道它存在。對外的 `.h` 仍然只有 getter。這是 Objective-C 版的 `private(set)`。
+2. **加只有內部用的屬性**：`mutableChildren` 不出現在 `.h`，外面連名字都不知道。
+3. **宣告私有方法**：其實現代 Clang 允許直接在 `@implementation` 裡定義沒宣告過的方法（順序也不限），所以這一條是給讀者看的文件，不是給編譯器的。很多團隊還是會寫，讓人一眼看到「這個類別內部有哪些工具方法」。
+
+括號裡有名字的 `@interface LBCategory (Formatting)` 是<Term en="category" tw="分類（category）" cn="分类" jp="カテゴリ" />，模組 5 的東西。兩者的差別是：類別延伸只能寫在有原始碼的類別身上、可以加屬性（會合成 ivar）；分類可以加在任何類別（包含 `NSString`）身上、不能加 ivar。別把它們混在一起。
+
+### 內部可變、對外不可變
+
+`children` 這種集合屬性是<Term en="encapsulation" tw="封裝" cn="封装" jp="カプセル化" />最容易破洞的地方。如果 `.h` 直接宣告 `NSMutableArray *children`，任何人都能 `[cat.children addObject:…]` 繞過你的 `addChild:`，`parent` 就不會被設定。標準做法：
+
+```objc
+@implementation LBCategory
+
+- (instancetype)initWithName:(NSString *)name symbolName:(NSString *)symbolName {
+    if (self = [super init]) {
+        _name = [name copy];
+        _symbolName = [symbolName copy];
+        _mutableChildren = [NSMutableArray array];
+    }
+    return self;
+}
+
+- (NSArray<LBCategory *> *)children {
+    return [self.mutableChildren copy];     // 回傳不可變快照
+}
+
+- (void)addChild:(LBCategory *)child {
+    [self validateChild:child];
+    child.parent = self;                     // 類別延伸讓這行能編譯
+    [self.mutableChildren addObject:child];
+}
+
+- (void)validateChild:(LBCategory *)child {
+    NSParameterAssert(child != nil);
+    NSParameterAssert(child != self);
+}
+
+@end
+```
+
+`children` 的 getter 自己寫，回傳 `[mutableChildren copy]`：`NSMutableArray` 的 `copy` 得到的是 `NSArray`，外面拿到的是當下那一刻的快照，之後你再 `addChild:`，它手上那份不會變，它也改不動你的內部狀態。這就是 🧱 說的「在邊界上把參考變成值」。手寫 getter 後編譯器不會再為 `children` 合成 ivar，`.h` 裡的 `copy` 修飾詞也只是文件作用；這是正常的。
+
+### 完整範例：貼進 Scratch 跑一次
+
+```objc
+@import Foundation;
+
+@interface LBCategory : NSObject
+@property (nonatomic, copy, readonly) NSString *name;
+@property (nonatomic, weak, readonly, nullable) LBCategory *parent;
+@property (nonatomic, copy, readonly) NSArray<LBCategory *> *children;
+- (instancetype)initWithName:(NSString *)name;
+- (void)addChild:(LBCategory *)child;
+- (NSUInteger)depth;
+@end
+
+@interface LBCategory ()
+@property (nonatomic, weak, readwrite, nullable) LBCategory *parent;
+@property (nonatomic, strong) NSMutableArray<LBCategory *> *mutableChildren;
+@end
+
+@implementation LBCategory
+
+- (instancetype)initWithName:(NSString *)name {
+    if (self = [super init]) {
+        _name = [name copy];
+        _mutableChildren = [NSMutableArray array];
+    }
+    return self;
+}
+
+- (NSArray<LBCategory *> *)children { return [self.mutableChildren copy]; }
+
+- (void)addChild:(LBCategory *)child {
+    child.parent = self;
+    [self.mutableChildren addObject:child];
+}
+
+- (NSUInteger)depth {
+    return self.parent ? [self.parent depth] + 1 : 0;   // 根是 0
+}
+@end
+
+int main(int argc, const char *argv[]) {
+    @autoreleasepool {
+        LBCategory *food = [[LBCategory alloc] initWithName:@"飲食"];
+        LBCategory *lunch = [[LBCategory alloc] initWithName:@"午餐"];
+        LBCategory *bento = [[LBCategory alloc] initWithName:@"便當"];
+        [food addChild:lunch];
+        [lunch addChild:bento];
+
+        NSArray *snapshot = food.children;
+        [food addChild:[[LBCategory alloc] initWithName:@"晚餐"]];
+        NSLog(@"%lu %lu", (unsigned long)snapshot.count,
+              (unsigned long)food.children.count);       // 1 2
+        NSLog(@"%lu", (unsigned long)[bento depth]);     // 2
+        NSLog(@"%@", bento.parent.parent.name);          // 飲食
+
+        // lunch.parent = nil;   ← 取消註解：編譯錯誤，外面只看得到 getter
+        // Assignment to readonly property
+    }
+    return 0;
+}
+```
+
+### 「私有」到底多私有
+
+誠實地說：Objective-C 的私有只是**編譯期看不到**。執行期一切照舊：
+
+```objc
+[cat performSelector:@selector(validateChild:) withObject:other];  // 跑得動
+[cat setValue:nil forKey:@"parent"];                               // 跑得動
+[cat valueForKey:@"mutableChildren"];                              // 連私有屬性都拿得到
+```
+
+`performSelector:` 只看 selector 名字；<Term en="KVC (key-value coding)" tw="鍵值編碦" cn="键值编码" jp="キー値コーディング" />（`setValue:forKey:`，模組 3）會找 `setParent:`、找不到就直接找 `_parent` ivar。這和 TS 的 `private`（編譯後消失）是同一個等級，比 TS 的 `#field` 弱。所以封裝在 Objective-C 是**契約**不是**圍牆**：你用 `.h` 告訴別人「這些才是我支援的 API」，守不守是他們的事。實務上這剛好夠用——真正惡意繞過的人，用任何語言都繞得過。
+
+<Pitfall title="類別延伸裡的修飾詞和 .h 不一致">
+<Fragment slot="bad">
+```objc
+// .h
+@property (nonatomic, copy, readonly) NSString *name;
+// .m 類別延伸
+@property (nonatomic, strong, readwrite) NSString *name;
+// warning: property attribute in class extension does not match
+//          the primary class  (有時直接 error)
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+// .m 類別延伸：只改 readonly → readwrite，其他照抄
+@property (nonatomic, copy, readwrite) NSString *name;
+```
+</Fragment>
+重新宣告時**唯一**允許改的是 `readonly` → `readwrite`（`nullable` / `nonnull` 也可以補上）。`copy` 變 `strong`、`weak` 變 `strong` 都會被編譯器抓；就算沒抓到，兩邊語意不同也只會害到自己。複製貼上整行再改那一個字，不要重打。
+</Pitfall>
+
+<Pitfall title="把內部的 NSMutableArray 直接回傳出去">
+<Fragment slot="bad">
+```objc
+- (NSArray<LBCategory *> *)children {
+    return self.mutableChildren;    // 型別寫 NSArray，物件其實是 NSMutableArray
+}
+// 呼叫端：
+[(NSMutableArray *)cat.children removeAllObjects];   // 你的內部狀態被清空
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (NSArray<LBCategory *> *)children {
+    return [self.mutableChildren copy];
+}
+```
+</Fragment>
+回傳型別寫成 `NSArray` 只騙得了編譯器，物件在執行期還是可變的，一個轉型就破功；就算對方沒惡意，他拿著「快照」去迭代時你這邊 `addChild:` 也會害他 `NSGenericException: Collection was mutated while being enumerated`。`copy` 一次的代價是 O(n) 的指標複製，對 UI 層的資料量來說可以忽略；真的有效能疑慮再換成快取。
+</Pitfall>
+
+<Pitfall title="以為 readonly 擋得住 KVC">
+```objc
+// .h 宣告 readonly，沒有 setter
+[tx setValue:@(999) forKey:@"amount"];
+// 不會 crash：KVC 找不到 setAmount: 之後會直接寫 _amount ivar
+```
+Storyboard 的 User Defined Runtime Attributes、`NSCoding`、某些 JSON 對應函式庫都走 KVC，它們會無視你的 `readonly`。如果某個屬性真的不能被外部改，在類別裡覆寫 `+accessInstanceVariablesDirectly` 回傳 `NO`，KVC 就會改丟 `NSUnknownKeyException`——至少從「無聲地被改」變成「大聲地失敗」。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInternalInconsistencyException',
+reason: '-[__NSArrayI addObject:]: unrecognized selector sent to instance 0x600002f1c3c0'
+*** First throw call stack:
+(
+	3   CoreFoundation   -[NSObject(NSObject) doesNotRecognizeSelector:] + 116
+	4   LittleBook       -[LBCategoryEditor appendCategory:] + 96
+)`}>
+類別名 `__NSArrayI` 是 `NSArray` 的不可變實作（`I` = immutable；可變版叫 `__NSArrayM`）。有人把 `cat.children` 轉型成 `NSMutableArray *` 然後 `addObject:`——以前 getter 回傳的是內部的可變陣列，這招能用；你改成回傳 `copy` 之後，他拿到的是不可變的 `__NSArrayI`，沒有 `addObject:`，當場 crash。這是**好事**：封裝破洞被堵起來了，crash 的位置（`-[LBCategoryEditor appendCategory:]`）就是要改成呼叫 `addChild:` 的地方。看到 `__NSArrayI` / `__NSDictionaryI` / `__NSCFConstantString` 加 `unrecognized selector`，九成是對不可變物件呼叫了可變方法。
+</Crash>
+
+<Steps title="Xcode 任務：LBCategory 的 addChild:">
+<ol>
+<li>在 <code>LBCategory.m</code> 加類別延伸：<code>parent</code> 改 <code>readwrite</code>，新增 <code>mutableChildren</code>。</li>
+<li>實作 <code>children</code> getter 回傳 <code>copy</code>、<code>addChild:</code> 設定 <code>parent</code> 並加入陣列、<code>depth</code> 沿 <code>parent</code> 往上數。</li>
+<li>⌘U 跑 <code>LBCategoryTests/testDepth</code> 與 <code>LBCategoryTests/testParentIsWeak</code>。第二個測試會把父節點釋放後確認 <code>child.parent</code> 變 nil——<code>parent</code> 若誤寫成 <code>strong</code> 就會失敗。</li>
+</ol>
+</Steps>
+
+## 小結
+
+- Objective-C 沒有 `private`：`.h` 是公開契約，`.m` 的類別延伸 `@interface X ()` 放私有屬性、私有方法。
+- 對外 `readonly`、類別延伸裡重新宣告 `readwrite`；其他修飾詞兩邊必須一致。
+- 集合屬性內部用 `NSMutableArray`，getter 回傳 `copy` 的不可變快照，動作只能透過方法（`addChild:`）進來。
+- 「私有」只是編譯期看不到，`performSelector:` 與 KVC 在執行期都繞得過；封裝是契約不是圍牆。

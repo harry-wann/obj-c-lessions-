@@ -1,0 +1,230 @@
+---
+title: NSString 與 NSMutableString
+module: 3
+chapter: "3.1"
+order: 1
+minutes: 30
+prereq: ["2.8"]
+objectives:
+  - 用 stringWithFormat: 組字串，格式指定子一次寫對
+  - 用 isEqualToString: 比較、用 hasPrefix: / containsString: / componentsSeparatedByString: 處理字串
+  - 知道 length 數的是 UTF-16 單位，emoji 算 2，以及金額與日期要交給 Formatter
+summary: 字面值、stringWithFormat: 與格式指定子、比較與搜尋、切割、length 的 UTF-16 陷阱、NSNumberFormatter / NSDateFormatter、NSLocalizedString。
+terms:
+  - { en: string literal, tw: 字串字面值, cn: 字符串字面量, jp: 文字列リテラル }
+  - { en: format specifier, tw: 格式指定子, cn: 格式说明符, jp: 書式指定子 }
+  - { en: tagged pointer, tw: 標記指標（tagged pointer）, cn: 标签指针, jp: タグ付きポインタ }
+  - { en: composed character sequence, tw: 組合字元序列, cn: 组合字符序列, jp: 結合文字シーケンス }
+  - { en: formatter, tw: 格式器（formatter）, cn: 格式化器, jp: フォーマッタ }
+appProgress: 交易備註、金額與日期能組成一行可讀的文字，之後 cell 就印這一行。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+let note = "午餐", count = 3
+let line = "\(note) × \(count) 筆"        // 字串插值
+line.hasPrefix("午")                       // true
+line.count                                 // 使用者看到的字元數
+let parts = "a,b,c".split(separator: ",")
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+val note = "午餐"; val count = 3
+val line = "$note × ${count} 筆"           // 字串樣板
+line.startsWith("午")
+line.length                                // UTF-16 單位數（和 ObjC 一樣）
+val parts = "a,b,c".split(",")
+```
+</Fragment>
+<Fragment slot="java">
+```java
+String note = "午餐"; int count = 3;
+String line = String.format("%s × %d 筆", note, count);   // 或 "..." + count
+line.startsWith("午");
+line.length();                             // UTF-16 單位數
+String[] parts = "a,b,c".split(",");
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+const note = "午餐", count = 3;
+const line = `${note} × ${count} 筆`;      // 樣板字串
+line.startsWith("午");
+line.length;                               // UTF-16 單位數
+const parts = "a,b,c".split(",");
+```
+</Fragment>
+Swift、Kotlin、TypeScript 都有字串插值，Java 至少有 `+`。Objective-C 兩者都沒有：組字串只有 `stringWithFormat:`，而且要自己寫對格式指定子。好消息是 Kotlin / Java / TS 的 `length` 本來就數 UTF-16 單位，和 `NSString` 完全一樣；只有 Swift 的 `count` 數的是「人眼看到的字元」。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 字面值與 `stringWithFormat:`
+
+```objc
+NSString *note = @"午餐";                   // 字串字面值，型別是 NSString *
+NSInteger count = 3;
+NSDecimalNumber *amount = [NSDecimalNumber decimalNumberWithString:@"120"];
+
+NSString *line = [NSString stringWithFormat:@"%@ × %ld 筆，共 %@ 元",
+                  note, (long)count, amount];
+NSLog(@"%@", line);
+// 午餐 × 3 筆，共 120 元
+```
+
+`@"..."` 前面的 `@` 不能省：少了它就是 C 字串（`const char *`），兩者不能互換。<Term en="string literal" tw="字串字面值" cn="字符串字面量" jp="文字列リテラル" />由編譯器放進執行檔，整個程式生命週期都存在，不用管記憶體。
+
+<Term en="format specifier" tw="格式指定子" cn="格式说明符" jp="書式指定子" />是 `stringWithFormat:` 與 `NSLog` 共用的語言，常用的就這幾個：
+
+| 指定子 | 對應型別 | 備註 |
+|---|---|---|
+| `%@` | 任何 Objective-C 物件 | 呼叫物件的 `description`；nil 印 `(null)` |
+| `%ld` / `%lu` | `NSInteger` / `NSUInteger` | 要轉型 `(long)` / `(unsigned long)`，因為 32 位元時它們是 `int` |
+| `%d` | `int`、`BOOL` | `BOOL` 印 1 / 0 |
+| `%f` / `%.2f` | `double`、`CGFloat` | 金額不要走這裡，3.2 會講 |
+| `%zd` | `NSInteger` | 不用轉型的捷徑，Apple 自家程式碼也用；團隊慣例擇一 |
+| `%%` | 百分號本身 | |
+
+### 比較與搜尋
+
+```objc
+NSString *a = @"午餐";
+NSString *b = [NSString stringWithFormat:@"午%@", @"餐"];
+
+NSLog(@"%d", a == b);                       // 0 —— 比的是指標位址
+NSLog(@"%d", [a isEqualToString:b]);        // 1 —— 比的是內容
+NSLog(@"%d", [a hasPrefix:@"午"]);          // 1
+NSLog(@"%d", [a containsString:@"餐"]);     // 1
+
+NSRange r = [a rangeOfString:@"晚"];
+NSLog(@"%d", r.location == NSNotFound);     // 1 —— 找不到是 NSNotFound，不是 -1
+```
+
+`==` 在 Objective-C 永遠比較兩個指標是不是同一個物件，字串內容相同與否它完全不管。比字串一律 `isEqualToString:`（型別已知時比 `isEqual:` 快一點，而且更清楚）。要排序用 `compare:`，排給人看的清單用 `localizedStandardCompare:`，它會把「第 2 筆」排在「第 10 筆」前面。
+
+### 切、拆、合
+
+```objc
+NSString *csv = @"2026/03/14,午餐,120";
+NSArray<NSString *> *cols = [csv componentsSeparatedByString:@","];
+NSLog(@"%lu", (unsigned long)cols.count);   // 3
+NSLog(@"%@", cols[1]);                      // 午餐
+
+NSString *ymd = [csv substringWithRange:NSMakeRange(0, 10)];
+NSLog(@"%@", ymd);                          // 2026/03/14
+NSLog(@"%@", [ymd stringByReplacingOccurrencesOfString:@"/"
+                                            withString:@"-"]);
+// 2026-03-14
+
+NSString *raw = @"  午餐  ";
+NSLog(@"[%@]", [raw stringByTrimmingCharactersInSet:
+                [NSCharacterSet whitespaceAndNewlineCharacterSet]]);
+// [午餐]
+NSLog(@"%@", [cols componentsJoinedByString:@" | "]);
+// 2026/03/14 | 午餐 | 120
+```
+
+每個 `stringBy…` 方法都回傳**新的**字串，原字串不動。這是 Foundation 的通用命名規則：動詞開頭（`appendString:`）會改自己，`xxxBy…` 會回新物件。
+
+### `length` 數的是 UTF-16 單位
+
+```objc
+NSLog(@"%lu", (unsigned long)@"午餐".length);      // 2
+NSLog(@"%lu", (unsigned long)@"👍".length);        // 2 —— 一個 emoji
+NSLog(@"%lu", (unsigned long)@"台北🍜".length);    // 4
+
+__block NSUInteger chars = 0;
+NSString *s = @"台北🍜";
+[s enumerateSubstringsInRange:NSMakeRange(0, s.length)
+                      options:NSStringEnumerationByComposedCharacterSequences
+                   usingBlock:^(NSString *sub, NSRange r1, NSRange r2, BOOL *stop) {
+    chars++;
+}];
+NSLog(@"%lu", (unsigned long)chars);                // 3 —— 人眼看到的字元數
+```
+
+`NSString` 內部是 UTF-16。中文一個字佔 1 個單位，但 emoji、罕用字、帶膚色修飾的表情符號會佔 2 個以上。要「人看到幾個字」，用 `enumerateSubstringsInRange:options:usingBlock:` 搭配 `NSStringEnumerationByComposedCharacterSequences`；要截斷字串給 UI 顯示，先用 `rangeOfComposedCharacterSequenceAtIndex:` 對齊邊界，否則會把一個 emoji 切成兩半印出亂碼。
+
+### 可變字串 `NSMutableString`
+
+```objc
+NSMutableString *report = [NSMutableString string];
+for (NSString *name in @[@"早餐", @"午餐", @"晚餐"]) {
+    [report appendFormat:@"%@、", name];
+}
+[report deleteCharactersInRange:NSMakeRange(report.length - 1, 1)];
+NSLog(@"%@", report);                               // 早餐、午餐、晚餐
+```
+
+迴圈裡累積字串用 `NSMutableString`，不要每圈 `stringWithFormat:` 再接回去，那會製造一堆中間物件。大多時候 `componentsJoinedByString:` 更短。
+
+### 顯示給人看：Formatter 與本地化
+
+```objc
+NSNumberFormatter *money = [NSNumberFormatter new];
+money.numberStyle = NSNumberFormatterCurrencyStyle;
+money.locale = [NSLocale localeWithLocaleIdentifier:@"zh_TW"];
+NSLog(@"%@", [money stringFromNumber:
+              [NSDecimalNumber decimalNumberWithString:@"1280.5"]]);
+// $1,280.50（系統版本不同可能顯示 NT$）
+
+NSDateFormatter *df = [NSDateFormatter new];
+df.dateFormat = @"yyyy/MM/dd";                      // 小寫 yyyy
+NSLog(@"%@", [df stringFromDate:[NSDate date]]);    // 2026/03/14（看今天）
+
+NSLog(@"%@", NSLocalizedString(@"ledger.title", nil));
+// Scratch 沒有 Localizable.strings，所以印出 key 本身：ledger.title
+```
+
+金額與日期**永遠**不要自己拼字串。千分位、小數位數、貨幣符號、日期順序都隨使用者地區變，`NSNumberFormatter` 與 `NSDateFormatter` 幫你處理。文案一律包在 `NSLocalizedString`，第一個參數是 key，對應 `Localizable.strings` 裡的一行 `"ledger.title" = "小帳本";`。
+
+<Pitfall title="用 == 比字串：測試過、上線炸">
+<Fragment slot="bad">
+```objc
+if (tx.note == @"午餐") { ... }      // 比指標位址
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+if ([tx.note isEqualToString:@"午餐"]) { ... }
+```
+</Fragment>
+更可怕的是它**有時候會對**。兩個 `@"午餐"` 字面值會被編譯器合併成同一個物件，所以 `==` 得到 YES；短的 ASCII 字串在 64 位元上會變成<Term en="tagged pointer" tw="標記指標（tagged pointer）" cn="标签指针" jp="タグ付きポインタ" />，內容直接塞進指標本身，相同內容就相同位址，`==` 也會「剛好」對。等資料從網路或資料庫進來、字串長一點、含中文，才開始隨機出錯。
+</Pitfall>
+
+<Pitfall title="NSInteger 用 %d 印">
+```objc
+NSInteger count = ledger.count;
+NSLog(@"%d", count);              // 警告：Values of type 'NSInteger' should not be used as format arguments
+NSLog(@"%ld", (long)count);       // 正確
+```
+`NSInteger` 在 64 位元是 `long`，在 32 位元是 `int`。Apple 的慣例是 `%ld` 加轉型 `(long)`，這樣兩種平台都對。這條警告在 code review 一定會被抓，順手修掉。
+</Pitfall>
+
+<Pitfall title="Formatter 很貴，而且 YYYY 不是 yyyy">
+`NSDateFormatter` / `NSNumberFormatter` 建立一次要幾毫秒，在 `tableView:cellForRowAtIndexPath:` 裡每個 cell 都 `new` 一個，捲動就掉幀。做成 static 或屬性，建一次重複用；要變地區時再重設 `locale`。另一個經典：`dateFormat` 寫成大寫 `YYYY` 是「週所屬年」，12 月 29 日到 1 月 3 日那幾天會印出錯誤的年份，每年跨年都有人中招。年份一律小寫 `yyyy`。
+</Pitfall>
+
+<Pitfall title="integerValue 把看不懂的字串變成 0">
+`@"120".integerValue` 是 120，`@"120 元".integerValue` 也是 120，`@"一百二十".integerValue` 是 0 ——它不會告訴你解析失敗。使用者輸入的金額要用 `NSNumberFormatter` 的 `numberFromString:`，失敗會回 nil，你才判斷得出來。3.2 會接著講金額為什麼連 `double` 都不能用。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSRangeException',
+reason: '*** -[__NSCFConstantString substringWithRange:]: Range {3, 2} out of bounds; string length 4'`}>
+讀法：例外類別 `NSRangeException` 表示範圍越界；接收者類別 `__NSCFConstantString` 代表這是一個字面值字串（`@"..."`），不是執行期組出來的；selector 是 `substringWithRange:`；`Range {3, 2}` 是從索引 3 取 2 個單位，但字串只有 4 個單位，3 + 2 = 5 超過了。典型成因是先用別的字串算出 `NSRange`，再套到另一條字串上，或者以為 emoji 只佔 1 個單位。修法：切之前檢查 `NSMaxRange(range) <= s.length`，或改用 `rangeOfComposedCharacterSequenceAtIndex:` 對齊邊界。
+</Crash>
+
+## 小結
+
+- 組字串只有 `stringWithFormat:`；`%@` 給物件、`%ld` 給 `NSInteger` 並轉型 `(long)`。
+- 比內容用 `isEqualToString:`，`==` 比的是位址，而且會「有時候對」。
+- `xxxBy…` 回新字串、動詞開頭改自己；累積字串用 `NSMutableString` 或 `componentsJoinedByString:`。
+- `length` 是 UTF-16 單位，emoji 算 2；要人眼字元數用 composed character sequence 列舉。
+- 金額、日期交給 Formatter 且重複使用；文案包 `NSLocalizedString`。

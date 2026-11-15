@@ -1,0 +1,226 @@
+---
+title: Core Foundation 橋接
+module: 4
+chapter: "4.5"
+order: 5
+minutes: 30
+prereq: ["4.4"]
+objectives:
+  - 看函式名就知道回傳的 CF 物件要不要自己 CFRelease
+  - 在 __bridge / __bridge_transfer / __bridge_retained 三者間選對一個
+  - 把 CF 物件安全地交給 ARC，或把 ObjC 物件安全地交給 C API
+summary: CFStringRef ↔ NSString *：__bridge 不轉移擁有權、__bridge_transfer / CFBridgingRelease 交給 ARC、__bridge_retained / CFBridgingRetain 交給 CF；Create / Get 命名規則。
+terms:
+  - { en: Core Foundation, tw: Core Foundation（CF）, cn: Core Foundation, jp: Core Foundation }
+  - { en: toll-free bridging, tw: 免費橋接, cn: 无缝桥接 / 免费桥接, jp: トールフリーブリッジ }
+  - { en: bridged cast, tw: 橋接轉型, cn: 桥接转换, jp: ブリッジキャスト }
+  - { en: Create / Get rule, tw: Create / Get 規則, cn: Create / Get 规则, jp: Create / Get ルール }
+  - { en: LRU cache, tw: LRU 快取, cn: LRU 缓存, jp: LRU キャッシュ }
+appProgress: 金額格式化字串有了 LBLRUCache；小帳本無洩漏、格式化有快取。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+let ns = "午餐" as CFString                 // as 自動橋接，不用想擁有權
+let uuid = CFUUIDCreate(nil)                // Swift 知道 Create → 自動 release
+let s = CFUUIDCreateString(nil, uuid)! as String
+
+// 沒有標注的 C API 回傳 Unmanaged<CFString>：
+let u: Unmanaged<CFString> = someLegacyCall()
+let owned = u.takeRetainedValue()           // ≈ __bridge_transfer
+let borrowed = u.takeUnretainedValue()      // ≈ __bridge
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// Android NDK / JNI：GC 管不到 native 端
+external fun nativeCreateFormatter(): Long          // 回傳 C 指標
+external fun nativeRelease(handle: Long)
+class Formatter : AutoCloseable {
+    private val handle = nativeCreateFormatter()
+    override fun close() = nativeRelease(handle)    // 你負責釋放
+}
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// JNI 的 local / global reference 就是「借用 vs 擁有」
+jobject g = (*env)->NewGlobalRef(env, local);   // 擁有：之後要 DeleteGlobalRef
+// local ref 離開本次 JNI 呼叫就失效 → 借用
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// WebAssembly / N-API：JS 的 GC 管不到線性記憶體
+const ptr = wasm.exports.formatter_create();   // 你擁有
+wasm.exports.formatter_destroy(ptr);           // 你釋放
+// 忘了 destroy 就是洩漏，WeakRef 也救不了
+```
+</Fragment>
+Swift 已經把大多數 CF API 標注好，`as` 一轉就自動管；只有遇到沒標注的 API 才會看到 `Unmanaged` 的 `takeRetainedValue` / `takeUnretainedValue`——那兩個方法就是本章 `__bridge_transfer` 與 `__bridge` 的 Swift 版。Kotlin / Java 的 JNI 與 TS 的 Wasm 則是同一個處境：跨過語言邊界的東西，GC 不管，你得知道誰擁有它。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 為什麼會碰到 CF
+
+<Term en="Core Foundation" tw="Core Foundation" cn="Core Foundation" jp="Core Foundation" />是 Foundation 底下的 C 函式庫：`CFStringRef`、`CFArrayRef`、`CFDictionaryRef`、`CFUUIDRef`……。你會在這些地方遇到它：Core Graphics（`CGColorRef`、`CGImageRef`）、Core Text、Security 框架（Keychain 的 `SecItemCopyMatching`）、`CFRunLoop`、以及所有以 C 寫成的第三方 SDK。
+
+關鍵事實：**ARC 不管 CF 物件**。CF 用自己的 `CFRetain` / `CFRelease`，規則跟 4.1 的 MRC 一模一樣，只是你得手寫。
+
+### Create / Get 規則：看名字就知道誰擁有
+
+| 函式名含 | 回傳的擁有權 | 你要做的事 | 例子 |
+|---|---|---|---|
+| `Create` 或 `Copy` | **+1，你擁有** | 用完 `CFRelease`，或交給 ARC | `CFUUIDCreate`、`CFStringCreateWithFormat`、`CFLocaleCopyCurrent` |
+| `Get` | **+0，借用** | 不要 release；想留住就 `CFRetain` | `CFStringGetLength`、`CFDictionaryGetValue`、`CFLocaleGetIdentifier` |
+
+這就是 <Term en="Create / Get rule" tw="Create / Get 規則" cn="Create / Get 规则" jp="Create / Get ルール" />，對應 4.1 的「`alloc` / `new` / `copy` 開頭 = +1」。CF 的文件每個函式都會寫 "The caller is responsible for releasing"（Create）或 "Ownership follows the Get Rule"（Get），拿不準就查。
+
+### 免費橋接與三種轉型
+
+部分 CF 型別和 Foundation 類別在記憶體裡是**同一個東西**：`CFStringRef` 就是 `NSString *`，`CFArrayRef` 就是 `NSArray *`，`CFDictionaryRef`、`CFNumberRef`、`CFDataRef`、`CFDateRef`、`CFURLRef`、`CFSetRef` 同理。這叫<Term en="toll-free bridging" tw="免費橋接" cn="无缝桥接" jp="トールフリーブリッジ" />：轉型不拷貝、不轉換，只是換個型別看同一塊記憶體。
+
+但 ARC 要知道「這塊記憶體的擁有權現在算誰的」，所以直接 `(NSString *)cfString` 會被編譯器擋下，你必須用三種<Term en="bridged cast" tw="橋接轉型" cn="桥接转换" jp="ブリッジキャスト" />之一說清楚：
+
+| 轉型 | 方向 | 擁有權 | 之後誰負責 |
+|---|---|---|---|
+| `(__bridge T)x` | 雙向 | **不動** | 原本誰管就誰管；只是借來看一眼 |
+| `(__bridge_transfer T)x` ＝ `CFBridgingRelease(x)` | CF → ObjC | CF 的 +1 **轉交給 ARC** | ARC；你**不能**再 `CFRelease` |
+| `(__bridge_retained CFType)x` ＝ `CFBridgingRetain(x)` | ObjC → CF | ARC 之外**多一份 +1 給 CF 端** | 你；之後必須 `CFRelease` |
+
+記法：函式版的名字講的是**CF 那一邊發生什麼事**。`CFBridgingRelease`——CF 端放手（交給 ARC）；`CFBridgingRetain`——CF 端多持有一份（你要還）。大家偏好函式版，因為它比 `__bridge_transfer` 好讀，也比較不會打錯。
+
+### 貼進 Scratch 跑一遍
+
+```objc
+#import <Foundation/Foundation.h>
+
+int main(void) {
+    @autoreleasepool {
+        // ① Create → 我擁有 → CFBridgingRelease 交給 ARC
+        CFUUIDRef uuid = CFUUIDCreate(kCFAllocatorDefault);
+        NSString *identifier =
+            CFBridgingRelease(CFUUIDCreateString(kCFAllocatorDefault, uuid));
+        CFRelease(uuid);                       // uuid 沒交給 ARC，自己放
+        NSLog(@"① %lu 字", (unsigned long)identifier.length);
+
+        // ② __bridge：借用，不動擁有權
+        NSString *note = @"午餐 便當";
+        CFStringRef cfNote = (__bridge CFStringRef)note;
+        NSLog(@"② 長度 %ld", (long)CFStringGetLength(cfNote));
+        // 不能 CFRelease(cfNote)：它是 note 的，ARC 在管
+
+        // ③ Get → 借用；擁有者放手後就不能再碰
+        CFLocaleRef locale = CFLocaleCopyCurrent();            // Copy → 我擁有
+        CFStringRef ident = CFLocaleGetIdentifier(locale);     // Get → 借用
+        NSString *identCopy = [(__bridge NSString *)ident copy];
+        CFRelease(locale);                 // locale 走了，ident 也跟著不可用
+        NSLog(@"③ %@", identCopy);         // 事先 copy 過，安全
+
+        // ④ CFBridgingRetain：把 ObjC 物件交給 C API 的 void *
+        NSMutableArray *log = [NSMutableArray array];
+        void *context = (void *)CFBridgingRetain(log);   // +1 給 C 端
+        // ... 傳給 C callback 的 info / context 參數 ...
+        NSMutableArray *back = CFBridgingRelease(context); // 拿回來，計數還原
+        [back addObject:@"ok"];
+        NSLog(@"④ %@", back);
+    }
+    return 0;
+}
+// 預期輸出（① 的字數固定 36；③ 依系統語系，例如 zh_TW）：
+// ① 36 字
+// ② 長度 5
+// ③ zh_TW
+// ④ (
+//     ok
+// )
+```
+
+第 ④ 段是最常見的實戰場景：C API 的 callback 只給你一個 `void *context`，你想塞一個 Objective-C 物件進去。`CFBridgingRetain` 讓 C 端多持有一份，物件不會在你還在等 callback 時被 ARC 收走；callback 裡用 `CFBridgingRelease` 拿回來並還掉那一份。如果 callback 會被呼叫多次（例如 `CFRunLoopTimer`），callback 裡要用 `__bridge` 借用，最後在 invalidate 時才 `CFBridgingRelease` 一次。
+
+### 本章的小帳本任務：LRU 快取
+
+`NSNumberFormatter` 很慢（建立要幾毫秒，格式化也不便宜），交易列表捲動時同一個金額會被格式化幾十次。本章的 Xcode 任務是用 4.4 的 `LBLinkedList` 加上 `NSMutableDictionary` 實作 <Term en="LRU cache" tw="LRU 快取" cn="LRU 缓存" jp="LRU キャッシュ" />（Least Recently Used，淘汰最久沒用的）：字典負責 O(1) 找到節點，鏈結串列負責 O(1) 把節點搬到最新端、從最舊端淘汰。這是鏈結串列 + 雜湊表的經典組合，也是面試常客。
+
+<Tip title="先查文件再決定 bridge">
+拿不準一個 CF 函式回傳的是 +1 還是 +0？Xcode 裡 ⌥ 點函式名看 Quick Help，或 ⌘ 點進標頭檔：標注 `CF_RETURNS_RETAINED` 的是 +1，`CF_RETURNS_NOT_RETAINED` 是 +0。沒標注就回到 Create / Copy / Get 命名規則。
+</Tip>
+
+<Pitfall title="Create 出來的 CF 物件忘了 Release">
+<Fragment slot="bad">
+```objc
+- (NSString *)newIdentifier {           // 順便：這個方法名也違反 4.1 的規約
+    CFUUIDRef uuid = CFUUIDCreate(NULL);
+    CFStringRef s = CFUUIDCreateString(NULL, uuid);
+    return (__bridge NSString *)s;      // s 的 +1 沒人還，每呼叫一次漏一個
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (NSString *)makeIdentifier {
+    CFUUIDRef uuid = CFUUIDCreate(NULL);
+    NSString *s = CFBridgingRelease(CFUUIDCreateString(NULL, uuid));
+    CFRelease(uuid);
+    return s;                            // ARC 接手，呼叫端不用想
+}
+```
+</Fragment>
+Instruments Leaks 會把這種洩漏列成 `CFString (immutable)` 或 `__NSCFString`，沒有你的類別名，不好對應。看到這類型的洩漏，直接搜專案裡所有 `Create` / `Copy` 開頭的 CF 呼叫，檢查每一個有沒有配對的 `CFRelease` 或 `CFBridgingRelease`。
+</Pitfall>
+
+<Pitfall title="對 Get 回傳值用 __bridge_transfer">
+<Fragment slot="bad">
+```objc
+CFStringRef ident = CFLocaleGetIdentifier(locale);        // +0，借用
+NSString *s = CFBridgingRelease(ident);   // 告訴 ARC「這 +1 給你」—— 但根本沒有 +1
+// locale 之後釋放 ident 時變成多 release 一次 → crash
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+NSString *s = [(__bridge NSString *)CFLocaleGetIdentifier(locale) copy];
+```
+</Fragment>
+`CFBridgingRelease` 只能接 Create / Copy 回傳的 +1。對借來的東西用它，等於替別人 release 了一次——4.1 會議室的比喻：你幫別人取消了預約。崩潰會發生在很後面、別的地方，Zombie Objects 是唯一的救星。
+</Pitfall>
+
+<Pitfall title="CFRelease(NULL) 會 crash">
+```objc
+CFStringRef s = CFStringCreateWithCString(NULL, cstr, kCFStringEncodingUTF8);
+// cstr 不是合法 UTF-8 時 s 會是 NULL
+CFRelease(s);          // 對 NULL 送訊息在 ObjC 是安全的，CF 這裡直接 crash
+```
+Objective-C 對 `nil` 送訊息安全，讓你養成不檢查的習慣。CF 函式沒有這層保護：`CFRelease(NULL)`、`CFRetain(NULL)`、`CFStringGetLength(NULL)` 都會立刻中止。所有可能回傳 `NULL` 的 Create 函式，`CFRelease` 之前先 `if (s)`。
+</Pitfall>
+
+<Pitfall title="CGColorRef 不是免費橋接">
+```objc
+gradient.colors = @[ (__bridge id)UIColor.redColor.CGColor,
+                     (__bridge id)UIColor.blueColor.CGColor ];   // 這樣寫是對的
+UIColor *c = (__bridge UIColor *)someCGColor;                    // 這樣是錯的
+```
+Core Graphics 的 `CGColorRef`、`CGImageRef`、`CGPathRef` 都是 CF 物件，可以用 `__bridge id` 放進 `NSArray`（`CAGradientLayer.colors` 就要這樣），但它們和任何 UIKit 類別都**不是**同一塊記憶體——`CGColorRef` 轉 `UIColor *` 要用 `[UIColor colorWithCGColor:]`。免費橋接只限 Foundation 那張清單裡的型別。
+</Pitfall>
+
+<Crash message={`*** -[__NSCFString release]: message sent to deallocated instance 0x600001e4c3a0
+Thread 1: EXC_BREAKPOINT (code=1, subcode=0x1f0ad4b2c)`}>
+開了 Zombie Objects 才看得到第一行（沒開只有 `EXC_BAD_ACCESS`）。`__NSCFString` 是 `NSString` / `CFString` 在記憶體裡真正的類別名，`release` 被送到一個已經死掉的字串上——有人多 release 了一次。
+
+CF 相關的多 release 只有三種來源：（一）對 Get 回傳值用了 `CFBridgingRelease` / `__bridge_transfer`；（二）`CFBridgingRelease` 之後又手動 `CFRelease`；（三）同一個 Create 回傳值被 `CFRelease` 兩次。查法：Exception Breakpoint 停下來後看堆疊，找最近的 `CFRelease` 或 `CFBridgingRelease`，再往上對照那個變數是從哪個函式拿到的，名字裡是 Create / Copy 還是 Get。
+</Crash>
+
+## 小結
+
+- ARC 不管 CF 物件；CF 用 `CFRetain` / `CFRelease`，規則同 MRC。
+- 函式名含 `Create` / `Copy` → +1 你擁有，要 `CFRelease` 或交給 ARC；含 `Get` → +0 借用，不能 release。
+- `__bridge` 不動擁有權；`CFBridgingRelease`（`__bridge_transfer`）把 CF 的 +1 交給 ARC；`CFBridgingRetain`（`__bridge_retained`）多給 CF 端一份，之後你要還。
+- `CFRelease(NULL)` 會 crash，CF 沒有 nil 安全。
+- `CGColorRef` 等 Core Graphics 型別可以 `__bridge id` 進陣列，但不能轉成 UIKit 類別。

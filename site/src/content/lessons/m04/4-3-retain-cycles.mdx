@@ -1,0 +1,253 @@
+---
+title: 循環參考（retain cycle）
+module: 4
+chapter: "4.3"
+order: 3
+minutes: 40
+prereq: ["4.2"]
+objectives:
+  - 一眼認出五種最常見的循環參考來源
+  - 用 Memory Graph Debugger 與 Instruments Leaks 找出洩漏並讀懂持有鏈
+  - 針對每一種來源寫出正確的解法，而不是到處灑 weakSelf
+summary: 父子、delegate、NSTimer、block 捕獲 self、通知 block API 五種循環參考；Memory Graph Debugger 與 Leaks 的用法。
+terms:
+  - { en: retain cycle, tw: 循環參考, cn: 循环引用, jp: 循環参照 }
+  - { en: memory leak, tw: 記憶體洩漏, cn: 内存泄漏, jp: メモリリーク }
+  - { en: retain chain, tw: 持有鏈, cn: 引用链 / 持有链, jp: 保持チェーン }
+  - { en: Memory Graph Debugger, tw: 記憶體圖偵錯器, cn: 内存图调试器, jp: メモリグラフデバッガ }
+  - { en: run loop, tw: 執行迴圈（RunLoop）, cn: 运行循环, jp: ランループ }
+appProgress: 起始專案埋的三個循環參考全部修掉，LBLeakTests 全綠。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+class Ledger {
+    var onChange: (() -> Void)?
+    weak var delegate: LedgerDelegate?        // 同樣要 weak
+    var timer: Timer?
+    func start() {
+        onChange = { [weak self] in self?.reload() }
+        timer = Timer.scheduledTimer(timeInterval: 60, target: self,
+                                     selector: #selector(save),
+                                     userInfo: nil, repeats: true)  // 同樣持有 target
+    }
+}
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// Android：GC 會回收循環參考，但「可達」的東西收不掉
+object Analytics { var listener: Activity? = null }   // 單例持有 Activity
+class MainActivity : AppCompatActivity() {
+    override fun onCreate(s: Bundle?) { Analytics.listener = this }   // Activity 洩漏
+}
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// 兩個物件互指，Java 照樣回收——從 GC root 走不到就是垃圾
+class Parent { Child child; }
+class Child  { Parent parent; }
+// 洩漏的是「忘了 unregister」：listener 被長壽物件持有
+executor.addListener(this);   // this 被 executor 一直抓著
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// 循環參考 GC 照收；洩漏的是忘記解除的監聯
+window.addEventListener("resize", () => this.layout());  // 閉包抓著 this
+// 元件卸載時忘了 removeEventListener → this 永遠活著
+```
+</Fragment>
+Swift 的情況和 Objective-C 一模一樣。Kotlin / Java / TS 的 GC 用「可達性」判斷：從根（執行緒堆疊、靜態變數）走不到的物件，就算互相指著也會回收，所以你從沒擔心過 A ↔ B。但你一定遇過 Android 的 Activity 洩漏、JS 忘記 `removeEventListener`——那是「被長壽物件抓著」。Objective-C 兩種都會中，而且第一種（純循環）更隱蔽：沒有任何外部物件指著它們，它們就靠彼此活著。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 兩個物件互相撐著
+
+<Term en="retain cycle" tw="循環參考" cn="循环引用" jp="循環参照" />：A 強持有 B，B 強持有 A。外面所有人放手後，A 的計數還有 1（B 給的），B 的計數也還有 1（A 給的），兩個都不會歸零，兩個都不會 `dealloc`，兩個都永遠佔著記憶體——<Term en="memory leak" tw="記憶體洩漏" cn="内存泄漏" jp="メモリリーク" />。參考計數只看數字，沒有「從根可不可達」的概念，所以這件事只能靠你在設計時斷開。
+
+斷開的方法只有一種：讓其中一邊變成 `weak`。問題是「哪一邊？」答案永遠是**生命週期較短、或在概念上「被擁有」的那一邊**往回指的那條線。
+
+### 五種最常見的來源
+
+**1. 父子物件。** 父持有子（陣列）、子指回父。子的 `parent` 要 `weak`。2.4 的 `LBCategory` 就是這樣設計的。
+
+**2. delegate。** `tableView.delegate = self`，而 `self`（ViewController）持有 `tableView`。所以所有 delegate 屬性一律 `weak`，沒有例外。
+
+**3. `NSTimer` 的 target。** 這條最常被低估：
+
+```objc
+// RunLoop ──strong──▶ timer ──strong──▶ self
+self.timer = [NSTimer scheduledTimerWithTimeInterval:60
+                                              target:self
+                                            selector:@selector(autosave)
+                                            userInfo:nil
+                                             repeats:YES];
+```
+
+`scheduledTimer…` 會把 timer 加進目前的<Term en="run loop" tw="執行迴圈" cn="运行循环" jp="ランループ" />，RunLoop 強持有 timer，timer 強持有 target。就算 `self` 沒持有 timer，RunLoop 也會替它撐著——`self` 在 `invalidate` 之前永遠不會釋放。而很多人把 `[self.timer invalidate]` 寫在 `dealloc` 裡：`dealloc` 要等 timer 放手才會跑，timer 要等 `dealloc` 才會 invalidate，死結。
+
+解法二選一：在明確的生命週期點（`viewWillDisappear:`、使用者按停止）呼叫 `invalidate`；或用 iOS 10 之後的 block 版本搭配 weakSelf，這時 timer 不再持有 `self`，`dealloc` 裡的 `invalidate` 才有意義。
+
+```objc
+__weak typeof(self) weakSelf = self;
+self.timer = [NSTimer scheduledTimerWithTimeInterval:60
+                                             repeats:YES
+                                               block:^(NSTimer *t) {
+    [weakSelf autosave];           // timer 不再持有 self
+}];
+// dealloc 裡 [_timer invalidate]; 現在是有效的
+```
+
+**4. block 捕獲 self。** `self` 持有 block（屬性、陣列），block 又捕獲 `self`。4.2 的 weakSelf / strongSelf 樣板就是為它準備的。
+
+**5. 通知的 block API。**
+
+```objc
+// NSNotificationCenter ──strong──▶ block ──strong──▶ self
+self.observer = [NSNotificationCenter.defaultCenter
+    addObserverForName:LBLedgerDidChangeNotification
+                object:nil
+                 queue:NSOperationQueue.mainQueue
+            usingBlock:^(NSNotification *note) {
+                [self reload];               // 抓住 self
+            }];
+```
+
+通知中心是單例、永不釋放，它持有 block，block 持有 `self`。嚴格說這不是循環而是「被長壽物件抓著」，結果一樣：`self` 永不釋放。你必須保存回傳的 observer，並在對的時機 `[center removeObserver:self.observer]`；block 內要用 weakSelf，否則 `dealloc` 永遠不會跑，裡面的 `removeObserver:` 等於沒寫。相對地，`addObserver:selector:name:object:` 的 selector 版本從 iOS 9 起會自動處理失效的觀察者，不用手動移除。
+
+### 貼進 Scratch 親眼看洩漏
+
+```objc
+#import <Foundation/Foundation.h>
+
+@interface LBLedger : NSObject
+@property (nonatomic, copy) NSString *name;
+@property (nonatomic, copy) void (^onChange)(void);
+@end
+@implementation LBLedger
+- (void)dealloc { NSLog(@"dealloc 帳本 %@", _name); }
+@end
+
+int main(void) {
+    @autoreleasepool {
+        LBLedger *leaky = [[LBLedger alloc] init];
+        leaky.name = @"洩漏";
+        leaky.onChange = ^{ NSLog(@"%@", leaky.name); };   // block 捕獲 leaky
+        leaky = nil;                      // 區域變數放手，但 block 還抓著
+        NSLog(@"放掉 leaky");
+
+        LBLedger *fine = [[LBLedger alloc] init];
+        fine.name = @"正常";
+        __weak LBLedger *weakFine = fine;
+        fine.onChange = ^{ NSLog(@"%@", weakFine.name); };
+        fine = nil;
+        NSLog(@"放掉 fine");
+    }
+    return 0;
+}
+// 預期輸出：
+// 放掉 leaky
+// dealloc 帳本 正常
+// 放掉 fine
+// （「dealloc 帳本 洩漏」永遠不會出現）
+```
+
+`leaky` 這個區域變數清掉了，但 block 裡捕獲的那一份 strong 參考還在，block 又被 `leaky.onChange` 持有，兩個物件就這樣飄在記憶體裡直到程式結束。
+
+### 用工具找出來
+
+真實專案不會每個物件都有 `NSLog`。Xcode 內建兩個工具。
+
+<Steps title="Memory Graph Debugger">
+1. 在模擬器跑 App，操作一輪會建立又關掉畫面的流程（例如進入新增交易頁再返回）至少兩次。
+2. 按 Debug bar 上的 **Debug Memory Graph** 按鈕（三個圓圈串在一起的圖示），App 暫停。
+3. 左側 Debug navigator 列出所有活著的物件。底部篩選列按 **Show only leaked blocks**（驚嘆號圖示），只留下 Xcode 判定為洩漏的物件——它們左邊有**紫色的 !**。
+4. 點一個紫色物件，中間畫面顯示它的<Term en="retain chain" tw="持有鏈" cn="引用链" jp="保持チェーン" />：每個箭頭代表一份 strong 參考，箭頭上的文字是 ivar 名稱（`_onChange`、`_delegate`、`_timer`）。看到箭頭繞成一圈，就是循環參考；看到箭頭從 `NSNotificationCenter` 或 RunLoop 出發，就是被長壽物件抓著。
+5. 要知道這個物件是在哪一行建立的：Edit Scheme → Run → Diagnostics 勾 **Malloc Stack Logging**（Live Allocations Only），再跑一次，右側 Memory Inspector 會顯示配置時的堆疊。
+6. 看不出來的，File → Export Memory Graph 存成 `.memgraph` 給同事看。
+</Steps>
+
+<Steps title="Instruments · Leaks">
+1. Product → Profile（⌘I），選 **Leaks** 範本，按錄製。
+2. 操作 App 幾輪。Leaks 軌道上出現紅色 ✕ 就是偵測到洩漏（它每十秒掃一次）。
+3. 下方 Detail 區切到 **Cycles &amp; Roots**，會把循環參考畫成圖；切到 **Call Tree** 並勾 Invert Call Tree、Hide System Libraries，直接看到你的哪一行配置了洩漏的物件。
+4. Memory Graph 看單一時間點、整合在偵錯器裡最快；Leaks 看一段時間、可以抓到間歇性的洩漏。先 Memory Graph，查不到再 Leaks。
+</Steps>
+
+<Tip title="不是所有 block 都要 weakSelf">
+`dispatch_async(queue, ^{ [self save]; })` 不會循環：GCD 佇列持有 block 只到執行完，`self` 沒有持有 block。`[UIView animateWithDuration:animations:]` 同理。只有「`self` 直接或間接持有這個 block」的情況才需要 weakSelf。到處灑 weakSelf 的代價是 block 執行時 `self` 可能已經走了，該存的沒存。
+</Tip>
+
+<Pitfall title="「我用了 weak 所以沒問題」——delegate 提早變 nil">
+<Fragment slot="bad">
+```objc
+ledger.delegate = [[LBAuditLogger alloc] init];   // 沒人 strong 持有它
+[ledger addTransaction:tx];     // delegate 已經是 nil，稽核紀錄悄悄消失
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+self.auditLogger = [[LBAuditLogger alloc] init];  // 由 self 持有
+ledger.delegate = self.auditLogger;               // weak 指過去
+```
+</Fragment>
+`weak` 解決的是「不要撐著它」，代價是「也不保證它活著」。delegate 物件一定要有別人（通常是 ViewController 或擁有 ledger 的那個物件）用 strong 持有。這類 bug 沒有 crash、沒有警告，只有功能默默失效，比洩漏更難查。
+</Pitfall>
+
+<Pitfall title="NSTimer 不 invalidate 就永不釋放">
+<Fragment slot="bad">
+```objc
+- (void)dealloc {
+    [_timer invalidate];     // 永遠跑不到：timer 持有 self，self 不會 dealloc
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (void)viewWillDisappear:(BOOL)animated {
+    [super viewWillDisappear:animated];
+    [self.timer invalidate];
+    self.timer = nil;
+}
+// 或改用 block 版 + weakSelf，dealloc 裡的 invalidate 才有效
+```
+</Fragment>
+`target:` 版本的 timer 持有 target，`invalidate` 是唯一能讓它放手的方法。把 `invalidate` 放在只有 timer 放手後才會執行的地方，就是在等一件永遠不會發生的事。
+</Pitfall>
+
+<Pitfall title="通知 block 版要自己 remove">
+```objc
+- (void)dealloc {
+    [NSNotificationCenter.defaultCenter removeObserver:_observerToken];
+}
+```
+這行**只有在 block 用了 weakSelf 的前提下**才會執行。另外 `removeObserver:` 傳的是 `addObserverForName:…` 回傳的 token，不是 `self`；傳 `self` 什麼都不會移除。selector 版（`addObserver:selector:name:object:`）在 iOS 9 之後不需要手動移除，但 KVO 的 `addObserver:forKeyPath:` 到 iOS 11 之前仍然需要，而且沒移除會 crash（6.3）。
+</Pitfall>
+
+<Pitfall title="父子互指但忘了把 children 設成 copy">
+`LBCategory` 的 `parent` 是 `weak`，`children` 是 `copy`，看起來很乾淨。但如果某個子類別或分類為了方便把 `parent` 改成 `strong`，整棵樹就一次洩漏——而且 Memory Graph 上會看到幾十個 `LBCategory` 全部紫色，很嚇人。父指子用 strong、子指父用 weak，這條在 code review 時要盯。
+</Pitfall>
+
+<Crash message={`Message from debugger: Terminated due to memory issue`}>
+這不是你的程式丟例外，是系統的 Jetsam 機制把 App 殺了：記憶體用量超過上限，iOS 直接結束行程，沒有堆疊、沒有例外、Crashlytics 也抓不到。症狀通常是「用久了會閃退」「開了很多頁之後閃退」。
+
+洩漏的物件不會自己消失，每開一次畫面就多一份：ViewController 連著它的 view 階層、圖片、資料陣列一起留在記憶體。查法：Debug navigator 的 Memory 儀表看用量是否只升不降；然後照上面的步驟開 Memory Graph，篩出紫色 ! 的物件，看持有鏈的箭頭從哪裡來。十之八九是 timer、block 或 delegate 其中一個。
+</Crash>
+
+## 小結
+
+- 循環參考：A 強持有 B、B 強持有 A，外面放手後兩個都不會歸零。參考計數沒有「可達性」，只能靠設計斷開。
+- 五大來源：父子、delegate、`NSTimer` target、block 捕獲 self、通知 block API。斷開的那一邊用 `weak`，往回指的那條線就是。
+- `NSTimer` 的 `invalidate` 不能放 `dealloc`（除非 block 版 + weakSelf）；通知 block 版要保存 token 並手動 remove。
+- `weak` 只保證不撐著，不保證活著：delegate 物件要有人 strong 持有。
+- Memory Graph：Debug bar 三圓圈 → 篩「只看洩漏」→ 紫色 ! → 看箭頭繞不繞圈。間歇性洩漏用 Instruments Leaks。

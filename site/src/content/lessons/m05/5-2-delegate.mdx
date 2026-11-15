@@ -1,0 +1,267 @@
+---
+title: 委派與資料來源
+module: 5
+chapter: "5.2"
+order: 2
+minutes: 25
+prereq: ["5.1"]
+objectives:
+  - 依 Cocoa 慣例命名 delegate 協定與方法，並用 weak 屬性持有
+  - 分清楚 delegate 與 data source 的角色
+  - 在 delegate、block、通知三者之間做出有依據的選擇
+summary: "delegate 與 data source 模式：命名慣例、方法以來源物件開頭、屬性必 weak、一對一 / 一次性 / 一對多的選用原則。"
+terms:
+  - { en: delegate, tw: 委派（delegate）, cn: 代理 / 委托, jp: デリゲート }
+  - { en: data source, tw: 資料來源, cn: 数据源, jp: データソース }
+  - { en: callback, tw: 回呼, cn: 回调, jp: コールバック }
+  - { en: retain cycle, tw: 循環參考, cn: 循环引用, jp: 循環参照 }
+appProgress: LBLedger 有了 weak 的 delegate 屬性，新增交易時會通知觀察者；兩個對應測試轉綠。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+protocol LedgerDelegate: AnyObject {
+    func ledger(_ ledger: Ledger, didAdd tx: Transaction)
+    func ledger(_ ledger: Ledger, shouldAdd tx: Transaction) -> Bool
+}
+final class Ledger {
+    weak var delegate: LedgerDelegate?        // 一樣要 weak
+    func add(_ tx: Transaction) {
+        guard delegate?.ledger(self, shouldAdd: tx) ?? true else { return }
+        items.append(tx)
+        delegate?.ledger(self, didAdd: tx)
+    }
+}
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+interface LedgerListener {                  // Android 叫 Listener / Callback
+    fun onTransactionAdded(ledger: Ledger, tx: Transaction)
+}
+class Ledger {
+    var listener: LedgerListener? = null    // 沒有 weak，靠 GC
+    fun add(tx: Transaction) {
+        items += tx
+        listener?.onTransactionAdded(this, tx)
+    }
+}
+```
+</Fragment>
+<Fragment slot="java">
+```java
+interface LedgerListener {
+    void onTransactionAdded(Ledger ledger, Transaction tx);
+}
+class Ledger {
+    private LedgerListener listener;
+    void setListener(LedgerListener l) { listener = l; }
+    void add(Transaction tx) {
+        items.add(tx);
+        if (listener != null) listener.onTransactionAdded(this, tx);
+    }
+}
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+interface LedgerDelegate {
+  ledgerDidAdd(ledger: Ledger, tx: Transaction): void;
+}
+class Ledger {
+  delegate?: LedgerDelegate;
+  add(tx: Transaction) {
+    this.items.push(tx);
+    this.delegate?.ledgerDidAdd(this, tx);
+  }
+}
+// 實務上前端更常用 EventEmitter 或直接傳 callback
+```
+</Fragment>
+Android 的 `Listener`、前端的 `callback` / `EventEmitter`、Swift 的 `delegate`，都是「我做完事情通知你」。Objective-C 的 delegate 模式多了兩條嚴格的慣例：方法名以來源物件開頭、屬性一定 `weak`。這兩條不是風格問題，是整個 UIKit 的約定，`UITableViewDelegate` 到 `UITextFieldDelegate` 全部一致。
+</Compare>
+
+## Objective-C 怎麼寫
+
+<Term en="delegate" tw="委派" cn="代理" jp="デリゲート" />（delegate）是 Cocoa 最核心的設計模式：一個物件把「某些決定」或「某些事件的處理」交給另一個物件。帳本不知道畫面要怎麼更新，它只負責在新增交易時說一聲；畫面控制器當 delegate，收到通知再決定要做什麼。
+
+### 命名慣例
+
+Cocoa 的 delegate 慣例有三條，`UITableView` 就是標準範本：
+
+| 慣例 | 例子 | 為什麼 |
+|---|---|---|
+| 協定名 = 類別名 + `Delegate` / `DataSource` | `LBLedgerDelegate`、`UITableViewDataSource` | 看名字就知道服務誰 |
+| 方法名以**來源物件**開頭 | `ledger:didAddTransaction:`、`tableView:didSelectRowAtIndexPath:` | 一個控制器常當好幾個物件的 delegate，第一個參數讓你分辨是誰在叫 |
+| 時態表達語意 | `will` / `did` / `should` | `will` 在事前通知、`did` 在事後、`should` 要回傳 `BOOL` 讓你否決 |
+
+套到帳本上：
+
+```objc
+@protocol LBLedgerDelegate <NSObject>
+@optional
+- (BOOL)ledger:(LBLedger *)ledger shouldAddTransaction:(LBTransaction *)tx;
+- (void)ledger:(LBLedger *)ledger willAddTransaction:(LBTransaction *)tx;
+- (void)ledger:(LBLedger *)ledger didAddTransaction:(LBTransaction *)tx;
+- (void)ledgerDidReset:(LBLedger *)ledger;
+@end
+```
+
+`should` 類方法通常 optional，delegate 沒實作就視為 `YES`。
+
+### delegate 屬性一定 weak
+
+```objc
+@interface LBLedger : NSObject
+@property (nonatomic, weak, nullable) id<LBLedgerDelegate> delegate;
+@end
+```
+
+理由在 4.3 講過：持有 `LBLedger` 的通常就是 delegate 本人（控制器持有帳本，帳本的 delegate 是控制器）。如果 `delegate` 是 `strong`，兩邊互相持有，誰都釋放不了。`weak` 讓 delegate 釋放後屬性自動變 `nil`，對 `nil` 送訊息什麼都不做，整條鏈安全收場。
+
+### 資料來源：反過來問你要資料
+
+<Term en="data source" tw="資料來源" cn="数据源" jp="データソース" />跟 delegate 用同一套機制，角色相反：delegate 是「我通知你、問你意見」，data source 是「我需要資料，你給我」。`UITableView` 問 `UITableViewDataSource` 有幾列、每列長什麼樣；它自己不存資料。這讓 `UITableView` 不用知道資料從陣列、資料庫還是網路來。
+
+```objc
+@protocol LBReportDataSource <NSObject>
+@required
+- (NSInteger)numberOfMonthsInReport:(LBReport *)report;
+- (NSDecimalNumber *)report:(LBReport *)report totalForMonthAtIndex:(NSInteger)idx;
+@end
+```
+
+data source 的方法大多 `@required` 而且有回傳值，因為沒有資料畫面就畫不出來；delegate 的方法大多 `@optional`，因為通知沒人聽也沒關係。
+
+### 完整範例（可貼進 Scratch）
+
+```objc
+#import <Foundation/Foundation.h>
+
+@class LBLedger;
+
+@protocol LBLedgerDelegate <NSObject>
+@optional
+- (BOOL)ledger:(LBLedger *)ledger shouldAddAmount:(NSDecimalNumber *)amount;
+- (void)ledger:(LBLedger *)ledger didAddAmount:(NSDecimalNumber *)amount;
+@end
+
+@interface LBLedger : NSObject
+@property (nonatomic, weak, nullable) id<LBLedgerDelegate> delegate;
+@property (nonatomic, strong, readonly) NSDecimalNumber *total;
+- (void)addAmount:(NSDecimalNumber *)amount;
+@end
+
+@implementation LBLedger
+- (instancetype)init {
+    if (self = [super init]) { _total = [NSDecimalNumber zero]; }
+    return self;
+}
+- (void)addAmount:(NSDecimalNumber *)amount {
+    id<LBLedgerDelegate> d = self.delegate;     // 先抓成 strong，避免中途變 nil
+    if ([d respondsToSelector:@selector(ledger:shouldAddAmount:)] &&
+        ![d ledger:self shouldAddAmount:amount]) {
+        NSLog(@"被 delegate 否決：%@", amount);
+        return;
+    }
+    _total = [_total decimalNumberByAdding:amount];
+    if ([d respondsToSelector:@selector(ledger:didAddAmount:)]) {
+        [d ledger:self didAddAmount:amount];
+    }
+}
+@end
+
+@interface LBBudgetGuard : NSObject <LBLedgerDelegate>
+@end
+@implementation LBBudgetGuard
+- (BOOL)ledger:(LBLedger *)ledger shouldAddAmount:(NSDecimalNumber *)amount {
+    NSDecimalNumber *limit = [NSDecimalNumber decimalNumberWithString:@"1000"];
+    return [amount compare:limit] != NSOrderedDescending;   // > 1000 否決
+}
+- (void)ledger:(LBLedger *)ledger didAddAmount:(NSDecimalNumber *)amount {
+    NSLog(@"新增 %@，總額 %@", amount, ledger.total);
+}
+@end
+
+int main(void) {
+    @autoreleasepool {
+        LBLedger *ledger = [LBLedger new];
+        LBBudgetGuard *guard = [LBBudgetGuard new];
+        ledger.delegate = guard;
+        [ledger addAmount:[NSDecimalNumber decimalNumberWithString:@"120"]];
+        [ledger addAmount:[NSDecimalNumber decimalNumberWithString:@"5000"]];
+        guard = nil;                 // delegate 釋放，weak 屬性自動變 nil
+        [ledger addAmount:[NSDecimalNumber decimalNumberWithString:@"80"]];
+        NSLog(@"delegate = %@，總額 %@", ledger.delegate, ledger.total);
+    }
+    return 0;
+}
+// 預期輸出：
+// 新增 120，總額 120
+// 被 delegate 否決：5000
+// delegate = (null)，總額 200
+```
+
+注意第三次 `addAmount:` 沒印任何東西：delegate 已經釋放，`respondsToSelector:` 對 `nil` 回傳 `NO`，兩段都靜靜跳過。這是 `weak` 加上「對 nil 送訊息安全」的組合效果，也是為什麼 Objective-C 的 delegate 模式這麼穩。
+
+### delegate、block、通知：怎麼選
+
+模組 5 會教三種「事情發生時通知別人」的機制。選用原則看關係的形狀：
+
+| | delegate | block（5.4–5.6） | NSNotification（5.7） |
+|---|---|---|---|
+| 關係 | **一對一**，長期 | **一次性**，跟著單次呼叫 | **一對多**，發送者不認識接收者 |
+| 典型 | `tableView.delegate`、`textField.delegate` | `loadWithCompletion:`、動畫結束 | 鍵盤出現、登入狀態改變 |
+| 可以回傳值 | 可以（`should` 類） | 可以，但少見 | 不行 |
+| 多個相關回呼 | 適合（一個協定裝十幾個方法） | 不適合（每個都要一個 block 參數） | 每種事件一個名字 |
+| 程式碼位置 | 分散在協定方法 | 跟呼叫點在一起 | 註冊處與處理處分開 |
+| 風險 | 忘記設 delegate 時悄悄沒反應 | 循環參考（5.5） | 流程難追蹤、忘記移除 |
+
+經驗法則：一個物件有一組**持續的、相關的**事件要往外報（表格、文字框、下載管理器），用 delegate；一次呼叫等一個結果（網路請求、讀檔），用 block；很多不相干的地方都想知道同一件事（帳本改了，首頁、報表、小工具都要刷新），用通知。`LBLedger` 三種都會用到：`delegate` 給主畫面做即時反應，completion block 給匯入功能，通知給其他分頁。
+
+<Tip title="delegate 方法裡拿到的第一個參數就是來源物件">
+`- (void)ledger:(LBLedger *)ledger didAddTransaction:(LBTransaction *)tx` 的第一個參數就是發出通知的那本帳。寫 delegate 方法時用它，不要寫 `self.ledger`。一個控制器同時管兩本帳（本月 / 上月）時，`self.ledger` 會指錯；用參數永遠對。這也是方法名要以來源開頭的原因。
+</Tip>
+
+<Pitfall title="delegate 設了 strong，整個控制器永遠不會 dealloc">
+<Fragment slot="bad">
+```objc
+@property (nonatomic, strong) id<LBLedgerDelegate> delegate;
+// 控制器持有 ledger，ledger strong 持有控制器 → 循環參考
+// 症狀：返回上一頁後 dealloc 沒被呼叫，通知照收、記憶體一直漲
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+@property (nonatomic, weak, nullable) id<LBLedgerDelegate> delegate;
+```
+</Fragment>
+檢查方式：在控制器 `dealloc` 放一個 `NSLog` 或斷點，返回上一頁看它有沒有被呼叫。模組 4 的 `LBLeakTests/testDelegateDoesNotRetain` 就是在測這件事。
+</Pitfall>
+
+<Pitfall title="忘記設 delegate，什麼都不會發生、也不會報錯">
+`[ledger addTransaction:tx]` 後畫面沒更新，沒 crash、沒警告、沒 log。九成是忘了 `ledger.delegate = self;`，或是 delegate 物件早就被釋放（區域變數出了作用域，weak 屬性變 nil）。偵錯手法：在 `addTransaction:` 裡印 `self.delegate`，為 `(null)` 就是這個問題。Storyboard 連 outlet 時也會發生：連了 `dataSource` 忘了連 `delegate`。
+</Pitfall>
+
+<Pitfall title="方法名不帶來源物件，兩本帳就分不出來">
+`- (void)didAddTransaction:(LBTransaction *)tx` 看起來比較短，但控制器同時觀察兩本帳時就不知道是誰叫的；跟其他協定撞名的機會也高。永遠寫 `ledger:didAddTransaction:`。還有一個細節：delegate 方法名裡的 `ledger` 是小寫、去掉前綴的類別名；`UITableView` 的是 `tableView:`，不是 `UITableView:` 也不是 `table:`。
+</Pitfall>
+
+<Crash message={`Thread 1: EXC_BAD_ACCESS (code=1, address=0x10)
+#0  objc_msgSend
+#1  -[LBLedger addTransaction:] (LBLedger.m:48)`}>
+堆疊停在 `objc_msgSend`，呼叫點是 `addTransaction:` 第 48 行對 `delegate` 送訊息。`EXC_BAD_ACCESS` 而不是 `unrecognized selector`，表示 `delegate` 指向的物件已經釋放、記憶體被回收了，是懸空指標。原因：屬性宣告成 `assign`（或 `unsafe_unretained`）而不是 `weak`。`assign` 不會在物件釋放後把指標歸零。舊專案很常見，因為 iOS 5 之前沒有 `weak`，Apple 自己的 `UITableView.delegate` 直到 iOS 8 都還是 `assign`。修法：改 `weak`；如果是 MRC 專案（模組 11），就在 delegate 的 `dealloc` 裡把 `ledger.delegate = nil`。
+</Crash>
+
+## 小結
+
+- delegate：協定名 `XxxDelegate`，方法名以來源物件開頭，`will` / `did` / `should` 表達時態，屬性 `weak`。
+- data source 是反向的 delegate：物件向你要資料，方法多為 required 且有回傳值。
+- optional 方法先 `respondsToSelector:`；呼叫前把 `self.delegate` 抓成區域變數。
+- 一對一且長期用 delegate；一次性結果用 block；一對多廣播用通知。

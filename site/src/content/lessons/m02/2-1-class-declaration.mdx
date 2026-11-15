@@ -1,0 +1,249 @@
+---
+title: 類別宣告與實作
+module: 2
+chapter: "2.1"
+order: 1
+minutes: 25
+prereq: ["1.5"]
+objectives:
+  - 看懂 @interface / @implementation 兩段式宣告，知道什麼放 .h、什麼放 .m
+  - 分辨實體變數、實體方法（-）與類別方法（+）
+  - 寫出第一個能在 Scratch 執行的 LBCategory 類別
+summary: @interface 與 @implementation 拆兩檔、ivar 寫在大括號或自動合成、- 實體方法與 + 類別方法、忘記 * 的編譯錯誤。
+terms:
+  - { en: class, tw: 類別, cn: 类, jp: クラス }
+  - { en: object, tw: 物件, cn: 对象, jp: オブジェクト }
+  - { en: instance, tw: 實體, cn: 实例, jp: インスタンス }
+  - { en: interface, tw: 介面, cn: 接口, jp: インターフェース }
+  - { en: implementation, tw: 實作, cn: 实现, jp: 実装 }
+  - { en: instance variable, tw: 實體變數, cn: 实例变量, jp: インスタンス変数 }
+  - { en: class method, tw: 類別方法, cn: 类方法, jp: クラスメソッド }
+appProgress: 專案裡有了 LBCategory.h / LBCategory.m 兩個檔，類別骨架可以編譯。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+class Category {
+    var name: String
+    var symbolName: String
+
+    init(name: String, symbolName: String) {
+        self.name = name
+        self.symbolName = symbolName
+    }
+
+    func displayName() -> String { "\(name) (\(symbolName))" }
+    static func defaultSymbolName() -> String { "folder" }
+}
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+class Category(var name: String, var symbolName: String) {
+    fun displayName() = "$name ($symbolName)"
+
+    companion object {
+        fun defaultSymbolName() = "folder"
+    }
+}
+```
+</Fragment>
+<Fragment slot="java">
+```java
+public class Category {
+    private String name;
+    private String symbolName;
+
+    public String displayName() { return name + " (" + symbolName + ")"; }
+    public static String defaultSymbolName() { return "folder"; }
+}
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+class Category {
+  constructor(public name: string, public symbolName: string) {}
+
+  displayName(): string { return `${this.name} (${this.symbolName})`; }
+  static defaultSymbolName(): string { return "folder"; }
+}
+```
+</Fragment>
+四個語言都是「一個 `class` 區塊把欄位、方法、靜態方法包在一起」。Objective-C 做的是同一件事，但形狀不同：它把**宣告**與**實作**拆成兩段、通常也拆成兩個檔案，而且方法前面要寫 `-` 或 `+`。
+</Compare>
+
+## Objective-C 怎麼寫
+
+一個<Term en="class" tw="類別" cn="类" jp="クラス" />由兩段組成：`@interface … @end` 是對外的<Term en="interface" tw="介面" cn="接口" jp="インターフェース" />，放在 `.h` 標頭檔；`@implementation … @end` 是<Term en="implementation" tw="實作" cn="实现" jp="実装" />，放在 `.m`。這個拆法是從 C 的 `.h` / `.c` 繼承來的，不是為了物件導向刻意設計，所以你要習慣「同一個類別要開兩個檔案」。
+
+```objc
+// LBCategory.h —— 別人只看得到這一段
+@import Foundation;
+
+@interface LBCategory : NSObject
+
+- (NSString *)displayName;          // 實體方法：對某個物件送訊息
++ (NSString *)defaultSymbolName;    // 類別方法：對類別本身送訊息
+
+@end
+```
+
+```objc
+// LBCategory.m —— 怎麼做到的，在這裡
+#import "LBCategory.h"
+
+@implementation LBCategory {
+    NSString *_name;                // 實體變數（ivar）寫在大括號裡
+    NSString *_symbolName;
+}
+
+- (NSString *)displayName {
+    return [NSString stringWithFormat:@"%@ (%@)", _name, _symbolName];
+}
+
++ (NSString *)defaultSymbolName {
+    return @"folder";
+}
+
+@end
+```
+
+逐行拆開看：
+
+- `@interface LBCategory : NSObject`：宣告一個叫 `LBCategory` 的類別，繼承自 `NSObject`。Objective-C 的類別**一定**要有父類別，幾乎全部都從 `NSObject` 出發，不像 Swift / Kotlin 可以不寫。`LB` 前綴是因為 Objective-C 沒有命名空間，2.8 會細講。
+- `- (NSString *)displayName;`：減號是**實體方法**，要先有一個<Term en="instance" tw="實體" cn="实例" jp="インスタンス" />才能呼叫。括號裡是回傳型別。
+- `+ (NSString *)defaultSymbolName;`：加號是<Term en="class method" tw="類別方法" cn="类方法" jp="クラスメソッド" />，對應 Java 的 `static`、Kotlin 的 `companion object`、Swift 的 `static func`。呼叫時寫 `[LBCategory defaultSymbolName]`。
+- `@implementation LBCategory { … }`：大括號裡宣告<Term en="instance variable" tw="實體變數" cn="实例变量" jp="インスタンス変数" />（instance variable，簡稱 ivar）。慣例是底線開頭。現代程式碼多半不手寫 ivar，而是靠 2.4 要教的 `@property` 自動合成；但你讀舊程式碼時會看到 ivar 寫在 `.h` 的 `@interface` 大括號裡，那是 2010 年前的寫法，把內部狀態曝光給所有人看。
+- `@end`：兩段都要用它收尾。忘記寫，編譯器會在下一個檔案的奇怪位置報錯。
+
+<Tip title="為什麼實作檔叫 .m？">
+`m` 是 message（或 methods，兩種說法都有人講）。副檔名 `.mm` 是 Objective-C++，能同時寫 C++ 與 Objective-C，混編舊專案時會遇到。
+</Tip>
+
+### 完整範例：貼進 Scratch 跑一次
+
+Scratch 專案只有一個 `main.m`，所以把 `@interface` 和 `@implementation` 疊在同一個檔案裡也可以——編譯器不在意檔案怎麼切，只在意宣告出現在使用之前。
+
+```objc
+@import Foundation;
+
+@interface LBCategory : NSObject
+- (NSString *)displayName;
+- (void)rename:(NSString *)newName;
++ (NSString *)defaultSymbolName;
+@end
+
+@implementation LBCategory {
+    NSString *_name;
+    NSString *_symbolName;
+}
+
+- (NSString *)displayName {
+    NSString *symbol = _symbolName ?: [LBCategory defaultSymbolName];
+    return [NSString stringWithFormat:@"%@ (%@)", _name ?: @"未命名", symbol];
+}
+
+- (void)rename:(NSString *)newName {
+    _name = [newName copy];
+}
+
++ (NSString *)defaultSymbolName {
+    return @"folder";
+}
+@end
+
+int main(int argc, const char *argv[]) {
+    @autoreleasepool {
+        LBCategory *food = [[LBCategory alloc] init];
+        NSLog(@"%@", [food displayName]);          // 未命名 (folder)
+        [food rename:@"飲食"];
+        NSLog(@"%@", [food displayName]);          // 飲食 (folder)
+        NSLog(@"%@", [LBCategory defaultSymbolName]); // folder
+    }
+    return 0;
+}
+```
+
+幾件事值得注意：`[[LBCategory alloc] init]` 是建立物件的兩段式寫法，2.3 會拆解；`[food displayName]` 這種中括號語法是「送訊息」，2.2 會解釋為什麼叫訊息而不叫呼叫；`?:` 是 GNU 擴充的「nil 就用右邊」運算子，Clang 支援，Apple 自己的程式碼也常用。
+
+### 一個類別一對檔案
+
+Xcode 建立 Cocoa Touch Class 時會自動生 `LBCategory.h` + `LBCategory.m`。`.h` 只放**別人需要知道的事**：類別名、父類別、公開方法、公開屬性。`.m` 放其他一切：ivar、私有方法（2.5）、實作。這個邊界是 Objective-C 封裝的全部基礎，比 Swift 的 `private` 粗糙得多，但也簡單得多：不在 `.h` 的，別人就看不到。
+
+當 `.h` 裡只需要「提到」另一個類別（當參數型別或屬性型別），用 `@class LBCategory;` 前置宣告就好，不要 `#import "LBCategory.h"`——0.4 講過，這樣能避免兩個標頭互相 import 的死結，也讓編譯變快。`.m` 裡真的要呼叫它的方法時再 `#import`。
+
+<Pitfall title="忘記寫星號">
+<Fragment slot="bad">
+```objc
+NSString name = @"飲食";               // 編譯錯誤
+LBCategory food = [[LBCategory alloc] init];
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+NSString *name = @"飲食";
+LBCategory *food = [[LBCategory alloc] init];
+```
+</Fragment>
+1.2 講過：Objective-C 的物件**全部**活在堆積上，變數永遠是指向它的指標，所以每個物件型別後面都要有 `*`。從 Swift / Kotlin 來的人第一週幾乎天天漏掉它。例外只有 `id`（它本身就是「任意物件的指標」，不用再加星號）和 C 的基本型別。
+</Pitfall>
+
+<Pitfall title=".h 裡宣告了方法，.m 裡忘記實作">
+```objc
+// LBCategory.h
+- (NSUInteger)depth;
+
+// LBCategory.m 裡沒有 depth 的實作
+// 編譯只給一個 warning：
+// Method definition for 'depth' not found
+```
+這在 Java / Kotlin / Swift 是編譯錯誤，在 Objective-C **只是警告**。程式會順利建置、安裝、啟動，直到某人真的呼叫 `[cat depth]`，才在執行期收到 `unrecognized selector`（2.2 會教怎麼讀這則訊息）。所以 Objective-C 專案把「警告當錯誤」（`-Werror`）開起來是常見做法，至少 `Incomplete implementation` 這類警告不要放過。
+</Pitfall>
+
+<Pitfall title="把 ivar 寫在 .h 的 @interface 大括號裡">
+<Fragment slot="bad">
+```objc
+// LBCategory.h
+@interface LBCategory : NSObject {
+    NSString *_name;             // 所有 import 這個檔的人都看得到
+    NSMutableArray *_children;   // 還會讓他們想直接拿去改
+}
+@end
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+// LBCategory.h
+@interface LBCategory : NSObject
+@end
+
+// LBCategory.m
+@implementation LBCategory {
+    NSString *_name;             // 只有這個檔案看得到
+}
+@end
+```
+</Fragment>
+2010 年之前的 runtime 要求 ivar 必須在 `.h` 宣告，所以舊程式碼全是這樣寫。現在的 64 位元 runtime 沒有這個限制，ivar 放 `.m`（或乾脆用 `@property` 自動合成）才是正解。接手舊專案時看到就知道是歷史包袱，不用學。
+</Pitfall>
+
+<Crash message={`LBCategory.m:12:16: error: interface type cannot be statically allocated
+    NSString name = @"飲食";
+             ^
+                  *`}>
+這不是執行期的 crash，是編譯錯誤，但它是本模組最常見的第一個紅字。讀法：「interface type」就是 Objective-C 類別（因為類別是用 `@interface` 宣告的），「cannot be statically allocated」是說「不能像 C 的 `int` 那樣直接放在堆疊上」。Clang 很貼心地在下一行的 `^` 底下畫了一個 `*`，告訴你修法就是補上星號。看到這則訊息不用想，加星號就對了。
+</Crash>
+
+## 小結
+
+- 類別分兩段：`@interface`（公開介面，放 `.h`）與 `@implementation`（實作，放 `.m`），各自以 `@end` 收尾。
+- 每個類別都要有父類別，幾乎都從 `NSObject` 出發。
+- `-` 是實體方法、`+` 是類別方法（對應 `static` / `companion object`）。
+- ivar 寫在 `@implementation` 的大括號裡、底線開頭；現代程式碼多半讓 `@property` 自動合成。
+- 物件變數一律是指標，記得 `*`；`.h` 裡用 `@class` 前置宣告，`.m` 裡才 `#import`。

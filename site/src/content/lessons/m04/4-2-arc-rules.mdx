@@ -1,0 +1,237 @@
+---
+title: ARC 的規則
+module: 4
+chapter: "4.2"
+order: 2
+minutes: 30
+prereq: ["4.1"]
+objectives:
+  - 說出 ARC 在編譯期做了什麼、沒做什麼
+  - 分辨 __strong / __weak / __unsafe_unretained / __autoreleasing 四種變數修飾
+  - 寫出 weakSelf / strongSelf 樣板並知道每一行的理由
+summary: 編譯器在編譯期插入 retain / release；四種變數修飾與屬性修飾詞的對應；ARC 禁止的事。
+terms:
+  - { en: ARC (Automatic Reference Counting), tw: 自動參考計數, cn: 自动引用计数, jp: 自動参照カウント }
+  - { en: strong reference, tw: 強參考, cn: 强引用, jp: 強参照 }
+  - { en: weak reference (zeroing), tw: 弱參考（歸零）, cn: 弱引用（自动置空）, jp: 弱参照（ゼロ化） }
+  - { en: dangling pointer, tw: 懸空指標, cn: 野指针 / 悬垂指针, jp: ダングリングポインタ }
+  - { en: ownership qualifier, tw: 擁有權修飾, cn: 所有权修饰符, jp: 所有権修飾子 }
+appProgress: LBLedger 的 completion block 全部改成 weakSelf / strongSelf 樣板。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+var tx: Transaction? = Transaction()          // strong（預設）
+weak var weakTx = tx                          // 歸零弱參考
+unowned let owner = ledger                    // 不歸零，釋放後存取即 crash
+
+ledger.onChange = { [weak self] in            // 捕獲清單
+    guard let self else { return }            // 先轉回 strong
+    self.reload()
+}
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+import java.lang.ref.WeakReference
+
+val weakTx = WeakReference(tx)
+weakTx.get()?.let { it.note }   // GC 回收後 get() 回傳 null
+// 沒有語言級的 weak 關鍵字；lambda 捕獲 this 不會造成洩漏（除了 Activity）
+```
+</Fragment>
+<Fragment slot="java">
+```java
+WeakReference<Transaction> weakTx = new WeakReference<>(tx);
+Transaction t = weakTx.get();   // 可能為 null
+if (t != null) { t.getNote(); }
+// 注意：Java 的 weak 只對 GC 有意義，清空時機不確定
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+const weakTx = new WeakRef(tx);
+const t = weakTx.deref();       // 可能為 undefined
+if (t) { t.note; }
+// WeakMap / WeakSet 是更常見的用法：key 被回收，項目自動消失
+```
+</Fragment>
+Swift 的 `weak` / `unowned` / `[weak self]` 和 Objective-C 的 `__weak` / `__unsafe_unretained` / `weakSelf` 一一對應，連「先轉 strong 再用」的樣板都一樣。GC 語言的 `WeakReference` / `WeakRef` 精神相同，但多了一層包裝物件，而且清空時機跟著 GC 走。Objective-C 的 `__weak` 是**語言級、歸零（zeroing）、立即**：最後一個 strong 放手的那一行，所有指向它的 weak 變數同時變 `nil`。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### ARC 做了什麼
+
+<Term en="ARC (Automatic Reference Counting)" tw="自動參考計數" cn="自动引用计数" jp="自動参照カウント" />不是執行期的垃圾回收器。它是**編譯器的一個階段**：Clang 看到你把物件賦值給 strong 變數就插入 `retain`，看到變數離開範圍或被覆寫就插入 `release`，然後再把成對的多餘呼叫最佳化掉。產出的機器碼和手寫 MRC 的高手寫出來的幾乎一樣——沒有背景執行緒掃描、沒有停頓、沒有「不可達」的概念。
+
+所以 4.1 的四條擁有權規則一字不改，只是換成編譯器執行；也因此 ARC 管不到的地方（Core Foundation 物件、C 的 `malloc`、循環參考）還是要你自己來。
+
+### 四種變數修飾
+
+每個指向物件的變數都有一個<Term en="ownership qualifier" tw="擁有權修飾" cn="所有权修饰符" jp="所有権修飾子" />，不寫就是 `__strong`：
+
+| 修飾 | 持有？ | 物件釋放後 | 什麼時候用 |
+|---|---|---|---|
+| `__strong`（預設） | 是，計數 +1 | 不會發生（它本身就在撐著） | 幾乎所有區域變數、ivar |
+| `__weak` | 否 | **自動變 `nil`** | delegate、避免循環參考、觀察物件是否還活著 |
+| `__unsafe_unretained` | 否 | **不動，變成懸空指標** | 幾乎不用；相容 iOS 4 的舊碼、少數不支援 weak 的類別 |
+| `__autoreleasing` | 否（暫時） | — | 輸出參數 `NSError **`，由編譯器自動加 |
+
+修飾詞正式的位置在 `*` 和變數名之間：`LBTransaction * __weak weakTx;`。放在型別前面（`__weak LBTransaction *weakTx;`）也被接受，而且大家都這樣寫。
+
+屬性修飾詞與變數修飾的對應：`strong` / `retain` / `copy` → `__strong`；`weak` → `__weak`；物件上的 `assign` 或 `unsafe_unretained` → `__unsafe_unretained`。2.4 說「`assign` 用在物件上會變懸空指標」，根本原因就在這張表。
+
+### 親眼看 weak 歸零
+
+```objc
+#import <Foundation/Foundation.h>
+
+@interface LBTransaction : NSObject
+@property (nonatomic, copy) NSString *note;
+- (instancetype)initWithNote:(NSString *)note;
+@end
+@implementation LBTransaction
+- (instancetype)initWithNote:(NSString *)note {
+    if (self = [super init]) { _note = [note copy]; }
+    return self;
+}
+- (void)dealloc { NSLog(@"dealloc %@", _note); }
+@end
+
+int main(void) {
+    @autoreleasepool {
+        LBTransaction *tx = [[LBTransaction alloc] initWithNote:@"午餐"];
+        __weak LBTransaction *weakTx = tx;        // 不加計數
+        NSLog(@"1: %@", weakTx.note);
+        tx = nil;                                  // 最後一個 strong 放手
+        NSLog(@"2: %@", weakTx);                   // 已經歸零
+        NSLog(@"3: %@", weakTx.note);              // 對 nil 送訊息 → nil
+    }
+    return 0;
+}
+// 預期輸出：
+// 1: 午餐
+// dealloc 午餐
+// 2: (null)
+// 3: (null)
+```
+
+`dealloc` 印在第 1、2 行之間：`tx = nil` 當下物件就走了，`weakTx` 同一瞬間變 `nil`。如果把 `__weak` 換成 `__unsafe_unretained`，第 2 行會印出一個看起來正常的位址，第 3 行則可能印垃圾、可能 crash——這就是<Term en="dangling pointer" tw="懸空指標" cn="野指针" jp="ダングリングポインタ" />。
+
+### weakSelf / strongSelf 樣板
+
+block 會 retain 它捕獲的物件（5.5 細講）。`self` 持有 block、block 又捕獲 `self`，就是循環參考（4.3）。標準解法是兩步：
+
+```objc
+__weak typeof(self) weakSelf = self;             // ① block 外：轉 weak
+self.onChange = ^{
+    __strong typeof(weakSelf) strongSelf = weakSelf;   // ② block 內：轉回 strong
+    if (!strongSelf) { return; }                  // ③ 物件已經走了就什麼都不做
+    [strongSelf.tableView reloadData];
+    [strongSelf updateTotal];                     // block 執行期間保證 self 活著
+};
+```
+
+為什麼不直接在 block 裡用 `weakSelf`？因為 block 可能跑在背景執行緒，`[weakSelf.tableView reloadData]` 執行到一半 `self` 被別處釋放，`weakSelf` 中途變 `nil`，前半行跑了、後半行變成對 nil 送訊息，狀態不一致。先轉成 strong 區域變數，等於在 block 執行期間暫時「借一下」持有權，跑完就放，不會形成循環。
+
+### `__autoreleasing` 與 `NSError **`
+
+```objc
+- (BOOL)save:(NSError **)error;      // 實際型別：NSError * __autoreleasing *
+
+NSError *err = nil;                  // 呼叫端：__strong 區域變數
+if (![ledger save:&err]) {           // 編譯器自動建一個 __autoreleasing 暫存，
+    NSLog(@"%@", err);               // 呼叫完再拷回 err
+}
+```
+
+你幾乎不會親手寫 `__autoreleasing`；知道它存在是為了看懂編譯器警告，以及理解 7.1 錯誤處理裡「`NSError **` 為什麼能跨方法傳回物件」。
+
+### ARC 禁止的事
+
+| 禁止 | 編譯器訊息（節錄） | 改成 |
+|---|---|---|
+| 呼叫 `retain` / `release` / `autorelease` / `retainCount` | `ARC forbids explicit message send of 'release'` | 刪掉，交給編譯器 |
+| 呼叫 `[super dealloc]` 或 `[obj dealloc]` | `ARC forbids explicit message send of 'dealloc'` | 刪掉 |
+| `NSAutoreleasePool` 物件 | `'NSAutoreleasePool' is unavailable: not available in automatic reference counting mode` | `@autoreleasepool { }` |
+| `id` ↔ `void *` 直接轉型 | `cast of 'void *' to 'id' requires a bridged cast` | `__bridge`（4.5） |
+| C `struct` 裡放物件指標 | 舊版 Clang 直接拒絕；Xcode 10 之後允許但該 struct 不能 `memcpy`、不能放進 C 陣列隨意搬 | 改成類別 |
+| `@selector(retain)` 配 `performSelector:` | 警告：`performSelector may cause a leak because its selector is unknown` | 不要 |
+
+<Tip title="為什麼 Objective-C 幾乎不用 __unsafe_unretained">
+Swift 的 `unowned` 有效能優勢（不用查 weak 表），所以有人會用。Objective-C 的 `__weak` 讀取成本很低，而懸空指標的 crash 很難查，社群的共識是一律 `weak`。看到 `__unsafe_unretained` 或物件屬性上的 `assign`，先假設是歷史遺留。
+</Tip>
+
+<Pitfall title="weak 讀取前先轉 strong">
+<Fragment slot="bad">
+```objc
+__weak typeof(self) weakSelf = self;
+self.completion = ^(NSArray *items) {
+    weakSelf.items = items;            // 這行之後 self 可能被釋放
+    [weakSelf.tableView reloadData];   // 這行變成對 nil 送訊息，畫面沒更新
+};
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+__weak typeof(self) weakSelf = self;
+self.completion = ^(NSArray *items) {
+    __strong typeof(weakSelf) strongSelf = weakSelf;
+    if (!strongSelf) { return; }
+    strongSelf.items = items;
+    [strongSelf.tableView reloadData];  // 兩行要嘛都跑、要嘛都不跑
+};
+```
+</Fragment>
+單執行緒下兩種寫法結果一樣，所以很多人到上線前都沒發現差別。差別出現在 block 跑在背景、或 block 執行到一半觸發了別的釋放路徑。養成反射動作：block 裡第一行就轉 strong。
+</Pitfall>
+
+<Pitfall title="把剛建好的物件直接賦給 weak 變數">
+<Fragment slot="bad">
+```objc
+__weak LBTransaction *tx = [[LBTransaction alloc] initWithNote:@"午餐"];
+// warning: assigning retained object to weak variable;
+//          object will be released after assignment
+NSLog(@"%@", tx.note);   // (null)
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+LBTransaction *tx = [[LBTransaction alloc] initWithNote:@"午餐"];
+__weak LBTransaction *weakTx = tx;   // 旁邊要有一個 strong 撐著
+```
+</Fragment>
+沒有任何 strong 持有者的物件會在這一行結束時就釋放，weak 變數馬上歸零。這個警告請當成錯誤看。同樣的事也會發生在「只有 weak delegate 指著」的物件上（4.3）。
+</Pitfall>
+
+<Pitfall title="物件屬性寫 assign 等於 __unsafe_unretained">
+```objc
+@property (nonatomic, assign) id<LBLedgerObserver> observer;   // 危險
+```
+舊專案與某些教學會這樣寫 delegate（iOS 4 之前沒有 `weak`）。它能編譯、平常也能跑，直到 observer 先被釋放，`ledger` 再呼叫它——`EXC_BAD_ACCESS`，而且重現機率跟使用者操作順序有關。看到物件屬性配 `assign`，直接改 `weak`。
+</Pitfall>
+
+<Crash message={`Thread 1: EXC_BAD_ACCESS (code=1, address=0x7f8a3c50d2e8)
+
+// Zombie Objects 開啟後：
+*** -[LBAuditLogger ledger:didAddTransaction:]: message sent to
+    deallocated instance 0x7f8a3c50d2e0`}>
+讀法：被送訊息的物件是 `LBAuditLogger` 的實體（已釋放），selector 是 delegate 方法。往上找堆疊，呼叫者是 `LBLedger` 的 `addTransaction:`。所以 `LBLedger` 手上有一個指向已釋放 observer 的指標——這只有 `assign` / `__unsafe_unretained` 做得到，`weak` 會歸零、`strong` 會讓它活著。
+
+修法：屬性改成 `weak`。然後想一想為什麼 observer 會比 ledger 先走：是不是沒人持有它（上一個陷阱）？那是另一個 bug，4.3 處理。
+</Crash>
+
+## 小結
+
+- ARC 是編譯期插入 `retain` / `release`，規則同 4.1，沒有 GC 的掃描與停頓。
+- 四種修飾：`__strong`（預設）、`__weak`（歸零）、`__unsafe_unretained`（懸空，別用）、`__autoreleasing`（`NSError **` 用，編譯器自動加）。
+- 屬性 `weak` ↔ `__weak`；物件上的 `assign` ↔ `__unsafe_unretained`，看到就改。
+- weakSelf / strongSelf：block 外轉 weak，block 內第一行轉回 strong 並判 nil。
+- ARC 禁止手動 retain / release / dealloc、`NSAutoreleasePool`、`id` 與 `void *` 直接互轉；struct 裡不放物件指標。

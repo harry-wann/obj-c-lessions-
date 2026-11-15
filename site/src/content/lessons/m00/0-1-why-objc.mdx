@@ -1,0 +1,152 @@
+---
+title: 為什麼 2026 年還要學 Objective-C
+module: 0
+chapter: "0.1"
+order: 1
+minutes: 15
+prereq: []
+objectives:
+  - 說得出工作上會碰到 Objective-C 的四個場景
+  - 用「C 加一層 Smalltalk 式物件系統」描述這個語言
+  - 看到 crash log 裡的 Objective-C 類別名與方法名不再陌生
+summary: 既有專案、Swift 混編、Cocoa 的設計根源、底層框架仍是 C / ObjC；心態是學 C 加一層物件系統，不是從零學新語言。
+terms:
+  - { en: runtime, tw: 執行期, cn: 运行时, jp: ランタイム }
+  - { en: framework, tw: 框架, cn: 框架, jp: フレームワーク }
+  - { en: message passing, tw: 訊息傳遞, cn: 消息传递, jp: メッセージ送信 }
+  - { en: bridging, tw: 橋接, cn: 桥接, jp: ブリッジ }
+  - { en: object, tw: 物件, cn: 对象, jp: オブジェクト }
+appProgress: 還沒動手；先想清楚小帳本為什麼值得用 Objective-C 寫一次。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare title="你已經會的：每個語言底下都還有一層">
+<Fragment slot="swift">
+```swift
+import Foundation
+let s = "小帳本" as NSString   // String 橋接到 NSString
+let d = NSDate()               // NS 開頭的全是 Objective-C 類別
+// UIKit 的 crash 訊息也長這樣：
+// -[NSNull length]: unrecognized selector sent to instance
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+val list = java.util.ArrayList<String>()  // 直接用 Java 類別
+// Kotlin 站在 JVM 上，NPE 的堆疊追蹤是 Java 的
+```
+</Fragment>
+<Fragment slot="java">
+```java
+System.loadLibrary("native");   // JNI：Java 底下還有一層 C
+native long nativeCreate();
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+import legacy from "./legacy.js";          // .d.ts 蓋在舊 JS 上
+declare function oldApi(cb: (err: any) => void): void;
+```
+</Fragment>
+四個語言都站在一層更老的東西上：Swift 站在 Objective-C 的執行期上、Kotlin 站在 JVM 上、TypeScript 站在 JavaScript 上，Java 偶爾要下到 C。你早就有「往下一層看」的經驗，Objective-C 只是 Swift 的下一層。
+</Compare>
+
+## 四個會碰到它的場景
+
+**維護既有專案。** 台灣多數 2016 年以前起家的 iOS 產品，核心仍是 Objective-C：支付、電商、銀行 App 動輒幾十萬行。這些程式碼不會因為 Swift 流行就消失，而是繼續賺錢、繼續需要人改。能接這種案子的人，比會寫 SwiftUI 的人少得多。
+
+**Swift 混編。** 就算團隊的新功能都用 Swift 寫，你還是會天天碰到 bridging header、`@objc`、`NSObject` 子類別、`NSNotification`。看不懂 Objective-C 的 Swift 工程師，遇到舊模組只能繞路。
+
+**理解 Cocoa / UIKit 的設計根源。** delegate、target-action、KVO、responder chain，這些 UIKit 的骨架都是為 Objective-C 的<Term en="message passing" tw="訊息傳遞" cn="消息传递" jp="メッセージ送信" />設計的。知道 `UITableViewDataSource` 為什麼長那樣、`performSelector:` 為什麼存在，Swift 端的很多「奇怪規定」就都有了解釋。
+
+**底層框架仍是 C / Objective-C。** Core Foundation、Core Graphics、Core Text、Objective-C <Term en="runtime" tw="執行期" cn="运行时" jp="ランタイム" />本身，全部是 C 或 Objective-C。效能問題、記憶體問題、模糊的 crash log，最後都要在這一層找答案。
+
+## Objective-C 怎麼寫：C 加一層 Smalltalk 式物件系統
+
+心態先調好：**你不是從零學一個新語言。** Objective-C 是 1980 年代把 Smalltalk 的「物件互相送訊息」加到 C 上面的結果，而且是 C 的嚴格超集。任何合法的 C 程式都是合法的 Objective-C 程式。所以這門課的模組 1 補你缺的 C，模組 2 開始講物件層，兩層各自乾淨。
+
+兩層的分界非常好認：**凡是 `@` 開頭、方括號包起來的，都是物件層；其他都是 C。** 下面這段可以貼進 `Scratch` 的 `main.m` 執行（0.2 教你建這個專案），看看兩層怎麼並存：
+
+```objc
+@import Foundation;
+
+// 這一半是 C：struct、函式、printf
+typedef struct { long long cents; } LBMoney;
+static LBMoney LBMoneyMake(long long cents) {
+    LBMoney m = { cents };
+    return m;
+}
+
+int main(int argc, const char * argv[]) {
+    @autoreleasepool {
+        LBMoney lunch = LBMoneyMake(12000);
+        NSLog(@"C 的部分：%lld 分", lunch.cents);
+        // 輸出：C 的部分：12000 分
+
+        // 這一半是 Smalltalk：對物件「送訊息」
+        NSString *note = @"午餐";
+        NSString *full = [note stringByAppendingString:@"（公司樓下）"];
+        NSLog(@"%@", full);
+        // 輸出：午餐（公司樓下）
+
+        // 訊息到執行期才決定怎麼處理，所以可以問物件「你到底是誰」
+        NSArray *empty = @[];
+        NSLog(@"%@", NSStringFromClass([empty class]));
+        // 輸出：__NSArray0   ← crash log 裡常見的「私有類別名」
+    }
+    return 0;
+}
+```
+
+`[note stringByAppendingString:@"..."]` 不是「呼叫方法」，而是「對 `note` 送一則叫 `stringByAppendingString:` 的訊息」。收件人在執行期才決定怎麼回應，這就是為什麼 Objective-C 可以做到 Swift 做不到的動態把戲（方法交換、KVO、`respondsToSelector:`），也是為什麼它的 crash 訊息長得像「某物件收到不認識的訊息」。模組 2 與模組 6 會把這件事講透，現在只要記住：**方括號 = 送訊息，執行期決定。**
+
+最後一行印出 `__NSArray0` 而不是 `NSArray`，因為 Foundation 的集合類別是「類別叢集」：你宣告的是 `NSArray`，實際拿到的是最適合的私有子類別。這些底線開頭的名字會頻繁出現在 crash log 裡，先認得它們，之後讀 log 就不慌。
+
+<Tip title="學習順序：先讀懂，再會寫">
+工作上的順序一定是：讀別人的程式碼 → 改一小塊 → 新增一個類別 → 設計整個模組。所以這門課每章都附一則真實的崩潰訊息，從第一天就練「看 log 反推原因」。語法會慢慢熟，讀 log 的能力才是上工第一週就要有的。
+</Tip>
+
+<Pitfall title="用 Swift 的 nil 直覺讀 Objective-C">
+Swift 工程師最常誤判的一件事：在 Swift 裡對 `nil` 做事會 crash，所以看到 Objective-C 程式碼沒檢查 nil 就直接 `[obj doSomething]`，會以為那是 bug。其實 Objective-C **對 nil 送訊息不會 crash**，只是安靜地回傳 `nil` / `0` / `NO`。這讓舊程式碼「看起來很隨便但跑得好好的」，也讓真正的 bug 藏得很深：資料沒出來，但哪裡都沒報錯。2.2 會詳細講這個規則，現在先知道不要用 Optional 的直覺去判斷對錯。
+</Pitfall>
+
+<Pitfall title="只學 2026 年的寫法，看不懂 2012 年的程式碼">
+你在工作上接手的 Objective-C 多半寫於 2011–2016 年。那時沒有字面值語法 `@[]`、沒有自動合成屬性（滿屏 `@synthesize`）、`NSArray` 沒有泛型、甚至還有手動管理記憶體的 `retain` / `release`。本課程主線用 Modern Objective-C，但每章的「陷阱」會順手標出舊寫法長什麼樣，模組 11 再專門處理舊專案。看到舊寫法不要急著重寫：**先讀懂，再決定要不要動。**
+</Pitfall>
+
+<Pitfall title="以為純 Swift 專案可以不懂 Objective-C">
+<Fragment slot="bad">
+```swift
+// 看起來是純 Swift，crash 卻是這樣：
+// *** -[__NSArrayM insertObject:atIndex:]: object cannot be nil
+// 不懂 Objective-C 的人會以為是 Foundation 的 bug
+```
+</Fragment>
+<Fragment slot="good">
+```swift
+// 讀懂了：NSMutableArray 收到 insertObject:atIndex:，
+// 第一個參數是 nil → 回頭找 Swift 端哪個 Optional 強制解包成 NSNull / nil
+```
+</Fragment>
+UIKit、Foundation、大多數第三方 SDK 的執行期行為都是 Objective-C。你用 Swift 寫，crash log 仍是用 Objective-C 的語言寫給你看的。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: '-[NSNull length]: unrecognized selector sent to instance 0x1e4a2b8f0'
+*** First throw call stack:
+(0x1805d7e38 0x18028f8d8 0x1806e2d40 0x1805dd0b8 ...)
+Thread 1: signal SIGABRT`}>
+這是一支 Swift App 的 crash，但訊息完全是 Objective-C。拆開讀：`-[NSNull length]` 的 `-` 表示實體方法、`NSNull` 是收件物件的類別、`length` 是送出的訊息（selector）；「unrecognized selector」就是「這個物件沒有這個方法」。原因：伺服器 JSON 的某個欄位是 `null`，`JSONSerialization` 把它轉成 `NSNull` 物件，而某段程式把它當成 `NSString` 去問長度。`signal SIGABRT` 是例外沒人接、程式自己中止的訊號，不是記憶體錯誤。修法：在型別邊界檢查 `[obj isKindOfClass:[NSString class]]`（Swift 端就是 `as? String`）。每一章的崩潰現場都會像這樣，教你把一行 log 拆成「誰、收到什麼、為什麼」。
+</Crash>
+
+## 小結
+
+- 既有專案、Swift 混編、Cocoa 設計根源、底層框架：四個理由，缺一個都還是會碰到 Objective-C。
+- Objective-C = C 的嚴格超集 + Smalltalk 式的訊息傳遞；`@` 與方括號是物件層的分界。
+- 送訊息在執行期決定，所以 crash 訊息長得像「某物件收到不認識的訊息」。
+- 對 nil 送訊息不會 crash，不要套 Swift Optional 的直覺。
+- 先練讀 log 與讀舊程式碼，再練寫。

@@ -1,0 +1,284 @@
+---
+title: dealloc 與 @autoreleasepool
+module: 4
+chapter: "4.4"
+order: 4
+minutes: 35
+prereq: ["4.3"]
+objectives:
+  - 寫出 ARC 下正確的 dealloc：該做什麼、不能做什麼
+  - 畫出一個物件從 alloc 到記憶體歸還的完整時序
+  - 判斷迴圈何時要包 @autoreleasepool，並能解釋為什麼
+summary: dealloc 不呼叫 [super dealloc]、裡面能做與不能做的事、物件生命週期時序、迴圈內大量暫存物件要用 @autoreleasepool 包。
+terms:
+  - { en: dealloc, tw: 釋放方法（dealloc）, cn: 析构 / dealloc, jp: デアロック }
+  - { en: autorelease pool, tw: 自動釋放池, cn: 自动释放池, jp: 自動解放プール }
+  - { en: object lifecycle, tw: 物件生命週期, cn: 对象生命周期, jp: オブジェクトのライフサイクル }
+  - { en: memory peak, tw: 記憶體峰值, cn: 内存峰值, jp: メモリピーク }
+  - { en: doubly linked list, tw: 雙向鏈結串列, cn: 双向链表, jp: 双方向連結リスト }
+appProgress: 小帳本有了 LBLinkedList（prev weak），匯入大量交易的迴圈包了 @autoreleasepool。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+class Ledger {
+    var timer: Timer?
+    deinit {                       // 不呼叫 super.deinit，父類別的自動接著跑
+        timer?.invalidate()        // 清理不屬於 ARC 管的東西
+        NotificationCenter.default.removeObserver(token)
+    }
+}
+for i in 0..<100_000 {
+    autoreleasepool {              // Swift 也有同一個東西
+        let s = String(format: "%d", i)
+    }
+}
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+// 沒有解構子。finalize() 已棄用，Cleaner 不保證執行時機
+class Ledger : AutoCloseable {
+    override fun close() { timer.cancel() }     // 清理要靠呼叫端
+}
+Ledger().use { it.load() }                      // use {} 保證 close()
+```
+</Fragment>
+<Fragment slot="java">
+```java
+class Ledger implements AutoCloseable {
+    @Override public void close() { timer.cancel(); }
+}
+try (Ledger l = new Ledger()) { l.load(); }     // try-with-resources
+// finalize() 自 Java 9 棄用；物件何時被回收與 close() 無關
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+class Ledger implements Disposable {
+    [Symbol.dispose]() { clearInterval(this.timer); }
+}
+{ using ledger = new Ledger(); }   // TS 5.2 explicit resource management
+// FinalizationRegistry 只能「可能」在 GC 後被通知，不能依賴
+```
+</Fragment>
+Swift 的 `deinit` 和 Objective-C 的 `dealloc` 是同一件事，時機確定、不用呼叫父類別。GC 語言沒有可靠的解構時機，所以把「清理」拆成獨立的 `close()` / `dispose()` 由呼叫端保證執行。Objective-C 讓你在 `dealloc` 裡做這些清理，前提是 `dealloc` 真的會被呼叫——這就是 4.3 那些循環參考危險的另一層原因：洩漏的不只是記憶體，還有本該在 `dealloc` 跑的 `invalidate`、`removeObserver`、關檔。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### ARC 下的 dealloc
+
+```objc
+- (void)dealloc {
+    [_timer invalidate];                              // timer 用的是 block 版
+    [NSNotificationCenter.defaultCenter removeObserver:_observerToken];
+    [_ledger removeObserver:self forKeyPath:@"transactions"];   // KVO
+    if (_fileHandle) { close(_fileHandle); }          // C 資源
+    NSLog(@"dealloc %@", _name);                      // 偵錯用，上線前拿掉
+    // 不寫 [super dealloc]；ivar 不用設 nil，編譯器會在這之後釋放
+}
+```
+
+ARC 下的 <Term en="dealloc" tw="釋放方法" cn="析构" jp="デアロック" /> 比 MRC 短很多，因為兩件事編譯器做了：**所有 strong ivar 的釋放**（在你的 `dealloc` 主體跑完後，透過一個隱藏方法 `.cxx_destruct` 執行），和**呼叫 `[super dealloc]`**。你只剩「ARC 管不到的東西」要處理：
+
+| 該做 | 不該做 |
+|---|---|
+| `invalidate` timer（block 版的）、`removeObserver` 通知 token、移除 KVO 觀察 | 呼叫 `[super dealloc]`（編譯錯誤） |
+| 關閉 C 資源：檔案描述子、`CFRelease` 自己 Create 的 CF 物件（4.5） | 對 `self` 建立新的 `__weak` 參考（執行期 crash，見崩潰現場） |
+| 必要時 `NSLog` 證明釋放時機（偵錯用） | 把 `self` 丟進非同步 block、存進集合、設成別人的 delegate——`self` 正在消失，誰接到都是懸空的 |
+| 用 `_ivar` 直接存取 | 用 `self.prop` 走 setter / getter（可能觸發 KVO 或子類別覆寫，拿到半死的物件） |
+| | 假設它在主執行緒：最後一個 release 在哪條執行緒，`dealloc` 就在哪條執行緒跑 |
+
+### 一個物件的完整時序
+
+```text
+[[LBLedger alloc] init]
+  │ alloc：配置記憶體、ivar 全部清零、計數 = 1
+  │ init：你的初始化
+  ▼
+使用中：strong 變數 / 屬性 / 集合 / block 捕獲 → retain，放手 → release
+  │
+  ▼ 最後一個 strong 放手，計數歸零（同一瞬間，所有 __weak 讀取開始回傳 nil）
+- (void)dealloc            ← 你的清理碼
+  │
+  ▼ .cxx_destruct：編譯器釋放每個 strong ivar（它們的計數 −1，可能連鎖 dealloc）
+[super dealloc]            ← 編譯器插入，一路到 NSObject
+  │ 移除關聯物件（5.3）、清掉 weak 表裡的登記
+  ▼
+free()                     ← 記憶體歸還，位址之後可能被別的物件重用
+```
+
+兩個常被問到的細節：**weak 什麼時候變 nil？** 在 `dealloc` 開始之前物件就被標成「正在釋放」，所以 `dealloc` 期間任何 `__weak` 讀取已經是 `nil`。**ivar 什麼時候釋放？** 在你的 `dealloc` 主體之後——所以 `dealloc` 裡還能安全地用 `_timer`、`_name`。
+
+貼進 Scratch 看連鎖釋放的順序：
+
+```objc
+#import <Foundation/Foundation.h>
+
+@interface LBTransaction : NSObject
+@property (nonatomic, copy) NSString *note;
+@end
+@implementation LBTransaction
+- (void)dealloc { NSLog(@"  dealloc 交易 %@", _note); }
+@end
+
+@interface LBLedger : NSObject
+@property (nonatomic, copy) NSString *name;
+@property (nonatomic, strong) NSMutableArray<LBTransaction *> *items;
+@end
+@implementation LBLedger
+- (instancetype)init {
+    if (self = [super init]) { _items = [NSMutableArray array]; }
+    return self;
+}
+- (void)dealloc { NSLog(@"dealloc 帳本 %@（items 還有 %lu 筆）",
+                        _name, (unsigned long)_items.count); }
+@end
+
+int main(void) {
+    @autoreleasepool {
+        LBLedger *ledger = [[LBLedger alloc] init];
+        ledger.name = @"家用";
+        {
+            LBTransaction *tx = [[LBTransaction alloc] init];
+            tx.note = @"午餐";
+            [ledger.items addObject:tx];          // 陣列持有 tx
+            NSLog(@"內層區塊結束前");
+        }                                          // tx 變數消失，但陣列還在
+        NSLog(@"內層區塊結束後");
+        ledger = nil;
+        NSLog(@"結束");
+    }
+    return 0;
+}
+// 預期輸出：
+// 內層區塊結束前
+// 內層區塊結束後
+// dealloc 帳本 家用（items 還有 1 筆）
+//   dealloc 交易 午餐
+// 結束
+```
+
+`ledger = nil` 觸發帳本的 `dealloc`，主體裡 `_items` 還完整（印出 1 筆）；主體結束後編譯器釋放 `_items`，陣列釋放時放掉它持有的交易，交易才 `dealloc`。由外而內，一層一層。
+
+### @autoreleasepool：什麼時候要自己開
+
+4.1 說過 autorelease 是「延後到池子排空時 release」。主執行緒的 run loop 每處理完一個事件就排空一次，所以一般程式碼不用想它。問題出在**一次事件裡建立了大量暫存物件**：
+
+```objc
+// 匯入 10 萬筆交易
+for (NSDictionary *row in rows) {
+    NSString *note = [NSString stringWithFormat:@"%@ %@", row[@"a"], row[@"b"]];
+    NSNumber *n = [formatter numberFromString:row[@"amount"]];
+    [ledger addTransaction:[LBTransaction transactionWithNote:note amount:n]];
+}
+```
+
+ARC 會盡量省掉 `autorelease`，但 Foundation 內部（`stringWithFormat:`、`NSNumberFormatter`、`NSDateFormatter`、`NSData` 的各種 `…WithContentsOf…`）仍然會產生大量 autoreleased 暫存物件。它們全部要等這一輪 run loop 結束才釋放，10 萬圈下來<Term en="memory peak" tw="記憶體峰值" cn="内存峰值" jp="メモリピーク" />可能衝到幾百 MB，然後被 Jetsam 殺掉（4.3 崩潰現場）。解法是**每一圈**開一個自己的池：
+
+```objc
+for (NSDictionary *row in rows) {
+    @autoreleasepool {                         // 這一圈的暫存物件，這一圈結束就走
+        NSString *note = [NSString stringWithFormat:@"%@ %@",
+                          row[@"a"], row[@"b"]];
+        NSNumber *n = [formatter numberFromString:row[@"amount"]];
+        [ledger addTransaction:[LBTransaction transactionWithNote:note
+                                                           amount:n]];
+    }
+}
+```
+
+`@autoreleasepool { }` 是語言結構，不是物件，開銷極小（幾個指標操作）。判斷規則：**迴圈次數多、每圈會呼叫 Foundation 的字串 / 格式化 / 解析 API，就包**。另外自己開的 `NSThread` 進入點、以及 Scratch 的 `main` 都要有一層池，GCD 和 `NSOperationQueue` 則替你管好了。
+
+<Tip title="@autoreleasepool 只管 autoreleased 物件">
+池子排空時只對「登記在這個池裡」的物件送 release。你用 strong 變數持有的物件不會因為離開 `@autoreleasepool { }` 就被釋放——它們跟著變數範圍走。反過來，池子裡用 strong 區域變數建立的物件，在右大括號消失時釋放，是因為**變數離開範圍**，不是因為池子排空。這兩件事常被混在一起。
+</Tip>
+
+### 為什麼雙向鏈結串列的 prev 要 weak
+
+本章的 Xcode 任務是實作 `LBLinkedList`（<Term en="doubly linked list" tw="雙向鏈結串列" cn="双向链表" jp="双方向連結リスト" />）。畫出來就懂：
+
+```text
+list.head ──strong──▶ [A] ──next(strong)──▶ [B] ──next(strong)──▶ [C] ◀──strong── list.tail
+                       ▲                      │
+                       └─────prev(weak)───────┘
+```
+
+`next` 是 strong：串列從 `head` 一路往下持有每個節點。`prev` 如果也是 strong，A ↔ B 就是 4.3 的循環參考，整條串列在 `list` 釋放後全部洩漏。改成 `weak` 之後，每個節點只被前一個節點（或 `head`）持有一份，`list` 一放手，從 A 開始連鎖釋放到 C。`prev` 仍然指得到，因為只要節點還在串列裡，它的前一個節點一定活著。
+
+同一個道理用在所有「雙向」結構：樹的 `parent`、view 的 `superview`、responder chain 的 `nextResponder`，往「擁有者」方向指的那條線都是 weak。
+
+<Pitfall title="迴圈內沒包 @autoreleasepool">
+<Fragment slot="bad">
+```objc
+for (NSInteger i = 0; i < 100000; i++) {
+    NSString *s = [formatter stringFromNumber:@(i)];
+    [results addObject:s];
+}
+// Debug navigator 的 Memory 儀表一路往上爬，迴圈結束才掉下來
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+for (NSInteger i = 0; i < 100000; i++) {
+    @autoreleasepool {
+        NSString *s = [formatter stringFromNumber:@(i)];
+        [results addObject:s];      // s 被陣列持有，不會被池子收走
+    }
+}
+```
+</Fragment>
+`results` 持有的字串不受影響，被收走的是 formatter 內部產生的暫存物件。這個陷阱在單元測試和模擬器上看不出來（記憶體夠大），在舊 iPhone 上匯入資料就閃退。
+</Pitfall>
+
+<Pitfall title="dealloc 裡不能建立指向 self 的 weak 參考">
+<Fragment slot="bad">
+```objc
+- (void)dealloc {
+    __weak typeof(self) weakSelf = self;             // 執行期 crash
+    dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf cleanup]; });
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (void)dealloc {
+    [self cleanupSynchronously];   // dealloc 裡只做同步、立即完成的清理
+}
+```
+</Fragment>
+`dealloc` 執行時物件已經被標成「正在釋放」，runtime 拒絕為它建立新的 weak 登記。同理，任何會隱含建立 weak 參考的 API（`NSNotificationCenter` 的 selector 版 `addObserver:`、把 `self` 設成別人的 weak delegate）在 `dealloc` 裡都會中。想在釋放時做非同步的事，代表這個工作不該掛在這個物件的生命週期上。
+</Pitfall>
+
+<Pitfall title="dealloc 裡用 self.prop 而不是 _ivar">
+```objc
+- (void)dealloc {
+    [self.timer invalidate];       // 走 getter；子類別若覆寫了 timer 的 getter，
+                                    // 會在半釋放狀態下被呼叫
+}
+```
+2.4 的規則在這裡再強調一次：`init` 與 `dealloc` 用 `_ivar`。另外不要在 `dealloc` 裡把屬性設成 `nil` 來「幫 ARC 釋放」——`self.timer = nil` 會走 setter，ivar 本來就會被編譯器釋放，多此一舉還多一層風險。
+</Pitfall>
+
+<Crash message={`objc[48213]: Cannot form weak reference to instance (0x600003a1c2d0) of class LBLedger.
+It is possible that this object was over-released, or is in the process of deallocation.
+Thread 1: EXC_BREAKPOINT (code=1, subcode=0x1a2b3c4d)`}>
+這是 runtime 自己印的，訊息已經把兩個可能原因寫出來了：（一）物件正在 `dealloc`，你在裡面（或在它觸發的方法裡）建立了 `__weak` 參考——最常見的是 `dealloc` 裡呼叫了某個會 `addObserver:` 或設 delegate 的清理方法；（二）物件被多 release 一次（MRC 檔案或 `__bridge_transfer` 用錯，4.5），計數提早歸零，而某處還拿著 strong 指標並嘗試轉成 weak。
+
+查法：這個 crash 會停在建立 weak 參考的那一行，往上看堆疊中有沒有 `-[LBLedger dealloc]` 或 `.cxx_destruct`。有，就是原因一，把那段清理改成不需要 weak 的同步寫法；沒有，就開 Zombie Objects 找多出來的那一次 release。
+</Crash>
+
+## 小結
+
+- ARC 下的 `dealloc` 不寫 `[super dealloc]`、不釋放 ivar；只處理 ARC 管不到的：timer、通知 token、KVO、C 資源。
+- 時序：最後一個 strong 放手 → weak 開始回傳 nil → 你的 `dealloc` → 編譯器釋放 ivar（連鎖）→ `[super dealloc]` → `free()`。
+- `dealloc` 裡用 `_ivar`、只做同步清理、不建 weak self、不把 self 交給別人。
+- 迴圈次數多又呼叫 Foundation 字串 / 格式化 API，每圈包 `@autoreleasepool { }`；它只收 autoreleased 物件，不動 strong 變數。
+- 雙向結構往「擁有者」方向的那條線用 `weak`：`prev`、`parent`、`superview`。

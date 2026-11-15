@@ -1,0 +1,234 @@
+---
+title: 基本型別與 Foundation 別名
+module: 1
+chapter: "1.1"
+order: 1
+minutes: 20
+prereq: ["0.3"]
+objectives:
+  - 分得清 int、long、NSInteger、CGFloat 什麼時候用哪個
+  - 用正確的格式指定子把每種型別印出來
+  - 知道 BOOL 的坑，以及金額為什麼不用 double
+summary: C 的整數、浮點、字元、布林；NSInteger / NSUInteger / CGFloat 為什麼存在；typedef；整數除法與 NSLog 格式指定子。
+terms:
+  - { en: type, tw: 型別, cn: 类型, jp: 型 }
+  - { en: integer / float, tw: 整數 / 浮點數, cn: 整数 / 浮点数, jp: 整数 / 浮動小数点数 }
+  - { en: boolean, tw: 布林值, cn: 布尔值, jp: 真偽値 }
+  - { en: format specifier, tw: 格式指定子, cn: 格式说明符, jp: 書式指定子 }
+  - { en: typedef, tw: 型別別名, cn: 类型别名, jp: 型エイリアス }
+appProgress: 還沒動到 App；但決定了小帳本的金額一律以「分」為單位、用 long long 存。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+let count: Int = 3              // 64 位元平台上就是 64 位元
+let ratio = 7 / 2               // 3，Int 除 Int 還是 Int
+let half: Double = 7 / 2        // 字面值會被推成 Double，得到 3.5
+let isPaid = true
+typealias Cents = Int64
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+val count: Int = 3              // 永遠 32 位元；Long 才是 64
+val ratio = 7 / 2               // 3，整數除法
+val isPaid: Boolean = true
+typealias Cents = Long          // 無號整數（UInt）存在但很少人用
+```
+</Fragment>
+<Fragment slot="java">
+```java
+int count = 3;                  // 32 位元；long 是 64 位元
+double ratio = 7 / 2;           // 3.0：先整數除法，再轉成 double
+boolean isPaid = true;
+// 沒有型別別名，沒有無號整數
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+const count: number = 3;        // 只有 number（IEEE 754 double）
+const ratio = 7 / 2;            // 3.5，沒有整數除法這回事
+const isPaid: boolean = true;
+type Cents = bigint;            // 要精確的大整數得用 bigint
+```
+</Fragment>
+Java / Kotlin 的人已經有「整數除整數會砍小數」的直覺；寫 Swift 和 TypeScript 的人要特別小心。四個語言都不用想「這台機器是幾位元」，C 得想，而這正是 Apple 發明一堆別名的原因。
+</Compare>
+
+## Objective-C 怎麼寫
+
+Objective-C 是 C 的嚴格超集，所以 C 的<Term en="type" tw="型別" cn="类型" jp="型" />全部能用。基本型別就這幾個，寬度（佔幾個 byte）看平台：
+
+| 型別 | iPhone（arm64）寬度 | 用途 |
+|---|---|---|
+| `char` | 1 | 單一字元或小整數；C 字串是 `char *` |
+| `short` | 2 | 很少用 |
+| `int` | 4 | 一般整數、迴圈計數 |
+| `long` | 8（32 位元時代是 4） | 寬度會變，Apple 拿它做別名 |
+| `long long` | 8 | 保證 64 位元；小帳本的金額（分）用它 |
+| `float` | 4 | 幾乎不用 |
+| `double` | 8 | 浮點數的預設 |
+| `BOOL` | 1 | `YES` / `NO` |
+
+前面加 `unsigned` 變成無號（只有 0 和正數，範圍大一倍）。`int` 在 Apple 平台永遠 4 bytes；`long` 跟著指標寬度走，這件事是接下來一切別名的起點。
+
+### NSInteger、NSUInteger、CGFloat 是什麼
+
+它們不是新型別，只是 `typedef`（<Term en="typedef" tw="型別別名" cn="类型别名" jp="型エイリアス" />）。翻開 Foundation 的標頭檔，長這樣：
+
+```objc
+#if __LP64__
+typedef long NSInteger;
+typedef unsigned long NSUInteger;
+typedef double CGFloat;
+#else
+typedef int NSInteger;
+typedef unsigned int NSUInteger;
+typedef float CGFloat;
+#endif
+```
+
+2013 年 iPhone 5s 之前的裝置是 32 位元，Apple 要同一份程式碼在兩種機器上都「用這台機器最自然的整數寬度」，於是全部 API 都走這組別名：`[array count]` 回傳 `NSUInteger`、`frame.size.width` 是 `CGFloat`、`indexPath.row` 是 `NSInteger`。你的規則很簡單：
+
+- 跟 Foundation / UIKit 打交道：用 `NSInteger` / `NSUInteger` / `CGFloat`，不要自己寫 `int`。
+- 自己要保證寬度（存檔、網路封包）：用 `int32_t` / `int64_t`。
+- 金額：以「分」為單位存 `long long`，或用 `NSDecimalNumber`（模組 3）。**永遠不用 `double` 算錢**，原因看下面的陷阱。
+
+### typedef 與一個完整範例
+
+`typedef 原型別 新名字;` 就是幫型別取別名，沒有新建任何東西。小帳本從這一章開始用 `LBCents` 代表「以分計的金額」：
+
+```objc
+#import <Foundation/Foundation.h>
+
+typedef long long LBCents;          // 以「分」為單位的金額
+
+int main(int argc, const char * argv[]) {
+    @autoreleasepool {
+        int days = 7;
+        NSInteger count = 3;
+        NSUInteger total = 12;
+        LBCents lunch = 128000;         // 1,280.00 元
+        CGFloat width = 375.0;
+        double ratio = 7 / 2;           // 先算 7 / 2 = 3，再變成 3.0
+        BOOL isPaid = YES;
+        char grade = 'A';
+
+        NSLog(@"%d %ld %lu", days, (long)count, (unsigned long)total);
+        NSLog(@"%lld 分 = %lld.%02lld 元", lunch, lunch / 100, lunch % 100);
+        NSLog(@"%g %.1f %f", width, ratio, 7 / 2.0);
+        NSLog(@"%d %c %d", isPaid, grade, grade);
+        NSLog(@"%zu %zu", sizeof(int), sizeof(NSInteger));
+    }
+    return 0;
+}
+// 7 3 12
+// 128000 分 = 1280.00 元
+// 375 3.0 3.500000
+// 1 A 65
+// 4 8
+```
+
+幾個值得停下來看的地方：`7 / 2` 兩邊都是整數，結果是 `3`，就算存進 `double` 也救不回來；`7 / 2.0` 有一邊是浮點數才會得到 `3.5`。`char` 本質是 1 byte 的整數，`'A'` 就是 65，用 `%c` 印字元、`%d` 印數字。`sizeof` 回傳型別佔幾個 byte，在 Mac 上跑 `sizeof(NSInteger)` 是 8。
+
+### 格式指定子
+
+`NSLog` 的<Term en="format specifier" tw="格式指定子" cn="格式说明符" jp="書式指定子" />沿用 C 的 `printf`，再加一個 `%@` 印物件。對照表：
+
+| 型別 | 寫法 |
+|---|---|
+| `int` | `%d` |
+| `NSInteger` | `%ld`，並轉型 `(long)x`；或偷懶用 `%zd` |
+| `NSUInteger` | `%lu`，並轉型 `(unsigned long)x` |
+| `long long` | `%lld` |
+| `double` / `CGFloat` | `%f`、`%.2f`（兩位小數）、`%g`（去掉多餘的 0） |
+| `BOOL` | `%d`，印出 1 / 0；要印 YES / NO 用 `flag ? @"YES" : @"NO"` |
+| `char` | `%c` |
+| 物件 | `%@`（會呼叫它的 `description`） |
+
+為什麼 `NSInteger` 要轉型？因為它在 32 位元是 `int`、64 位元是 `long`，沒有一個指定子同時正確。Apple 的建議是轉成 `long` 再用 `%ld`，編譯器看到 `%ld` 配沒轉型的 `NSInteger` 會給警告。
+
+### BOOL
+
+```objc
+BOOL isPaid = YES;
+if (isPaid) { NSLog(@"已付款"); }      // 永遠這樣寫
+if (!isPaid) { NSLog(@"未付款"); }
+```
+
+C 原本沒有<Term en="boolean" tw="布林值" cn="布尔值" jp="真偽値" />，`BOOL` 是 Objective-C 加的，`YES` 是 1、`NO` 是 0。在 C 的世界裡「任何非 0 的值都算真」，所以判斷永遠寫 `if (flag)`，不寫 `if (flag == YES)`——原因在陷阱裡。
+
+<Pitfall title="整數除法會默默砍掉小數">
+<Fragment slot="bad">
+```objc
+NSInteger done = 3, total = 8;
+NSInteger percent = done / total * 100;      // 0，不是 37
+double avg = total / 3;                      // 2.0，不是 2.666…
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+NSInteger percent = done * 100 / total;      // 37：先乘再除
+double avg = total / 3.0;                    // 2.666…：讓一邊變浮點數
+double avg2 = (double)total / 3;             // 同上，明確轉型
+```
+</Fragment>
+`done / total` 先算、結果是整數 0，再乘 100 還是 0。TypeScript 的人最常踩，因為 `number` 沒有這回事。順序調換（先乘再除）或轉型成 `double` 都可以，但要注意先乘可能溢位，金額用 `long long` 才夠放。
+</Pitfall>
+
+<Pitfall title="BOOL 不要跟 YES 比較">
+<Fragment slot="bad">
+```objc
+BOOL hasItems = [items count];        // count 是 3 → hasItems 可能是 3
+if (hasItems == YES) { ... }          // 3 == 1 → 不成立！
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+BOOL hasItems = [items count] > 0;    // 比較運算的結果一定是 0 或 1
+if (hasItems) { ... }                 // 不跟 YES 比
+```
+</Fragment>
+在 Intel Mac 與 32 位元 iOS 上，`BOOL` 其實是 `signed char`：塞 3 進去就是 3，塞 256 進去會變 0。在 arm64 的 iPhone 和 Apple Silicon Mac 上 `BOOL` 改成了真正的 `bool`，塞什麼都會正規化成 0 / 1，這個 bug 剛好消失——但你不能靠平台救你，程式碼還會在模擬器、在舊專案跑。養成兩個習慣：`BOOL` 只放比較運算的結果（或用 `!!value`），判斷只寫 `if (flag)`。
+</Pitfall>
+
+<Pitfall title="格式指定子配錯型別，警告不是裝飾">
+```objc
+NSInteger count = 3;
+NSLog(@"%d", count);
+// ⚠️ Values of type 'NSInteger' should not be used as format arguments;
+//    add an explicit cast to 'long' instead
+int n = count;
+// ⚠️ Implicit conversion loses integer precision: 'NSInteger' (aka 'long') to 'int'
+```
+第一個警告在 64 位元上通常還能印對，換台機器就可能印出垃圾。第二個警告（要開 `-Wshorten-64-to-32`，Xcode 新專案範本預設開）是在告訓你 8 bytes 塞進 4 bytes 會被截斷：`[array count]` 超過 21 億的機率不高，但 `NSUInteger` 的 `NSNotFound`（下一章）塞進 `int` 會變成 -1，條件判斷就全錯了。看到黃色三角形就處理，別讓專案累積到幾百個警告後誰也不看。
+</Pitfall>
+
+<Pitfall title="金額不用 double">
+```objc
+double a = 0.1 + 0.2;
+NSLog(@"%d %.17f", a == 0.3, a);     // 0 0.30000000000000004
+long long cents = 10 + 20;
+NSLog(@"%d", cents == 30);           // 1
+```
+`double` 是二進位浮點數，0.1 根本存不準。帳本累加幾千筆後尾差會跑到小數第二位，`==` 比對一定失敗。業界兩條路：整數存「分」（`long long`，本課程 M1 用這個），或 `NSDecimalNumber`（十進位、精確到 38 位，M3 之後用）。JavaScript 圈子的 `bigint` 和 Kotlin / Java 的 `BigDecimal` 就是同樣的理由。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSRangeException',
+reason: '*** -[__NSArray0 objectAtIndex:]: index 18446744073709551615 beyond bounds for empty array'`}>
+`18446744073709551615` 是 2 的 64 次方減 1，也就是 `NSUIntegerMax`。空陣列的 `count` 是 0，`items.count - 1` 用無號整數算，0 減 1 不會得到 -1，而是繞回最大值；拿這個數字當索引就是這條訊息。讀法：`__NSArray0` 是空陣列的內部類別名，`objectAtIndex:` 是出事的方法，`beyond bounds for empty array` 直接告訴你陣列是空的。同一個根因還有一個變形：`for (NSUInteger i = count - 1; i >= 0; i--)` 永遠跳不出去，因為無號數永遠大於等於 0。修法：先檢查 `count > 0`、用 `items.lastObject`（空陣列回 nil 不會 crash）、或倒數迴圈改用 `NSInteger`。
+</Crash>
+
+## 小結
+
+- `int` 永遠 4 bytes、`long` 跟平台走、`long long` 保證 8 bytes；跟 Apple API 打交道一律用 `NSInteger` / `NSUInteger` / `CGFloat`。
+- 整數除整數還是整數，先乘再除或轉成 `double`。
+- `NSInteger` 用 `%ld` 加 `(long)` 轉型，`NSUInteger` 用 `%lu`，`long long` 用 `%lld`，物件用 `%@`。
+- `BOOL` 只放比較結果、判斷只寫 `if (flag)`。
+- 錢用 `long long` 存分，或 `NSDecimalNumber`；不用 `double`。

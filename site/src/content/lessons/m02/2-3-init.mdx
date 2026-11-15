@@ -1,0 +1,328 @@
+---
+title: 建立物件與初始化器
+module: 2
+chapter: "2.3"
+order: 3
+minutes: 30
+prereq: ["2.2"]
+objectives:
+  - 寫出標準的 init 樣板，說出每一行為什麼要那樣寫
+  - 分辨指定初始化器與便利初始化器，用 NS_DESIGNATED_INITIALIZER 與 NS_UNAVAILABLE 把規則寫進編譯器
+  - 用 instancetype 與類別方法工廠寫出好用的建構 API
+summary: alloc / init 兩段式、if (self = [super init]) 樣板、指定與便利初始化器、instancetype、NS_DESIGNATED_INITIALIZER、NS_UNAVAILABLE、類別方法工廠。
+terms:
+  - { en: initializer, tw: 初始化器, cn: 初始化方法, jp: イニシャライザ }
+  - { en: designated initializer, tw: 指定初始化器, cn: 指定初始化方法, jp: 指定イニシャライザ }
+  - { en: convenience initializer, tw: 便利初始化器, cn: 便利初始化方法, jp: 便利イニシャライザ }
+  - { en: factory method, tw: 工廠方法, cn: 工厂方法, jp: ファクトリメソッド }
+  - { en: class cluster, tw: 類別叢集, cn: 类簇, jp: クラスクラスタ }
+appProgress: LBTransaction 有了指定初始化器與 +expenseWithAmount:note: 工廠；init 被禁用。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+class Transaction {
+    let amount: Decimal
+    let note: String
+
+    init(amount: Decimal, note: String) {       // designated
+        self.amount = amount
+        self.note = note
+    }
+    convenience init(expense: Decimal) {        // convenience 必須呼叫 self.init
+        self.init(amount: expense, note: "")
+    }
+    static func expense(_ amount: Decimal) -> Transaction {
+        Transaction(amount: amount, note: "")
+    }
+}
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+class Transaction(val amount: BigDecimal, val note: String) {   // 主建構子
+    constructor(expense: BigDecimal) : this(expense, "")          // 次建構子
+
+    companion object {
+        fun expense(amount: BigDecimal) = Transaction(amount, "")
+    }
+}
+```
+</Fragment>
+<Fragment slot="java">
+```java
+public class Transaction {
+    private final BigDecimal amount;
+    private final String note;
+
+    public Transaction(BigDecimal amount, String note) {
+        this.amount = amount; this.note = note;
+    }
+    public Transaction(BigDecimal expense) { this(expense, ""); }
+
+    public static Transaction expense(BigDecimal amount) {
+        return new Transaction(amount, "");
+    }
+}
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+class Transaction {
+  constructor(readonly amount: number, readonly note = "") {}
+
+  static expense(amount: number): Transaction {
+    return new Transaction(amount, "");
+  }
+}
+```
+</Fragment>
+Swift 的 designated / convenience 規則是**直接從 Objective-C 搬過去再加上編譯器強制**。所以你在 Swift 學過的「便利初始化器要呼叫同類別的另一個初始化器、指定初始化器要呼叫父類別的指定初始化器」，在 Objective-C 一樣成立——差別是 Objective-C 預設只靠慣例，要自己加巨集才會有編譯器幫忙。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 兩段式：先 alloc 再 init
+
+```objc
+LBTransaction *tx = [[LBTransaction alloc] init];
+```
+
+其他語言的 `new` 一步到位，Objective-C 拆成兩步：`+alloc` 是類別方法，向堆積要一塊記憶體、把所有 ivar 清成零（指標變 `nil`、數字變 0、`BOOL` 變 `NO`），回傳一個「還沒準備好」的物件；`-init` 是實體方法，在這塊記憶體上做設定，回傳準備好的物件。注意 `init` 有回傳值，而且**不保證回傳 `alloc` 給你的那個物件**——它可以回傳 nil（初始化失敗），也可以回傳另一個物件（<Term en="class cluster" tw="類別叢集" cn="类簇" jp="クラスクラスタ" />會這樣做，`[[NSString alloc] init]` 回來的其實是 `__NSCFConstantString`）。這就是為什麼永遠要用 `init` 的回傳值，不能只用 `alloc` 的。
+
+`[LBTransaction new]` 等於 `[[LBTransaction alloc] init]`，但只能呼叫無參數的 `init`，Apple 的程式碼很少用。
+
+### init 樣板
+
+```objc
+- (instancetype)initWithAmount:(NSDecimalNumber *)amount
+                          note:(NSString *)note {
+    self = [super init];                 // 1. 先讓父類別把自己的部分建好
+    if (self) {                          // 2. 父類別可能回 nil
+        _amount = amount;                // 3. 直接寫 ivar，不走 setter
+        _note = [note copy];
+    }
+    return self;                         // 4. 回傳 self，不是 alloc 的那個
+}
+```
+
+這四步是整個 Cocoa 世界的<Term en="initializer" tw="初始化器" cn="初始化方法" jp="イニシャライザ" />樣板，你會在每一個 `.m` 看到它。常見的縮寫是 `if (self = [super init]) { … }`，把賦值和判斷寫在一行；Clang 知道這是刻意的，不會警告。重點在第一步：`self = [super init]` 要**賦值**，因為父類別的 `init` 可能把 `self` 換成別的物件；在第二步判斷 nil，因為父類別可能初始化失敗（例如 `NSData` 讀檔失敗、`NSURL` 字串格式不對）。第三步用 `_ivar` 的理由 2.4 會細講：物件還沒建好，走 setter 可能觸發子類別覆寫的邏輯或 KVO 通知。
+
+回傳型別 `instancetype` 是「呼叫者是哪個類別，就回傳那個類別」。舊程式碼寫 `id`，問題是 `[[LBExpense alloc] init]` 會被當成 `id`，呼叫 `LBExpense` 專屬方法時編譯器幫不上忙。`instancetype` 讓 `[[LBExpense alloc] initWithAmount:…]` 回傳 `LBExpense *`，子類別不用重新宣告。一律用它。
+
+### 指定初始化器與便利初始化器
+
+```objc
+@interface LBTransaction : NSObject
+
+// 指定初始化器：參數最完整的那一個，負責真正的設定
+- (instancetype)initWithAmount:(NSDecimalNumber *)amount
+                          kind:(LBTransactionKind)kind
+                          date:(NSDate *)date
+                          note:(NSString *)note
+                      category:(nullable LBCategory *)category
+    NS_DESIGNATED_INITIALIZER;
+
+// 便利初始化器：填好預設值後轉呼叫指定初始化器
+- (instancetype)initWithAmount:(NSDecimalNumber *)amount
+                          note:(NSString *)note;
+
+// 禁用繼承自 NSObject 的 init / new
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
+
+@end
+```
+
+<Term en="designated initializer" tw="指定初始化器" cn="指定初始化方法" jp="指定イニシャライザ" />是「唯一真正呼叫 `[super init…]`、真正寫 ivar」的那一個；<Term en="convenience initializer" tw="便利初始化器" cn="便利初始化方法" jp="便利イニシャライザ" />只負責補預設值，然後呼叫 `self` 的指定初始化器。這個分工讓子類別只要覆寫一個指定初始化器，所有便利初始化器自動跟著走。
+
+兩個巨集把慣例變成編譯器檢查：`NS_DESIGNATED_INITIALIZER` 標起來後，若有人寫了一個初始化器沒有呼叫它、或在它裡面呼叫了非指定的父類別初始化器，Clang 會警告。`NS_UNAVAILABLE` 把 `init` 從介面拿掉，呼叫 `[[LBTransaction alloc] init]` 直接編譯錯誤——這很重要，因為 `NSObject` 的 `init` 永遠存在，你不禁用它，別人就能建出一個 `amount` 是 nil 的半成品交易。
+
+### 類別方法工廠
+
+```objc
++ (instancetype)expenseWithAmount:(NSDecimalNumber *)amount
+                             note:(NSString *)note {
+    return [[self alloc] initWithAmount:amount
+                                   kind:LBTransactionKindExpense
+                                   date:[NSDate date]
+                                   note:note
+                               category:nil];
+}
+```
+
+Foundation 到處都是這種<Term en="factory method" tw="工廠方法" cn="工厂方法" jp="ファクトリメソッド" />：`[NSArray arrayWithObjects:…]`、`[NSDecimalNumber decimalNumberWithString:]`、`[NSDate date]`。它們是 Kotlin companion object 工廠、Java static factory 的對應物，好處一樣：名字能說明意圖（`expenseWithAmount:` 比 `initWithAmount:kind:` 清楚）。注意裡面寫的是 `[self alloc]` 而不是 `[LBTransaction alloc]`——類別方法裡的 `self` 是類別本身，子類別呼叫這個工廠時會建出子類別的實體。
+
+### 完整範例：貼進 Scratch 跑一次
+
+```objc
+@import Foundation;
+
+typedef NS_ENUM(NSInteger, LBTransactionKind) {
+    LBTransactionKindExpense = 0,
+    LBTransactionKindIncome = 1,
+};
+
+@interface LBTransaction : NSObject
+- (instancetype)initWithAmount:(NSDecimalNumber *)amount
+                          kind:(LBTransactionKind)kind
+                          note:(NSString *)note NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithAmount:(NSDecimalNumber *)amount note:(NSString *)note;
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)expenseWithAmount:(NSDecimalNumber *)amount note:(NSString *)note;
+- (NSString *)summary;
+@end
+
+@implementation LBTransaction {
+    NSDecimalNumber *_amount;
+    LBTransactionKind _kind;
+    NSString *_note;
+}
+
+- (instancetype)initWithAmount:(NSDecimalNumber *)amount
+                          kind:(LBTransactionKind)kind
+                          note:(NSString *)note {
+    if (self = [super init]) {
+        if ([amount compare:NSDecimalNumber.zero] == NSOrderedAscending) {
+            return nil;                      // 負數不合法：初始化失敗
+        }
+        _amount = amount;
+        _kind = kind;
+        _note = [note copy];
+    }
+    return self;
+}
+
+- (instancetype)initWithAmount:(NSDecimalNumber *)amount note:(NSString *)note {
+    return [self initWithAmount:amount kind:LBTransactionKindExpense note:note];
+}
+
++ (instancetype)expenseWithAmount:(NSDecimalNumber *)amount note:(NSString *)note {
+    return [[self alloc] initWithAmount:amount note:note];
+}
+
+- (NSString *)summary {
+    NSString *sign = _kind == LBTransactionKindExpense ? @"-" : @"+";
+    return [NSString stringWithFormat:@"%@%@ %@", sign, _amount, _note];
+}
+@end
+
+int main(int argc, const char *argv[]) {
+    @autoreleasepool {
+        NSDecimalNumber *lunch = [NSDecimalNumber decimalNumberWithString:@"120"];
+        LBTransaction *a = [[LBTransaction alloc] initWithAmount:lunch
+                                                            kind:LBTransactionKindExpense
+                                                            note:@"午餐"];
+        LBTransaction *b = [LBTransaction expenseWithAmount:lunch note:@"便當"];
+        NSLog(@"%@", [a summary]);                  // -120 午餐
+        NSLog(@"%@", [b summary]);                  // -120 便當
+
+        NSDecimalNumber *bad = [NSDecimalNumber decimalNumberWithString:@"-5"];
+        LBTransaction *c = [LBTransaction expenseWithAmount:bad note:@"錯的"];
+        NSLog(@"%@", c);                            // (null)
+        NSLog(@"%@", [c summary]);                  // (null) —— 對 nil 送訊息
+        // [[LBTransaction alloc] init];  ← 取消註解會編譯錯誤：'init' is unavailable
+    }
+    return 0;
+}
+```
+
+<Tip title="init 回傳 nil 是合法的失敗方式">
+`initWithAmount:` 遇到負數回 nil，呼叫端拿到 nil 之後送什麼訊息都安靜略過（2.2），所以**呼叫端要檢查**。Foundation 的 `-[NSURL initWithString:]`、`-[NSData initWithContentsOfFile:]` 都是這樣失敗的。更複雜的失敗原因用 `NSError **` 傳出去（模組 6）。
+</Tip>
+
+<Pitfall title="[super init] 的回傳值沒接住">
+<Fragment slot="bad">
+```objc
+- (instancetype)init {
+    [super init];                 // 回傳值丟掉了
+    _amounts = [NSMutableArray array];
+    return self;                  // 回的是 alloc 給的 self
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (instancetype)init {
+    if (self = [super init]) {
+        _amounts = [NSMutableArray array];
+    }
+    return self;
+}
+```
+</Fragment>
+繼承 `NSObject` 時這兩種寫法剛好跑出一樣的結果，所以很多人不知道自己寫錯。一旦父類別換成會回 nil 或換物件的類別（`NSString`、`NSArray` 這些類別叢集，或任何有失敗路徑的父類別），壞寫法就會在 nil 上寫 ivar——不會 crash，只是所有設定都消失，debug 很痛苦。樣板就是樣板，照抄。
+</Pitfall>
+
+<Pitfall title="便利初始化器直接呼叫 [super init]">
+<Fragment slot="bad">
+```objc
+- (instancetype)initWithAmount:(NSDecimalNumber *)amount note:(NSString *)note {
+    if (self = [super init]) {        // 繞過了自己的指定初始化器
+        _amount = amount;
+        _note = [note copy];          // 忘了 kind、date，驗證也沒做
+    }
+    return self;
+}
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+- (instancetype)initWithAmount:(NSDecimalNumber *)amount note:(NSString *)note {
+    return [self initWithAmount:amount
+                           kind:LBTransactionKindExpense
+                           date:[NSDate date]
+                           note:note
+                       category:nil];
+}
+```
+</Fragment>
+每多一條直達 `[super init]` 的路，就多一個會忘記設定某個欄位的地方，子類別覆寫指定初始化器時也攔不到它。只要有一個初始化器標了 `NS_DESIGNATED_INITIALIZER`，Clang 就會對壞寫法給 warning：`Convenience initializer should not invoke an initializer on 'super'`。這個警告要認真對待。
+</Pitfall>
+
+<Pitfall title="init 裡用 self.prop">
+```objc
+- (instancetype)initWithNote:(NSString *)note {
+    if (self = [super init]) {
+        self.note = note;      // 走 setter：子類別覆寫的 setNote: 會在父類別還沒建好時被呼叫
+    }
+    return self;
+}
+```
+在 `init` 與 `dealloc` 裡直接用 `_note`。這條規則 2.4 會從屬性的角度再講一次；現在先記住：**init 裡寫 ivar，其他地方走屬性**。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: '-[LBTransaction init]: unrecognized selector sent to instance 0x600001a3c0f0'
+*** First throw call stack:
+(
+	2   CoreFoundation   -[NSObject(NSObject) doesNotRecognizeSelector:] + 116
+	3   LittleBook       -[LBTransaction init] + 40
+	4   LittleBook       -[LBImporter transactionFromRow:] + 212
+)`}>
+`NS_UNAVAILABLE` 只擋得住**編譯期**看得到型別的呼叫。這裡 `LBImporter` 用 `Class cls = NSClassFromString(name); [[cls alloc] init]` 動態建物件，型別是 `Class`，編譯器不知道那是 `LBTransaction`，就放行了。要在執行期也擋住，慣例是在 `.m` 裡實作 `init` 並呼叫 `[self doesNotRecognizeSelector:_cmd]`——這就是上面訊息的來源：堆疊第 3 行是**我們自己寫的** `-[LBTransaction init]`，主動丟出 unrecognized selector 告訴呼叫端「這條路不通，請走指定初始化器」。看到這種 crash，修法在呼叫端（第 4 行），不是把 `init` 打開。
+</Crash>
+
+<Steps title="Xcode 任務：LBTransaction 的指定初始化器">
+<ol>
+<li>打開 <code>xcode/M02-starter</code>，在 <code>LBTransaction.h</code> 宣告 <code>initWithAmount:kind:date:note:category:</code> 並加上 <code>NS_DESIGNATED_INITIALIZER</code>；把 <code>init</code> 與 <code>new</code> 標 <code>NS_UNAVAILABLE</code>。</li>
+<li>在 <code>LBTransaction.m</code> 實作它：<code>identifier</code> 用 <code>[NSUUID UUID]</code>，<code>date</code> 與 <code>note</code> 要 <code>copy</code>，<code>flags</code> 設 <code>LBTransactionFlagsNone</code>。</li>
+<li>加上 <code>+expenseWithAmount:note:</code> 工廠，內部呼叫 <code>[self alloc]</code>。</li>
+<li>⌘U 跑 <code>LBTransactionTests/testDesignatedInitializerSetsProperties</code>。</li>
+</ol>
+</Steps>
+
+## 小結
+
+- 建物件分兩步：`alloc` 配記憶體並清零，`init` 設定並回傳；永遠用 `init` 的回傳值。
+- 樣板：`if (self = [super init]) { _ivar = …; } return self;`，回傳型別用 `instancetype`。
+- 只有指定初始化器呼叫 `super`、寫 ivar；便利初始化器呼叫 `self` 的指定初始化器。
+- `NS_DESIGNATED_INITIALIZER` 讓 Clang 幫你檢查；`NS_UNAVAILABLE` 禁用 `init` / `new`，避免半成品物件。
+- 類別方法工廂用 `[self alloc]`，子類別才能沿用；`init` 回 nil 是合法的失敗方式，呼叫端要檢查。

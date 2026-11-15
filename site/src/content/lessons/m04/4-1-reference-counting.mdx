@@ -1,0 +1,228 @@
+---
+title: 參考計數心智模型
+module: 4
+chapter: "4.1"
+order: 1
+minutes: 25
+prereq: ["2.4"]
+objectives:
+  - 用「擁有權」解釋一個物件什麼時候會被釋放
+  - 讀懂舊專案裡的 retain / release / autorelease / [super dealloc]
+  - 知道 ARC 自動化的是哪一層，而不是換了另一套規則
+summary: 擁有權（誰 alloc / retain / copy 誰負責 release）、autorelease 延後釋放、讀懂 MRC 舊碼但新程式碼不寫。
+terms:
+  - { en: reference counting, tw: 參考計數, cn: 引用计数, jp: 参照カウント }
+  - { en: ownership, tw: 擁有權, cn: 所有权, jp: 所有権 }
+  - { en: retain / release, tw: 持有 / 釋放, cn: 保留 / 释放, jp: リテイン / リリース }
+  - { en: autorelease, tw: 自動釋放（延後釋放）, cn: 自动释放, jp: オートリリース }
+  - { en: MRC (manual reference counting), tw: 手動參考計數, cn: 手动引用计数, jp: 手動参照カウント }
+  - { en: deallocate, tw: 釋放（回收）, cn: 销毁 / 释放, jp: 解放 }
+appProgress: 還沒動到 App；這一章先把「誰持有誰」的帳算清楚，後面四章都靠它。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+class Transaction {
+    deinit { print("deinit") }       // 最後一個強參考消失時立刻呼叫
+}
+var a: Transaction? = Transaction()  // 計數 1
+var b = a                            // 計數 2
+a = nil                              // 計數 1，還活著
+b = nil                              // 計數 0 → deinit，確定就在這一行
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+class Transaction
+var a: Transaction? = Transaction()
+val b = a
+a = null                             // 什麼都不會發生
+// 物件何時被回收由 GC 決定；沒有可靠的「解構」時機
+```
+</Fragment>
+<Fragment slot="java">
+```java
+Transaction a = new Transaction();
+Transaction b = a;
+a = null;                            // GC 之後某個時間點才回收
+// finalize() 已棄用；Cleaner 也不保證何時執行
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+let a: Transaction | null = new Transaction();
+const b = a;
+a = null;                            // 仍然可達，GC 不會動它
+// FinalizationRegistry 的回呼「可能」在未來某刻被呼叫
+```
+</Fragment>
+Swift 和 Objective-C 用的是同一套<Term en="reference counting" tw="參考計數" cn="引用计数" jp="参照カウント" />：每個物件身上有一個數字，數字歸零那一刻就釋放，**時機確定**。Kotlin / Java / TS 靠垃圾回收（GC）：物件「不可達」之後，某個時間點會被回收，你不知道也不該在意是哪一刻。這一章要你把「GC 會幫我收」換成「我得知道誰在持有這個東西」。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 把物件想成一間會議室
+
+一間會議室（物件）可以被很多人同時預約（持有）。每個人要用時登記一筆（計數 +1），用完取消登記（計數 −1）。沒有任何人登記時，會議室就被收回（釋放）。重點是：**你只能取消自己登記的那一筆**。幫別人取消會害他進門時發現房間已經沒了（崩潰）；自己登記了卻忘記取消，房間就永遠被佔著（洩漏）。
+
+這套規則叫<Term en="ownership" tw="擁有權" cn="所有权" jp="所有権" />，Apple 文件寫成四句話：
+
+1. 你透過 `alloc`、`new`、`copy`、`mutableCopy` 開頭的方法拿到的物件，**你擁有它**。
+2. 你對任何物件送 `retain`，**你也擁有它**。
+3. 你擁有的物件，**用完要送 `release` 或 `autorelease`** 放手。
+4. 不是你擁有的物件，**不准 release**。
+
+ARC 之前的時代叫<Term en="MRC (manual reference counting)" tw="手動參考計數" cn="手动引用计数" jp="手動参照カウント" />，這四句話要工程師自己手寫。2011 年之後 ARC 讓編譯器代勞，但**規則完全沒變**——這就是為什麼你還是得懂它：ARC 只是在幫你寫 `retain` / `release`，它寫在哪裡、為什麼寫，全部可以用這四句話推出來。
+
+### 讀懂舊專案裡的 MRC
+
+公司十年前的 `.m` 檔會長這樣（新程式碼**不要**這樣寫，但你得看得懂）：
+
+```objc
+// MRC 時代的寫法（Build Settings 關掉 ARC 或檔案加 -fno-objc-arc）
+- (void)addLunch {
+    LBTransaction *tx = [[LBTransaction alloc] initWithNote:@"午餐"];
+    // alloc → 計數 1，我擁有
+    [self.ledger addTransaction:tx];
+    // ledger 內部會 [tx retain] → 計數 2，ledger 也擁有
+    [tx release];
+    // 我放手 → 計數 1；物件還活著，因為 ledger 還持有
+}
+
+- (void)dealloc {
+    [_ledger release];          // 放掉自己持有的 ivar
+    _ledger = nil;
+    [super dealloc];            // MRC 必寫，ARC 下寫了會編譯錯誤
+}
+```
+
+三個關鍵字對照：
+
+| MRC 寫法 | 意思 | ARC 下的對應 |
+|---|---|---|
+| `[obj retain]` | 計數 +1，我要持有 | 賦值給 `strong` 變數 / 屬性時編譯器自動插入 |
+| `[obj release]` | 計數 −1，我放手 | 變數離開範圍、被覆寫、物件 dealloc 時自動插入 |
+| `[obj autorelease]` | 「等一下再 −1」，放進目前的自動釋放池 | 回傳值的 `+0` 慣例，編譯器處理 |
+| `[super dealloc]` | 釋放父類別的 ivar 與記憶體本身 | **禁止手寫**，編譯器自動補 |
+| `[obj retainCount]` | 問目前計數 | 禁止呼叫（也不準，見陷阱） |
+
+### autorelease：延後放手
+
+為什麼需要「等一下再 −1」？看這個 MRC 時代的工廠方法：
+
+```objc
++ (LBTransaction *)lunch {
+    LBTransaction *tx = [[LBTransaction alloc] initWithNote:@"午餐"];
+    return [tx autorelease];
+    // 直接 [tx release] 會在回傳前就把物件殺掉；
+    // 不 release 則呼叫端拿到計數 1 的物件卻不知道自己該放手。
+    // autorelease 把 −1 延到「目前的自動釋放池排空時」，
+    // 讓呼叫端有機會先 retain。
+}
+```
+
+<Term en="autorelease" tw="自動釋放" cn="自动释放" jp="オートリリース" />把物件登記進目前的「自動釋放池」（autorelease pool），池子排空時統一送 `release`。主執行緒的 run loop 每轉一圈就排空一次，所以「這一輪事件處理結束」就是預設的清理點。4.4 會講你什麼時候要自己開一個池。
+
+由此衍生出一條至今仍有效的**命名規約**：方法名以 `alloc` / `new` / `copy` / `mutableCopy` 開頭的回傳「+1，呼叫端擁有」；其他方法（`stringWithFormat:`、`arrayWithObjects:`、你的 `+lunch`）回傳「+0，呼叫端不擁有，想留要自己 retain」。ARC 就是靠這條命名規約推斷擁有權的，所以它不是歷史知識。
+
+### ARC 下親眼看到計數歸零
+
+貼進 Scratch 的 `main.m`（ARC 開著，這是現代寫法）：
+
+```objc
+#import <Foundation/Foundation.h>
+
+@interface LBTransaction : NSObject
+@property (nonatomic, copy) NSString *note;
+- (instancetype)initWithNote:(NSString *)note;
+@end
+
+@implementation LBTransaction
+- (instancetype)initWithNote:(NSString *)note {
+    if (self = [super init]) { _note = [note copy]; }
+    return self;
+}
+- (void)dealloc { NSLog(@"dealloc %@", _note); }   // 不寫 [super dealloc]
+@end
+
+int main(void) {
+    @autoreleasepool {
+        LBTransaction *a = [[LBTransaction alloc] initWithNote:@"午餐"];
+        LBTransaction *b = a;        // 第二個 strong 參考：計數 2
+        a = nil;                     // 計數 1，物件還在
+        NSLog(@"a 已設 nil，b.note = %@", b.note);
+        b = nil;                     // 計數 0 → 立刻 dealloc
+        NSLog(@"結束");
+    }
+    return 0;
+}
+// 預期輸出：
+// a 已設 nil，b.note = 午餐
+// dealloc 午餐
+// 結束
+```
+
+注意 `dealloc 午餐` 印在 `結束` **之前**：釋放發生在 `b = nil` 那一行，不是「程式結束時」，也不是「某個時間點」。這就是參考計數和 GC 最大的體感差異，也是後面循環參考、`dealloc` 時序、橋接三章全部的基礎。
+
+<Tip title="心裡的那張帳">
+之後讀任何一段 Objective-C，養成一個習慣：看到物件就問「現在誰持有它？」。`strong` 屬性、`strong` 區域變數、集合（`NSArray` 放進去就持有）、block 捕獲、`NSTimer` 的 target——都是持有者。持有者全部放手，物件才會走。
+</Tip>
+
+<Pitfall title="retainCount 不能信">
+<Fragment slot="bad">
+```objc
+NSLog(@"%lu", (unsigned long)[tx retainCount]);   // ARC 下直接編譯錯誤
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+// 想知道「有沒有被釋放」：用 __weak 變數觀察（4.2），
+// 或在 dealloc 加 NSLog / 斷點。
+```
+</Fragment>
+在 MRC 專案裡你會看到有人印 `retainCount` 偵錯。它回傳的數字包含 autorelease 池裡尚未生效的 −1、字串字面值的「永不釋放」、系統內部的暫時持有，幾乎沒有一刻是你以為的值。Apple 文件直接說：不要用。
+</Pitfall>
+
+<Pitfall title="方法名不要用 new 開頭">
+<Fragment slot="bad">
+```objc
+@property (nonatomic, strong) LBTransaction *newTransaction;
+// error: property follows Cocoa naming convention for returning
+//        'owned' objects
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+@property (nonatomic, strong) LBTransaction *pendingTransaction;
+- (LBTransaction *)makeTransaction;     // 工廠方法用 make 開頭
+```
+</Fragment>
+`new` / `alloc` / `copy` / `mutableCopy` 開頭的方法名在 ARC 眼裡是「回傳 +1」的承諾。屬性 getter 回傳的是 +0，衝突，所以編譯器直接拒絕。Kotlin / Java 常見的 `newInstance()`、`copyOf()` 命名搬過來要小心。
+</Pitfall>
+
+<Pitfall title="ARC 專案裡混進 MRC 檔案">
+舊專案常在 Build Phases → Compile Sources 對個別 `.m` 檔加 `-fno-objc-arc`，那一個檔案裡的 `retain` / `release` 是合法且必要的。反過來，看到一個檔案有 `[super dealloc]` 卻沒加這個 flag，就是編譯錯誤。改舊檔案前先確認它是哪一種。模組 11 會教怎麼把它們遷移到 ARC。
+</Pitfall>
+
+<Crash message={`Thread 1: EXC_BAD_ACCESS (code=1, address=0x10)
+
+// 開啟 Zombie Objects 後再跑一次：
+*** -[LBTransaction note]: message sent to deallocated instance 0x600002b1c3f0`}>
+`EXC_BAD_ACCESS` 是「存取了不該存取的記憶體」，光看這行你只知道某個指標壞了。這類 crash 在 MRC 舊碼最常見的原因是**多 release 一次**：物件計數提早歸零被收走，但某處還留著指向它的指標，之後對它送訊息就踩到。
+
+一秒定位的方法：Scheme → Edit Scheme → Run → Diagnostics → 勾 **Zombie Objects**。開了之後物件釋放時不會真的回收，而是換成一個「殭屍」，任何送給它的訊息都會印出第二行：類別名、selector、位址。接著在 Breakpoint navigator 加 **Exception Breakpoint**，再跑一次就停在送訊息的那一行。找到後往回看：這個物件的哪個擁有者 release 了不屬於自己的那一筆？
+</Crash>
+
+## 小結
+
+- 參考計數：誰 `alloc` / `new` / `copy` / `retain`，誰負責 `release`；計數歸零那一刻釋放，時機確定。
+- `autorelease` 是「延後放手」，池子排空時統一 release；回傳值的 +0 慣例由此而來。
+- 讀舊專案要認得 `retain` / `release` / `autorelease` / `[super dealloc]`，但 ARC 下這些全部禁止手寫。
+- 命名規約（`new` / `copy` 開頭 = +1）在 ARC 下仍然有效，取名要避開。
+- `EXC_BAD_ACCESS` 先開 Zombie Objects，訊息會直接告訴你是哪個類別的哪個方法被送到死掉的物件上。

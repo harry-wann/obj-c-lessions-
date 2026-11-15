@@ -1,0 +1,225 @@
+---
+title: 方法與訊息傳遞
+module: 2
+chapter: "2.2"
+order: 2
+minutes: 30
+prereq: ["2.1"]
+objectives:
+  - 讀懂任何具名參數的方法簽名，說出它的 selector 名稱
+  - 把巢狀的中括號呼叫由內往外讀出來
+  - 知道對 nil 送訊息會發生什麼，以及為什麼這是雙面刃
+summary: 方法簽名的讀法、selector 就是方法的名字、[物件 訊息] 的呼叫語法、巢狀呼叫、對 nil 送訊息不會當掉而是回傳 0 / nil / NO。
+terms:
+  - { en: message passing, tw: 訊息傳遞, cn: 消息传递, jp: メッセージ送信 }
+  - { en: selector, tw: 選擇器（selector）, cn: 选择器, jp: セレクタ }
+  - { en: method, tw: 方法, cn: 方法, jp: メソッド }
+  - { en: runtime, tw: 執行期, cn: 运行时, jp: ランタイム }
+  - { en: dynamic dispatch, tw: 動態派送, cn: 动态派发, jp: 動的ディスパッチ }
+  - { en: overload, tw: 多載, cn: 重载, jp: オーバーロード }
+appProgress: LBLedger 有了 addAmount:note: 與 count 兩個方法，可以在 Scratch 累加金額。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+ledger.add(amount: Decimal(120), note: "午餐")
+let n = ledger.count
+let s = ledger.transactions.first?.note.uppercased()  // nil 會往後傳
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+ledger.add(amount = BigDecimal(120), note = "午餐")
+val n = ledger.count
+val s = ledger.transactions.firstOrNull()?.note?.uppercase()
+// 沒加 ?. 就是 NullPointerException
+```
+</Fragment>
+<Fragment slot="java">
+```java
+ledger.addAmount(new BigDecimal(120), "午餐");   // 參數靠順序
+int n = ledger.count();
+String s = ledger.getTransactions().get(0).getNote().toUpperCase();
+// 任何一環是 null → NullPointerException
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+ledger.addAmount(120, "午餐");
+const n = ledger.count;
+const s = ledger.transactions[0]?.note.toUpperCase();
+// 沒加 ?. → TypeError: Cannot read properties of undefined
+```
+</Fragment>
+Swift 的具名參數 `add(amount:note:)` 其實就是從 Objective-C 搬過去的，所以你已經會讀一半了。真正不一樣的是最後一行：其他語言遇到 null 不是 crash 就是要你明寫 `?.`，Objective-C 則是**對 nil 做任何事都安靜地得到 nil**，沒有語法上的提醒。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 方法簽名怎麼讀
+
+```objc
+- (void)addAmount:(NSDecimalNumber *)amount note:(NSString *)note;
+```
+
+把它拆成幾塊：`-` 實體方法；`(void)` 回傳型別；接著是一串「標籤 + 冒號 + 參數型別 + 參數名」。這個<Term en="method" tw="方法" cn="方法" jp="メソッド" />的**名字**不是 `addAmount`，而是把所有標籤連冒號接起來：`addAmount:note:`。這個名字在 Objective-C 裡叫<Term en="selector" tw="選擇器（selector）" cn="选择器" jp="セレクタ" />。Apple 文件、crash log、Swift 的 `#selector`，全部用這個形式指方法，所以看到 `addAmount:note:` 你要立刻能數出「兩個參數」。
+
+沒有參數的方法沒有冒號：`- (NSUInteger)count;` 的 selector 就是 `count`。一個參數就是一個冒號：`- (void)removeTransactionWithIdentifier:(NSUUID *)identifier;` 的 selector 是 `removeTransactionWithIdentifier:`。
+
+### 呼叫是「送訊息」
+
+```objc
+[ledger addAmount:lunch note:@"午餐"];
+NSUInteger n = [ledger count];
+```
+
+中括號裡第一個是接收者，後面是 selector 和參數交錯排列。Objective-C 把這個動作叫<Term en="message passing" tw="訊息傳遞" cn="消息传递" jp="メッセージ送信" />而不叫「呼叫方法」，不是故作玄虛：在 Java / Swift 裡，`ledger.count()` 編譯時就決定要跳到哪段機器碼；在 Objective-C 裡，`[ledger count]` 編譯成「在<Term en="runtime" tw="執行期" cn="运行时" jp="ランタイム" />查 `ledger` 這個物件的類別有沒有叫 `count` 的方法，有就執行」。查表的函式叫 `objc_msgSend`，你會在每一份 crash 堆疊裡看到它。這種<Term en="dynamic dispatch" tw="動態派送" cn="动态派发" jp="動的ディスパッチ" />是整個語言的核心：多型（2.6）、KVO、方法交換（模組 11），全靠它。
+
+巢狀呼叫由**內往外**讀。看到一串中括號先找最裡面那一對：
+
+```objc
+NSString *upper = [[[ledger transactions] firstObject] note];
+//                 └─ 1. 取 transactions ─┘
+//                └─ 2. 取第一個元素 ───────────────┘
+//               └─ 3. 取它的 note ─────────────────────────┘
+```
+
+讀法和 Java 的 `ledger.getTransactions().get(0).getNote()` 完全相同，只是鏈結的方向變成「往左加括號」。寫的時候 Xcode 會在你輸入 `]` 時自動補左邊的 `[`，習慣之後反而比打點快。
+
+### 類別方法、selector 與 `respondsToSelector:`
+
+```objc
+NSDecimalNumber *amount = [NSDecimalNumber decimalNumberWithString:@"120"];
+SEL s = @selector(addAmount:note:);
+BOOL can = [ledger respondsToSelector:s];      // YES
+```
+
+對類別送訊息（`[NSDecimalNumber decimalNumberWithString:]`）就是呼叫類別方法。`@selector(...)` 把方法名變成一個 `SEL` 值，`respondsToSelector:` 問物件「你會不會這招」。這組工具就是 Objective-C 的鴨子型別：不看型別，看它會不會回應那個 selector。模組 5 的 optional 協定方法、模組 11 的 runtime 操作都建立在這上面。
+
+### 完整範例：貼進 Scratch 跑一次
+
+```objc
+@import Foundation;
+
+@interface LBLedger : NSObject
+- (void)addAmount:(NSDecimalNumber *)amount note:(NSString *)note;
+- (NSUInteger)count;
+- (NSDecimalNumber *)total;
+@end
+
+@implementation LBLedger {
+    NSMutableArray<NSDecimalNumber *> *_amounts;
+}
+
+- (void)addAmount:(NSDecimalNumber *)amount note:(NSString *)note {
+    if (!_amounts) _amounts = [NSMutableArray array];
+    [_amounts addObject:amount];
+    NSLog(@"記一筆：%@ %@", note, amount);
+}
+
+- (NSUInteger)count { return _amounts.count; }
+
+- (NSDecimalNumber *)total {
+    NSDecimalNumber *sum = NSDecimalNumber.zero;
+    for (NSDecimalNumber *a in _amounts) {
+        sum = [sum decimalNumberByAdding:a];
+    }
+    return sum;
+}
+@end
+
+int main(int argc, const char *argv[]) {
+    @autoreleasepool {
+        LBLedger *ledger = [[LBLedger alloc] init];
+        [ledger addAmount:[NSDecimalNumber decimalNumberWithString:@"120"]
+                     note:@"午餐"];                       // 記一筆：午餐 120
+        [ledger addAmount:[NSDecimalNumber decimalNumberWithString:@"45.5"]
+                     note:@"飲料"];                       // 記一筆：飲料 45.5
+        NSLog(@"%lu 筆，共 %@", (unsigned long)[ledger count], [ledger total]);
+        // 2 筆，共 165.5
+
+        LBLedger *missing = nil;
+        [missing addAmount:NSDecimalNumber.one note:@"消失"];  // 什麼都沒發生
+        NSLog(@"%lu", (unsigned long)[missing count]);         // 0
+        NSLog(@"%@", [missing total]);                         // (null)
+        NSLog(@"%d", [[missing total] isEqual:NSDecimalNumber.zero]); // 0
+    }
+    return 0;
+}
+```
+
+後四行就是本章的重點：對 `nil` 送訊息**不會當掉**。回傳值依型別補零：物件回 `nil`、整數回 `0`、`BOOL` 回 `NO`、`double` 回 `0.0`、小的 struct（如 `CGRect`）回全零。`[[missing total] isEqual:…]` 這種鏈結也安全，因為第一層回 nil，第二層又是對 nil 送訊息。
+
+<Tip title="為什麼 Apple 要這樣設計">
+nil 訊息安全讓很多「選配」的程式碼不用寫 if：`[self.delegate ledgerDidReset:self]` 在沒設 delegate 時自然略過；view 還沒載入時 `[self.tableView reloadData]` 也不會爆。Swift 把它變成明寫的 `?.`，是同一個想法加上編譯器檢查。
+</Tip>
+
+<Pitfall title="nil 訊息安全是雙面刃">
+<Fragment slot="bad">
+```objc
+LBLedger *ledger = [self ledgerNamed:@"2026-11"];  // 找不到 → nil
+[ledger addAmount:amount note:note];               // 安靜略過
+NSLog(@"%lu", (unsigned long)[ledger count]);      // 0，看起來像「還沒記帳」
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+LBLedger *ledger = [self ledgerNamed:@"2026-11"];
+NSParameterAssert(ledger);        // Debug 時立刻停在這裡
+if (!ledger) { /* 回報錯誤 */ return; }
+[ledger addAmount:amount note:note];
+```
+</Fragment>
+Kotlin 的 NPE、Swift 的 `Fatal error: Unexpectedly found nil` 至少告訴你**哪一行**出事；Objective-C 會讓錯誤無聲地往後傳，最後你看到的是「畫面空白」「數字是 0」「列表少一筆」，離真正的原因可能隔了十幾個呼叫。偵錯 Objective-C 時要養成反射：看到奇怪的 0 或空值，先懷疑上游某個物件是 nil。`NSParameterAssert` / `NSAssert` 在 Debug 建置會立刻停下，Release 預設拔掉，是很划算的保險。
+</Pitfall>
+
+<Pitfall title="用點語法呼叫沒有參數的方法">
+<Fragment slot="bad">
+```objc
+self.reloadData;            // 能編譯、能跑、會被 code review 打回
+NSUInteger n = ledger.count;  // 這個可以：count 在 NSArray 等類別是屬性
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+[self reloadData];          // 有動作的方法用中括號
+```
+</Fragment>
+點語法對編譯器來說就是「呼叫同名的 getter」，所以任何無參數方法都能用點呼叫。但慣例是：點語法只用在**屬性**（名詞，取值），動作（動詞）用中括號。違反這個慣例的程式碼讀起來像在存取欄位，實際上卻在做事，是 Objective-C 圈公認的壞味道。
+</Pitfall>
+
+<Pitfall title="Objective-C 沒有多載">
+```objc
+- (void)addAmount:(NSDecimalNumber *)amount;
+- (void)addAmount:(double)amount;
+// error: duplicate declaration of method 'addAmount:'
+```
+Java / Kotlin / Swift 允許同名方法靠參數型別區分，Objective-C **不行**：selector 只看名字，`addAmount:` 就是 `addAmount:`，型別不算。所以 Foundation 的方法名才會這麼長：`decimalNumberWithString:`、`decimalNumberWithMantissa:exponent:isNegative:`、`arrayWithObjects:count:`。你自己命名時也要把型別或意圖放進標籤裡，而不是指望<Term en="overload" tw="多載" cn="重载" jp="オーバーロード" />。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: '-[LBTransaction amout]: unrecognized selector sent to instance 0x600000c0c1e0'
+*** First throw call stack:
+(
+	0   CoreFoundation   __exceptionPreprocess + 176
+	1   libobjc.A.dylib  objc_exception_throw + 60
+	2   CoreFoundation   -[NSObject(NSObject) doesNotRecognizeSelector:] + 116
+	3   CoreFoundation   ___forwarding___ + 1300
+	4   LittleBook       -[LBSummaryViewController refreshTotal] + 88
+)`}>
+這是 Objective-C 最常見的 crash，整個職涯你會看幾百次，所以要能三秒內讀完。拆解：`-[LBTransaction amout]` 的減號表示實體方法、`LBTransaction` 是接收者的類別、`amout` 是送出去的 selector；`unrecognized selector` 是「這個類別和它所有的父類別都沒有這招」；`instance 0x600000c0c1e0` 是物件位址，用來在 lldb 裡 `po 0x600000c0c1e0` 看它是誰。這裡顯然是 `amount` 打成 `amout`。為什麼編譯器沒抓到？因為送訊息的那個變數型別是 `id`（例如從 `NSArray` 取出來沒轉型），或是用了 `performSelector:`，編譯器只能給 warning 甚至沒有 warning。堆疊往下找第一個自己專案的 frame（`-[LBSummaryViewController refreshTotal]`）就是出事的那一行。
+</Crash>
+
+## 小結
+
+- 方法名是把所有標籤加冒號接起來的 selector：`addAmount:note:` 有兩個參數。
+- `[接收者 selector:參數 標籤:參數]` 是送訊息，執行期才查表（`objc_msgSend`），這是多型與 runtime 魔法的基礎。
+- 巢狀中括號由內往外讀；點語法只用在屬性，動作用中括號。
+- 對 `nil` 送訊息不會當掉，回傳 0 / nil / NO；少了 NPE 的同時也少了線索，偵錯要主動懷疑 nil。
+- 沒有多載，型別要放進方法名裡；`unrecognized selector` 讀法：類別、selector、位址、第一個自己的 frame。

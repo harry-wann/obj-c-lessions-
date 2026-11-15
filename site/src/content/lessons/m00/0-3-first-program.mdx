@@ -82,7 +82,7 @@ int main(int argc, const char * argv[]) {  // ②
 
 **③ `@autoreleasepool { }`** 一個<Term en="autorelease pool" tw="自動釋放池" cn="自动释放池" jp="自動解放プール" />。Objective-C 很多方法回傳的物件是「延後釋放」的：先登記到目前的池子，池子結束時一起釋放。App 裡 UIKit 的執行迴圈每一圈都幫你建一個池子、清一個池子；Command Line Tool 沒有執行迴圈，所以範本幫你包一個，整個 `main` 的內容都在裡面。拿掉它程式還是能跑，但主控台會出現 `Object 0x... of class __NSCFString autoreleased with no pool in place - just leaking`。模組 4 會把參考計數講清楚，現在只要知道：**範例要貼在這對大括號裡面。**
 
-**④ `NSLog(@"Hello, 小帳本");`** `@"..."` 是 `NSString` 的<Term en="literal" tw="字面值" cn="字面量" jp="リテラル" />；少了 `@` 就是 C 的 `char *` 字串，兩者不是同一種東西。`NSLog` 寫到 stderr，自動加時間戳、程序名、`[pid:執行緒 id]` 與換行。它是偵錯工具，不是正式的日誌系統（上線用 `os_log`，模組 7），也不要放在熱路徑裡（模組 10 會量給你看它有多慢）。
+**④ `NSLog(@"Hello, 小帳本");`** `@"..."` 是 `NSString` 的<Term en="literal" tw="字面值" cn="字面量" jp="リテラル" />；少了 `@` 就是 C 的 `char *` 字串，兩者不是同一種東西。`NSLog` 寫到 stderr，自動加時間戳、處理程序名稱、`[pid:執行緒 id]` 與換行。它是偵錯工具，不是正式的日誌系統（上線用 `os_log`，模組 7），也不要放在熱路徑裡（模組 10 會量給你看它有多慢）。
 
 ### 格式指定子
 

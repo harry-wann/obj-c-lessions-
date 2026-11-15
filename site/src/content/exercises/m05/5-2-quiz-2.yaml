@@ -1,0 +1,19 @@
+id: m05-5-2-quiz-2
+chapter: "5.2"
+section: quiz
+type: quiz
+title: 哪個 delegate 方法名符合 Cocoa 慣例
+minutes: 1
+prompt: LBLedger 新增交易後要通知 delegate。哪個方法名符合慣例？
+options:
+  - "- (void)didAddTransaction:(LBTransaction *)tx;"
+  - "- (void)LBLedger:(LBLedger *)ledger didAddTransaction:(LBTransaction *)tx;"
+  - "- (void)ledger:(LBLedger *)ledger didAddTransaction:(LBTransaction *)tx;"
+  - "- (void)onTransactionAdded:(LBTransaction *)tx fromLedger:(LBLedger *)ledger;"
+answer: 2
+explain: 第一個參數是來源物件，名字是去掉前綴、小寫開頭的類別名 `ledger:`；接著是時態 `did` + 事件。`UITableView` 的 `tableView:didSelectRowAtIndexPath:` 同一個模子。
+hints: ["delegate 方法的第一個參數放什麼？", "參數名怎麼寫：UITableView 的 delegate 方法第一段是 tableView: 還是 UITableView:？"]
+feedback:
+  "0": 沒有來源物件，一個控制器當兩本帳的 delegate 時分不出誰在叫。
+  "1": 來源參數名要去掉前綴並小寫：ledger: 不是 LBLedger:。
+  "3": "on... 是 Android / JS 的命名；Cocoa 慣例把來源放第一個參數。"

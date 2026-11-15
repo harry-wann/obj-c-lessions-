@@ -1,0 +1,16 @@
+id: m05-5-2-xcode-1
+chapter: "5.2"
+type: xcode
+title: 加上 LBLedgerObserver 協定與 delegate
+mobile: false
+minutes: 15
+prompt: 打開 M05 起始專案，新增 LBLedgerObserver 協定，讓 LBLedger 在新增交易後通知 delegate。
+starter: xcode/M05-starter
+steps:
+  - "新增 LBLedgerObserver.h：`@protocol LBLedgerObserver <NSObject>`，required 方法 `ledger:didAddTransaction:`，optional 方法 `ledgerDidReset:`。用 `@class` 前置宣告 LBLedger 與 LBTransaction。"
+  - "在 LBLedger.h 加 `@property (nonatomic, weak, nullable) id<LBLedgerObserver> delegate;`，標頭檔裡用 `@protocol LBLedgerObserver;` 前置宣告。"
+  - "在 LBLedger.m 的 `addTransaction:` 末尾呼叫 `[self.delegate ledger:self didAddTransaction:tx]`。"
+  - ⌘U 跑測試。
+tests:
+  - LBLedgerObserverTests/testDelegateCalledOnAdd
+solution_note: 測試會用一個假的 observer 類別記錄收到的交易。required 方法可以直接呼叫，不需要 respondsToSelector:。

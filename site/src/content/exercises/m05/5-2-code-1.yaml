@@ -1,0 +1,41 @@
+id: m05-5-2-code-1
+chapter: "5.2"
+type: code
+title: 設計 LBImporter 的 delegate 介面
+mobile: false
+minutes: 6
+prompt: "宣告協定 `LBImporterDelegate`（繼承 NSObject 協定），含 optional 方法：匯入前詢問 `importer:shouldImportTransaction:`（回傳 BOOL）、匯入完成 `importer:didFinishImportingCount:`（NSInteger）。再宣告 `LBImporter` 類別，有一個符合慣例的 delegate 屬性。"
+starter: |
+  @class LBImporter, LBTransaction;
+
+checks:
+  - must_match: '@protocol LBImporterDelegate\s*<\s*NSObject\s*>'
+    message: "協定要宣告成 @protocol LBImporterDelegate <NSObject>"
+  - must_match: '@optional'
+    message: 兩個方法都應該是 optional
+  - selector_equals: "importer:shouldImportTransaction:"
+    message: "缺少 importer:shouldImportTransaction:（方法名以來源物件 importer: 開頭）"
+  - selector_equals: "importer:didFinishImportingCount:"
+    message: "缺少 importer:didFinishImportingCount:"
+  - must_match: '-\s*\(\s*BOOL\s*\)\s*importer\s*:'
+    message: "should 類方法要回傳 BOOL"
+  - must_match: '@interface LBImporter\s*:\s*NSObject'
+  - property_attrs: { name: delegate, attrs: [nonatomic, weak] }
+    message: delegate 屬性要 nonatomic、weak
+  - must_match: 'id\s*<\s*LBImporterDelegate\s*>\s*delegate'
+    message: "delegate 的型別是 id<LBImporterDelegate>"
+  - brackets_balanced: true
+solution: |
+  @class LBImporter, LBTransaction;
+
+  @protocol LBImporterDelegate <NSObject>
+  @optional
+  - (BOOL)importer:(LBImporter *)importer shouldImportTransaction:(LBTransaction *)tx;
+  - (void)importer:(LBImporter *)importer didFinishImportingCount:(NSInteger)count;
+  @end
+
+  @interface LBImporter : NSObject
+  @property (nonatomic, weak, nullable) id<LBImporterDelegate> delegate;
+  @end
+solution_note: 協定名 = 類別名 + Delegate；方法以 `importer:` 開頭；should 回傳 BOOL；屬性 weak + nullable。
+hints: ["協定名慣例：類別名加 Delegate。", "方法第一段是來源物件：importer:(LBImporter *)importer。", "delegate 屬性的修飾詞 2.4 與本章都講過。"]

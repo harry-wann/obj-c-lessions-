@@ -1,0 +1,29 @@
+id: m05-5-3-fill-1
+chapter: "5.3"
+type: fill
+title: 補完 NSString 的分類
+minutes: 2
+prompt: 替 NSString 加一個去頭尾空白的方法，遵守命名慣例。
+code: |
+  // NSString+LBTrimming.h
+  @interface NSString ___1___
+  - (NSString *)___2___;
+  @end
+
+  // NSString+LBTrimming.m
+  ___3___ NSString (LBTrimming)
+  - (NSString *)lb_trimmed {
+      return [self stringByTrimmingCharactersInSet:
+              [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+  }
+  @end
+blanks:
+  "1": { accept: ["(LBTrimming)"], chips: ["(LBTrimming)", ": LBTrimming", "<LBTrimming>", "()"] }
+  "2": { accept: ["lb_trimmed"], chips: ["lb_trimmed", "trimmed", "trim", "LBTrimmed"] }
+  "3": { accept: ["@implementation"], chips: ["@implementation", "@interface", "@category", "@extension"] }
+hints: ["分類名放在括號裡，跟檔名加號後面一致。", "分類方法一律加什麼前綴？", "實作區跟類別一樣用哪個關鍵字？"]
+feedback:
+  "1=: LBTrimming": 冒號是繼承語法；分類用括號。
+  "1=()": 空括號是類別延伸，只能用在自己有 .m 的類別，而且不能放在獨立的 .h 讓別人 import。
+  "2=trimmed": 沒前綴。哪個 SDK 替 NSString 加了 trimmed 你永遠不知道。
+solution_note: "`@interface NSString (LBTrimming)` / `@implementation NSString (LBTrimming)`；方法名 `lb_` 前綴。"

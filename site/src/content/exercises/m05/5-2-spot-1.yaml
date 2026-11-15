@@ -1,0 +1,39 @@
+id: m05-5-2-spot-1
+chapter: "5.2"
+type: spot
+title: 這個 delegate 設計有三個問題
+minutes: 3
+prompt: 點選有問題的行並選出原因。
+code: |
+  @protocol LBImporterDelegate <NSObject>
+  @optional
+  - (void)didFinishImport:(NSInteger)count;
+  @end
+
+  @interface LBImporter : NSObject
+  @property (nonatomic, strong) id<LBImporterDelegate> delegate;
+  @end
+
+  @implementation LBImporter
+  - (void)finish {
+      [self.delegate didFinishImport:_count];
+  }
+  @end
+bug_lines: [3, 7, 12]
+reasons:
+  - 方法名缺來源物件、delegate 屬性 strong 會循環參考、optional 方法沒先 respondsToSelector:
+  - 協定不應該用 @optional，全部改 @required 就沒問題
+  - delegate 應該用 copy
+  - _count 應該改成 self.count
+answer_reason: 0
+fix: |
+  - (void)importer:(LBImporter *)importer didFinishImportingCount:(NSInteger)count;
+  @property (nonatomic, weak, nullable) id<LBImporterDelegate> delegate;
+  if ([self.delegate respondsToSelector:@selector(importer:didFinishImportingCount:)]) {
+      [self.delegate importer:self didFinishImportingCount:_count];
+  }
+solution_note: 三條慣例一次踩完：方法名以來源開頭（`importer:did...`）、屬性 `weak`、optional 先檢查。
+hints: ["delegate 方法的第一個參數慣例放什麼？", "delegate 屬性該用哪個修飾詞？", "optional 方法呼叫前要？"]
+feedback:
+  "1": 全部 required 可以避開 crash，但 delegate 慣例就是讓接收者挑想聽的事件；問題在呼叫端沒檢查。
+  "2": copy 對協定型別沒意義，而且仍會持有物件。

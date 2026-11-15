@@ -1,0 +1,18 @@
+id: m05-5-2-quiz-1
+chapter: "5.2"
+section: quiz
+type: quiz
+title: delegate 屬性的修飾詞
+minutes: 1
+prompt: "`LBLedger` 的 delegate 屬性應該怎麼宣告？"
+options:
+  - "@property (nonatomic, strong) id<LBLedgerDelegate> delegate;"
+  - "@property (nonatomic, weak, nullable) id<LBLedgerDelegate> delegate;"
+  - "@property (nonatomic, copy) id<LBLedgerDelegate> delegate;"
+  - "@property (nonatomic, assign) id<LBLedgerDelegate> delegate;"
+answer: 1
+explain: 持有 ledger 的物件通常就是 delegate 本人，strong 會循環參考。weak 讓 delegate 釋放後自動變 nil；assign 不會歸零，會變懸空指標。
+hints: ["誰持有 ledger？ledger 的 delegate 又是誰？", "assign 跟 weak 的差別在物件釋放之後。"]
+feedback:
+  "0": 控制器持有 ledger、ledger strong 持有控制器，兩邊都放不掉。
+  "3": assign 是 iOS 5 之前的寫法，物件釋放後指標不歸零，下次呼叫 EXC_BAD_ACCESS。

@@ -1,0 +1,23 @@
+id: m05-5-2-parsons-1
+chapter: "5.2"
+type: parsons
+title: 排出 addTransaction: 的委派流程
+minutes: 3
+prompt: "把 `LBLedger` 的 `addTransaction:` 方法排成正確順序：先問 should（optional，否決就離開）、再新增、最後通知 did（optional）。"
+lines:
+  - "- (void)addTransaction:(LBTransaction *)tx {"
+  - "    id<LBLedgerDelegate> d = self.delegate;"
+  - "    if ([d respondsToSelector:@selector(ledger:shouldAddTransaction:)] &&"
+  - "        ![d ledger:self shouldAddTransaction:tx]) {"
+  - "        return;"
+  - "    }"
+  - "    [_items addObject:tx];"
+  - "    if ([d respondsToSelector:@selector(ledger:didAddTransaction:)]) {"
+  - "        [d ledger:self didAddTransaction:tx];"
+  - "    }"
+  - "}"
+distractors:
+  - "    [d ledger:self didAddTransaction:tx];   // 沒檢查就呼叫"
+  - "    self.delegate = d;"
+solution_note: 先把 weak 的 delegate 抓成區域變數，should 在新增前、did 在新增後，兩個 optional 方法都先 respondsToSelector:。
+hints: ["should 要在真正新增之前問。", "optional 方法呼叫前的保險是什麼？", "第 2 行先抓成區域變數，避免中途變 nil。"]

@@ -1,0 +1,17 @@
+id: m05-5-3-quiz-3
+chapter: "5.3"
+section: quiz
+type: quiz
+title: Kotlin extension 與 ObjC 分類的差別
+minutes: 1
+prompt: "Kotlin 的 `fun String.shout()` 跟 Objective-C 的 `@interface NSString (LBShout)` 最本質的差別是？"
+options:
+  - Kotlin 的可以加屬性，ObjC 的不能
+  - Kotlin 擴充是編譯期靜態函式，看宣告型別；ObjC 分類在載入時真的加進類別，執行期依實際類別派送、全域生效
+  - ObjC 分類只在 import 它的檔案裡生效
+  - 沒有差別，只是語法不同
+answer: 1
+explain: Kotlin 的 `String.shout()` 編譯成 `shout(s)` 靜態函式，`Any` 型別的變數叫不到。ObjC 分類是 runtime 把方法加進 `NSString` 類別，`id obj = @"x"; [obj lb_shout]` 照樣找得到，連字串字面值都有。
+hints: ["Kotlin 擴充函式編譯後變成什麼？", "ObjC 的 `@[] lb_map:` 為什麼能呼叫？"]
+feedback:
+  "2": import 只影響編譯器知不知道方法簽名；方法本身一載入就全域存在，用 performSelector: 都叫得到。

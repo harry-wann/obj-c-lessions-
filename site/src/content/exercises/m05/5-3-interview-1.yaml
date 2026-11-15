@@ -1,0 +1,14 @@
+id: m05-5-3-interview-1
+chapter: "5.3"
+type: flash
+tier: interview
+title: 面試題：分類能不能加屬性？關聯物件怎麼運作？
+minutes: 2
+front: "面試官：分類裡可以宣告 @property 嗎？如果我真的需要在分類裡存一個值怎麼辦？"
+back: |
+  可以宣告，但只會宣告 getter / setter，不會合成 ivar（類別的記憶體配置在編譯時固定，分類是載入時才掛上）。不自己實作就是 unrecognized selector。
+  要存值用關聯物件：
+  objc_setAssociatedObject(self, @selector(lb_tag), value, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  objc_getAssociatedObject(self, @selector(lb_tag));
+  runtime 維護一張以物件位址為鍵的全域雜湊表，value 跟著物件釋放。key 用 selector 位址（全程式唯一）。策略對應 strong / copy / assign，沒有 weak。
+  加分：效能比 ivar 差（多一次雜湊查找）；類別延伸 () 能合成 ivar 是因為它跟主 @implementation 同一個編譯單位。

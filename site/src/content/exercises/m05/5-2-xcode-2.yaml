@@ -1,0 +1,15 @@
+id: m05-5-2-xcode-2
+chapter: "5.2"
+type: xcode
+title: optional 方法不能強迫 delegate 實作
+mobile: false
+minutes: 10
+prompt: 接續上一題，替 LBLedger 加 reset 方法：清空交易後呼叫 optional 的 ledgerDidReset:，delegate 沒實作也不能 crash。
+starter: xcode/M05-starter
+steps:
+  - 在 LBLedger.h 宣告 `- (void)reset;`。
+  - "實作時先 `[_items removeAllObjects]`，再 `if ([self.delegate respondsToSelector:@selector(ledgerDidReset:)])` 才呼叫。"
+  - 測試裡的 observer 故意沒實作 ledgerDidReset:，⌘U 看它會不會 crash。
+tests:
+  - LBLedgerObserverTests/testOptionalMethodNotRequired
+solution_note: 沒有 respondsToSelector: 的話，測試會以 unrecognized selector 失敗。這就是 5.1 崩潰現場的單元測試版。

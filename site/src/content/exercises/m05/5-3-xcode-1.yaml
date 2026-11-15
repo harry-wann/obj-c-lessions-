@@ -1,0 +1,16 @@
+id: m05-5-3-xcode-1
+chapter: "5.3"
+type: xcode
+title: NSDecimalNumber+LBFormatting
+mobile: false
+minutes: 15
+prompt: 替 NSDecimalNumber 加分類 LBFormatting，提供 lb_currencyString，輸出千分位與小數格式。
+starter: xcode/M05-starter
+steps:
+  - "New File → Objective-C File → File Type: Category，Class: NSDecimalNumber，名稱 LBFormatting。Xcode 會產生 NSDecimalNumber+LBFormatting.h / .m。"
+  - "宣告 `- (NSString *)lb_currencyString;`。"
+  - "實作用 NSNumberFormatter（numberStyle = NSNumberFormatterDecimalStyle），依測試檔的期望值設定 minimumFractionDigits / maximumFractionDigits；formatter 建立成本高，用 dispatch_once 快取。"
+  - 打開 LBFormattingTests.m 看期望字串，調整 formatter 設定直到通過。⌘U。
+tests:
+  - LBFormattingTests/testCurrencyString
+solution_note: 千分位靠 NSNumberFormatterDecimalStyle；負號 Apple 預設用 U+2212「−」而不是連字號，測試期望值照 formatter 的輸出。注意 locale 要固定（en_US_POSIX）測試才不會因裝置語言而變。

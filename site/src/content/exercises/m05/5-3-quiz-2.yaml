@@ -1,0 +1,18 @@
+id: m05-5-3-quiz-2
+chapter: "5.3"
+section: quiz
+type: quiz
+title: 分類裡的 @property
+minutes: 1
+prompt: "在 `@interface LBTransaction (LBUI)` 裡寫 `@property (nonatomic, copy) NSString *lb_color;` 會怎樣？"
+options:
+  - 跟在類別裡一樣，自動合成 ivar 與存取方法
+  - 編譯錯誤，分類裡不能寫 @property
+  - 只宣告 getter / setter，不合成 ivar；沒自己實作就會 unrecognized selector
+  - 會合成，但只能在分類的 .m 裡存取
+answer: 2
+explain: 類別的記憶體配置在編譯時決定，分類是之後掛上去的，所以不能加 ivar。編譯器只給警告 `property requires method to be defined`。要存值用關聯物件。
+hints: ["分類能不能加實體變數？", "沒有 ivar，自動合成要存到哪？"]
+feedback:
+  "0": 類別延伸 `()` 才能合成，分類 `(Name)` 不能。
+  "1": 合法，只是不會合成；編譯器給的是警告。

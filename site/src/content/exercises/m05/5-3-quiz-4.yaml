@@ -1,0 +1,18 @@
+id: m05-5-3-quiz-4
+chapter: "5.3"
+section: quiz
+type: quiz
+title: 分類與類別延伸
+minutes: 1
+prompt: 下列關於類別延伸 `@interface LBLedger ()` 的敘述，哪些正確？
+multi: true
+options:
+  - 可以合成屬性與實體變數
+  - 可以加在 NSString 這類沒有原始碼的類別上
+  - 通常寫在原類別的 .m 檔頂端，當私有介面
+  - 可以把 .h 裡 readonly 的屬性重新宣告成 readwrite
+answer: [0, 2, 3]
+explain: 類別延伸是「沒名字的分類」，但必須跟主 @implementation 在同一個編譯單位，所以能合成 ivar、能改 readwrite；代價是只能用在自己有 .m 的類別。
+hints: ["類別延伸為什麼能合成 ivar？因為它跟誰在同一個檔案？", "沒有 .m 的類別能不能有類別延伸？"]
+feedback:
+  "1": 類別延伸要跟主 @implementation 一起編譯，NSString 的實作不在你手上。

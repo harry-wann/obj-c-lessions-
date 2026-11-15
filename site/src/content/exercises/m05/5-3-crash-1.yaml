@@ -1,0 +1,26 @@
+id: m05-5-3-crash-1
+chapter: "5.3"
+type: crash
+title: 讀懂這則崩潰訊息
+minutes: 2
+log: |
+  *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+  reason: '-[NSConcreteMutableData uppercaseString]: unrecognized selector sent to instance 0x600003a1c0f0'
+  // 程式碼：NSString *hex = [[password md5] uppercaseString];
+  // 你的 NSString (Utils) 分類宣告 - (NSString *)md5;
+options:
+  - password 是 nil，對 nil 呼叫 md5 回傳 NSData
+  - 另一個分類也替 NSString 加了 md5 且回傳 NSData，執行期覆蓋了你的版本，所以 md5 回傳的不是字串
+  - NSString 沒有 uppercaseString 方法
+  - md5 的實作忘了 return
+answer: 1
+fix: |
+  // 全部改成前綴版本，編譯器會替你找出所有呼叫點
+  @interface NSString (LBUtils)
+  - (NSString *)lb_md5Hex;
+  @end
+solution_note: 收到訊息的類別（NSData 的私有子類別）跟你以為的型別對不上，就是「有人換掉了方法」。同名分類方法沒有編譯錯誤，誰生效看載入順序。前綴是唯一防護。
+hints: ["收到 uppercaseString 的物件是什麼類別？你以為應該是什麼？", "為什麼 md5 會回傳 NSData？誰可能也寫了一個 md5？"]
+feedback:
+  "0": 對 nil 送訊息回傳 nil，接著對 nil 送 uppercaseString 也回 nil，不會 crash。
+  "3": 忘了 return 是編譯警告，而且回傳的會是垃圾位址，不會剛好是一個 NSData。

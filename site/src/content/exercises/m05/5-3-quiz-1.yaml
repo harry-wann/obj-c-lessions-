@@ -1,0 +1,17 @@
+id: m05-5-3-quiz-1
+chapter: "5.3"
+section: quiz
+type: quiz
+title: 分類的檔名
+minutes: 1
+prompt: 替 NSDecimalNumber 加格式化方法的分類，標頭檔應該叫什麼？
+options:
+  - "LBFormatting.h"
+  - "NSDecimalNumber+LBFormatting.h"
+  - "NSDecimalNumber_LBFormatting.h"
+  - "LBDecimalNumber.h"
+answer: 1
+explain: 慣例是 `類別名+分類名.h`，加號是慣例的一部分；Xcode 的 New File → Objective-C File → Category 會自動這樣命名。看到加號就知道這是分類不是類別。
+hints: ["Xcode 新增 Category 檔案時會自動命名成什麼？", "檔名裡要同時看得到被擴充的類別與分類名。"]
+feedback:
+  "3": "LB 開頭像一個新類別，讀者會以為是子類別。"

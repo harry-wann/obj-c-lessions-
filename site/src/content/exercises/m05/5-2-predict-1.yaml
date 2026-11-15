@@ -1,0 +1,21 @@
+id: m05-5-2-predict-1
+chapter: "5.2"
+type: predict
+title: weak delegate 釋放之後
+minutes: 2
+code: |
+  // LBLedger.delegate 宣告為 weak；LBLogger 實作了 ledger:didAddNote:
+  LBLedger *ledger = [LBLedger new];
+  LBLogger *logger = [LBLogger new];        // didAddNote: 會 NSLog(@"log %@", note)
+  ledger.delegate = logger;
+  [ledger addNote:@"A"];
+  logger = nil;
+  [ledger addNote:@"B"];
+  NSLog(@"%@", ledger.delegate);
+options: ["log A\nlog B\n(null)", "log A\n(null)", "log A\nlog B\n<LBLogger>", "log A 然後 crash"]
+accept: ["log A (null)"]
+feedback:
+  "log A log B (null)": "logger = nil 之後沒有人持有 LBLogger，它立刻釋放，weak 屬性變 nil，第二次 addNote: 對 nil 送訊息什麼都不做。"
+  "log A 然後 crash": weak 會自動歸零，對 nil 送訊息安全；會 crash 的是 assign。
+solution_note: weak 屬性在物件釋放時自動變 nil；對 nil 送訊息安靜地什麼都不做，所以「log B」不會出現，最後印 (null)。
+hints: ["logger = nil 之後，還有誰持有 LBLogger？", "weak 屬性在物件釋放後變成什麼？對 nil 送訊息會怎樣？"]

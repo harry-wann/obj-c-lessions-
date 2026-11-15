@@ -1,0 +1,15 @@
+id: m05-5-2-interview-1
+chapter: "5.2"
+type: flash
+tier: interview
+title: 面試題：delegate 為什麼是 weak？什麼時候改用 block？
+minutes: 2
+front: "面試官：delegate 屬性為什麼一定 weak？你會在什麼情況下不用 delegate 改用 block？"
+back: |
+  weak：delegate 多半就是持有這個物件的人（控制器持有 tableView，又當它的 delegate）。strong 會循環參考，兩個物件都不釋放。weak 在 delegate 釋放時自動歸零，對 nil 送訊息安全，整條鏈不會 crash。
+  改用 block 的情況：
+  - 一次性的結果（網路請求、讀檔），呼叫端想把處理邏輯寫在呼叫點旁邊。
+  - 回呼只有一兩個、彼此無關，開一個協定太重。
+  - 需要捕獲區域變數（delegate 方法拿不到呼叫當下的上下文）。
+  繼續用 delegate 的情況：一組持續的、相關的事件（表格的十幾個回呼）、需要回傳值讓物件決策（should 類）、同一個物件會被多種實作替換。
+  加分：三者還有通知，一對多、發送者不認識接收者時用。

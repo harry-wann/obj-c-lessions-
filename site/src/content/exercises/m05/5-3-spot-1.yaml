@@ -1,0 +1,33 @@
+id: m05-5-3-spot-1
+chapter: "5.3"
+type: spot
+title: 這個分類會在上線後出事
+minutes: 3
+prompt: 能編譯、測試也會過。點選有問題的行並選出原因。
+code: |
+  @interface NSDecimalNumber (Formatting)
+  - (NSString *)currencyString;
+  - (NSString *)description;
+  @end
+
+  @implementation NSDecimalNumber (Formatting)
+  - (NSString *)currencyString { return [self lb_format]; }
+  - (NSString *)description { return [self currencyString]; }
+  @end
+bug_lines: [2, 3, 8]
+reasons:
+  - "currencyString 沒有 lb_ 前綴，可能跟其他分類撞名；description 覆寫了既有方法，整個程式裡 NSDecimalNumber 的 description 都被換掉且找不回來"
+  - 分類不能宣告回傳 NSString 的方法
+  - description 應該改成 debugDescription 就沒問題
+  - "@implementation 應該寫成 @implementation NSDecimalNumber 不加括號"
+answer_reason: 0
+fix: |
+  @interface NSDecimalNumber (LBFormatting)
+  - (NSString *)lb_currencyString;
+  @end
+  // 不要用分類覆寫 description；要自訂顯示就提供另一個方法
+solution_note: 兩條規則：分類方法加前綴；不要用分類覆寫既有方法（沒有 super、原實作消失、哪個版本生效看載入順序）。
+hints: ["方法名有沒有前綴？", "description 是 NSObject 本來就有的方法，用分類覆寫會發生什麼？"]
+feedback:
+  "2": debugDescription 也是既有方法，一樣是覆寫。
+  "3": 那樣會變成「第二個 @implementation NSDecimalNumber」，是重複定義類別的錯誤。

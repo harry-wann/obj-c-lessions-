@@ -1,0 +1,18 @@
+id: m05-5-3-xcode-2
+chapter: "5.3"
+type: xcode
+title: NSArray+LBFunctional
+mobile: false
+minutes: 15
+prompt: 替 NSArray 加分類 LBFunctional，提供 lb_map: / lb_filter: / lb_reduce:initial:，把 TS 的 map / filter / reduce 直覺帶進 Objective-C。
+starter: xcode/M05-starter
+steps:
+  - 新增 NSArray+LBFunctional.h / .m，介面照課文（含輕量泛型 `NSArray<ObjectType>`）。
+  - "實作用 for-in 迴圈加 NSMutableArray；lb_map: 的 block 回傳 nil 時以 [NSNull null] 佔位；最後 return [out copy] 回傳不可變陣列。"
+  - "lb_reduce:initial: 從 initial 開始，對每個元素呼叫 reducer(acc, obj)。"
+  - ⌘U 跑三個測試。
+tests:
+  - LBFunctionalTests/testMap
+  - LBFunctionalTests/testFilter
+  - LBFunctionalTests/testReduce
+solution_note: 回傳 `[out copy]` 而不是 NSMutableArray，呼叫端拿到的才是真正不可變的快照（3.x 的慣例）。

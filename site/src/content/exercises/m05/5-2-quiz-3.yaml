@@ -1,0 +1,14 @@
+id: m05-5-2-quiz-3
+chapter: "5.2"
+section: quiz
+type: quiz
+title: 該用哪種機制
+minutes: 1
+prompt: 帳本變動時，首頁、報表頁、桌面小工具三個互不相識的地方都要刷新。該用什麼？
+options: ["delegate", "completion block", "NSNotification", "KVO 觀察 delegate 屬性"]
+answer: 2
+explain: 一對多、發送者不認識接收者，是通知的場景。delegate 是一對一；block 跟著單次呼叫。
+hints: ["數一下接收者有幾個。", "發送者需要認識接收者嗎？"]
+feedback:
+  "0": delegate 只有一個；要三個接收者得自己維護觀察者陣列，那就是在重做通知中心。
+  "1": block 是一次性的結果回呼，不適合長期、多人訂閱。

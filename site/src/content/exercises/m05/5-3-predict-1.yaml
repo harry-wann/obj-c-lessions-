@@ -1,0 +1,24 @@
+id: m05-5-3-predict-1
+chapter: "5.3"
+type: predict
+title: map / filter / reduce 串起來
+minutes: 2
+code: |
+  NSArray<NSNumber *> *cents = @[@120, @-45, @80, @-30];
+  NSArray *expenses = [cents lb_filter:^BOOL(NSNumber *n) {
+      return n.integerValue < 0;
+  }];
+  NSArray *abs = [expenses lb_map:^id(NSNumber *n) {
+      return @(-n.integerValue);
+  }];
+  NSNumber *sum = [abs lb_reduce:^id(NSNumber *acc, NSNumber *n) {
+      return @(acc.integerValue + n.integerValue);
+  } initial:@0];
+  NSLog(@"%lu %@", (unsigned long)abs.count, sum);
+options: ["2 75", "4 125", "2 -75", "4 200"]
+accept: ["2 75"]
+feedback:
+  "4 125": filter 之後只剩負數兩筆。
+  "2 -75": map 已經把負號去掉了。
+solution_note: filter 留下 -45、-30；map 變 45、30；reduce 從 0 開始相加得 75。跟 TS 的 `cents.filter(...).map(...).reduce(..., 0)` 一模一樣。
+hints: ["filter 留下哪幾個？", "map 做了什麼？reduce 的 initial 是 0。"]

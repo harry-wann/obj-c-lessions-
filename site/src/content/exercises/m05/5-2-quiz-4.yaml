@@ -1,0 +1,17 @@
+id: m05-5-2-quiz-4
+chapter: "5.2"
+section: quiz
+type: quiz
+title: data source 與 delegate 的差別
+minutes: 1
+prompt: 下列哪個方法最像 **data source** 的方法？
+options:
+  - "- (void)report:(LBReport *)report didSelectMonth:(NSInteger)month;"
+  - "- (NSInteger)numberOfMonthsInReport:(LBReport *)report;"
+  - "- (BOOL)report:(LBReport *)report shouldExpandMonth:(NSInteger)month;"
+  - "- (void)reportWillReload:(LBReport *)report;"
+answer: 1
+explain: data source 是「物件向你要資料」：方法有回傳值、通常 required、沒有時態。另外三個是 delegate：通知事件（did / will）或問意見（should）。
+hints: ["哪一個是在「要資料」而不是「通知你」或「問你可不可以」？", "UITableViewDataSource 的 numberOfRowsInSection: 長什麼樣？"]
+feedback:
+  "2": should 類是 delegate 在問意見，不是要資料。

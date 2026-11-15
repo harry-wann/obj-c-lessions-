@@ -1,5 +1,5 @@
 number: 9
-title: 持久化與資料層
+title: "持久化與資料層"
 days: 半天
-blurb: Phase 2 撰寫中。
-milestone: ""
+blurb: "沙盒路徑、NSUserDefaults、NSSecureCoding、JSON 存檔、Core Data 與 Keychain 概觀。"
+milestone: "LBPersistence、LBSettings；LBPersistenceTests 全綠"

@@ -1,5 +1,5 @@
 number: 11
-title: 舊專案實戰：MRC、Storyboard、CocoaPods
+title: "舊專案實戰：MRC、Storyboard、CocoaPods"
 days: 1.5 天
-blurb: Phase 2 撰寫中。
-milestone: ""
+blurb: "MRC 讀寫、淘汰 API、Storyboard 實作、XIB、CocoaPods 與第三方庫、舊專案結構、重構策略。"
+milestone: "設定頁 Storyboard、XIB cell、Podfile；LittleBook-Legacy 6 處埋雷修完"

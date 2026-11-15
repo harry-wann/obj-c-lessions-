@@ -1,5 +1,5 @@
 number: 8
-title: UIKit 實戰
+title: "UIKit 實戰"
 days: 2 天
-blurb: Phase 2 撰寫中。
-milestone: ""
+blurb: "App 與 VC 生命週期、程式碼 Auto Layout、UITableView、導覽與傳值、表單與鍵盤、Storyboard / XIB 入門、自訂繪圖。"
+milestone: "畫面 01、02、04、05、09；手動驗收 12 項"

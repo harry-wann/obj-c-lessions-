@@ -1,5 +1,5 @@
 number: 12
-title: 混編、測試、偵錯與上工準備
+title: "混編、測試、偵錯與上工準備"
 days: 1 天
-blurb: Phase 2 撰寫中。
-milestone: ""
+blurb: "Swift ↔ ObjC 互通、XCTest、偵錯工具、程式碼風格、上工檢查表與面試題。"
+milestone: "Swift 統計頁、全套測試全綠、Analyze 零警告"

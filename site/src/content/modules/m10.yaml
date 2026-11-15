@@ -1,5 +1,5 @@
 number: 10
-title: 效能、多執行緒進階與不掉幀
+title: "效能、多執行緒進階與不掉幀"
 days: 1.5 天
-blurb: Phase 2 撰寫中。
-milestone: ""
+blurb: "幀預算、UITableView 不掉幀、大量資料匯入、鎖與同步原語、高併發、debounce 搜尋、記憶體與啟動。"
+milestone: "畫面 03、07、10；FPS 監視器、匯入 100,000 筆、鎖 benchmark；TSan 零警告"

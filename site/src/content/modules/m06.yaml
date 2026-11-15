@@ -1,5 +1,5 @@
 number: 6
-title: 執行期與動態特性
+title: "執行期與動態特性"
 days: 1 天
-blurb: Phase 2 撰寫中。
-milestone: ""
+blurb: "id / SEL / Class、訊息派送與三段救援、內省、KVC / KVO、method swizzling 與關聯物件、target-action。"
+milestone: "KVO 總額、字串路由；LBLedgerKVOTests、LBRouterTests 全綠"

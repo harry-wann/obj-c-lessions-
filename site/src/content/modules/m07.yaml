@@ -1,5 +1,5 @@
 number: 7
-title: 錯誤處理、並行與網路
+title: "錯誤處理、並行與網路"
 days: 1 天
-blurb: Phase 2 撰寫中。
-milestone: ""
+blurb: "NSError 慣例、例外與斷言、GCD、NSOperation、執行緒安全、NSURLSession、JSON 防禦解析。"
+milestone: "LBRateService（stub）、LBSyncQueue、barrier 帳本；對應測試全綠"

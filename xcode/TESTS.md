@@ -64,3 +64,144 @@ NSString *LBFormatCents(long long cents);       // 128000 → @"1,280.00"
 // NSArray+LBFunctional（M5）  - lb_map: / lb_filter: / lb_reduce:initial:
 // LBUndoStack（M5）  - registerUndo:(void(^)(void))undo redo:(void(^)(void))redo / undo / redo / canUndo / canRedo
 ```
+
+---
+
+# Phase 2：里程碑 M06–M12
+
+| 里程碑 | 測試（類別/方法） | 對應章節 |
+|---|---|---|
+| M06 | `LBLedgerKVOTests/testTotalChangesNotifyObserver`、`LBLedgerKVOTests/testObserverRemovedOnDealloc`、`LBRouterTests/testRouteCreatesViewControllerByName`、`LBRouterTests/testUnknownRouteReturnsNil`、`LBRouterTests/testRouteRejectsNonViewControllerClass` | 6.1–6.4 |
+| M07 | `LBRateServiceTests/testParsesRatesFromStubJSON`、`LBRateServiceTests/testReportsErrorOnMalformedJSON`、`LBRateServiceTests/testReportsErrorWhenRateIsNotNumber`、`LBRateServiceTests/testCompletionCalledOnMainQueue`、`LBSyncQueueTests/testFIFOOrder`、`LBSyncQueueTests/testFlushWaitsForAll`、`LBLedgerConcurrencyTests/testConcurrentReadsAndWritesDoNotCrash` | 7.1–7.7 |
+| M08 | `LBTransactionListViewControllerTests/testSectionsMatchMonths`、`LBTransactionListViewControllerTests/testCellResetsAllFields`、`LBTransactionListViewControllerTests/testDeletingLastRowRemovesSection`、`LBCategoryPickerViewControllerTests/testRowsRespectExpansion`、`LBTransactionEditorViewControllerTests/testSaveCallsDelegateWithTransaction`、`LBTransactionEditorViewControllerTests/testInvalidAmountDoesNotSave` ＋ 手動驗收 12 項 | 8.1–8.8 |
+| M09 | `LBPersistenceTests/testRoundTripJSON`、`LBPersistenceTests/testWritesAtomicallyToDirectory`、`LBPersistenceTests/testCorruptFileReturnsError`、`LBPersistenceTests/testMissingFileReturnsEmptyLedger`、`LBSettingsTests/testDefaultsRegistered`、`LBSettingsTests/testCurrencyCodePersists`、`LBTransactionCodingTests/testDictionaryRoundTrip`、`LBTransactionCodingTests/testSecureCodingRoundTrip` | 9.1–9.4 |
+| M10 | `LBRingBufferTests/testOverwritesOldest`、`LBRingBufferTests/testAverageAndMax`、`LBFPSMonitorTests/testClassifiesDroppedFrames`、`LBImportServiceTests/testImportsInBatchesAndReportsProgress`、`LBImportServiceTests/testCancelStopsImport`、`LBSearchControllerTests/testStaleResultsAreDropped`、`LBSearchControllerTests/testDebounceCoalescesInput`、`LBLedgerConcurrencyTests/testBarrierWritesAreSerialized`、`LBLockBenchmarkTests/testAllLocksProduceSameCount`、`LBRateServiceTests/testConcurrentFetchLimitedBySemaphore`、`LBTransactionViewModelTests/testFormatsOnceAndCaches` | 10.1–10.7 |
+| M11 | `LBSettingsStoryboardTests/testStoryboardInstantiatesSettingsViewController`、`LBSettingsStoryboardTests/testOutletsConnectedAfterLoadView`、`LBTransactionCellNibTests/testNibLoadsCellWithOutlets`、`LBLegacyAuditTests/testLegacyChecklistComplete`（讀 `LegacyAudit.plist` 的 6 個勾選）＋ `LittleBook-Legacy/` 手動驗收 6 項 | 11.1–11.7 |
+| M12 | `StatsViewModelTests/testTotalsFromLedger`（Swift）、`StatsViewModelTests/testCategoryBreakdownSorted`（Swift）、`LBBridgingTests/testObjCCanInstantiateSwiftStatsViewController`、`LBBridgingTests/testNullabilityAnnotationsPresent`（檢查 `LBLedger.h` 等標頭有 `NS_ASSUME_NONNULL_BEGIN`）＋ 全套測試全綠、Analyze 零警告、`-Werror` 可建置 | 12.1–12.6 |
+
+## Phase 2 共用介面（名稱固定）
+
+```objc
+// M06 ----------------------------------------------------------------
+// LBLedger：total 變成 KVO-compliant（add / remove / reset 後在主執行緒通知）
+@property (nonatomic, strong, readonly) NSDecimalNumber *total;     // 收入 − 支出
+// LBRouter：以字串建立 ViewController（舊專案 URL scheme 常見寫法）
+@interface LBRouter : NSObject
++ (nullable UIViewController *)viewControllerForName:(NSString *)name;  // NSClassFromString + isSubclassOfClass:[UIViewController class]
++ (void)registerAlias:(NSString *)alias forClassName:(NSString *)className;
+@end
+// LBStatsObserver（6.4 範例）：用 KVO 觀察 ledger.total，dealloc 移除
+
+// M07 ----------------------------------------------------------------
+typedef void (^LBRatesCompletion)(NSDictionary<NSString *, NSDecimalNumber *> * _Nullable rates, NSError * _Nullable error);
+@interface LBRateService : NSObject
+- (instancetype)initWithSession:(NSURLSession *)session baseURL:(NSURL *)baseURL NS_DESIGNATED_INITIALIZER;
++ (nullable NSDictionary<NSString *, NSDecimalNumber *> *)ratesFromJSONData:(NSData *)data error:(NSError **)error;  // 純解析，可單測
+- (void)fetchRatesForBase:(NSString *)base completion:(LBRatesCompletion)completion;   // 回呼切回主佇列
+- (void)fetchRatesForBases:(NSArray<NSString *> *)bases maxConcurrent:(NSUInteger)max completion:(void (^)(NSDictionary<NSString *, NSDictionary *> *results, NSArray<NSError *> *errors))completion;  // M10：semaphore 限流 + dispatch_group
+@end
+// 錯誤碼
+typedef NS_ERROR_ENUM(LBErrorDomain, LBErrorCode) { LBErrorCodeMalformedJSON = 100, LBErrorCodeUnexpectedType = 101, LBErrorCodeHTTPStatus = 102, LBErrorCodeCancelled = 103 };
+// 測試用 stub：LBStubURLProtocol（NSURLProtocol 子類別）依 URL 回固定 JSON；或注入 NSURLSessionConfiguration.protocolClasses
+@interface LBSyncQueue : NSObject            // 離線待同步 FIFO，內部串列 dispatch queue
+- (void)enqueueTask:(void (^)(dispatch_block_t done))task;   // 任務完成時呼叫 done
+- (void)flushWithCompletion:(dispatch_block_t)completion;     // dispatch_group 等全部完成，主佇列回呼
+@property (nonatomic, readonly) NSUInteger pendingCount;
+@end
+// LBLedger：內部改用 DISPATCH_QUEUE_CONCURRENT + barrier（讀並行、寫 barrier）
+
+// M08 ----------------------------------------------------------------
+@interface LBTransactionViewModel : NSObject     // cell 顯示用，字串預先算好（M10 加快取）
+@property (nonatomic, copy, readonly) NSString *title, *subtitle, *amountText, *symbolName; @property (nonatomic, readonly) BOOL isExpense;
++ (instancetype)viewModelWithTransaction:(LBTransaction *)tx;
+@end
+@interface LBTransactionCell : UITableViewCell       // 程式碼 Auto Layout；reuseIdentifier = @"LBTransactionCell"
+- (void)configureWithViewModel:(LBTransactionViewModel *)vm;
+@end
+@interface LBMonthHeaderView : UITableViewHeaderFooterView
+- (void)configureWithSection:(LBMonthSection *)section;
+@end
+@interface LBTransactionListViewController : UITableViewController
+- (instancetype)initWithLedger:(LBLedger *)ledger undoStack:(LBUndoStack *)undoStack;
+@property (nonatomic, copy, readonly) NSArray<LBMonthSection *> *sections;     // 測試用
+@end
+@protocol LBTransactionEditorDelegate <NSObject>
+- (void)editor:(LBTransactionEditorViewController *)editor didSaveTransaction:(LBTransaction *)transaction;
+- (void)editorDidCancel:(LBTransactionEditorViewController *)editor;
+@end
+@interface LBTransactionEditorViewController : UIViewController
+- (instancetype)initWithLedger:(LBLedger *)ledger transaction:(nullable LBTransaction *)transaction;   // nil = 新增
+@property (nonatomic, weak) id<LBTransactionEditorDelegate> delegate;
+- (BOOL)saveWithError:(NSError **)error;          // 測試用：金額非法回 NO
+@property (nonatomic, strong) UITextField *amountField;      // 測試用
+@end
+@interface LBCategoryPickerViewController : UITableViewController
+- (instancetype)initWithRootCategories:(NSArray<LBCategory *> *)roots selected:(nullable LBCategory *)selected;
+@property (nonatomic, copy, nullable) void (^onSelect)(LBCategory *category);
+@property (nonatomic, copy, readonly) NSArray<LBCategory *> *visibleRows;   // 依展開狀態攤平
+- (void)toggleExpansionOf:(LBCategory *)category;
+@end
+// LBCategory 預設分類樹：+[LBCategory defaultTree] 回 NSArray<LBCategory *>（飲食 / 交通 / 居住 / 娛樂 / 收入 各含子分類）
+// AppDelegate / SceneDelegate：UITabBarController（帳本 / 統計 / 設定），各包 UINavigationController
+// 手動驗收 12 項見課文 8.4 / 8.6 的 xcode 題
+
+// M09 ----------------------------------------------------------------
+// LBTransaction：<NSSecureCoding>、- dictionaryRepresentation、- initWithDictionary:error:（防禦 NSNull / 型別）
+@interface LBPersistence : NSObject
+- (instancetype)initWithDirectoryURL:(NSURL *)directoryURL;   // 測試傳 NSTemporaryDirectory()
+- (BOOL)saveLedger:(LBLedger *)ledger error:(NSError **)error;     // JSON、NSDataWritingAtomic
+- (nullable LBLedger *)loadLedgerWithError:(NSError **)error;      // 檔案不存在 → 空帳本（非 nil、無 error）
+- (void)saveLedger:(LBLedger *)ledger completion:(void (^)(NSError * _Nullable))completion;   // 背景佇列寫、主佇列回呼
+@property (nonatomic, copy, readonly) NSURL *fileURL;
+@end
+@interface LBSettings : NSObject
++ (instancetype)shared;
+- (instancetype)initWithUserDefaults:(NSUserDefaults *)defaults;   // 測試用 suiteName
+@property (nonatomic, copy) NSString *currencyCode;      // 預設 TWD（registerDefaults）
+@property (nonatomic, assign) BOOL showsCents;           // 預設 YES
+@property (nonatomic, assign) NSInteger appearance;       // 0 跟隨系統 / 1 淺 / 2 深
+@end
+// LBSettingsViewController（M09 先用程式碼，M11 改 Storyboard）
+
+// M10 ----------------------------------------------------------------
+@interface LBRingBuffer : NSObject          // 固定容量 double 緩衝
+- (instancetype)initWithCapacity:(NSUInteger)capacity;
+- (void)append:(double)value; - (double)average; - (double)max; - (NSUInteger)count; - (NSArray<NSNumber *> *)values;
+@end
+@interface LBFPSMonitor : NSObject          // CADisplayLink；DEBUG 用
++ (instancetype)shared; - (void)start; - (void)stop;
+@property (nonatomic, readonly) double fps, lastFrameMilliseconds; @property (nonatomic, readonly) LBRingBuffer *history;
++ (NSInteger)classifyFrameDuration:(double)milliseconds;   // 0 正常 <16.7、1 警告 <33、2 掉幀；可單測
+@end
+@interface LBImportService : NSObject
+- (instancetype)initWithLedger:(LBLedger *)ledger;
+- (NSProgress *)importCSVAtURL:(NSURL *)url batchSize:(NSUInteger)batchSize progress:(void (^)(NSUInteger done, NSUInteger total))progress completion:(void (^)(NSError * _Nullable))completion;  // 背景解析、每批 performBatchImport:、進度節流 100 ms、支援 cancel
++ (NSURL *)generateSampleCSVWithCount:(NSUInteger)count error:(NSError **)error;   // 產生測試資料
+@end
+@interface LBSearchController : NSObject
+- (instancetype)initWithLedger:(LBLedger *)ledger;
+@property (nonatomic, assign) NSTimeInterval debounceInterval;   // 預設 0.25
+- (void)search:(NSString *)query results:(void (^)(NSArray<LBTransaction *> *results, NSString *query))results;   // 世代計數：舊結果不回呼
+- (void)cancel;
+@end
+@interface LBLockBenchmark : NSObject
++ (NSDictionary<NSString *, NSNumber *> *)runWithIterations:(NSUInteger)n threads:(NSUInteger)t;   // keys: synchronized / NSLock / unfair_lock / serialQueue → 秒數；每種鎖的計數器都必須等於 n*t
+@end
+// LBPerformanceViewController：畫面 10；LBTransactionViewModel 加 LBLRUCache 快取
+
+// M11 ----------------------------------------------------------------
+// Settings.storyboard：LBSettingsViewController（static cells；IBOutlet currencyLabel / centsSwitch / appearanceLabel；segue identifier "showPerformance" → LBPerformanceViewController）
+// LBTransactionCell.xib：同一個 cell 的 XIB 版；registerNib:；File's Owner 不用
+// Podfile：Masonry（編輯頁改寫一次）；use_frameworks! 不用（靜態）
+// LittleBook-Legacy/：獨立專案（MRC、全 Storyboard、NSURLConnection、UIAlertView、CocoaPods），埋雷 6 處：
+//   1 LBLegacyTransaction over-release（dealloc 多 release）2 setter 漏 release 洩漏 3 LBLegacyListViewController 一條 IBOutlet 斷線
+//   4 segue identifier 打錯 5 category 在靜態庫未加 -ObjC 6 NSURLConnection delegate 未在 dealloc 取消
+// LegacyAudit.plist：6 個 BOOL 勾選；LBLegacyAuditTests 讀它（學生修完後手動勾）
+
+// M12 ----------------------------------------------------------------
+// StatsViewController.swift / StatsViewModel.swift（@objc，繼承 NSObject）：
+//   final class StatsViewModel: NSObject { init(ledger: LBLedger); var expenseTotal / incomeTotal / balance: NSDecimalNumber; func categoryBreakdown() -> [(name: String, total: NSDecimalNumber)]  (排序由大到小；ObjC 看不到 tuple → 另提供 @objc func categoryNames() -> [String]) }
+//   @objc final class StatsViewController: UIViewController { @objc init(ledger: LBLedger) }   // ObjC 透過 LittleBook-Swift.h 建立並放進 tab
+// LittleBook-Bridging-Header.h：import LBLedger.h 等；project.yml 加 SWIFT_OBJC_BRIDGING_HEADER、SWIFT_VERSION 5
+// 全部 ObjC 標頭補 NS_ASSUME_NONNULL；NS_SWIFT_NAME 示範至少 2 處；completion handler 方法 Swift 端可 async 呼叫
+```

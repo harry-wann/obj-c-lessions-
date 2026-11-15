@@ -1,0 +1,48 @@
+id: m03-3-4-advanced-2
+chapter: "3.4"
+type: code
+tier: advanced
+title: 進階：寫一個不會全部掉進同一個桶的 hash
+mobile: false
+minutes: 10
+prompt: |
+  `LBDateKey` 以 `year`、`month`（NSInteger）兩個欄位決定相等。寫出 `isEqual:` 與 `hash`，要求：相等必同 hash；不同的 (year, month) 盡量散開（例如 2026/3 與 2025/15 不要撞在一起）。
+  寫完後在 Scratch 建 10 萬個 LBDateKey 放進你的 LBHashMap，印出最長的鏈長度，和 `return 1;` 的版本比較。
+starter: |
+  @implementation LBDateKey
+  - (BOOL)isEqual:(id)object {
+
+  }
+  - (NSUInteger)hash {
+
+  }
+  - (id)copyWithZone:(NSZone *)zone { return self; }
+  @end
+checks:
+  - must_match: 'isKindOfClass:|\[\s*object\s+class\s*\]\s*!=|\[\s*self\s+class\s*\]'
+    message: isEqual: 先檢查型別
+  - must_match: 'year\s*==\s*\w+\.?\s*year|\.year\s*==\s*\w+\.year'
+    message: isEqual: 要比 year
+  - must_match: 'month\s*==\s*\w+\.?\s*month|\.month\s*==\s*\w+\.month'
+    message: isEqual: 要比 month
+  - must_match: '\^|\*\s*31|<<'
+    message: hash 要把 year 與 month 混合（XOR、乘質數或位移），不能只回傳其中一個
+  - must_not_match: 'return\s+1\s*;'
+    message: 不要回傳常數
+  - must_match: 'return'
+  - brackets_balanced: true
+solution: |
+  @implementation LBDateKey
+  - (BOOL)isEqual:(id)object {
+      if (self == object) return YES;
+      if (![object isKindOfClass:[LBDateKey class]]) return NO;
+      LBDateKey *other = object;
+      return _year == other.year && _month == other.month;
+  }
+  - (NSUInteger)hash {
+      return (NSUInteger)_year * 31 + (NSUInteger)_month;   // year 與 month 不會互相抵消
+  }
+  - (id)copyWithZone:(NSZone *)zone { return self; }
+  @end
+solution_note: "`year * 31 + month` 讓不同 (year, month) 幾乎不碰撞（month 最多 12 < 31）；`year ^ month` 也合法但 2026 ^ 3 與 2027 ^ 2 會撞。10 萬個鍵、門檻 0.75 的鏈結法雜湊表最長鏈通常 3–5；`return 1;` 時最長鏈就是 10 萬，objectForKey: 退化成 O(n)。"
+hints: ["isEqual: 參數是 id，先確認是同類別。", "hash 可以用 year * 質數 + month。", "相等的兩個物件 hash 必須相同，所以 hash 只能用 isEqual: 用到的欄位。"]

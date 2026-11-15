@@ -1,0 +1,14 @@
+id: m03-3-3-quiz-2
+chapter: "3.3"
+section: quiz
+type: quiz
+title: indexOfObject: 找不到時
+minutes: 1
+prompt: "`NSUInteger i = [arr indexOfObject:x];` 之後，判斷「找不到」的正確寫法是？"
+options: ["`i == -1`", "`i < 0`", "`i == NSNotFound`", "`i == nil`"]
+answer: 2
+explain: 找不到回傳 NSNotFound（等於 NSIntegerMax）。NSUInteger 是無號的，永遠不會小於 0，和 -1 比較還會有警告。
+hints: ["回傳型別是 NSUInteger，它能是負數嗎？", "Foundation 用哪個常數表示「沒找到」？"]
+feedback:
+  "0": "NSUInteger 與 -1 比較會收到有號 / 無號比較警告，而且永遠不相等。"
+  "1": "無號整數永遠 >= 0。"

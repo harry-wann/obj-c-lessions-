@@ -1,0 +1,21 @@
+id: m02-2-7-predict-1
+chapter: "2.7"
+type: predict
+title: 相等、複製與集合
+minutes: 2
+prompt: "`LBTransaction` 已正確覆寫 `isEqual:`、`hash` 與 `copyWithZone:`（copy 建出一個欄位相同的新物件）。這段印出什麼？"
+code: |
+  LBTransaction *a = [LBTransaction expenseWithAmount:n note:@"午餐"];
+  LBTransaction *b = [a copy];
+  NSMutableSet *set = [NSMutableSet set];
+  [set addObject:a];
+  [set addObject:b];
+  NSLog(@"%d %d %lu", a == b, [a isEqual:b], (unsigned long)set.count);
+options: ["0 1 1", "1 1 1", "0 0 2", "0 1 2"]
+accept: ["0 1 1"]
+feedback:
+  "1 1 1": "copy 建的是新物件，位址不同，== 是 0。"
+  "0 1 2": "hash 有一起覆寫且與 isEqual: 一致，集合會把 b 視為同一個元素，不會重複加入。"
+  "0 0 2": "isEqual: 已覆寫成比內容，欄位相同所以是 1。"
+solution_note: "== 比位址（0）、isEqual: 比內容（1）、NSSet 靠 hash + isEqual: 去重（1 個）。如果忘了覆寫 hash，第三個數字會變成 2——這就是合約的意義。"
+hints: ["copy 回傳的是不是同一個物件？", "NSSet 怎麼判斷兩個元素是否重複？"]

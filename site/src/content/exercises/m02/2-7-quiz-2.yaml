@@ -1,0 +1,11 @@
+id: m02-2-7-quiz-2
+chapter: "2.7"
+section: quiz
+type: quiz
+title: 覆寫 isEqual: 之後一定要一起覆寫？
+minutes: 1
+options: ["`hash`：isEqual: 為 YES 的兩個物件 hash 必須相等，否則 NSSet / NSDictionary 會找不到它", "`description`：否則 NSLog 印不出內容", "`copyWithZone:`：否則不能複製", "`isEqualToString:`：否則字串比較會錯"]
+answer: 0
+explain: "NSSet、NSDictionary 的鍵、indexOfObject: 先用 hash 找格子，再在格子裡用 isEqual: 確認。只覆寫 isEqual: 時 hash 還是位址，相等的物件落在不同格子，集合就「找不到明明在裡面的東西」。"
+hints: ["想想雜湊表怎麼找東西。", "Java 的 equals / hashCode 合約一模一樣。"]
+feedback: { "1": "description 和相等性無關，雖然 model 類別通常也會覆寫。", "2": "NSCopying 是另一件事，和相等性沒有合約關係。" }

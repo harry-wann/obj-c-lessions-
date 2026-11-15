@@ -1,0 +1,15 @@
+id: m02-2-6-quiz-2
+chapter: "2.6"
+section: quiz
+type: quiz
+title: isMemberOfClass: 與字串常值
+minutes: 1
+code: |
+  NSString *s = @"午餐";
+  BOOL a = [s isKindOfClass:[NSString class]];
+  BOOL b = [s isMemberOfClass:[NSString class]];
+options: ["a 是 YES、b 是 NO：實際類別是 __NSCFConstantString，NSString 是類別叢集", "a、b 都是 YES", "a、b 都是 NO", "編譯錯誤：isMemberOfClass: 不能用在字串上"]
+answer: 0
+explain: "NSString、NSArray、NSDictionary、NSNumber 都是類別叢集，公開類別只是介面，實體永遠是某個私有子類別，所以 isMemberOfClass: 對它們永遠 NO。工作上用 isKindOfClass:。"
+hints: ["試試 `NSStringFromClass([s class])` 印出來是什麼。", "isMemberOfClass: 問的是「剛好是這個類別」。"]
+feedback: { "1": "b 是 NO。對類別叢集用 isMemberOfClass: 是常見的坑。" }

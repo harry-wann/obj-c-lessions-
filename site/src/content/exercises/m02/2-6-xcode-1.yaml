@@ -1,0 +1,19 @@
+id: m02-2-6-xcode-1
+chapter: "2.6"
+type: xcode
+title: LBCategory 的遞迴走訪 flattened
+mobile: false
+minutes: 10
+prompt: "實作 `- (NSArray<LBCategory *> *)flattened`：深度優先、含自己，順序與 addChild: 的順序一致。"
+starter: xcode/M02-starter
+steps:
+  - "在 LBCategory.m 實作 flattened：先建一個含 self 的 NSMutableArray。"
+  - "對 mutableChildren 裡每個 child 呼叫 `[child flattened]`，用 addObjectsFromArray: 接上。"
+  - "回傳 `[result copy]`。"
+  - "⌘U 跑測試。"
+tests:
+  - LBCategoryTests/testFlattened
+acceptance:
+  - "飲食 → 午餐 → 便當、飲食 → 晚餐 的樹，flattened 是 [飲食, 午餐, 便當, 晚餐]。"
+  - "葉節點的 flattened 只有自己一個元素。"
+solution_note: "遞迴每一層都先放自己，所以不用特別處理葉節點。走訪方式還有廣度優先（用佇列），3.x 的資料結構章節會再碰到。"

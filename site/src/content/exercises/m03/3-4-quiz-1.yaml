@@ -1,0 +1,19 @@
+id: m03-3-4-quiz-1
+chapter: "3.4"
+section: quiz
+type: quiz
+title: 哪些型別可以直接當字典的鍵？
+minutes: 1
+prompt: 不另外寫程式的情況下，下列哪些可以當 `NSDictionary` 的鍵？（可複選）
+multi: true
+options:
+  - "`NSString`"
+  - "`NSNumber`"
+  - "`NSUUID`"
+  - "自己寫的 `LBCategory`（沒有實作 NSCopying）"
+  - "`NSIndexPath`"
+answer: [0, 1, 2, 4]
+explain: 鍵必須遵循 NSCopying，字典會 copy 一份存起來。NSString、NSNumber、NSUUID、NSDate、NSIndexPath 都遵循；自己的類別要先實作 `copyWithZone:`，否則一放進去就 unrecognized selector。
+hints: ["字典對鍵做了什麼？", "哪個協定只有 copyWithZone: 一個方法？"]
+feedback:
+  "3": "LBCategory 沒有實作 NSCopying，字典去 copy 鍵時會 crash：-[LBCategory copyWithZone:]: unrecognized selector。"

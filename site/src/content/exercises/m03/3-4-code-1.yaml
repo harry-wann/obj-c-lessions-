@@ -1,0 +1,33 @@
+id: m03-3-4-code-1
+chapter: "3.4"
+type: code
+title: 統計每個分類出現幾次
+mobile: false
+minutes: 5
+prompt: 實作 `LBCountByCategoryName`：給一串 `LBTransaction`，回傳 `NSDictionary<NSString *, NSNumber *>`，鍵是 `tx.category.name`，值是出現次數。`category` 可能是 nil，nil 的交易歸到 `@"未分類"`。
+starter: |
+  NSDictionary<NSString *, NSNumber *> *LBCountByCategoryName(NSArray<LBTransaction *> *txs) {
+
+  }
+checks:
+  - must_match: 'NSCountedSet|NSMutableDictionary'
+    message: 用 NSCountedSet 或 NSMutableDictionary 累計
+  - must_match: '未分類'
+    message: category 為 nil 時要歸到 @"未分類"
+  - must_match: 'for\s*\(|enumerateObjectsUsingBlock:'
+    message: 要走訪 txs
+  - must_match: '\?:|\?\s*.*:\s*@"未分類"|if\s*\('
+    message: 要處理 category 為 nil 的情況（?: 或 if）
+  - must_match: 'return'
+  - brackets_balanced: true
+solution: |
+  NSDictionary<NSString *, NSNumber *> *LBCountByCategoryName(NSArray<LBTransaction *> *txs) {
+      NSMutableDictionary<NSString *, NSNumber *> *counts = [NSMutableDictionary dictionary];
+      for (LBTransaction *tx in txs) {
+          NSString *name = tx.category.name ?: @"未分類";
+          counts[name] = @([counts[name] integerValue] + 1);
+      }
+      return [counts copy];
+  }
+solution_note: "`counts[name]` 不存在時回 nil，`integerValue` 得 0，所以 `+ 1` 剛好從 1 開始——這是「取不到回 nil」反過來幫你的例子。用 NSCountedSet 的版本更短：`[set addObject:name]` 再 `countForObject:`。最後 `copy` 回不可變版本（3.5）。"
+hints: ["取不存在的鍵回 nil，對 nil 送 integerValue 是 0。", "tx.category 是 nil 時，tx.category.name 也是 nil，可以用 ?: 給預設值。", "NSCountedSet 的 addObject: 會自動累計。"]

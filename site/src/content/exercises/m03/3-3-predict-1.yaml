@@ -1,0 +1,25 @@
+id: m03-3-3-predict-1
+chapter: "3.3"
+type: predict
+title: firstObject 與 objectAtIndex:0
+minutes: 2
+code: |
+  NSArray<NSString *> *a = @[@"午餐"];
+  NSArray<NSString *> *b = @[];
+  NSLog(@"%@", a.firstObject);
+  NSLog(@"%@", b.firstObject);
+  NSLog(@"%@", [b objectAtIndex:0]);
+  NSLog(@"沒印到這行");
+options:
+  - "午餐 (null) 然後 crash"
+  - "午餐 (null) (null) 沒印到這行"
+  - "午餐 然後 crash"
+  - "午餐 nil nil 沒印到這行"
+accept: ["午餐 (null) 然後 crash"]
+hints:
+  - firstObject 在空陣列回什麼？NSLog 用 %@ 印 nil 會顯示什麼？
+  - objectAtIndex:0 在空陣列會怎樣？
+feedback:
+  "午餐 (null) (null) 沒印到這行": "objectAtIndex:0 不會回 nil，它丟 NSRangeException：index 0 beyond bounds for empty array。"
+  "午餐 然後 crash": "firstObject 在空陣列安全地回 nil，%@ 印出 (null)，第三行才 crash。"
+solution_note: "`firstObject` 回 nil，`%@` 把 nil 印成 `(null)`；`objectAtIndex:0` 對空陣列丟 `-[__NSArray0 objectAtIndex:]: index 0 beyond bounds for empty NSArray`。類別名 `__NSArray0` 就是空陣列單例。"

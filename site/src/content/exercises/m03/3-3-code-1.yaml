@@ -1,0 +1,31 @@
+id: m03-3-3-code-1
+chapter: "3.3"
+type: code
+title: 寫出依日期倒序的比較器
+mobile: false
+minutes: 5
+prompt: 完成 `LBLedger` 的 `transactions` getter：回傳 `_storage` 依 `date` 由新到舊排序的新陣列。用 `sortedArrayUsingComparator:`，不要改動 `_storage`。
+starter: |
+  - (NSArray<LBTransaction *> *)transactions {
+
+  }
+checks:
+  - must_match: 'sortedArrayUsingComparator:'
+    message: 用 sortedArrayUsingComparator:（回新陣列）
+  - must_not_match: 'sortUsingComparator:'
+    message: sortUsingComparator: 會原地改動 _storage
+  - must_match: '\^\s*NSComparisonResult'
+    message: block 的回傳型別是 NSComparisonResult
+  - must_match: '\[\s*(\w+)\s*\.\s*date\s+compare:\s*(\w+)\s*\.\s*date\s*\]'
+    message: 用 date 的 compare: 比較
+  - must_match: 'return'
+  - brackets_balanced: true
+solution: |
+  - (NSArray<LBTransaction *> *)transactions {
+      return [_storage sortedArrayUsingComparator:
+              ^NSComparisonResult(LBTransaction *a, LBTransaction *b) {
+          return [b.date compare:a.date];
+      }];
+  }
+solution_note: 倒序就是 `[b.date compare:a.date]`。驗證器檢查不出你 a、b 的順序，請用 Xcode 任務的 `testTransactionsSortedByDateDescending` 確認。
+hints: ["sortedArray… 回新陣列、sort… 原地排。", "block 簽名是 ^NSComparisonResult(id a, id b)。", "NSDate 有 compare:。"]

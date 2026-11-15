@@ -1,0 +1,33 @@
+id: m02-2-8-fill-1
+chapter: "2.8"
+section: quiz
+type: fill
+title: 依慣例命名
+minutes: 2
+prompt: "依 Cocoa 命名慣例填入名字。"
+code: |
+  extern NSString * const ___1___;                 // 錯誤網域常數
+
+  typedef NS_ENUM(NSInteger, LBTransactionKind) {
+      ___2___,                                     // 支出
+      LBTransactionKindIncome,
+  };
+
+  @interface NSDecimalNumber (LBFormatting)
+  - (NSString *)___3___;                           // 格式化成貨幣字串
+  @end
+
+  @property (nonatomic, assign, getter=___4___) BOOL reconciled;
+blanks:
+  "1": { accept: ["LBErrorDomain"], chips: ["LBErrorDomain", "ERROR_DOMAIN", "kErrorDomain", "errorDomain"] }
+  "2": { accept: ["LBTransactionKindExpense"], chips: ["LBTransactionKindExpense", "Expense", "LBExpense", "EXPENSE"] }
+  "3": { accept: ["lb_currencyString"], chips: ["lb_currencyString", "currencyString", "getCurrencyString", "LBCurrencyString"] }
+  "4": { accept: ["isReconciled"], chips: ["isReconciled", "getReconciled", "reconciled", "hasReconciled"] }
+feedback:
+  "1=ERROR_DOMAIN": "全大寫加底線是 C 巨集的風格；Objective-C 常數用前綴加駝峰。"
+  "1=kErrorDomain": "k 前綴是 Core Foundation / 舊 Carbon 的風格，現代 Cocoa 用 LB 前綴。"
+  "2=Expense": "列舉的每個 case 都以型別名開頭，switch 時才知道屬於哪個列舉；Swift 匯入時會自動縮成 .expense。"
+  "3=currencyString": "分類方法沒前綴，Apple 之後加同名方法就撞了。"
+  "4=getReconciled": "get 在 Cocoa 表示透過指標回填，布林 getter 用 is。"
+solution_note: "常數與列舉 case 用 LB 前綴加駝峰、列舉 case 以型別名開頭、分類方法 lb_、布林 getter is。"
+hints: ["會進全域符號表的名字都要前綴。", "列舉 case 的前綴是什麼？", "分類方法與布林 getter 各有固定模式。"]

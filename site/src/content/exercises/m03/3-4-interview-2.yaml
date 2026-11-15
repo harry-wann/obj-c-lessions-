@@ -1,0 +1,14 @@
+id: m03-3-4-interview-2
+chapter: "3.4"
+type: flash
+tier: interview
+title: 面試題：設計 LRU 快取的思路
+minutes: 3
+front: |
+  設計一個容量固定的 LRU 快取，get 與 put 都要 O(1)。你會用哪些資料結構？在 Objective-C 裡各自用什麼實作？為什麼不能只用 NSDictionary？
+back: |
+  字典 + 雙向鏈結串列：字典 key → 節點，給 O(1) 查找；鏈結串列維持「最近使用」順序，命中就把節點移到頭、滿了就砍尾，移動與刪除 O(1)。
+  只用 NSDictionary 做不到「找出最久沒用的」——它沒有順序；只用 NSMutableArray 移動元素是 O(n)。
+  ObjC 裡字典用 NSMutableDictionary<KeyType, LBLinkedListNode *>，串列自己寫（Foundation 沒有），節點的 prev 用 weak 避免循環參考——4.3、4.4 會真的動手寫 LBLinkedList 與 LBLRUCache。
+  追問：NSCache 是什麼？它是執行緒安全、會在記憶體壓力時自動淘汰的快取，但淘汰策略不保證是 LRU，也不保證 count 上限。
+  Swift：同樣是 Dictionary + 自寫雙向串列（class 節點、weak prev）；Kotlin / Java：直接用 `LinkedHashMap(capacity, 0.75f, true)` 覆寫 `removeEldestEntry`，一行搞定。

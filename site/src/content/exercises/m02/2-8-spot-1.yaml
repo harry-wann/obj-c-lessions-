@@ -1,0 +1,32 @@
+id: m02-2-8-spot-1
+chapter: "2.8"
+type: spot
+title: 找出所有命名問題
+minutes: 3
+prompt: "這段能編譯，但每一個名字都違反了本章的慣例（其中一個還會讓 ARC 做錯事）。點選所有有問題的行並選出最完整的原因。"
+code: |
+  @interface Ledger : NSObject
+  - (NSString *)getTitle;
+  - (LBTransaction *)newTransactionAtIndex:(NSUInteger)index;
+  @end
+  @interface NSArray (Helpers)
+  - (NSDecimalNumber *)total;
+  @end
+bug_lines: [1, 2, 3, 5, 6]
+reasons:
+  - "類別沒前綴；getter 不該加 get；new 開頭的方法名會讓 ARC 以為回傳 +1 物件；分類名與分類方法都沒前綴"
+  - "只有第 1 行有問題，其他都是風格偏好"
+  - "方法名太長，應該縮寫"
+  - "分類不能加在 NSArray 上"
+answer_reason: 0
+fix: |
+  @interface LBLedger : NSObject
+  @property (nonatomic, copy, readonly) NSString *title;
+  - (LBTransaction *)transactionAtIndex:(NSUInteger)index;
+  @end
+  @interface NSArray (LBHelpers)
+  - (NSDecimalNumber *)lb_total;
+  @end
+solution_note: "new / copy / init 開頭的方法屬於 ARC 的方法家族，回傳既有物件會被多 release 一次，這不只是風格。類別名與分類名都要前綴，分類方法加 lb_。"
+hints: ["哪個開頭的方法名會改變 ARC 的擁有權假設？", "分類括號裡的名字也要前綴嗎？", "Java 的 getX 搬過來要變成什麼？"]
+feedback: { "1": "newTransactionAtIndex: 回傳既有物件會造成記憶體錯誤，絕對不只是風格。", "2": "Cocoa 慣例是不縮寫，長名字是正常的。", "3": "分類可以加在任何類別上，問題是名字。" }

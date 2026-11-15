@@ -1,0 +1,33 @@
+id: m02-2-6-predict-1
+chapter: "2.6"
+type: predict
+title: super 與多型
+minutes: 3
+prompt: "`LBCSVExporter` 繼承 `LBExporter`。這段印出什麼？"
+code: |
+  @implementation LBExporter
+  - (NSString *)header { return @"date"; }
+  - (NSString *)line {
+      return [NSString stringWithFormat:@"%@|", [self header]];
+  }
+  @end
+
+  @implementation LBCSVExporter
+  - (NSString *)header {
+      return [[super header] stringByAppendingString:@",amount"];
+  }
+  @end
+
+  // main
+  LBExporter *e = [LBCSVExporter new];
+  NSLog(@"%@", [e line]);
+  NSLog(@"%d", [e isKindOfClass:[LBExporter class]]);
+  NSLog(@"%d", [e isMemberOfClass:[LBExporter class]]);
+options: ["date,amount| 1 0", "date| 1 0", "date,amount| 1 1", "date| 0 1"]
+accept: ["date,amount| 1 0"]
+note: "三行輸出以空格分開"
+feedback:
+  "date| 1 0": "line 是父類別的方法，但裡面的 `[self header]` 仍派送到子類別的版本——這就是多型。"
+  "date,amount| 1 1": "e 的實際類別是 LBCSVExporter，isMemberOfClass:[LBExporter class] 是 NO。"
+solution_note: "變數型別寫 LBExporter 不影響派送：`[self header]` 在執行期查的是物件的實際類別。子類別的 header 用 super 拿到 date 再接上 ,amount。isKindOfClass: 含子類別所以 1；isMemberOfClass: 只認剛好的類別所以 0。"
+hints: ["`[self header]` 裡的 self 是哪個類別的物件？", "super 只影響「從哪個類別開始找」，不改變 self。", "isKindOfClass: 與 isMemberOfClass: 的差別在子類別算不算。"]

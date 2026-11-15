@@ -1,0 +1,39 @@
+id: m02-2-6-code-1
+chapter: "2.6"
+type: code
+title: 寫出一個子類別並覆寫方法
+mobile: false
+minutes: 5
+prompt: "宣告並實作 `LBCSVExporter`，繼承 `LBExporter`，覆寫 `- (NSString *)exportAmount:(NSDecimalNumber *)amount`，回傳金額後面加一個逗號（用 `stringWithFormat:`）。"
+starter: |
+  @interface LBExporter : NSObject
+  - (NSString *)exportAmount:(NSDecimalNumber *)amount;
+  @end
+
+checks:
+  - must_match: '@interface LBCSVExporter\s*:\s*LBExporter'
+    message: "要宣告 @interface LBCSVExporter : LBExporter"
+  - must_match: '@implementation LBCSVExporter'
+    message: "要有 @implementation LBCSVExporter"
+  - must_match: '@implementation LBCSVExporter[\s\S]*-\s*\(\s*NSString\s*\*\s*\)\s*exportAmount\s*:\s*\(\s*NSDecimalNumber\s*\*\s*\)\s*\w+\s*\{'
+    message: "在 LBCSVExporter 的 @implementation 裡覆寫 exportAmount:，簽名要與父類別相同"
+  - must_match: 'stringWithFormat\s*:\s*@"%@,"'
+    message: "用 [NSString stringWithFormat:@\"%@,\", amount] 組字串"
+  - must_not_match: 'override'
+    message: "Objective-C 沒有 override 關鍵字"
+  - brackets_balanced: true
+solution: |
+  @interface LBExporter : NSObject
+  - (NSString *)exportAmount:(NSDecimalNumber *)amount;
+  @end
+
+  @interface LBCSVExporter : LBExporter
+  @end
+
+  @implementation LBCSVExporter
+  - (NSString *)exportAmount:(NSDecimalNumber *)amount {
+      return [NSString stringWithFormat:@"%@,", amount];
+  }
+  @end
+solution_note: "子類別的 @interface 可以是空的，覆寫不需要重新宣告；在 @implementation 裡寫同名方法就是覆寫。這裡是完全取代行為，不呼叫 super（父類別版本會丟 doesNotRecognizeSelector:）。"
+hints: ["冒號後面寫父類別名。", "覆寫就是在 @implementation 裡寫一個簽名相同的方法。"]

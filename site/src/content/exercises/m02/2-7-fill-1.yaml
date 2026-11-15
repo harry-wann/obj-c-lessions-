@@ -1,0 +1,24 @@
+id: m02-2-7-fill-1
+chapter: "2.7"
+section: quiz
+type: fill
+title: 補齊 hash 與 copyWithZone:
+minutes: 2
+code: |
+  - (NSUInteger)___1___ {
+      return self.identifier.hash ^ (self.amount.hash << 1);
+  }
+
+  - (id)copyWithZone:(NSZone *)zone {
+      return [[[self ___2___] allocWithZone:zone] initWithAmount:self.amount
+                                                            note:self.note];
+  }
+blanks:
+  "1": { accept: ["hash"], chips: ["hash", "hashCode", "hashValue", "isEqual"] }
+  "2": { accept: ["class"], chips: ["class", "superclass", "copy", "init"] }
+feedback:
+  "1=hashCode": "那是 Java。Objective-C 的方法叫 hash，回傳 NSUInteger。"
+  "2=superclass": "會建出父類別的實體，子類別的 copy 就壞了。"
+  "2=copy": "在 copyWithZone: 裡呼叫 copy 會無窮遞迴。"
+solution_note: "hash 用參與 isEqual: 的欄位 XOR 混合；copyWithZone: 用 `[self class]` 建新物件，子類別才會得到子類別。"
+hints: ["Java 的 hashCode 在 Objective-C 叫什麼？", "要建出「和自己同類別」的新物件，問誰拿類別？"]

@@ -1,0 +1,16 @@
+id: m03-3-4-quiz-2
+chapter: "3.4"
+section: quiz
+type: quiz
+title: 取不存在的鍵
+minutes: 1
+code: |
+  NSDictionary *budget = @{ @"餐飲": @6000 };
+  NSInteger rent = [budget[@"房租"] integerValue];
+prompt: "`rent` 是多少？"
+options: ["crash：NSUnknownKeyException", "0", "-1", "編譯錯誤"]
+answer: 1
+explain: 取不存在的鍵回 nil，對 nil 送 `integerValue` 安靜地回 0。這和 Java 的 NPE 完全不同，是 ObjC 找 bug 時要先懷疑的地方。
+hints: ["objectForKey: 找不到時回什麼？", "對 nil 送訊息會怎樣？（2.2）"]
+feedback:
+  "0": "NSUnknownKeyException 是 KVC（3.7）的事；字典取不到鍵只是回 nil。"

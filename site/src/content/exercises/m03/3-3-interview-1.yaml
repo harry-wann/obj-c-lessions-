@@ -1,0 +1,23 @@
+id: m03-3-3-interview-1
+chapter: "3.3"
+type: flash
+tier: interview
+title: 面試題：兩數之和（Two Sum）
+minutes: 3
+front: |
+  給一個整數陣列與目標值 target，回傳相加等於 target 的兩個索引。O(n) 怎麼做？
+  用 Objective-C 寫，順帶說明為什麼不能用 ==。
+back: |
+  一趟走訪 + 字典：對每個 x 查「target - x 有沒有出現過」，沒有就把 x → 索引存進字典。
+  ```
+  NSMutableDictionary<NSNumber *, NSNumber *> *seen = [NSMutableDictionary dictionary];
+  for (NSUInteger i = 0; i < nums.count; i++) {
+      NSInteger x = [nums[i] integerValue];
+      NSNumber *j = seen[@(target - x)];
+      if (j) return @[j, @(i)];
+      seen[@(x)] = @(i);
+  }
+  ```
+  字典查鍵用 hash / isEqual:，所以 @(3) 不論是不是同一個物件都找得到；用 == 比 NSNumber 在大數字時會失敗。
+  時間 O(n)、空間 O(n)。
+  Swift：`var seen: [Int: Int] = [:]`，`if let j = seen[target - x]`。Kotlin：`val seen = HashMap<Int, Int>()`，`seen[target - x]?.let { return intArrayOf(it, i) }`。

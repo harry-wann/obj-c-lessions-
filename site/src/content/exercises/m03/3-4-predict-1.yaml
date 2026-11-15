@@ -1,0 +1,23 @@
+id: m03-3-4-predict-1
+chapter: "3.4"
+type: predict
+title: 字典走訪的順序
+minutes: 2
+code: |
+  NSDictionary *budget = @{ @"餐飲": @6000, @"交通": @1500, @"娛樂": @2000 };
+  NSMutableArray *keys = [NSMutableArray array];
+  for (NSString *k in budget) [keys addObject:k];
+  NSLog(@"%@", [keys componentsJoinedByString:@" "]);
+options:
+  - "餐飲 交通 娛樂（和字面值順序相同）"
+  - "交通 娛樂 餐飲（依字串排序）"
+  - 三個鍵都會出現，但順序由 hash 決定，不同版本 / 不同元素數可能不同，不能依賴
+  - "娛樂 交通 餐飲（倒序）"
+accept: ["三個鍵都會出現，但順序由 hash 決定，不同版本 / 不同元素數可能不同，不能依賴"]
+hints:
+  - NSDictionary 底下是雜湊表，元素依 hash 落在哪個桶決定順序。
+  - 和 Kotlin 的 LinkedHashMap、TS 的 Map 不一樣。
+feedback:
+  "餐飲 交通 娛樂（和字面值順序相同）": "NSDictionary 不保留插入順序，這是從 Kotlin / TS 來最容易踩的坑。"
+  "交通 娛樂 餐飲（依字串排序）": "字典不會自動排序，要順序得自己對 allKeys 排。"
+solution_note: NSDictionary 的走訪順序由鍵的 hash 與桶數決定，NSString 的 hash 在不同作業系統版本可能不同、元素一多擴容後順序又變。測試要比對結果請先排序，畫面要固定順序就用陣列或 NSOrderedSet。

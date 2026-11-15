@@ -1,0 +1,19 @@
+id: m03-3-3-parsons-1
+chapter: "3.3"
+type: parsons
+title: 依日期倒序排序
+minutes: 3
+prompt: 把這些行排成一個方法，回傳依 `date` 由新到舊排序的交易陣列（不改動原陣列）。有一行是干擾項。
+lines:
+  - "- (NSArray<LBTransaction *> *)sortedByDateDescending:(NSArray<LBTransaction *> *)txs {"
+  - "    return [txs sortedArrayUsingComparator:"
+  - "        ^NSComparisonResult(LBTransaction *a, LBTransaction *b) {"
+  - "            return [b.date compare:a.date];"
+  - "        }];"
+  - "}"
+distractors:
+  - "            return [a.date compare:b.date];"
+hints:
+  - sortedArrayUsingComparator: 回傳新陣列，sortUsingComparator: 才是原地排。
+  - 倒序就是把 a、b 對調去比。
+solution_note: "`[b.date compare:a.date]` 在 b 比 a 新時回 NSOrderedDescending，排序器就把 a 放後面——所以是由新到舊。`[a.date compare:b.date]` 是由舊到新。"

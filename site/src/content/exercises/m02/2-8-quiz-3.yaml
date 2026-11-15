@@ -1,0 +1,12 @@
+id: m02-2-8-quiz-3
+chapter: "2.8"
+section: quiz
+type: quiz
+title: 分類方法的命名
+minutes: 1
+prompt: "你在 `NSArray` 的分類裡加一個「把所有金額加總」的方法。哪個名字最安全？"
+options: ["`lb_totalAmount`", "`totalAmount`", "`getTotalAmount`", "`LBTotalAmount`"]
+answer: 0
+explain: "分類方法加小寫前綴加底線，Apple 永遠不會用這種命名，就不會和未來系統新增的方法撞名（iOS 7 加 firstObject 時很多 App 的分類就壞了）。"
+hints: ["Apple 之後在 NSArray 加一個同名方法會怎樣？", "大寫前綴是給類別的，方法用小寫。"]
+feedback: { "1": "總有一天 Apple 可能加同名方法，哪個生效是未定義的。", "3": "大寫前綴是類別 / 常數的慣例，方法名小寫開頭。" }

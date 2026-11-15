@@ -1,0 +1,12 @@
+id: m02-2-7-quiz-4
+chapter: "2.7"
+section: quiz
+type: quiz
+title: po 呼叫哪個方法？
+minutes: 1
+prompt: "在 lldb 裡輸入 `po tx`，印出的字串來自哪個方法？"
+options: ["`debugDescription`，它的預設實作轉呼叫 `description`", "`description`，和 NSLog 的 %@ 完全相同", "`toString`", "`NSStringFromClass`"]
+answer: 0
+explain: "po 用 debugDescription，NSLog / %@ 用 description。NSObject 的 debugDescription 預設回傳 description，所以大多數類別只覆寫 description 就夠；想讓 po 印得更囉唆才另外覆寫 debugDescription。"
+hints: ["兩個方法名都含 description，差在前面有沒有 debug。", "lldb 是偵錯工具。"]
+feedback: { "1": "結果通常相同，但走的方法不同；NSDictionary 等類別的 debugDescription 就印得和 description 不一樣。" }

@@ -1,0 +1,80 @@
+id: m03-3-3-advanced-1
+chapter: "3.3"
+type: code
+tier: advanced
+title: 進階：自寫 LBDynamicArray 並實驗擴容倍數
+mobile: false
+minutes: 20
+prompt: |
+  用 C 陣列（`id __strong *` 或 `malloc` 的 `void **`）自己寫一個最小的動態陣列，`append:` 滿了就擴容。寫完後在 Scratch 加入 10 萬個元素，記錄「擴容次數」與「總共搬移的元素數」，把倍數從 2 改成 1.5 與 4 各跑一次，比較結果。
+  這裡先寫核心：`append:` 與 `grow`。
+starter: |
+  @interface LBDynamicArray : NSObject
+  @property (nonatomic, readonly) NSUInteger count;
+  @property (nonatomic, readonly) NSUInteger capacity;
+  @property (nonatomic, readonly) NSUInteger growCount;   // 擴容次數
+  @property (nonatomic, readonly) NSUInteger moved;       // 累計搬移元素數
+  - (void)append:(id)object;
+  - (id)objectAtIndex:(NSUInteger)index;
+  @end
+
+  @implementation LBDynamicArray {
+      id __strong *_items;   // ARC 下的強參考 C 陣列
+  }
+  - (void)grow {
+      // 新容量 = 舊容量 * 2（容量 0 時給 4），配置新陣列、搬移、釋放舊的
+  }
+  - (void)append:(id)object {
+
+  }
+  - (id)objectAtIndex:(NSUInteger)index {
+
+  }
+  @end
+checks:
+  - must_match: '_capacity\s*\*\s*2|_capacity\s*<<\s*1|capacity\s*\*\s*2'
+    message: grow 裡新容量要是舊容量的倍數（先用 2）
+  - must_match: 'calloc|malloc'
+    message: 用 calloc / malloc 配置新的 C 陣列
+  - must_match: 'free\s*\('
+    message: 搬完要 free 舊陣列
+  - must_match: '_growCount\s*(\+\+|\+=\s*1)|_growCount\s*=\s*_growCount\s*\+\s*1'
+    message: 每次擴容把 growCount 加 1
+  - must_match: '_moved\s*\+='
+    message: 累計搬移的元素數
+  - must_match: '_count\s*(>=|==)\s*_capacity'
+    message: append 時滿了（count >= capacity）才 grow
+  - must_match: 'NSRangeException|NSAssert|index\s*<\s*_count|index\s*>=\s*_count'
+    message: objectAtIndex: 要檢查越界
+  - brackets_balanced: true
+solution: |
+  - (void)grow {
+      NSUInteger newCapacity = _capacity == 0 ? 4 : _capacity * 2;
+      id __strong *newItems = (id __strong *)calloc(newCapacity, sizeof(id));
+      for (NSUInteger i = 0; i < _count; i++) {
+          newItems[i] = _items[i];
+          _items[i] = nil;
+      }
+      _moved += _count;
+      free(_items);
+      _items = newItems;
+      _capacity = newCapacity;
+      _growCount++;
+  }
+  - (void)append:(id)object {
+      if (_count >= _capacity) [self grow];
+      _items[_count++] = object;
+  }
+  - (id)objectAtIndex:(NSUInteger)index {
+      if (index >= _count) {
+          [NSException raise:NSRangeException format:@"index %lu beyond bounds [0 .. %lu]",
+             (unsigned long)index, (unsigned long)(_count - 1)];
+      }
+      return _items[index];
+  }
+solution_note: |
+  倍數 2：10 萬筆約 15 次擴容、搬移約 13 萬次（< 2n）；倍數 1.5：約 26 次、搬移約 20 萬次；倍數 4：約 9 次、搬移約 4 萬次但浪費更多記憶體。總搬移量永遠是 O(n)，這就是攤銷 O(1) 的來源。別忘了 dealloc 時把每格設 nil 再 free，否則 ARC 不會釋放元素。
+hints:
+  - 容量 0 時先給一個小的起始值，不然 0 * 2 永遠是 0。
+  - 搬移時把舊格子設 nil，ARC 才知道所有權轉移了。
+  - 滿的條件是 count >= capacity。

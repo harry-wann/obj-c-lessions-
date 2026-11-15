@@ -1,0 +1,32 @@
+id: m02-2-6-spot-1
+chapter: "2.6"
+type: spot
+title: flattened 少了什麼？
+minutes: 3
+prompt: "`flattened` 應該深度優先列出自己與所有子孫。這個版本對兩層以上的樹會算錯，點選有問題的行並選出原因。"
+code: |
+  - (NSArray<LBCategory *> *)flattened {
+      NSMutableArray *result = [NSMutableArray array];
+      for (LBCategory *child in self.children) {
+          [result addObject:child];
+      }
+      return [result copy];
+  }
+bug_lines: [2, 4]
+reasons:
+  - "沒有先放進 self，而且對每個子節點只加入它本身、沒有遞迴呼叫 `[child flattened]`，孫節點全部漏掉"
+  - "for-in 不能用在 NSArray 上，要用索引迴圈"
+  - "最後不該 copy，應直接回傳 result"
+  - "應該用 isKindOfClass: 過濾子節點"
+answer_reason: 0
+fix: |
+  - (NSArray<LBCategory *> *)flattened {
+      NSMutableArray *result = [NSMutableArray arrayWithObject:self];
+      for (LBCategory *child in self.children) {
+          [result addObjectsFromArray:[child flattened]];
+      }
+      return [result copy];
+  }
+solution_note: "遞迴的形狀：先處理自己，再對每個子樹呼叫同一個方法並把結果接上。每一層都會把自己放進去，所以不需要額外處理葉節點。"
+hints: ["testFlattened 期待的第一個元素是誰？", "孫節點會被誰加進去？目前的程式有呼叫到孫節點嗎？"]
+feedback: { "1": "for-in（快速列舉）完全可以用在 NSArray。", "2": "回傳不可變 copy 是 2.5 的慣例，沒問題。" }

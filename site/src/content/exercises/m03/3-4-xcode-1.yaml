@@ -1,0 +1,26 @@
+id: m03-3-4-xcode-1
+chapter: "3.4"
+type: xcode
+title: 自己實作鏈結法雜湊表 LBHashMap
+mobile: false
+minutes: 40
+prompt: 在 M03 起始專案實作 `LBHashMap`：用 `NSMutableArray` 當桶、每個桶是一個 `NSMutableArray` 的鏈，通過與 `NSDictionary` 行為一致的五個測試。
+starter: xcode/M03-starter
+steps:
+  - 定義一個私有的 `LBHashMapEntry` 類別（key、value 兩個屬性）。
+  - "`init` 建立 8 個桶（每個桶是空的 NSMutableArray），`bucketCount` 回傳桶數。"
+  - "`setObject:forKey:`：用 `[key hash] % bucketCount` 選桶，沿鏈用 `isEqual:` 找；找到就覆寫 value，否則新增 entry（key 要 copy）並 count + 1。"
+  - "`objectForKey:`：同樣選桶、沿鏈找，找不到回 nil。"
+  - "`removeObjectForKey:`：找到就從鏈移除並 count − 1。"
+  - 負載因子 count / bucketCount 超過 0.75 時擴容：桶數加倍、把所有 entry 重新放進新桶。
+  - ⌘U 跑 LBHashMapTests。
+tests:
+  - LBHashMapTests/testSetAndGet
+  - LBHashMapTests/testOverwrite
+  - LBHashMapTests/testRemove
+  - LBHashMapTests/testGrowsBeyondInitialBuckets
+  - LBHashMapTests/testCustomKeyUsesHashAndIsEqual
+acceptance:
+  - 兩個 isEqual: 但不同實體的自訂鍵，能取到同一個值
+  - 放入 100 個元素後 bucketCount 大於 8
+solution_note: 擴容時不能直接搬鏈，要對每個 entry 重新算 `hash % 新桶數`。測完後在 Scratch 對 LBHashMap 與 NSDictionary 各做 10 萬次 setObject / objectForKey 計時比較，NSDictionary 用開放定址加上各種最佳化，應該快好幾倍——這就是「什麼時候真的該自己寫」的答案：幾乎從不，但你現在知道它底下在做什麼。

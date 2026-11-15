@@ -1,0 +1,20 @@
+id: m03-3-3-interview-2
+chapter: "3.3"
+type: quiz
+tier: interview
+title: 面試題：合併區間
+minutes: 3
+prompt: "合併重疊的區間，例如 `[[1,3],[2,6],[8,10],[15,18]]` → `[[1,6],[8,10],[15,18]]`。在 Objective-C 中，下列哪個步驟組合正確且最有效率？"
+options:
+  - 先用 sortedArrayUsingComparator: 依起點排序，再走訪一次，與結果陣列 lastObject 比較決定合併或加入；O(n log n)
+  - 兩層迴圈兩兩比較是否重疊，重疊就合併並從頭再來；O(n²) 以上
+  - 用 NSSet 去重後直接回傳
+  - 用 NSPredicate 過濾掉被包含的區間
+answer: 0
+explain: |
+  排序後重疊的區間一定相鄰，只要和結果的 `lastObject` 比：`cur.start <= last.end` 就把 `last.end = MAX(last.end, cur.end)`，否則 `addObject:`。區間用 `NSValue valueWithRange:` 或自己的小類別裝；`lastObject` 在結果為空時回 nil 剛好用來處理第一筆。
+  Swift：`intervals.sorted { $0.0 < $1.0 }` 再 `result.last`；Kotlin：`sortedBy { it.first }` 再 `result.last()`。
+hints: ["排序之後，重疊的區間會在哪裡？", "結果陣列的最後一個元素就夠了。"]
+feedback:
+  "1": "能做對但 O(n²)，面試官會追問怎麼優化。"
+  "2": "NSSet 去重和區間重疊無關。"

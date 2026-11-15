@@ -1,0 +1,24 @@
+id: m03-3-4-interview-1
+chapter: "3.4"
+type: flash
+tier: interview
+title: 面試題：字母異位詞分組
+minutes: 3
+front: |
+  給一組字串，把互為字母異位詞（anagram）的分在同一組：["eat","tea","tan","ate","nat","bat"] → [[eat,tea,ate],[tan,nat],[bat]]。
+  用 Objective-C 的字典怎麼做？鍵是什麼？
+back: |
+  把每個字串的字元排序後當鍵，同鍵的放同一個陣列。鍵是 NSString（遵循 NSCopying），值是 NSMutableArray。
+  ```
+  NSMutableDictionary<NSString *, NSMutableArray *> *groups = [NSMutableDictionary dictionary];
+  for (NSString *s in words) {
+      NSMutableArray *chars = [NSMutableArray array];
+      for (NSUInteger i = 0; i < s.length; i++) [chars addObject:[s substringWithRange:NSMakeRange(i, 1)]];
+      NSString *key = [[chars sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@""];
+      if (!groups[key]) groups[key] = [NSMutableArray array];
+      [groups[key] addObject:s];
+  }
+  return groups.allValues;
+  ```
+  時間 O(n · k log k)。追問：只有小寫英文時用 26 格計數陣列當鍵，O(n · k)；注意 ObjC 要把計數陣列轉成 NSString 才能當鍵。
+  Swift：`Dictionary(grouping: words) { String($0.sorted()) }`。Kotlin：`words.groupBy { it.toCharArray().sorted().joinToString("") }`。

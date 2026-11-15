@@ -1,0 +1,34 @@
+id: m03-3-3-spot-1
+chapter: "3.3"
+type: spot
+title: 刪除小額交易
+minutes: 3
+prompt: 這段程式想刪掉所有金額小於 100 的交易，執行到一半就 crash。點選有問題的行並選出原因。
+code: |
+  - (void)removeSmallTransactions {
+      NSDecimalNumber *limit = [NSDecimalNumber decimalNumberWithString:@"100"];
+      for (LBTransaction *tx in self.storage) {
+          if ([tx.amount compare:limit] == NSOrderedAscending) {
+              [self.storage removeObject:tx];
+          }
+      }
+  }
+bug_lines: [3, 5]
+reasons:
+  - 在快速列舉中修改被列舉的集合，Foundation 會丟 NSGenericException
+  - compare: 不能用在 NSDecimalNumber 上
+  - removeObject: 應該改成 removeObjectAtIndex:
+  - storage 應該宣告成 NSArray 才能刪
+answer_reason: 0
+fix: |
+  NSIndexSet *small = [self.storage indexesOfObjectsPassingTest:
+      ^BOOL(LBTransaction *tx, NSUInteger idx, BOOL *stop) {
+          return [tx.amount compare:limit] == NSOrderedAscending;
+      }];
+  [self.storage removeObjectsAtIndexes:small];
+  // 或：for (LBTransaction *tx in [self.storage copy]) { ... }
+solution_note: 快速列舉會檢查集合的變動計數，一改就丟「Collection was mutated while being enumerated」。要刪就先收集索引用 `removeObjectsAtIndexes:`、走訪一份 `copy`，或用 `filterUsingPredicate:`。
+hints: ["第 3 行在列舉誰？第 5 行在改誰？", "錯誤訊息會是 was mutated while being enumerated。"]
+feedback:
+  "1": "NSDecimalNumber 有 compare:，這是比金額的正確方法。"
+  "2": "removeObjectAtIndex: 在列舉中一樣會 crash，問題不在用哪個刪法。"

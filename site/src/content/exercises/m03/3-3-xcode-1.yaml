@@ -1,0 +1,22 @@
+id: m03-3-3-xcode-1
+chapter: "3.3"
+type: xcode
+title: 實作 LBLedger 的新增、刪除與排序
+mobile: false
+minutes: 25
+prompt: 打開 M03 起始專案，實作 `LBLedger` 的儲存、新增、依 ID 刪除與查找，以及依日期倒序的 `transactions`。
+starter: xcode/M03-starter
+steps:
+  - 在 LBLedger.m 的類別延伸加一個 `NSMutableArray<LBTransaction *> *storage` 屬性（strong），在 init 建立。
+  - "`addTransaction:` 把交易加到 storage 尾端（不要插在最前面，想想 O(n)）。"
+  - "`removeTransactionWithIdentifier:` 用 `indexOfObjectPassingTest:` 找到 identifier 相等的交易，找到就移除並回傳 YES，否則 NO。"
+  - "`transactionWithIdentifier:` 同樣用 passingTest 找，找不到回 nil。"
+  - "`transactions` getter 回傳 `sortedArrayUsingComparator:` 依 date 由新到舊的新陣列。"
+  - ⌘U 跑 LBLedgerTests；先讓前兩個轉綠，其餘的 3.5、3.6 會補。
+tests:
+  - LBLedgerTests/testAddAndRemove
+  - LBLedgerTests/testTransactionsSortedByDateDescending
+acceptance:
+  - 標頭檔 LBLedger.h 只出現 NSArray，沒有 NSMutableArray
+  - 刪除不存在的 identifier 回傳 NO 且不 crash
+solution_note: identifier 是 NSUUID，比較要用 isEqual:。`transactions` 每次呼叫都排序一次對小帳本沒問題；資料量大時再改成插入時維持順序（8.4 的二元搜尋）。

@@ -1,0 +1,13 @@
+id: m02-2-8-advanced-1
+chapter: "2.8"
+type: flash
+tier: advanced
+title: 進階：方法名開頭如何改變 ARC 的行為
+minutes: 3
+front: "為什麼 `- (LBCategory *)newDefaultCategory` 回傳既有物件會造成 crash，而 `- (LBCategory *)defaultCategory` 不會？規則的精確邊界在哪？"
+back: |
+  ARC 依 selector 的第一個單字判斷「方法家族」：alloc、new、copy、mutableCopy、init 開頭的方法被假設回傳 +1（呼叫端擁有）的物件；其他方法假設回傳 +0（autorelease）。
+  `newDefaultCategory` 回傳 `self.categories.firstObject`（+0），ARC 在呼叫端當成 +1 處理，多 release 一次 → 物件提早釋放 → EXC_BAD_ACCESS，而且發生在離命名很遠的地方。
+  邊界：前綴後面必須接非小寫字母才算家族，所以 `newsFeed` 安全（s 小寫）、`newEntry` 中招、`copyright` 安全、`copyOfX` 中招。`init` 家族還額外要求回傳 id / instancetype 且是實體方法。
+  逃生門：`__attribute__((objc_method_family(none)))` 可以把方法踢出家族，但正確做法是改名——用 make…、…WithX: 工廠。
+  屬性也受影響：`@property NSString *newTitle;` 會得到 Property follows Cocoa naming convention for returning 'owned' objects 的錯誤，要用 `getter=` 改名或換名字。

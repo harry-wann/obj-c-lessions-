@@ -1,0 +1,15 @@
+id: m02-2-7-quiz-3
+chapter: "2.7"
+section: quiz
+type: quiz
+title: copy 回傳什麼？
+minutes: 1
+code: |
+  NSMutableArray *m = [NSMutableArray arrayWithObject:@1];
+  id a = [m copy];
+  id b = [m mutableCopy];
+options: ["a 是不可變的 NSArray，b 是新的 NSMutableArray", "a、b 都是 NSMutableArray", "a 是 NSMutableArray，b 是 NSArray", "a 與 m 是同一個物件"]
+answer: 0
+explain: "copy 永遠回不可變版本、mutableCopy 永遠回可變版本，與接收者原本是哪一種無關。這就是 NSString 屬性用 copy 能切斷外部修改的原因。"
+hints: ["copy 與 mutableCopy 的名字就說明了回傳的可變性。", "`[m copy]` 之後對它 addObject: 會怎樣？"]
+feedback: { "3": "可變物件的 copy 一定是新物件；只有不可變物件的 copy 才可能 return self。" }

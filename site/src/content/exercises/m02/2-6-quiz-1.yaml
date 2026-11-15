@@ -1,0 +1,12 @@
+id: m02-2-6-quiz-1
+chapter: "2.6"
+section: quiz
+type: quiz
+title: 覆寫需要什麼關鍵字？
+minutes: 1
+prompt: "在 Objective-C 子類別裡覆寫父類別的 `description`，需要寫什麼關鍵字？"
+options: ["不需要任何關鍵字，在 @implementation 裡寫一個同名方法就是覆寫", "`override`", "`@Override`", "`virtual`（父類別那邊要先標）"]
+answer: 0
+explain: "每個方法天生都是動態派送，同名就是覆寫。代價是打錯一個字母會變成「新增了一個沒人呼叫的方法」而不是覆寫，編譯器不會提醒。"
+hints: ["Swift 的 override、Java 的 @Override 在 Objective-C 都沒有對應物。", "想想 2.2 的訊息派送是怎麼查表的。"]
+feedback: { "1": "那是 Swift。", "2": "那是 Java。", "3": "Objective-C 沒有 virtual，所有方法都是虛擬的。" }

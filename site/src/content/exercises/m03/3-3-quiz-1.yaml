@@ -1,0 +1,17 @@
+id: m03-3-3-quiz-1
+chapter: "3.3"
+section: quiz
+type: quiz
+title: 空陣列拿第一筆
+minutes: 1
+prompt: "`NSArray *a = @[];` 之後，下列哪個敘述正確？"
+options:
+  - "`a[0]` 回傳 nil"
+  - "`a.firstObject` 回傳 nil，`a[0]` 丟 NSRangeException"
+  - "`a.firstObject` 與 `a[0]` 都丟 NSRangeException"
+  - "`a.firstObject` 丟例外，`a[0]` 回傳 nil"
+answer: 1
+explain: "`a[0]` 等於 `objectAtIndex:0`，越界會丟 NSRangeException；`firstObject` / `lastObject` 在空陣列回 nil。「拿第一筆、可能沒有」永遠用 firstObject。"
+hints: ["下標語法等於哪個方法？", "哪個方法設計上就允許回 nil？"]
+feedback:
+  "0": "下標是 objectAtIndex: 的語法糖，一樣會越界 crash。"

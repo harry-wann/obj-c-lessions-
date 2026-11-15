@@ -1,0 +1,12 @@
+id: m02-2-8-quiz-2
+chapter: "2.8"
+section: quiz
+type: quiz
+title: 布林屬性的 getter 該叫什麼？
+minutes: 1
+prompt: "有一個 BOOL 屬性表示交易是否已對帳。依 Cocoa 慣例，宣告該怎麼寫？"
+options: ["`@property (nonatomic, assign, getter=isReconciled) BOOL reconciled;`", "`@property (nonatomic, assign) BOOL isReconciled;`", "`@property (nonatomic, assign, getter=getReconciled) BOOL reconciled;`", "`@property (nonatomic, assign) BOOL reconciledFlag;`"]
+answer: 0
+explain: "屬性名用形容詞（reconciled），getter 用 `getter=isX` 改成 isReconciled。點語法 `tx.reconciled`、訊息 `[tx isReconciled]` 都能用，Swift 匯入後是 isReconciled。UIView 的 hidden / isHidden 就是這個模式。"
+hints: ["看看 UIView 的 hidden 是怎麼宣告的。", "get 在 Cocoa 有特定意思：透過指標回填。"]
+feedback: { "1": "屬性名 isReconciled 會讓 setter 變成 setIsReconciled:，點語法 tx.isReconciled = YES 讀起來很怪。", "2": "get 開頭在 Cocoa 代表「把值填進傳入的指標」，例如 getBytes:length:。" }

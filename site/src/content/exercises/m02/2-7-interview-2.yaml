@@ -1,0 +1,16 @@
+id: m02-2-7-interview-2
+chapter: "2.7"
+type: flash
+tier: interview
+title: 面試題：Kotlin data class 對應 Objective-C 要手寫什麼？
+minutes: 2
+front: "面試官：`data class Transaction(val amount: BigDecimal, val note: String)` 這一行，換成 Objective-C 你要寫哪些東西？"
+back: |
+  1. `@interface` + `@property (readonly)` 宣告每個欄位（對應 val）。
+  2. 指定初始化器 `initWithAmount:note:` 加 NS_DESIGNATED_INITIALIZER，`init` 標 NS_UNAVAILABLE（對應主建構子）。
+  3. `isEqual:`（對應 equals）：== 短路、isKindOfClass:、逐欄位比。
+  4. `hash`（對應 hashCode）：同一組欄位混合。
+  5. `description`（對應 toString）。
+  6. 遵循 NSCopying、實作 `copyWithZone:`（對應 copy()，但 Objective-C 的 copy 不能改欄位；要「改一個欄位的複本」得另外寫 `transactionBySettingNote:` 這類 by…ing 方法）。
+  7. 沒有 componentN / 解構，沒有對應物。
+  差異：Kotlin 由編譯器保證四者一致，Objective-C 全靠自律；少寫 hash 是最常見的 bug。

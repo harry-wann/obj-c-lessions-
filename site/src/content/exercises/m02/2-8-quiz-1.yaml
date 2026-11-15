@@ -1,0 +1,11 @@
+id: m02-2-8-quiz-1
+chapter: "2.8"
+section: quiz
+type: quiz
+title: 為什麼類別要加前綴？
+minutes: 1
+options: ["Objective-C 沒有命名空間，所有類別名在整個程式裡是一張平的表，撞名時 runtime 隨便挑一個", "編譯器規定類別名至少五個字元", "前綴讓方法派送比較快", "為了和 Swift 區分"]
+answer: 0
+explain: "兩個 framework 各定義一個 Category，啟動時會印 Class Category is implemented in both …，接著出現難以追查的 crash。Apple 用光了大多數兩字母前綴，App 與第三方用三字母。"
+hints: ["Swift 用模組當命名空間，Objective-C 用什麼？", "想想 NSString、UIView、CGRect 的前綴從哪來。"]
+feedback: { "2": "前綴對執行效能沒有影響。" }

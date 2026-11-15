@@ -1,0 +1,28 @@
+id: m02-2-6-crash-1
+chapter: "2.6"
+type: crash
+title: 抽象方法沒被覆寫
+minutes: 2
+log: |
+  *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+  reason: '-[LBPDFExporter exportAmount:]: unrecognized selector sent to instance 0x600003b48120'
+  *** First throw call stack:
+  (
+    2   CoreFoundation   -[NSObject(NSObject) doesNotRecognizeSelector:] + 116
+    3   LittleBook       -[LBExporter exportAmount:] + 52
+    4   LittleBook       -[LBReportBuilder buildWithExporter:] + 180
+  )
+options:
+  - "LBPDFExporter 沒有覆寫抽象方法 exportAmount:，父類別 LBExporter 的實作故意呼叫 doesNotRecognizeSelector:"
+  - "exportAmount: 這個方法根本不存在，是打錯方法名"
+  - "接收者是 nil"
+  - "LBPDFExporter 忘了繼承 LBExporter"
+answer: 0
+fix: |
+  // LBPDFExporter.m
+  - (NSString *)exportAmount:(NSDecimalNumber *)amount {
+      return [NSString stringWithFormat:@"PDF: %@", amount];
+  }
+solution_note: "關鍵在堆疊第 3 行：doesNotRecognizeSelector: 的呼叫者是 `-[LBExporter exportAmount:]`，表示方法存在且被執行了，是它自己丟的——這是抽象方法的慣例寫法。若是真的沒有這個方法，第 3 行會是 ___forwarding___。修法在子類別補實作。"
+hints: ["看 doesNotRecognizeSelector: 的上一行是誰。", "訊息裡的類別是接收者的實際類別，堆疊裡的類別是執行中的方法所屬類別。"]
+feedback: { "1": "如果方法不存在，堆疊裡不會出現 -[LBExporter exportAmount:] 這個 frame。", "2": "對 nil 送訊息不會 crash，而且有實體位址。", "3": "沒繼承的話 -[LBExporter exportAmount:] 根本不會被呼叫。" }

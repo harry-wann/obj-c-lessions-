@@ -1,0 +1,24 @@
+id: m02-2-7-xcode-1
+chapter: "2.7"
+type: xcode
+title: LBTransaction 的相等、描述與複製
+mobile: false
+minutes: 20
+prompt: "讓 LBTransaction 遵循 NSCopying，覆寫 isEqual: / hash / description，通過 M2 剩下的三個測試。"
+starter: xcode/M02-starter
+steps:
+  - "在 LBTransaction.h 加上 `<NSCopying>`。"
+  - "覆寫 `isEqual:`：== 短路、isKindOfClass: 檢查、比 identifier、amount、kind、date、note。"
+  - "覆寫 `hash`：用同一組欄位 XOR 與位移混合。"
+  - "覆寫 `description`：保留 `<類別名 位址 …>` 格式，內容至少包含 amount。"
+  - "實作 `copyWithZone:`：用 `[[self class] allocWithZone:zone]` 呼叫指定初始化器，並讓新物件沿用同一個 identifier（需要在類別延伸裡把 identifier 改 readwrite 或加一個內部初始化器）。"
+  - "⌘U 跑測試。"
+tests:
+  - LBTransactionTests/testEqualityAndHash
+  - LBTransactionTests/testCopyReturnsEqualObject
+  - LBTransactionTests/testDescriptionContainsAmount
+acceptance:
+  - "兩個欄位相同的交易 isEqual: 為 YES 且 hash 相等；放進 NSSet 只算一個。"
+  - "`[tx copy]` 與原物件 isEqual:，且不是同一個指標（或你選擇 return self 也能過）。"
+  - "`[tx description]` 包含金額字串。"
+solution_note: "通關後 M2 里程碑完成，資料模型可以交給模組 3 的 LBLedger 用。identifier 參與相等性意味著「同一筆交易的兩個複本」相等、「兩筆金額相同的不同交易」不相等——這是 model 層常見的設計選擇。"

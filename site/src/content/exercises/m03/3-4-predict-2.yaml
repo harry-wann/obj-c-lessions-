@@ -1,0 +1,20 @@
+id: m03-3-4-predict-2
+chapter: "3.4"
+type: predict
+title: nil、NSNull 與下標
+minutes: 2
+code: |
+  NSMutableDictionary *d = [NSMutableDictionary dictionary];
+  d[@"a"] = @1;
+  d[@"b"] = [NSNull null];
+  d[@"a"] = nil;
+  NSLog(@"%lu %d %d", (unsigned long)d.count, d[@"a"] == nil, d[@"b"] == [NSNull null]);
+options: ["1 1 1", "2 0 1", "2 1 1", "1 1 0"]
+accept: ["1 1 1"]
+hints:
+  - 可變字典用下標設 nil 等於什麼？
+  - NSNull 是一個真的物件（單例），和 nil 不同。
+feedback:
+  "2 0 1": "下標設 nil 會移除鍵（iOS 9+），所以 a 不在了，count 是 1。"
+  "1 1 0": "[NSNull null] 是單例，每次拿到同一個物件，== 比較是 1。"
+solution_note: "`d[@\"a\"] = nil` 等於 `removeObjectForKey:`，所以只剩 b；`[NSNull null]` 是單例，可以安全地用 == 比較——這是集合裡表示「這格沒有」的標準做法。注意 `setObject:nil forKey:` 則會 crash。"

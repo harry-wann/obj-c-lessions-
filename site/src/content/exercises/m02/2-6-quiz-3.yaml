@@ -1,0 +1,11 @@
+id: m02-2-6-quiz-3
+chapter: "2.6"
+section: quiz
+type: quiz
+title: 哪個方法覆寫時必須呼叫 super？
+minutes: 1
+options: ["`- (void)viewDidLoad`", "`- (NSString *)description`", "`- (NSUInteger)hash`", "`- (BOOL)isEqual:(id)object`"]
+answer: 0
+explain: "生命週期方法（viewDidLoad、viewWillAppear:、layoutSubviews、awakeFromNib）文件要求呼叫 super，通常在第一行；純回傳值的方法（description、hash、isEqual:）是取代行為，不呼叫 super。沒有通則，看文件。"
+hints: ["哪些是「做事」、哪些是「回傳一個值」？", "UIKit 的生命週期方法在父類別裡有自己的工作要做。"]
+feedback: { "1": "description 是取代輸出，呼叫 super 只會拿到 <Class: 0x…>。", "2": "hash 要回傳與 isEqual: 一致的值，super 的 hash 是位址，混進來會違反合約。" }

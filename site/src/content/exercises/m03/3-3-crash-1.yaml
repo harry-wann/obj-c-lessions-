@@ -1,0 +1,24 @@
+id: m03-3-3-crash-1
+chapter: "3.3"
+type: crash
+title: 這個陣列是誰的？
+minutes: 2
+log: |
+  *** Terminating app due to uncaught exception 'NSGenericException',
+  reason: '*** Collection <__NSArrayM: 0x600003a1c2d0> was mutated while being enumerated.'
+options:
+  - 有人在 for-in 走訪一個 NSMutableArray 的過程中對它 add / remove
+  - 對不可變陣列呼叫了 addObject:
+  - 陣列越界
+  - 兩個執行緒同時讀同一個 NSArray
+answer: 0
+fix: |
+  for (LBTransaction *tx in [self.storage copy]) {   // 走訪快照
+      if (...) [self.storage removeObject:tx];
+  }
+solution_note: "`__NSArrayM` 的 M 表示可變，所以這是你自己的 NSMutableArray；`mutated while being enumerated` 就是列舉中被改了。不可變陣列的問題會是 `-[__NSArrayI addObject:]: unrecognized selector`，越界則是 NSRangeException。"
+hints: ["類別名尾字 M 代表什麼？", "訊息直接說了 mutated（被改）與 enumerated（被列舉）。"]
+feedback:
+  "1": "那會是 NSInvalidArgumentException 加 unrecognized selector，而且類別名會是 __NSArrayI。"
+  "2": "越界是 NSRangeException，訊息會有 beyond bounds。"
+  "3": "純讀取不會觸發這個檢查；而且 NSArray 不可變，多執行緒讀是安全的。"

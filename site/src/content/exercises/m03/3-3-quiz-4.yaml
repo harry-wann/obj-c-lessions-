@@ -1,0 +1,18 @@
+id: m03-3-3-quiz-4
+chapter: "3.3"
+section: quiz
+type: quiz
+title: 從 TypeScript 來的你
+minutes: 1
+prompt: TS 的 `txs.filter(t => t.amount > 100)` 在 Objective-C 內建的對應是？
+options:
+  - "`[txs filter:^BOOL(LBTransaction *t) { ... }]`"
+  - "`[txs filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@\"amount > %@\", hundred]]`"
+  - "`[txs map:...]` 再 `compact`"
+  - ObjC 沒有任何過濾方法，只能寫 for 迴圈
+answer: 1
+explain: "ObjC 沒有 `map` / `filter` / `reduce` 方法（5.3 會用分類補上 `lb_map:` 等），但內建有 `filteredArrayUsingPredicate:`、`indexesOfObjectsPassingTest:`、`enumerateObjectsUsingBlock:`。"
+hints: ["NSArray 內建有哪個用「述詞」過濾的方法？", "5.3 之前沒有 map / filter。"]
+feedback:
+  "0": "NSArray 沒有 filter: 方法，這會是 unrecognized selector。"
+  "3": "有 filteredArrayUsingPredicate: 與 indexesOfObjectsPassingTest:。"

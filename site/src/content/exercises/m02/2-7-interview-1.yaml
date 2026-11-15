@@ -1,0 +1,12 @@
+id: m02-2-7-interview-1
+chapter: "2.7"
+type: flash
+tier: interview
+title: 面試題：為什麼覆寫 isEqual: 就必須覆寫 hash？
+minutes: 2
+front: "面試官：覆寫 isEqual: 卻沒覆寫 hash，具體會在哪裡出問題？怎麼寫一個好的 hash？"
+back: |
+  NSSet、NSDictionary 的鍵、NSCountedSet、`-[NSArray indexOfObject:]`（部分實作）都是雜湊表：先用 hash 決定桶子，只在同一個桶子裡才呼叫 isEqual:。預設 hash 是物件位址，兩個內容相等的新物件落在不同桶子，結果：containsObject: 回 NO、去重失敗、字典用等值的鍵取不到值。症狀是慢性的，資料量小到剛好同桶時還會「碰巧正確」。
+  合約：isEqual: 為 YES ⇒ hash 必相等；反向不要求。
+  寫法：把參與 isEqual: 的欄位（且只有這些欄位）的 hash 用 XOR 加位移或乘質數混合；可變物件放進集合後不要再改（hash 會變）；不可變物件可以快取 hash。
+  延伸：Kotlin data class / Java record / Swift Hashable 合成，都是幫你自動遵守這條合約。

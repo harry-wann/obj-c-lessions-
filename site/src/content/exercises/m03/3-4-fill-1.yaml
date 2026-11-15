@@ -1,0 +1,26 @@
+id: m03-3-4-fill-1
+chapter: "3.4"
+type: fill
+title: 走訪字典並提早停止
+minutes: 2
+prompt: 填空，走訪 `budget`，找到第一個超過 5000 的分類就印出來並停止。
+code: |
+  NSDictionary<NSString *, NSNumber *> *budget = @{ @"餐飲": @6000, @"交通": @1500 };
+  [budget ___1___:^(NSString *key, NSNumber *limit, BOOL *___2___) {
+      if (limit.integerValue > 5000) {
+          NSLog(@"%@", key);
+          ___3___ = YES;
+      }
+  }];
+blanks:
+  "1": { accept: ["enumerateKeysAndObjectsUsingBlock"], chips: ["enumerateKeysAndObjectsUsingBlock", "enumerateObjectsUsingBlock", "forEach", "enumerateKeysUsingBlock"] }
+  "2": { accept: ["stop"], chips: ["stop", "done", "break", "finished"] }
+  "3": { accept: ["*stop"], chips: ["*stop", "stop", "break", "return"] }
+hints:
+  - 字典的 block 走訪方法同時給你鍵和值。
+  - 第三個參數是一個指向 BOOL 的指標，要停就把它指到的值設 YES。
+feedback:
+  "1=enumerateObjectsUsingBlock": "那是 NSArray 的方法；字典的版本叫 enumerateKeysAndObjectsUsingBlock:。"
+  "3=stop": "stop 是指標，要寫 *stop = YES 才會改到它指的 BOOL。"
+  "3=break": "block 裡不能 break，那不是迴圈；用 *stop = YES。"
+solution_note: "`enumerateKeysAndObjectsUsingBlock:` 的 block 收到 key、obj 與 `BOOL *stop`，`*stop = YES` 相當於 break。順序一樣不保證，所以「第一個超過 5000 的」每次可能不同。"

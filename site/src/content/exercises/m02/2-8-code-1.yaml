@@ -1,0 +1,36 @@
+id: m02-2-8-code-1
+chapter: "2.8"
+type: code
+title: 宣告一個命名正確的分類
+mobile: false
+minutes: 4
+prompt: "為 `NSDecimalNumber` 宣告一個分類 `LBFormatting`，包含兩個實體方法：回傳貨幣字串的 `lb_currencyString`（回傳 `NSString *`），以及接受小數位數的 `lb_stringWithFractionDigits:`（參數 `NSUInteger`、回傳 `NSString *`）。"
+starter: |
+  @import Foundation;
+
+checks:
+  - must_match: '@interface NSDecimalNumber\s*\(\s*LBFormatting\s*\)'
+    message: "分類寫成 @interface NSDecimalNumber (LBFormatting)，分類名也要前綴"
+  - selector_equals: "lb_currencyString"
+    message: "要有 lb_currencyString 方法"
+  - selector_equals: "lb_stringWithFractionDigits:"
+    message: "要有 lb_stringWithFractionDigits: 方法"
+  - must_match: '-\s*\(\s*NSString\s*\*\s*\)\s*lb_currencyString\s*;'
+    message: "lb_currencyString 是實體方法、回傳 NSString *"
+  - must_match: '-\s*\(\s*NSString\s*\*\s*\)\s*lb_stringWithFractionDigits\s*:\s*\(\s*NSUInteger\s*\)'
+    message: "lb_stringWithFractionDigits: 參數型別 NSUInteger、回傳 NSString *"
+  - must_not_match: '\)\s*(get\w+|currencyString|stringWithFractionDigits)\s*[;:]'
+    message: "分類方法要加 lb_ 前綴，且不要用 get 開頭"
+  - must_match: '@end'
+  - brackets_balanced: true
+solution: |
+  @import Foundation;
+
+  @interface NSDecimalNumber (LBFormatting)
+
+  - (NSString *)lb_currencyString;
+  - (NSString *)lb_stringWithFractionDigits:(NSUInteger)digits;
+
+  @end
+solution_note: "分類名與方法都帶前綴：分類名用大寫 LB、方法用小寫 lb_。這兩個方法在模組 5 會真的實作（NSDecimalNumber+LBFormatting）。"
+hints: ["分類的形狀是 `@interface 類別名 (分類名)`。", "分類方法的前綴是小寫加底線。"]

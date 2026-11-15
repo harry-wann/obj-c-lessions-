@@ -1,0 +1,47 @@
+id: m02-2-7-code-1
+chapter: "2.7"
+type: code
+title: 覆寫 isEqual: 與 hash
+mobile: false
+minutes: 6
+prompt: "為 `LBTransaction`（屬性 `amount`、`note`）寫出 `isEqual:` 與 `hash`。`isEqual:` 照三步樣板：同物件短路、`isKindOfClass:` 檢查、逐欄位比較；`hash` 用同一組欄位。"
+starter: |
+  @implementation LBTransaction
+
+  @end
+checks:
+  - selector_equals: "isEqual:"
+    message: "要覆寫 - (BOOL)isEqual:(id)object"
+  - must_match: '-\s*\(\s*BOOL\s*\)\s*isEqual\s*:\s*\(\s*id\s*\)'
+    message: "isEqual: 的簽名是 - (BOOL)isEqual:(id)object，參數型別必須是 id"
+  - must_match: 'self\s*==\s*\w+\s*\)\s*return\s+YES'
+    message: "第一步：if (self == object) return YES;"
+  - must_match: 'isKindOfClass\s*:\s*\[\s*LBTransaction\s+class\s*\]'
+    message: "第二步：用 isKindOfClass:[LBTransaction class] 檢查"
+  - must_match: 'amount\s+isEqual\s*:'
+    message: "amount 是 NSDecimalNumber，用 isEqual: 比"
+  - must_match: 'note\s+isEqual(ToString)?\s*:'
+    message: "note 用 isEqual: 或 isEqualToString: 比"
+  - selector_equals: "hash"
+    message: "要一起覆寫 - (NSUInteger)hash"
+  - must_match: '-\s*\(\s*NSUInteger\s*\)\s*hash\s*\{[^}]*amount[^}]*note'
+    message: "hash 要用 amount 與 note 兩個欄位"
+  - brackets_balanced: true
+solution: |
+  @implementation LBTransaction
+
+  - (BOOL)isEqual:(id)object {
+      if (self == object) return YES;
+      if (![object isKindOfClass:[LBTransaction class]]) return NO;
+      LBTransaction *other = object;
+      return [self.amount isEqual:other.amount]
+          && [self.note isEqualToString:other.note];
+  }
+
+  - (NSUInteger)hash {
+      return self.amount.hash ^ (self.note.hash << 1);
+  }
+
+  @end
+solution_note: "isEqual: 的參數是 id，所以要先排除別的類別（連 nil 都可能進來——nil 的 isKindOfClass: 回 NO，剛好正確）。hash 只混入參與 isEqual: 的欄位，否則違反合約。"
+hints: ["三步：`if (self == object) return YES;`、`if (![object isKindOfClass:[LBTransaction class]]) return NO;`、逐欄位比。", "hash 回傳 NSUInteger，把兩個欄位的 hash 用 ^ 混起來。"]

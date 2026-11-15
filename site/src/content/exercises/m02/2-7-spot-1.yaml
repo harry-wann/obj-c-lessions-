@@ -1,0 +1,34 @@
+id: m02-2-7-spot-1
+chapter: "2.7"
+type: spot
+title: 這個 isEqual: 哪裡會爆？
+minutes: 3
+prompt: "這個 isEqual: 在單元測試裡都過，上線後在 `[array indexOfObject:@\"x\"]` 時 crash。點選有問題的行並選出原因。"
+code: |
+  - (BOOL)isEqual:(id)object {
+      LBTransaction *other = object;
+      return [self.amount isEqual:other.amount]
+          && [self.note isEqualToString:other.note];
+  }
+bug_lines: [2]
+reasons:
+  - "沒有先用 isKindOfClass: 檢查類別就轉型；傳入 NSString 時 `other.amount` 會 unrecognized selector。另外也沒覆寫 hash"
+  - "amount 應該用 == 比較"
+  - "isEqual: 的參數型別應該宣告成 LBTransaction *"
+  - "note 應該用 isEqual: 不能用 isEqualToString:"
+answer_reason: 0
+fix: |
+  - (BOOL)isEqual:(id)object {
+      if (self == object) return YES;
+      if (![object isKindOfClass:[LBTransaction class]]) return NO;
+      LBTransaction *other = object;
+      return [self.amount isEqual:other.amount]
+          && [self.note isEqualToString:other.note];
+  }
+
+  - (NSUInteger)hash {
+      return self.amount.hash ^ (self.note.hash << 1);
+  }
+solution_note: "isEqual: 的參數是 id，任何物件都可能進來（NSArray 的 indexOfObject:、containsObject: 會拿陣列裡每個元素跟參數比）。樣板三步：== 短路、isKindOfClass: 排除、逐欄位比；並且覆寫 hash。"
+hints: ["indexOfObject:@\"x\" 時 object 是什麼型別？", "對 NSString 送 amount 會發生什麼？"]
+feedback: { "1": "NSDecimalNumber 是物件，== 比位址，兩個 120 會不相等。", "2": "isEqual: 是 NSObject 定義的方法，簽名固定是 id，改型別就不是覆寫了。", "3": "note 一定是 NSString，用特化版沒問題（但參數為 nil 時結果未定義，嚴謹的話可先判 nil）。" }

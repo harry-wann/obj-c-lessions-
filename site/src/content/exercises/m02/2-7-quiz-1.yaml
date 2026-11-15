@@ -1,0 +1,15 @@
+id: m02-2-7-quiz-1
+chapter: "2.7"
+section: quiz
+type: quiz
+title: 兩個內容相同的字串用 == 比
+minutes: 1
+code: |
+  NSString *a = [NSString stringWithFormat:@"午%@", @"餐"];
+  NSString *b = @"午餐";
+  BOOL same = (a == b);
+options: ["不保證：== 比的是指標位址，這裡兩個是不同物件所以是 NO，但兩個字串常值可能剛好是同一個物件", "一定 YES，字串內容相同", "一定 NO，NSString 不支援 ==", "編譯錯誤，物件不能用 == 比"]
+answer: 0
+explain: "== 比位址。編譯期常值會被合併成同一物件，所以 `@\"午餐\" == @\"午餐\"` 常常剛好 YES，讓測試過了上線掛。字串一律 isEqualToString:，不確定型別用 isEqual:。"
+hints: ["== 對指標比什麼？", "a 是執行期組出來的新物件。"]
+feedback: { "1": "== 不看內容。", "2": "== 在語法上合法（比指標），只是語意不對。Clang 的 -Wobjc-literal-compare 會警告。" }

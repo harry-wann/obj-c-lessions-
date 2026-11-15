@@ -1,0 +1,44 @@
+id: m08-8-7-code-1
+chapter: "8.7"
+type: code
+title: 從程式碼進入 Storyboard 的設定頁
+mobile: false
+minutes: 8
+prompt: "tab bar 是程式碼建的，設定頁在 `Settings.storyboard`（Storyboard ID 是 `LBSettingsViewController`）。寫 `makeSettingsTab`：用 `instantiateViewControllerWithIdentifier:` 建出設定頁，屬性注入 `settings = LBSettings.shared`，包進 `UINavigationController`，tabBarItem 設成「設定」/ `gear`，回傳 nav。"
+starter: |
+  - (UINavigationController *)makeSettingsTab {
+
+  }
+checks:
+  - must_match: 'UIStoryboard\s+storyboardWithName\s*:\s*@"Settings"\s+bundle\s*:\s*nil'
+    message: "用 storyboardWithName:@\"Settings\" bundle:nil 取得 Storyboard"
+  - must_match: 'instantiateViewControllerWithIdentifier\s*:\s*@"LBSettingsViewController"'
+    message: 用 Storyboard ID 建出設定頁
+  - must_match: '\.settings\s*=\s*LBSettings\.shared'
+    message: 屬性注入 settings
+  - must_match: 'UINavigationController\s+alloc\]\s*initWithRootViewController\s*:'
+    message: 包一層 UINavigationController
+  - must_match: '\.tabBarItem\s*='
+    message: tabBarItem 設在 nav 上
+  - must_match: 'systemImageNamed\s*:\s*@"gear"'
+    message: 圖示用 gear
+  - must_not_match: 'LBSettingsViewController\s+alloc\]'
+    message: Storyboard 設計的 VC 不能 alloc init，outlet 會全是 nil
+  - must_match: 'return\s+\w+\s*;'
+  - brackets_balanced: true
+solution: |
+  - (UINavigationController *)makeSettingsTab {
+      UIStoryboard *sb = [UIStoryboard storyboardWithName:@"Settings" bundle:nil];
+      LBSettingsViewController *settings =
+          [sb instantiateViewControllerWithIdentifier:@"LBSettingsViewController"];
+      settings.settings = LBSettings.shared;            // 屬性注入（8.5）
+      UINavigationController *nav =
+          [[UINavigationController alloc] initWithRootViewController:settings];
+      nav.tabBarItem =
+          [[UITabBarItem alloc] initWithTitle:@"設定"
+                                        image:[UIImage systemImageNamed:@"gear"]
+                                          tag:2];
+      return nav;
+  }
+solution_note: "Storyboard 建的 VC 走 initWithCoder:，不能用指定初始化器傳值，所以用屬性注入。Storyboard ID 拼錯會 crash（Storyboard doesn't contain a view controller with identifier），一樣建議抽成常數。"
+hints: ["先拿到 UIStoryboard 物件。", "instantiateViewControllerWithIdentifier: 的字串是 Storyboard ID。", "tabBarItem 設在 nav 上，不是設定頁上。"]

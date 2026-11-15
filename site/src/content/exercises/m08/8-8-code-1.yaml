@@ -1,0 +1,50 @@
+id: m08-8-8-code-1
+chapter: "8.8"
+type: code
+title: LBBarChartView 的初始化與 setter
+mobile: false
+minutes: 6
+prompt: "寫 LBBarChartView 的 `initWithFrame:` 與 `setValues:`：初始化時 barColor 預設 `systemBlueColor`、背景設透明、`contentMode` 設成大小改變就重畫；`setValues:` 存 copy 之後排一次重畫。"
+starter: |
+  - (instancetype)initWithFrame:(CGRect)frame {
+
+  }
+
+  - (void)setValues:(NSArray<NSNumber *> *)values {
+
+  }
+checks:
+  - must_match: 'self\s*=\s*\[\s*super\s+initWithFrame\s*:\s*frame\s*\]'
+    message: "先呼叫 [super initWithFrame:frame]"
+  - must_match: '_barColor\s*=\s*UIColor\.systemBlueColor|_barColor\s*=\s*\[\s*UIColor\s+systemBlueColor\s*\]'
+    message: barColor 預設 systemBlue（init 裡用 ivar）
+  - must_match: 'backgroundColor\s*=\s*(UIColor\.clearColor|\[\s*UIColor\s+clearColor\s*\])'
+    message: 背景設成 clearColor，不然沒畫到的地方會變黑
+  - must_match: 'contentMode\s*=\s*UIViewContentModeRedraw'
+    message: contentMode 設成 Redraw，大小改變時重畫而不是拉伸
+  - must_match: '_values\s*=\s*\[\s*values\s+copy\s*\]'
+    message: 存 copy
+  - must_match: '\[\s*self\s+setNeedsDisplay\s*\]'
+    message: 資料變了呼叫 setNeedsDisplay
+  - must_not_match: 'drawRect\s*:'
+    message: "不要自己呼叫 drawRect:"
+  - must_match: 'return\s+self\s*;'
+  - brackets_balanced: true
+solution: |
+  - (instancetype)initWithFrame:(CGRect)frame {
+      if (self = [super initWithFrame:frame]) {
+          _barColor = UIColor.systemBlueColor;
+          _values = @[];
+          _labels = @[];
+          self.backgroundColor = UIColor.clearColor;     // 也會讓 opaque = NO
+          self.contentMode = UIViewContentModeRedraw;
+      }
+      return self;
+  }
+
+  - (void)setValues:(NSArray<NSNumber *> *)values {
+      _values = [values copy];
+      [self setNeedsDisplay];
+  }
+solution_note: "init 裡用 ivar（不觸發 setter 的副作用，2.4）；自訂 setter 裡也直接設 ivar，不然 self.values = 會無限遞迴。Storyboard 建的 view 走 initWithCoder:，同樣的設定要抽成共用的 commonInit。"
+hints: ["init 裡用 _barColor 而不是 self.barColor。", "透明背景與 contentMode 兩行都要。", "setter 裡不能寫 self.values = ..."]

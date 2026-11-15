@@ -1,0 +1,19 @@
+id: m07-7-7-quiz-3
+chapter: "7.7"
+section: quiz
+type: quiz
+title: NSNumber 轉 NSDecimalNumber
+minutes: 1
+prompt: "JSON 的 `\"rate\": 0.1` 解析成 NSNumber 之後，要轉成金額用的 NSDecimalNumber，哪一種寫法正確？"
+options:
+  - "`[[NSDecimalNumber alloc] initWithDouble:[raw doubleValue]]`"
+  - "`[NSDecimalNumber decimalNumberWithDecimal:[raw decimalValue]]`"
+  - "`(NSDecimalNumber *)raw`，直接轉型就好"
+  - "`[NSDecimalNumber decimalNumberWithString:raw]`"
+answer: 1
+explain: 經過 double 的話 0.1 會變成 0.1000000000000000055…，金額失真。走 decimalValue 保留十進位精度。伺服器願意把金額給成字串 "31.25" 時最準，用 decimalNumberWithString:。
+hints: ["0.1 能被 double 精確表示嗎？", "NSNumber 是 NSDecimalNumber 嗎？"]
+feedback:
+  "0": double 是二進位浮點，0.1 存不準，金額會多出尾數。
+  "2": NSNumber 是父類別，轉型只騙過編譯器，物件本身沒有 NSDecimalNumber 的行為。
+  "3": "raw 是 NSNumber 不是字串，這樣寫會 crash：-[__NSCFNumber length]: unrecognized selector。"

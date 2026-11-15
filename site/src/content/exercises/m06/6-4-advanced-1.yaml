@@ -21,7 +21,7 @@ checks:
     message: "回傳含 @\"total\" 的 NSSet"
   - must_not_match: 'willChangeValueForKey|didChangeValueForKey'
     message: 題目要求用相依鍵，不要手動通知
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   @implementation LBLedger
   - (NSString *)totalText {

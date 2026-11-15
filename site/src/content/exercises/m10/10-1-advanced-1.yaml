@@ -33,7 +33,7 @@ checks:
     message: 包成 NSNumber 的動作放在鎖外
   - must_not_match: '@synchronized'
     message: 本題用 os_unfair_lock，不用 @synchronized
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (void)append:(double)value {
       os_unfair_lock_lock(&_lock);

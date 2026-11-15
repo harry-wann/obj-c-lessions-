@@ -1,0 +1,34 @@
+id: m07-7-4-interview-1
+chapter: "7.4"
+type: flash
+tier: interview
+title: 面試題：用佇列做 BFS 層序走訪
+minutes: 5
+front: |
+  面試官：「LBCategory 有 name 與 children（NSArray<LBCategory *> *）。寫一個方法，回傳每一層的分類名稱，例如 @[@[@"全部"], @[@"餐飲", @"交通"], @[@"早餐", @"午餐", @"捷運"]]。時間複雜度是多少？」
+back: |
+  BFS：根入列；每輪先記下目前佇列長度 levelSize，只出列這麼多個，它們就是同一層；出列時把 children 入列。
+
+  - (NSArray<NSArray<NSString *> *> *)levelsFromRoot:(LBCategory *)root {
+      if (!root) return @[];
+      NSMutableArray<NSArray *> *levels = [NSMutableArray array];
+      NSMutableArray<LBCategory *> *queue = [NSMutableArray arrayWithObject:root];
+      NSUInteger head = 0;                        // 頭指標，不用 removeObjectAtIndex:0
+      while (head < queue.count) {
+          NSUInteger levelEnd = queue.count;      // 這一層到哪裡為止
+          NSMutableArray<NSString *> *names = [NSMutableArray array];
+          while (head < levelEnd) {
+              LBCategory *node = queue[head++];   // dequeue
+              [names addObject:node.name];
+              [queue addObjectsFromArray:node.children];   // enqueue
+          }
+          [levels addObject:names];
+      }
+      return levels;
+  }
+
+  複雜度：每個節點入列、出列各一次，O(n) 時間、O(n) 空間（最寬那層）。
+  追問常見：
+  - 為什麼用頭指標？removeObjectAtIndex:0 是 O(n)，整體會退化成 O(n²)。
+  - 改成 DFS？把佇列換成堆疊（removeLastObject），或直接遞迴；但 DFS 拿不到「層」。
+  - 求最短路徑（例如分類 A 到 B 最少幾步）：無權圖上 BFS 第一次碰到目標的層數就是最短距離，要加一個 visited 集合避免圖上有環時重複走。

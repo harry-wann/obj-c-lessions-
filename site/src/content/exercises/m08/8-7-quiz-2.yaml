@@ -1,0 +1,19 @@
+id: m08-8-7-quiz-2
+chapter: "8.7"
+section: quiz
+type: quiz
+title: prepareForSegue 裡設 label
+minutes: 1
+prompt: "`prepareForSegue:sender:` 裡寫了 `perf.fpsLabel.text = @\"60\";`（`fpsLabel` 是目的地的 IBOutlet），進到效能面板會看到什麼？"
+options:
+  - 顯示 60
+  - "crash：not key value coding-compliant for the key fpsLabel"
+  - 什麼都沒變也不 crash：目的地的 view 還沒載入，fpsLabel 是 nil，對 nil 送訊息被忽略
+  - 編譯錯誤，outlet 不能在別的類別存取
+answer: 2
+explain: "prepareForSegue 時目的地 VC 已建立、view 還沒載入，outlet 全是 nil。規則：傳 model 屬性（`perf.ledger = self.ledger`），顯示邏輯放在目的地自己的 viewDidLoad。"
+hints: ["outlet 什麼時候才有值？", "ObjC 對 nil 送訊息會怎樣？"]
+feedback:
+  "0": 如果先呼叫 loadViewIfNeeded 才會，但那通常表示設計要調。
+  "1": 那是連線斷掉時載入 nib 的 crash；這裡連線沒問題，只是時機太早。
+  "3": outlet 是公開屬性，編譯沒問題，這才是它難查的原因。

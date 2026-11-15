@@ -42,7 +42,7 @@ checks:
     message: dequeue 最後從 _outbox pop
   - must_not_match: 'removeObjectAtIndex\s*:\s*0|insertObject\s*:[^;]*atIndex\s*:\s*0|firstObject'
     message: 只准用堆疊操作，不能碰陣列頭端
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (void)enqueue:(id)obj {
       [_inbox addObject:obj];

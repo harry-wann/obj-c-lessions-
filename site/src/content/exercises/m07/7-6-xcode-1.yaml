@@ -1,0 +1,23 @@
+id: m07-7-6-xcode-1
+chapter: "7.6"
+type: xcode
+title: LBRateService 打網路、測試不打網路
+mobile: false
+minutes: 30
+prompt: 完成 LBRateService 的網路層：注入 session、發請求、三層檢查、回呼切回主佇列；用 LBStubURLProtocol 讓測試不碰網路。
+starter: xcode/M07-starter
+steps:
+  - "`LBRateService.h` 介面固定：`initWithSession:baseURL:`（`NS_DESIGNATED_INITIALIZER`）、`fetchRatesForBase:completion:`、`+ratesFromJSONData:error:`。init 把 session 與 baseURL 存進 readonly 屬性。"
+  - "`fetchRatesForBase:completion:`：用 `NSURLComponents` 組出 `<baseURL>/rates?base=TWD`（`queryItems` 會幫你做編碼），建 data task。"
+  - "回呼裡依序判 error → statusCode（非 2xx 回 `LBErrorCodeHTTPStatus`）→ 呼叫 `ratesFromJSONData:error:`（7.7 會寫完，先回空字典也可以）。error 是 `NSURLErrorCancelled` 時改回 `LBErrorCodeCancelled`。"
+  - "所有路徑都透過一個 `deliver` 區塊 `dispatch_async(dispatch_get_main_queue(), ...)` 呼叫 completion。最後 `[task resume]`。"
+  - "測試 target 的 `LBStubURLProtocol`：`stubURL:statusCode:data:` 登記假回應；`canInitWithRequest:` 只攔登記過的 URL；`startLoading` 依序呼叫 client 的 didReceiveResponse、didLoadData、DidFinishLoading。"
+  - "測試裡用 `ephemeralSessionConfiguration`、`config.protocolClasses = @[[LBStubURLProtocol class]]` 建 session 注入。回呼裡 `XCTAssertTrue([NSThread isMainThread])`，用 `XCTestExpectation` 等待。"
+  - ⌘U 跑 LBRateServiceTests。
+tests:
+  - LBRateServiceTests/testCompletionCalledOnMainQueue
+acceptance:
+  - 關掉 Mac 的 Wi-Fi 再跑一次，測試仍然通過（證明沒有打真網路）。
+  - "把 `deliver` 裡的 `dispatch_async(main)` 拿掉直接呼叫 completion，看 testCompletionCalledOnMainQueue 變紅，再改回來。"
+  - "`Info.plist` 沒有 `NSAllowsArbitraryLoads`。"
+solution_note: "重點在注入：LBRateService 不自己拿 sharedSession，測試才能換掉網路層。protocolClasses 只影響那個 session，不會污染 sharedSession 或其他測試。回呼在主佇列的約定寫在 service 裡，呼叫端（ViewController）就不必每次自己切。"

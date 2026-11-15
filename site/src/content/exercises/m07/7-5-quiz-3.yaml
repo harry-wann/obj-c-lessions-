@@ -1,0 +1,19 @@
+id: m07-7-5-quiz-3
+chapter: "7.5"
+section: quiz
+type: quiz
+title: 從串列佇列升級成讀寫鎖
+minutes: 2
+prompt: "LBLedger 目前用串列佇列保護 `_transactions`：寫入 `dispatch_async`、讀取 `dispatch_sync`。要改成「讀可以同時、寫要獨佔」，最少要改哪些地方？"
+options:
+  - 佇列改成 DISPATCH_QUEUE_CONCURRENT；寫入改成 dispatch_barrier_async；讀取的 dispatch_sync 不變
+  - 佇列改成 dispatch_get_global_queue；寫入改成 dispatch_barrier_async
+  - 佇列不變；讀取改成 dispatch_async 就能並行
+  - 佇列改成 DISPATCH_QUEUE_CONCURRENT 就好，其他都不用改
+answer: 0
+explain: 只改兩個字：佇列型態與寫入用的函式。讀取照樣 dispatch_sync，多個讀可以同時在並行佇列上跑；barrier 來的時候等進行中的讀結束、獨佔執行、結束後讀才繼續。
+hints: ["barrier 只對哪種佇列有效？", "只把佇列改成並行，兩個寫入會怎樣？"]
+feedback:
+  "1": barrier 對全域佇列無效，會退化成普通 dispatch_async。
+  "2": 讀取要回傳結果，非同步拿不到值；而且串列佇列本來就不會並行。
+  "3": 寫入沒有 barrier，就會跟讀取、跟其他寫入同時發生，比原本更糟。

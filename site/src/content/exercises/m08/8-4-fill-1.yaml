@@ -33,6 +33,6 @@ blanks:
 hints: ["dataSource 先問有幾個 section，再問每個幾列。", "拿 cell 是「出列」不是「建立」。", "NSIndexPath 在表格裡有兩個成員。"]
 feedback:
   "2=numberOfItemsInSection": 那是 UICollectionView 的名字，表格用 Rows。
-  "3=cellForRowAtIndexPath": 那是你正在實作的 dataSource 方法；在這裡呼叫表格的 cellForRowAtIndexPath: 只會拿到可見的 cell 或 nil。
+  "3=cellForRowAtIndexPath": "那是你正在實作的 dataSource 方法；在這裡呼叫表格的 cellForRowAtIndexPath: 只會拿到可見的 cell 或 nil。"
   "4=row": row 是列；先用 section 取月份，再用 row 取那一筆。
 solution_note: "三個方法依序回答「幾個 section、每個幾列、第 n 列長什麼樣」。`cellForRowAtIndexPath:` 只做出列與賦值，字串格式化交給 LBTransactionViewModel 先算好。"

@@ -1,0 +1,39 @@
+id: m07-7-4-interview-2
+chapter: "7.4"
+type: flash
+tier: interview
+title: 面試題：滑動視窗最大值（雙端佇列）
+minutes: 6
+front: |
+  面試官：「給每日支出 NSArray<NSNumber *> *amounts 與視窗大小 k，回傳每個長度 k 的連續區間的最大值。例如 [3, 1, 4, 1, 5, 9, 2]、k = 3 → [4, 4, 5, 9, 9]。暴力解是 O(nk)，能做到 O(n) 嗎？」
+back: |
+  用雙端佇列存「索引」，維持對應的值從頭到尾遞減：
+  1. 新元素進來前，從尾端踢掉所有值 ≤ 它的索引（它們不可能再當最大值）。
+  2. 頭端索引若已滑出視窗（≤ i − k）就從頭端移除。
+  3. i ≥ k − 1 時，頭端就是目前視窗的最大值。
+
+  - (NSArray<NSNumber *> *)windowMax:(NSArray<NSNumber *> *)amounts k:(NSUInteger)k {
+      NSMutableArray<NSNumber *> *result = [NSMutableArray array];
+      if (k == 0 || amounts.count < k) return result;
+      NSMutableArray<NSNumber *> *deque = [NSMutableArray array];   // 存索引
+      for (NSUInteger i = 0; i < amounts.count; i++) {
+          double v = amounts[i].doubleValue;
+          while (deque.count > 0 &&
+                 amounts[deque.lastObject.unsignedIntegerValue].doubleValue <= v) {
+              [deque removeLastObject];                  // 尾端出
+          }
+          [deque addObject:@(i)];                        // 尾端進
+          if (deque.firstObject.unsignedIntegerValue + k <= i) {
+              [deque removeObjectAtIndex:0];             // 頭端出
+          }
+          if (i + 1 >= k) {
+              [result addObject:amounts[deque.firstObject.unsignedIntegerValue]];
+          }
+      }
+      return result;
+  }
+
+  複雜度：每個索引最多進出 deque 各一次，O(n)；deque 最多 k 個，空間 O(k)。
+  removeObjectAtIndex:0 在 deque 只有 k 個時是 O(k)；面試時說明「正式版用環狀緩衝或頭指標做成真的 O(1)」即可。
+  注意寫 i + 1 >= k、firstObject + k <= i，避開 NSUInteger 做減法時的下溢（i − k 在 i < k 時會變成很大的數）。
+  金額若是 NSDecimalNumber，把 doubleValue 比較換成 compare:。

@@ -1,0 +1,72 @@
+id: m07-7-6-code-1
+chapter: "7.6"
+type: code
+title: 寫完 fetchRatesForBase:completion:
+mobile: false
+minutes: 12
+prompt: "補完 completionHandler 與最後一步。依序：`error` 非 nil → `deliver(nil, error)`；把 `response` 轉成 `NSHTTPURLResponse`，狀態碼不在 200–299 → 用 `LBErrorDomain` / `LBErrorCodeHTTPStatus` 建 NSError（`userInfo` 要有 `NSLocalizedDescriptionKey`）交給 `deliver`；都過了才呼叫 `+[LBRateService ratesFromJSONData:error:]` 解析並 `deliver`。`deliver` 已經寫好，它會切回主佇列。別忘了讓 task 開始。"
+starter: |
+  - (void)fetchRatesForBase:(NSString *)base completion:(LBRatesCompletion)completion {
+      void (^deliver)(NSDictionary *, NSError *) = ^(NSDictionary *r, NSError *e) {
+          dispatch_async(dispatch_get_main_queue(), ^{ completion(r, e); });
+      };
+      NSURL *url = [self ratesURLForBase:base];
+      NSURLSessionDataTask *task =
+          [self.session dataTaskWithURL:url
+                      completionHandler:^(NSData *data, NSURLResponse *response,
+                                          NSError *error) {
+
+      }];
+
+  }
+checks:
+  - must_match: 'if\s*\(\s*error\s*(!=\s*nil\s*)?\)\s*\{?\s*deliver\s*\(\s*nil\s*,\s*error\s*\)\s*;\s*return\s*;'
+    message: 第一關：error 非 nil 時 deliver(nil, error) 並 return
+  - must_match: '\(\s*NSHTTPURLResponse\s*\*\s*\)\s*response'
+    message: 把 response 轉型成 NSHTTPURLResponse
+  - must_match: 'statusCode'
+    message: 讀 statusCode
+  - must_match: '<\s*200|>=\s*300|>\s*299|/\s*100\s*!=\s*2'
+    message: 判斷狀態碼不在 200–299
+  - must_match: 'errorWithDomain\s*:\s*LBErrorDomain\s*code\s*:\s*LBErrorCodeHTTPStatus'
+    message: HTTP 錯誤用 LBErrorDomain / LBErrorCodeHTTPStatus
+  - must_match: 'NSLocalizedDescriptionKey'
+    message: userInfo 要有 NSLocalizedDescriptionKey
+  - must_match: 'ratesFromJSONData\s*:\s*data\s+error\s*:\s*&\s*\w+'
+    message: 呼叫 [LBRateService ratesFromJSONData:data error:&parseError]
+  - must_match: '(deliver\s*\([^;]*\)\s*;[\s\S]*){3}'
+    message: 三條路徑都要透過 deliver 回報
+  - must_not_match: '\bcompletion\s*\(\s*(nil|rates|\[)'
+    message: 不要直接呼叫 completion，那樣會在背景執行緒回呼；一律走 deliver
+  - must_match: '\[\s*task\s+resume\s*\]'
+    message: 最後要 [task resume]
+  - brackets_balanced: true
+solution: |
+  - (void)fetchRatesForBase:(NSString *)base completion:(LBRatesCompletion)completion {
+      void (^deliver)(NSDictionary *, NSError *) = ^(NSDictionary *r, NSError *e) {
+          dispatch_async(dispatch_get_main_queue(), ^{ completion(r, e); });
+      };
+      NSURL *url = [self ratesURLForBase:base];
+      NSURLSessionDataTask *task =
+          [self.session dataTaskWithURL:url
+                      completionHandler:^(NSData *data, NSURLResponse *response,
+                                          NSError *error) {
+          if (error) { deliver(nil, error); return; }               // 1. 連線層
+          NSInteger status = ((NSHTTPURLResponse *)response).statusCode;
+          if (status < 200 || status >= 300) {                      // 2. HTTP 層
+              NSString *desc = [NSString stringWithFormat:@"HTTP %ld", (long)status];
+              deliver(nil, [NSError errorWithDomain:LBErrorDomain
+                                               code:LBErrorCodeHTTPStatus
+                                           userInfo:@{ NSLocalizedDescriptionKey: desc,
+                                                       @"status": @(status) }]);
+              return;
+          }
+          NSError *parseError = nil;                                // 3. 內容層
+          NSDictionary *rates = [LBRateService ratesFromJSONData:data
+                                                           error:&parseError];
+          deliver(rates, parseError);
+      }];
+      [task resume];
+  }
+solution_note: "把「切回主佇列」寫成一個 deliver 區塊，每條路徑都經過它，就不可能漏掉某一條。在回呼裡直接寫 `completion(rates, nil)` 會在背景執行緒回呼，正是 testCompletionCalledOnMainQueue 要抓的 bug。正式版還會把 NSURLErrorCancelled（-999）轉成 LBErrorCodeCancelled，讓呼叫端可以安靜忽略。"
+hints: ["第一行：if (error) { deliver(nil, error); return; }", "狀態碼：((NSHTTPURLResponse *)response).statusCode。", "最後一行在 task 建立之後：[task resume];"]

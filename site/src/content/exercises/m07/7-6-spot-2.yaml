@@ -1,0 +1,41 @@
+id: m07-7-6-spot-2
+chapter: "7.6"
+type: spot
+title: 回呼裡直接更新畫面
+minutes: 3
+prompt: 匯率頁偶爾不更新，Debug 時跳出紫色的 Main Thread Checker 警告。點選有問題的行並選出原因。
+code: |
+  - (void)reloadRates {
+      NSURLSessionDataTask *task =
+          [[NSURLSession sharedSession] dataTaskWithURL:self.ratesURL
+                                      completionHandler:^(NSData *data,
+                                                          NSURLResponse *response,
+                                                          NSError *error) {
+          if (error) return;
+          NSDictionary *rates = [LBRateService ratesFromJSONData:data error:NULL];
+          self.rates = rates;
+          self.updatedLabel.text = @"剛剛更新";
+          [self.tableView reloadData];
+      }];
+      [task resume];
+  }
+bug_lines: [9, 10, 11]
+reasons:
+  - "NSURLSession 的回呼在背景的 delegate queue 上；第 10、11 行碰了 UIKit，第 9 行改了 table 資料源讀的屬性，三行都要包進 dispatch_async(dispatch_get_main_queue(), ...)"
+  - 第 8 行解析 JSON 也必須回主執行緒做
+  - 第 13 行的 resume 應該寫在 dataTaskWithURL: 之前
+  - "第 7 行應該改成 if (!data) return;"
+answer_reason: 0
+fix: |
+          if (error) return;
+          NSDictionary *rates = [LBRateService ratesFromJSONData:data error:NULL];
+          dispatch_async(dispatch_get_main_queue(), ^{
+              self.rates = rates;
+              self.updatedLabel.text = @"剛剛更新";
+              [self.tableView reloadData];
+          });
+solution_note: "解析留在背景，貼結果回主執行緒。self.rates 雖然不是 UIKit，但 table 的 dataSource 在主執行緒讀它，背景改它就是資料競爭，所以跟 reloadData 一起搬。另一種做法是建 session 時給 delegateQueue:[NSOperationQueue mainQueue]，所有回呼都在主執行緒，但解析也跟著跑在主執行緒，資料大時卡畫面。"
+hints: ["NSURLSession 的回呼在哪條佇列？", "self.rates 被誰在哪條執行緒讀？"]
+feedback:
+  "1": 解析放背景正是對的，只有碰 UI 與 UI 資料源的部分要回主執行緒。
+  "2": task 要先建出來才能 resume，順序沒錯。

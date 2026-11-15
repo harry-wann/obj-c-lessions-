@@ -26,7 +26,7 @@ checks:
     message: 呼叫 self.progressHandler(done, total)
   - must_match: '_lastReport\s*=\s*\w+'
     message: 送出時要更新 _lastReport
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (void)reportProgress:(NSUInteger)done
                    total:(NSUInteger)total

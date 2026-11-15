@@ -31,7 +31,7 @@ checks:
     message: 可預期的失敗用 NSError，不用例外
   - must_not_match: '\*\s*error\s*=\s*nil'
     message: 成功時不需要把 *error 設成 nil，呼叫端用回傳值判斷
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (BOOL)removeTransactionWithIdentifier:(NSUUID *)identifier error:(NSError **)error {
       LBTransaction *tx = [self transactionWithIdentifier:identifier];

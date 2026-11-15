@@ -24,7 +24,7 @@ checks:
     message: delegate 屬性要 nonatomic、weak
   - must_match: 'id\s*<\s*LBImporterDelegate\s*>\s*delegate'
     message: "delegate 的型別是 id<LBImporterDelegate>"
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   @class LBImporter, LBTransaction;
 

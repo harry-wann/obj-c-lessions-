@@ -28,7 +28,7 @@ checks:
     message: "reloadWithLedger: 也改用 self.ledger"
   - must_not_match: 'sharedManager'
     message: 不要再呼叫 sharedManager
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   @interface LBLegacyListViewController ()
   @property (nonatomic, strong) LBLedger *ledger;

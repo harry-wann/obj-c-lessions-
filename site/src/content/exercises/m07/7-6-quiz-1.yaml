@@ -1,0 +1,18 @@
+id: m07-7-6-quiz-1
+chapter: "7.6"
+section: quiz
+type: quiz
+title: 什麼都沒發生的請求
+minutes: 1
+prompt: "`[[NSURLSession sharedSession] dataTaskWithURL:url completionHandler:^(...) { NSLog(@\"回來了\"); }];` 執行後，Console 什麼都沒印、也沒有錯誤。最可能的原因？"
+options:
+  - 網路沒連上
+  - task 建立出來是暫停狀態，沒有呼叫 resume，請求根本沒送出
+  - sharedSession 預設不印 log
+  - completionHandler 在背景執行緒，NSLog 印不出來
+answer: 1
+explain: dataTask 建出來是 suspended，要 [task resume] 才開始。這個 bug 沒有任何訊息，常讓人花半小時懷疑網路。習慣寫法是建立 task 的同一個方法最後一行就 resume。
+hints: ["沒網路的話，回呼會帶什麼？", "task 建立出來的初始狀態是什麼？"]
+feedback:
+  "0": 沒網路時回呼一樣會來，帶著 NSURLErrorDomain -1009。完全沒反應代表請求沒送出。
+  "3": NSLog 在任何執行緒都印得出來。

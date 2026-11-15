@@ -30,7 +30,7 @@ checks:
     message: 前序：先加自己，再走子節點
   - must_not_match: '\.depth\b'
     message: 不要呼叫 node.depth，深度用參數傳
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   void LBFlatten(LBCategory *node, NSUInteger depth,
                  NSMutableArray<NSDictionary *> *rows) {

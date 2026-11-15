@@ -1,0 +1,41 @@
+id: m07-7-5-spot-2
+chapter: "7.5"
+type: spot
+title: 在背景佇列更新畫面
+minutes: 2
+prompt: 這段程式在 Debug 時 Xcode 跳出紫色警告，Release 偶爾總額不更新。點選有問題的行並選出原因。
+code: |
+  - (void)refreshTotal {
+      dispatch_queue_t bg = dispatch_get_global_queue(QOS_CLASS_UTILITY, 0);
+      dispatch_async(bg, ^{
+          NSDecimalNumber *total = [self.ledger computeTotal];
+          NSString *text = total.lb_currencyString;
+          self.totalLabel.text = text;
+          [self.tableView reloadData];
+      });
+  }
+bug_lines: [6, 7]
+reasons:
+  - 第 6、7 行在全域佇列（背景執行緒）上碰 UIKit；UIKit 只能在主執行緒存取，要包進 dispatch_async(dispatch_get_main_queue(), ...)
+  - 第 4 行計算總額不能在背景執行緒做
+  - 第 3 行應該改成 dispatch_sync，等計算完才更新
+  - 第 2 行的 QoS 太低，改成 QOS_CLASS_USER_INTERACTIVE 就會在主執行緒跑
+answer_reason: 0
+fix: |
+  - (void)refreshTotal {
+      dispatch_queue_t bg = dispatch_get_global_queue(QOS_CLASS_UTILITY, 0);
+      dispatch_async(bg, ^{
+          NSDecimalNumber *total = [self.ledger computeTotal];   // 背景算
+          NSString *text = total.lb_currencyString;
+          dispatch_async(dispatch_get_main_queue(), ^{            // 主執行緒貼
+              self.totalLabel.text = text;
+              [self.tableView reloadData];
+          });
+      });
+  }
+solution_note: 計算與格式化留在背景，只有「把結果貼上去」回主執行緒。全域佇列不管 QoS 多高都是背景執行緒；只有主佇列綁主執行緒。Main Thread Checker（Scheme → Diagnostics）就是那個紫色警告。
+hints: ["dispatch_get_global_queue 的 block 在哪條執行緒跑？", "哪幾行碰到了 UIKit 物件？"]
+feedback:
+  "1": 計算放背景正是對的，ledger 若有用佇列保護（本章的 LBLedger）就沒問題。
+  "2": dispatch_sync 到全域佇列，block 還是在背景跑；而且呼叫端會被卡住。
+  "3": QoS 只影響排程優先度，不會把 block 搬到主執行緒。

@@ -27,7 +27,7 @@ checks:
     message: "程式碼版用 registerClass:[LBTransactionCell class]"
   - must_match: 'forCellReuseIdentifier\s*:\s*@"LBTransactionCell"[\s\S]*forCellReuseIdentifier\s*:\s*@"LBTransactionCell"'
     message: "兩個分支的 identifier 都要是 LBTransactionCell"
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (void)viewDidLoad {
       [super viewDidLoad];

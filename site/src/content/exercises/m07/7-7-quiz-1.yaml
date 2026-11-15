@@ -1,0 +1,17 @@
+id: m07-7-7-quiz-1
+chapter: "7.7"
+section: quiz
+type: quiz
+title: JSON 的 null 變成什麼
+minutes: 1
+prompt: "`{\"note\": null}` 經過 `NSJSONSerialization` 之後，`json[@\"note\"]` 是什麼？"
+options:
+  - nil
+  - "`[NSNull null]`，一個真的物件，對它送 length 之類的訊息會 crash"
+  - "空字串 `@\"\"`"
+  - "`@0`"
+answer: 1
+explain: 集合裡不能放 nil，所以 JSON 的 null 用 NSNull 單例表示。它是物件不是 nil，「對 nil 送訊息安全」的保護傘罩不到它。解析層就把它轉成 nil，模型層之後就不用再想這件事。
+hints: ["NSDictionary 的值可以是 nil 嗎？", "缺欄位跟值是 null，取出來一樣嗎？"]
+feedback:
+  "0": 缺欄位時 json[@"note"] 才是 nil；值是 null 時拿到的是 NSNull。

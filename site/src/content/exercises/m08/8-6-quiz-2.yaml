@@ -1,0 +1,19 @@
+id: m08-8-6-quiz-2
+chapter: "8.6"
+section: quiz
+type: quiz
+title: decimalNumberWithString 收到垃圾
+minutes: 1
+prompt: "`[NSDecimalNumber decimalNumberWithString:@\"abc\"]` 回傳什麼？"
+options:
+  - nil
+  - NSDecimalNumber.zero
+  - NSDecimalNumber.notANumber（NaN）
+  - 丟出 NSInvalidArgumentException
+answer: 2
+explain: "它不回 nil，回 NaN，`@\"\"` 也是 NaN；`@\"1,280\"` 則遇到逗號停止回 1。解析前先去掉千分位逗號，再比對 `isEqual:NSDecimalNumber.notANumber`，最後檢查大於零。"
+hints: ["課文的 amountFromText 裡比對了哪個常數？", "NSDecimalNumber 有一個特殊值代表「不是數字」。"]
+feedback:
+  "0": 這是最常見的誤解，`if (!n)` 永遠不成立，NaN 會一路被存進帳本。
+  "1": 不是 0；但如果你用 NaN 去算合計，結果全部變 NaN。
+  "3": 不會丟例外，所以更要自己檢查。

@@ -1,0 +1,38 @@
+id: m08-8-6-spot-1
+chapter: "8.6"
+type: spot
+title: 金額 "abc" 也能儲存
+minutes: 3
+prompt: 測試 `testInvalidAmountDoesNotSave` 失敗：金額欄位設成 @"abc" 之後 `saveWithError:` 仍回 YES；另外輸入 1,280 存進去變成 1。點出有問題的行並選原因。
+code: |
+  - (nullable NSDecimalNumber *)amountFromText {
+      NSString *text = self.amountField.text;
+      if (text.length == 0) return nil;
+      NSDecimalNumber *n = [NSDecimalNumber decimalNumberWithString:text];
+      if (n == nil) return nil;
+      return n;
+  }
+bug_lines: [2, 5]
+reasons:
+  - "沒有先去掉千分位逗號；而且 decimalNumberWithString: 收到垃圾回 NaN 不回 nil，nil 檢查永遠不成立"
+  - "應該改用 [text doubleValue]，比較簡單"
+  - "text.length == 0 要改成 text == nil"
+  - "decimalNumberWithString: 只能在主執行緒以外呼叫"
+answer_reason: 0
+fix: |
+  - (nullable NSDecimalNumber *)amountFromText {
+      NSString *text =
+          [self.amountField.text stringByReplacingOccurrencesOfString:@","
+                                                           withString:@""];
+      if (text.length == 0) return nil;
+      NSDecimalNumber *n = [NSDecimalNumber decimalNumberWithString:text];
+      if ([n isEqual:NSDecimalNumber.notANumber]) return nil;
+      if ([n compare:NSDecimalNumber.zero] != NSOrderedDescending) return nil;
+      return n;
+  }
+solution_note: 三道關：去逗號 → 比對 notANumber → 大於零。顯示用的格式化字串跟解析用的原始字串分開存，不要從畫面文字反推金額。
+hints: ["\"abc\" 丟進去回傳的是 nil 嗎？", "\"1,280\" 解析到哪個字元會停？"]
+feedback:
+  "1": "doubleValue 把 \"abc\" 變成 0、而且是浮點數，金額一律用 NSDecimalNumber。"
+  "2": "對 nil 取 length 本來就是 0，這行沒問題。"
+  "3": 沒有這種限制。

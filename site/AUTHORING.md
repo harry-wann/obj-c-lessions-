@@ -1,6 +1,6 @@
 # 內容撰寫指南（給課文與題目作者）
 
-> 寫完後先跑 `python3 -I scripts/fix-yaml.py <檔案…>` 自動替含「: 」的字串加引號，再跑 `node scripts/validate.mjs`、`node scripts/check-fm.mjs`、`node scripts/check-ex.mjs`。
+> 寫完後先跑 `python3 -I scripts/fix-yaml.py <檔案…>` 自動替含「: 」的字串加引號，再跑 `node scripts/validate.mjs`、`node scripts/check-fm.mjs`、`node scripts/check-ex.mjs`、`node --experimental-strip-types scripts/check-solutions.mjs`（code 題的參考解必須通過自己的檢查）。
 
 ## 檔案位置與命名
 

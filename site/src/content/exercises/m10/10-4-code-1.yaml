@@ -36,7 +36,7 @@ checks:
     message: "performBatchImport: 用 dispatch_barrier_async + addObjectsFromArray:"
   - must_not_match: 'dispatch_barrier_async\s*\(\s*dispatch_get_global_queue'
     message: barrier 只對自建的並行佇列有效
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (NSArray<LBTransaction *> *)transactions {
       __block NSArray *copy;

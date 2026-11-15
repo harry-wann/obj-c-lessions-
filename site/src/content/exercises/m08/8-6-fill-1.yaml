@@ -1,0 +1,31 @@
+id: m08-8-6-fill-1
+chapter: "8.6"
+type: fill
+title: 鍵盤出現時調整 contentInset
+minutes: 3
+prompt: 補完鍵盤通知的處理：show 跟 hide 共用同一個方法，算出鍵盤跟 view 重疊多少，調整 scroll view 的底部內縮。
+code: |
+  [nc addObserver:self selector:@selector(keyboardWillChange:)
+             name:___1___ object:nil];
+  [nc addObserver:self selector:@selector(keyboardWillChange:)
+             name:UIKeyboardWillHideNotification object:nil];
+
+  - (void)keyboardWillChange:(NSNotification *)note {
+      CGRect end = [note.userInfo[___2___] CGRectValue];
+      CGRect endInView = [self.view ___3___:end fromView:nil];
+      CGFloat overlap = MAX(0, CGRectGetMaxY(self.view.bounds)
+                               - CGRectGetMinY(endInView));
+      CGFloat bottom = MAX(0, overlap - self.view.safeAreaInsets.bottom);
+      self.scrollView.___4___ = UIEdgeInsetsMake(0, 0, bottom, 0);
+  }
+blanks:
+  "1": { accept: ["UIKeyboardWillShowNotification"], chips: ["UIKeyboardWillShowNotification", "UIKeyboardDidShowNotification", "UITextFieldTextDidBeginEditingNotification", "UIKeyboardWillChangeFrameNotification"] }
+  "2": { accept: ["UIKeyboardFrameEndUserInfoKey"], chips: ["UIKeyboardFrameEndUserInfoKey", "UIKeyboardFrameBeginUserInfoKey", "UIKeyboardAnimationDurationUserInfoKey", "UIKeyboardBoundsUserInfoKey"] }
+  "3": { accept: ["convertRect"], chips: ["convertRect", "convertPoint", "intersectRect", "frameForRect"] }
+  "4": { accept: ["contentInset"], chips: ["contentInset", "contentOffset", "contentSize", "frame"] }
+hints: ["Will 比 Did 早，動畫才跟得上。", "要的是鍵盤動畫結束時的位置。", "通知給的是視窗座標，要換成自己的座標。"]
+feedback:
+  "1=UIKeyboardDidShowNotification": Did 在鍵盤已經升起後才來，欄位會先被擋住一下才跳上來。
+  "2=UIKeyboardFrameBeginUserInfoKey": Begin 是動畫開始的位置；show 時鍵盤還在螢幕外，算出來重疊是 0。
+  "4=contentOffset": offset 是捲到哪裡；要讓底部多出可捲動空間的是 inset。
+solution_note: "hide 時鍵盤終點 frame 在螢幕外，overlap 算出 0，自然還原，所以一個方法處理兩種通知。記得在 viewWillDisappear: 成對移除；iOS 15 以後也可以用 keyboardLayoutGuide。"

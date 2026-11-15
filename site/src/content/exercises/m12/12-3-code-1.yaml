@@ -25,7 +25,7 @@ checks:
     message: "waitForExpectations:@[...] timeout:2"
   - must_not_match: 'sleep\s*\(|dispatch_semaphore'
     message: 不要用 sleep 或 semaphore 等待，用 expectation
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (void)testAsyncSaveCallsBackOnMainQueueWithoutError {
       LBLedger *ledger = [LBLedger new];

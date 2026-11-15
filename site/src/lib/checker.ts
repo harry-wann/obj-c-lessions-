@@ -16,15 +16,36 @@ export function bracketsBalanced(src: string): boolean {
   return stack.length === 0;
 }
 // 解析方法宣告：- (void)addAmount:(NSDecimalNumber *)amount note:(NSString *)note
+// 參數型別可含巢狀括號（block 型別），所以用逐字掃描而非單一正規表達式。
+function skipParens(s: string, i: number): number {
+  // s[i] === '('，回傳對應 ')' 之後的位置
+  let depth = 0;
+  for (; i < s.length; i++) { if (s[i] === '(') depth++; else if (s[i] === ')') { depth--; if (depth === 0) return i + 1; } }
+  return s.length;
+}
 export function selectors(src: string): string[] {
   const out: string[] = []; const n = normalize(src);
-  const re = /[-+]\s*\(([^)]*)\)\s*([A-Za-z_][\w]*(?:\s*:\s*\([^)]*\)\s*[A-Za-z_]\w*\s*(?:[A-Za-z_]\w*\s*:\s*\([^)]*\)\s*[A-Za-z_]\w*\s*)*)?)/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(n))) {
-    const sig = m[2];
-    if (!sig.includes(':')) { out.push(sig.trim()); continue; }
-    const parts = sig.match(/[A-Za-z_]\w*\s*:/g) || [];
-    out.push(parts.map(p => p.replace(/\s/g, '')).join(''));
+  // 候選起點：- 或 + 後接 (，且前一個非空白字元不是運算子或左括號（排除減法與正負號）
+  const starts: number[] = [];
+  for (let i = 0; i < n.length; i++) {
+    if ((n[i] === '-' || n[i] === '+') && /^\s*\(/.test(n.slice(i + 1, i + 4))) {
+      const prev = n.slice(0, i).trimEnd().slice(-1);
+      if (prev === '' || /[;{})>\]a-zA-Z_0-9]/.test(prev)) starts.push(i);
+    }
+  }
+  for (const st of starts) {
+    let i = n.indexOf('(', st); i = skipParens(n, i);
+    const parts: string[] = []; let first = true;
+    while (i < n.length) {
+      const m = /^\s*([A-Za-z_]\w*)\s*(:)?/.exec(n.slice(i));
+      if (!m) break;
+      if (!m[2]) { if (first) parts.push(m[1]); break; }
+      parts.push(m[1] + ':'); i += m[0].length; first = false;
+      const t = /^\s*\(/.exec(n.slice(i)); if (t) { i += t[0].length - 1; i = skipParens(n, i); }
+      const v = /^\s*[A-Za-z_]\w*/.exec(n.slice(i)); if (!v) break; i += v[0].length;
+      if (/^\s*[{;]/.test(n.slice(i)) || /^\s*NS_\w+/.test(n.slice(i))) break;
+    }
+    if (parts.length) out.push(parts.join(''));
   }
   return out;
 }

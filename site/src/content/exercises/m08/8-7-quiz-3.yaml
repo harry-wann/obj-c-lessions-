@@ -1,0 +1,19 @@
+id: m08-8-7-quiz-3
+chapter: "8.7"
+section: quiz
+type: quiz
+title: XIB 版 cell 怎麼註冊
+minutes: 1
+prompt: 做好 `LBTransactionCell.xib` 之後，列表 `viewDidLoad` 仍然是 `registerClass:[LBTransactionCell class] forCellReuseIdentifier:kCellID`。執行結果？
+options:
+  - 正常顯示，UIKit 會自動找同名的 XIB
+  - "crash：Could not load NIB in bundle"
+  - "表格用 initWithStyle:reuseIdentifier: 建 cell，XIB 沒被載入，outlet 全是 nil，畫面空白但不 crash"
+  - "crash：unable to dequeue a cell with identifier"
+answer: 2
+explain: "XIB 設計的 cell 要用 `registerNib:[UINib nibWithNibName:@\"LBTransactionCell\" bundle:nil] forCellReuseIdentifier:`，cell 會走 initWithCoder: → awakeFromNib。"
+hints: ["registerClass: 讓表格用哪個初始化器建 cell？", "outlet 沒接上時對它們送訊息會怎樣？"]
+feedback:
+  "0": "registerClass: 不會去找 nib。"
+  "1": "那是反過來的錯：程式碼版 cell 用 registerNib: 但找不到 nib 檔。"
+  "3": 有註冊（class），所以 dequeue 不會失敗。

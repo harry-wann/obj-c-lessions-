@@ -23,7 +23,7 @@ checks:
     message: 設定 editor.ledger
   - must_match: '\.delegate\s*=\s*self'
     message: 設定 editor.delegate
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
       if (![segue.identifier isEqualToString:@"editTransaction"]) return;

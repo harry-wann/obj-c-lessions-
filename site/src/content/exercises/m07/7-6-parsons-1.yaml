@@ -1,0 +1,21 @@
+id: m07-7-6-parsons-1
+chapter: "7.6"
+type: parsons
+title: 排出回呼裡的三層檢查
+minutes: 3
+prompt: 排出 `LBRateService` 在 completionHandler 裡的處理順序：連線層 → HTTP 層 → 內容層 → 回主佇列。`deliver(rates, error)` 是已經寫好、會切回主佇列呼叫 completion 的區塊。有兩行是干擾行。
+lines:
+  - "if (error) { deliver(nil, error); return; }"
+  - "NSInteger status = ((NSHTTPURLResponse *)response).statusCode;"
+  - "if (status < 200 || status >= 300) {"
+  - "    deliver(nil, [self httpErrorWithStatus:status]);"
+  - "    return;"
+  - "}"
+  - "NSError *parseError = nil;"
+  - "NSDictionary *rates = [LBRateService ratesFromJSONData:data error:&parseError];"
+  - "deliver(rates, parseError);"
+distractors:
+  - "if (data == nil) { deliver(nil, nil); return; }"
+  - "self.rateLabel.text = rates.description;"
+solution_note: "error 非 nil 時 data 是 nil，所以連線層要最先判；error 是 nil 也不代表成功，404 / 500 要看 statusCode；兩關都過才解析。`deliver(nil, nil)` 會讓呼叫端拿到「沒有結果也沒有錯誤」，違反 7.1 的慣例；碰 UI 不是 service 的責任，而且這裡還在背景。"
+hints: ["第一關：連線層失敗看哪個參數？", "第二關：404 要怎麼發現？", "最後才解析 data。"]

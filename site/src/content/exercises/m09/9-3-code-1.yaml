@@ -45,7 +45,7 @@ checks:
     message: "initWithCoder: 最後要走指定初始化器 initWithYear:month:expenseTotal:label:"
   - must_match: 'return\s+nil'
     message: expenseTotal 缺了要回 nil
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   + (BOOL)supportsSecureCoding { return YES; }
 

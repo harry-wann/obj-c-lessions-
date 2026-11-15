@@ -22,7 +22,7 @@ checks:
     message: "缺少 syncWithCompletion:"
   - must_match: '-\s*\(\s*id\s*<\s*LBCancellable\s*>\s*\)\s*syncWithCompletion\s*:\s*\(\s*LBSyncCompletion\s*\)\s*completion'
     message: "回傳型別 id<LBCancellable>，參數型別 LBSyncCompletion"
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   @class LBSyncResult;
 

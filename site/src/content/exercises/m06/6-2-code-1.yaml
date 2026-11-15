@@ -29,7 +29,7 @@ checks:
     message: "respondsToSelector: 要保留 super 的答案"
   - must_not_match: 'return\s+self\s*;'
     message: "forwardingTargetForSelector: 回傳 self 會無限遞迴"
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (id)forwardingTargetForSelector:(SEL)sel {
       if ([_stats respondsToSelector:sel]) return _stats;

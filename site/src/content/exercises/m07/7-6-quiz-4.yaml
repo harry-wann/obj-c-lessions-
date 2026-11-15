@@ -1,0 +1,20 @@
+id: m07-7-6-quiz-4
+chapter: "7.6"
+section: quiz
+type: quiz
+title: ATS 擋下了內網 http
+minutes: 2
+prompt: "公司測試機只有 `http://dev.internal.example.com`，請求回 `-1022`。以下哪些做法正確？（可複選）"
+multi: true
+options:
+  - 首選：請後端把測試機改成 https
+  - "做不到的話，在 Info.plist 的 NSAppTransportSecurity → NSExceptionDomains 裡只對 dev.internal.example.com 加 NSExceptionAllowsInsecureHTTPLoads"
+  - "直接設 NSAllowsArbitraryLoads = YES，最省事"
+  - "-1022 是模擬器才有的問題，實機不會發生"
+  - 錯誤訊息應該跟「沒網路」分開處理，否則使用者看不出是設定問題
+answer: [0, 1, 4]
+explain: ATS 預設只准 https。例外要縮到單一網域；NSAllowsArbitraryLoads 是全開，送審要寫理由而且可能被退件。模擬器與實機行為一致。
+hints: ["例外的範圍越小越好。", "-1022 跟 -1009 都在 NSURLErrorDomain，使用者分得出來嗎？"]
+feedback:
+  "2": 為了一個測試端點把整個 App 的 ATS 關掉，上架時會被問，正式環境也失去保護。
+  "3": ATS 在模擬器與實機一樣生效。

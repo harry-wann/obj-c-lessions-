@@ -28,7 +28,7 @@ checks:
     message: "defaultTree 回傳 NSArray<LBCategory *>"
   - must_match: '\(\s*nullable\s+LBCategory\s*\*\s*\)\s*categoryNamed|\(\s*LBCategory\s*\*\s*_Nullable\s*\)\s*categoryNamed'
     message: "categoryNamed:inTree: 找不到回 nil，要標 nullable"
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   NS_ASSUME_NONNULL_BEGIN
 

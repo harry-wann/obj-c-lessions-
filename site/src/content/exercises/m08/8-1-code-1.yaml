@@ -27,7 +27,7 @@ checks:
     message: 用 viewControllers 屬性放入分頁
   - must_match: 'return\s+\w+\s*;'
     message: 要回傳 tab bar controller
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (UIViewController *)makeRootViewController {
       LBTransactionListViewController *list =

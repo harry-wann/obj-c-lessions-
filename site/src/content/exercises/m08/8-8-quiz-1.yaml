@@ -1,0 +1,19 @@
+id: m08-8-8-quiz-1
+chapter: "8.8"
+section: quiz
+type: quiz
+title: 資料變了要怎麼重畫
+minutes: 1
+prompt: LBBarChartView 的 `values` 改了，要讓長條圖更新。下列哪個寫法正確？
+options:
+  - "在 setValues: 裡直接呼叫 [self drawRect:self.bounds]"
+  - "在 setValues: 裡呼叫 [self setNeedsDisplay]，系統在下一個畫面更新週期呼叫 drawRect:"
+  - "在 drawRect: 結尾呼叫 [self setNeedsDisplay]，讓它一直保持最新"
+  - "呼叫 [self layoutIfNeeded]，drawRect: 會跟著跑"
+answer: 1
+explain: "setNeedsDisplay 只做記號，同一個週期叫一百次也只畫一次。永遠不自己呼叫 drawRect:，那時沒有 context。"
+hints: ["誰負責準備繪圖環境？", "連續改三次資料，你希望畫幾次？"]
+feedback:
+  "0": 自己呼叫時 UIGraphicsGetCurrentContext() 是 NULL，主控台會出現 invalid context 0x0，畫面不變。
+  "2": 這會每一幀都重畫，CPU 100%。
+  "3": layoutIfNeeded 只處理版面（layoutSubviews），不會觸發重畫。

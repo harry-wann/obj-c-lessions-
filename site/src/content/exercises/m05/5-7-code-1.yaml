@@ -31,7 +31,7 @@ checks:
     message: 用 [NSNotificationCenter defaultCenter]
   - must_match: 'postNotificationName\s*:\s*LBLedgerDidChangeNotification\s+object\s*:\s*self\s+userInfo\s*:\s*@\{\s*LBLedgerTransactionUserInfoKey\s*:\s*tx\s*\}'
     message: "postNotificationName:LBLedgerDidChangeNotification object:self userInfo:@{ LBLedgerTransactionUserInfoKey: tx }"
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   // LBLedger.h
   extern NSNotificationName const LBLedgerDidChangeNotification;

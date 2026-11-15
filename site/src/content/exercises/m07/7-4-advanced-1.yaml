@@ -1,0 +1,63 @@
+id: m07-7-4-advanced-1
+chapter: "7.4"
+type: code
+tier: advanced
+title: 進階：實作環狀佇列
+mobile: false
+minutes: 12
+prompt: "補完 `LBRingQueue` 的 `enqueue:` 與 `dequeue`。`_slots` 已經用 `NSNull` 填滿 `_capacity` 格。規則：滿了 `enqueue:` 回 NO（不擴容、不覆寫）；空了 `dequeue` 回 nil；索引用 `% _capacity` 繞回 0；用 `_count` 分辨空與滿；拿走之後把該格設回 `[NSNull null]` 放掉強參考。不准用 `removeObjectAtIndex:` 或 `insertObject:atIndex:`（那就不是 O(1) 了）。"
+starter: |
+  @implementation LBRingQueue {
+      NSMutableArray *_slots;
+      NSUInteger _head, _tail, _count, _capacity;
+  }
+  - (BOOL)enqueue:(id)obj {
+
+  }
+  - (nullable id)dequeue {
+
+  }
+  @end
+checks:
+  - must_match: 'if\s*\(\s*_count\s*(==|>=)\s*_capacity\s*\)\s*(\{\s*)?return\s+NO\s*;'
+    message: enqueue 先判斷滿（_count == _capacity）並回 NO
+  - must_match: '_slots\s*\[\s*_tail\s*\]\s*=\s*obj'
+    message: 把 obj 放到 _slots[_tail]
+  - must_match: '_tail\s*=\s*\(\s*_tail\s*\+\s*1\s*\)\s*%\s*_capacity'
+    message: "_tail = (_tail + 1) % _capacity"
+  - must_match: '_count\s*\+\+|\+\+\s*_count|_count\s*\+=\s*1'
+    message: enqueue 後 _count 加一
+  - must_match: 'if\s*\(\s*_count\s*==\s*0\s*\)\s*(\{\s*)?return\s+nil\s*;'
+    message: dequeue 先判斷空（_count == 0）並回 nil
+  - must_match: '_slots\s*\[\s*_head\s*\]\s*=\s*\[\s*NSNull\s+null\s*\]'
+    message: 拿走後把 _slots[_head] 設回 [NSNull null]
+  - must_match: '_head\s*=\s*\(\s*_head\s*\+\s*1\s*\)\s*%\s*_capacity'
+    message: "_head = (_head + 1) % _capacity"
+  - must_match: '_count\s*--|--\s*_count|_count\s*-=\s*1'
+    message: dequeue 後 _count 減一
+  - must_not_match: 'removeObjectAtIndex|insertObject\s*:'
+    message: 不要搬移元素，環狀佇列只移動索引
+  - brackets_balanced: true
+solution: |
+  @implementation LBRingQueue {
+      NSMutableArray *_slots;
+      NSUInteger _head, _tail, _count, _capacity;
+  }
+  - (BOOL)enqueue:(id)obj {
+      if (_count == _capacity) return NO;        // 滿
+      _slots[_tail] = obj;
+      _tail = (_tail + 1) % _capacity;
+      _count++;
+      return YES;
+  }
+  - (nullable id)dequeue {
+      if (_count == 0) return nil;               // 空
+      id obj = _slots[_head];
+      _slots[_head] = [NSNull null];             // 放掉強參考
+      _head = (_head + 1) % _capacity;
+      _count--;
+      return obj;
+  }
+  @end
+solution_note: "兩個操作都只動索引，O(1)、不配置記憶體。不設回 NSNull 的話，已經出列的物件仍被 _slots 強參考，直到那格被覆寫才釋放，看起來像記憶體洩漏。10.1 的 LBRingBuffer 是變體：滿了不回 NO，而是覆寫最舊的值並把 _head 一起往前推。"
+hints: ["enqueue 第一行判斷滿；dequeue 第一行判斷空。", "索引前進一格：(i + 1) % _capacity。", "拿走的那格要放回 [NSNull null]。"]

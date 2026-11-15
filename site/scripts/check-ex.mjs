@@ -18,3 +18,5 @@ for (const f of walk('src/content/exercises')) {
   if (issues.length) { bad++; console.log(f + ': ' + issues.join('；')); }
 }
 console.log(bad ? `${bad} 檔有問題` : '題目型別全部正確');
+// code 題的 checks 必須是物件
+for (const f of walk('src/content/exercises')) { let d; try { d = yaml.load(readFileSync(f, 'utf8')); } catch { continue; } if (d?.type === 'code' && (!Array.isArray(d.checks) || d.checks.some(c => typeof c !== 'object' || c === null))) console.log(f + ': checks 含非物件（被誤加引號？）'); }

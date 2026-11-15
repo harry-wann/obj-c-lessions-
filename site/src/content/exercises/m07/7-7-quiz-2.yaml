@@ -1,0 +1,19 @@
+id: m07-7-7-quiz-2
+chapter: "7.7"
+section: quiz
+type: quiz
+title: 一句 isKindOfClass 擋掉幾種髒資料
+minutes: 2
+prompt: "`id raw = json[@\"code\"]; if (![raw isKindOfClass:[NSString class]]) return nil;` 這一句能擋掉哪些情況？（可複選）"
+multi: true
+options:
+  - 缺少 code 欄位（raw 是 nil）
+  - code 是 null（raw 是 NSNull）
+  - code 是數字 840（raw 是 NSNumber）
+  - code 是空字串 @""
+  - code 是陣列
+answer: [0, 1, 2, 4]
+explain: 對 nil 送 isKindOfClass: 回 NO，所以缺欄位與型別錯用同一句擋掉；NSNull、NSNumber、NSArray 都不是 NSString。空字串是合法的 NSString，要另外檢查 length。
+hints: ["對 nil 送訊息會回什麼？", "空字串是不是 NSString？"]
+feedback:
+  "3": "@\"\" 是 NSString，會通過這一關；要再加 code.length == 0 的判斷。"

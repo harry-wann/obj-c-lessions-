@@ -1,0 +1,18 @@
+id: m07-7-5-quiz-4
+chapter: "7.5"
+section: quiz
+type: quiz
+title: "@synchronized 的代價"
+minutes: 1
+prompt: "以下哪一個**不是** `@synchronized (self) { ... }` 的代價或風險？"
+options:
+  - runtime 要用物件位址去全域雜湊表查鎖，加上可重入，比 os_unfair_lock 慢好幾倍
+  - 編譯器會隱含包一層 @try / @finally，確保例外飛過時會解鎖
+  - 用 self 當鎖，外面任何人寫 @synchronized (ledger) 都會跟你搶同一把鎖
+  - 它在 Release 組態會被編譯器移除，只在 Debug 有保護
+answer: 3
+explain: "@synchronized 在任何組態都會上鎖，被移除的是 NSAssert。前三個都是真的代價：慢、隱含例外處理、鎖的粒度綁在物件上。偶爾進入的小臨界區用它很好讀，高頻狀態用佇列。"
+hints: ["哪一個是 7.2 斷言的特性？"]
+feedback:
+  "0": 這是真的，10.x 的 LBLockBenchmark 會量給你看。
+  "2": 這是真的，所以有人改用私有的鎖物件當參數。

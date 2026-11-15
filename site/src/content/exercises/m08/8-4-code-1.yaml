@@ -31,7 +31,7 @@ checks:
     message: "一般情況用 deleteRowsAtIndexPaths: 刪那一列"
   - not_contains: reloadData
     message: 這題練局部更新，不用 reloadData
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (void)tableView:(UITableView *)tableView
       commitEditingStyle:(UITableViewCellEditingStyle)editingStyle

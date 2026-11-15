@@ -1,0 +1,17 @@
+id: m07-7-6-quiz-2
+chapter: "7.6"
+section: quiz
+type: quiz
+title: 伺服器回 404 時
+minutes: 1
+prompt: 伺服器回 HTTP 404 和一頁 HTML。dataTask 的回呼裡三個參數會是？
+options:
+  - "error 是 NSURLErrorDomain 的錯誤，data 是 nil"
+  - "error 是 nil，response 的 statusCode 是 404，data 是那頁 HTML"
+  - "error 是 nil，data 是 nil"
+  - 回呼不會被呼叫
+answer: 1
+explain: 對 NSURLSession 來說，收到任何 HTTP 回應都算「連線成功」。404、500 要自己把 response 轉成 NSHTTPURLResponse 看 statusCode，跟 TS 的 fetch 要看 res.ok 一樣。
+hints: ["error 參數代表哪一層的失敗？", "TS 的 fetch 遇到 404 會 reject 嗎？"]
+feedback:
+  "0": NSURLErrorDomain 的錯誤是連線層的：沒網路、逾時、被取消、ATS。404 是伺服器好好回了一個答案。

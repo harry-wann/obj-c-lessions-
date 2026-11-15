@@ -25,7 +25,7 @@ checks:
     message: 忘了 resume 請求不會送出
   - must_not_match: 'NSURLConnection'
     message: 不要再用 NSURLConnection
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (void)fetchRatesForBase:(NSString *)base
                 completion:(LBRatesCompletion)completion {

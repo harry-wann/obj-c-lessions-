@@ -27,11 +27,11 @@ checks:
     message: 要設 top
   - must_match: 'make\.height\.(mas_equalTo\s*\(\s*44\s*\)|equalTo\s*\(\s*@44\s*\))'
     message: "height 用 mas_equalTo(44) 或 equalTo(@44)"
-  - must_not_match: 'equalTo\s*\(\s*44\s*\)'
+  - must_not_match: '(?<!mas_)equalTo\s*\(\s*44\s*\)'
     message: "equalTo(44) 傳 C 數值會 crash"
   - must_not_match: 'activateConstraints'
     message: 不要再用原生 activateConstraints
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (void)layoutAmountField {
       [self.amountField mas_makeConstraints:^(MASConstraintMaker *make) {

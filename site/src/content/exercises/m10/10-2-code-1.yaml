@@ -27,7 +27,7 @@ checks:
     message: 不准在這裡建立 NSDateFormatter
   - must_match: '\[\s*\[\s*self\s+cache\s*\]\s+setObject\s*:\s*\w+\s+forKey\s*:'
     message: 建好要存進快取
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   + (instancetype)viewModelWithTransaction:(LBTransaction *)tx {
       NSString *key = [NSString stringWithFormat:@"%@-%.0f", tx.identifier,

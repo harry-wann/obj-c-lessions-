@@ -37,7 +37,7 @@ checks:
     message: 兩個 label 之間至少 8 pt（GreaterThanOrEqual）
   - must_match: '_totalLabel\s+setContentCompressionResistancePriority\s*:\s*UILayoutPriorityRequired\s+forAxis\s*:\s*UILayoutConstraintAxisHorizontal'
     message: _totalLabel 水平抗壓優先度 Required
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (void)setupViews {
       _monthLabel = [UILabel new];

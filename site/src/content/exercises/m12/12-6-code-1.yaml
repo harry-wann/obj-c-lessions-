@@ -31,7 +31,7 @@ checks:
     message: "(3) 賦值給 self.ledger.onChange"
   - must_match: '\[\s*strongSelf\s+reload\s*\]'
     message: "(3) 用 strongSelf 呼叫 reload"
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   // (1)
   @property (nonatomic, copy) NSString *note;

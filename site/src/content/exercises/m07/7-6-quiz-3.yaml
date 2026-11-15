@@ -1,0 +1,17 @@
+id: m07-7-6-quiz-3
+chapter: "7.6"
+section: quiz
+type: quiz
+title: cancel 之後的回呼
+minutes: 1
+prompt: "搜尋列每打一個字就 `[self.currentTask cancel]` 再發新請求。被取消的那個 task 的回呼會怎樣？"
+options:
+  - 不會被呼叫
+  - "會被呼叫，error 是 NSURLErrorDomain、code -999（NSURLErrorCancelled），應該當成使用者主動取消，不跳錯誤框"
+  - 會被呼叫，error 是 nil、data 是空的
+  - 會 raise NSInternalInconsistencyException
+answer: 1
+explain: cancel 之後回呼仍會來，帶著 -999。如果把所有 error 都顯示成「網路連線失敗」，使用者打字時就會一直看到錯誤框。小帳本把它轉成 LBErrorCodeCancelled，呼叫端可以安靜地忽略。
+hints: ["cancel 之後 NSURLSession 還會通知你嗎？", "-999 這個 code 叫什麼名字？"]
+feedback:
+  "0": 回呼一定會來，這樣你才有機會收尾（例如停掉轉圈圈）。

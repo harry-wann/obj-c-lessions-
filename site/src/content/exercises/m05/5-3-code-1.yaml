@@ -25,7 +25,7 @@ checks:
   - must_not_match: '-\s*\([^)]*\)\s*(map|filter|reduce)\s*:'
     message: 方法名要加 lb_ 前綴
   - must_match: '@end'
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   @interface NSArray<ObjectType> (LBFunctional)
   - (NSArray *)lb_map:(id (^)(ObjectType obj))transform;

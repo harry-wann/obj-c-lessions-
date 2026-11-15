@@ -41,6 +41,6 @@ fix: |
 solution_note: "公式是「更新後 = 更新前 ± 插入 / 刪除」：5 = 5 − 1 不成立，所以表格知道你說刪了一列、資料卻沒少。鐵律：資料先改、畫面後改，兩邊差異一致。該月只剩一筆時要 deleteSections:，否則會換成 invalid number of sections。"
 feedback:
   "1": 越界會是另一種訊息（index beyond bounds）；這裡的 indexPath 是表格自己傳進來的，一定合法。
-  "2": 在 commitEditingStyle: 裡局部刪除是標準寫法，問題在呼叫之前的資料。
+  "2": "在 commitEditingStyle: 裡局部刪除是標準寫法，問題在呼叫之前的資料。"
   "3": 沒註冊會在 dequeue 時就 crash，到不了刪除。
 hints: ["after (5) 應該等於 before (5) − deleted (1)，差在哪？", "deleteRows 之後表格會重新問誰？"]

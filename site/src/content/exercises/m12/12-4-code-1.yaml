@@ -34,7 +34,7 @@ checks:
     message: 沒分類時印「未分類」
   - must_match: 'return\s+\[?\s*self\s+description\s*\]?|return\s+self\.description'
     message: debugDescription 直接回傳 description
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   @implementation LBTransaction
 

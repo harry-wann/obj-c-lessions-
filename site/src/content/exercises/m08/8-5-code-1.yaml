@@ -29,7 +29,7 @@ checks:
     message: 取消時收掉 sheet
   - must_not_match: 'editorDidCancel[^}]*addTransaction'
     message: 取消不能儲存
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (void)editor:(LBTransactionEditorViewController *)editor
       didSaveTransaction:(LBTransaction *)transaction {

@@ -26,7 +26,7 @@ checks:
     message: "error 參數寫成 NSError * _Nullable * _Nullable"
   - must_not_match: 'nullable\s+NSURLSession|nullable\s+NSURL\b|nullable\s+NSString'
     message: "session、baseURL、base 不該是 nullable"
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   NS_ASSUME_NONNULL_BEGIN
 

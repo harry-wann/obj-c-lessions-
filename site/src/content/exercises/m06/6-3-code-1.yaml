@@ -22,7 +22,7 @@ checks:
     message: "最後呼叫 expenseWithAmount:note:"
   - must_not_match: 'isMemberOfClass'
     message: "類別叢集下 isMemberOfClass: 會給錯答案，用 isKindOfClass:"
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   + (nullable instancetype)transactionWithJSON:(id)json {
       if (![json isKindOfClass:[NSDictionary class]]) return nil;

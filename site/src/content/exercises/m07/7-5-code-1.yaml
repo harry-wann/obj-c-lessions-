@@ -1,0 +1,93 @@
+id: m07-7-5-code-1
+chapter: "7.5"
+type: code
+title: 把 LBLedger 改成讀寫鎖
+mobile: false
+minutes: 10
+prompt: "目前的 LBLedger 用串列佇列保護 `_transactions`。改成「讀可以同時、寫要獨佔」：佇列改成並行；兩個寫入方法（`addTransaction:`、`removeAllTransactions`）用 `dispatch_barrier_async`；兩個讀取方法（`transactions`、`count`）維持 `dispatch_sync`。barrier 的 block 裡直接碰 ivar，不要再呼叫 `self.transactions`（會 dispatch_sync 回同一條佇列造成死結）。不准用 `@synchronized` 或全域佇列。"
+starter: |
+  @implementation LBLedger {
+      dispatch_queue_t _queue;
+      NSMutableArray<LBTransaction *> *_transactions;
+  }
+  - (instancetype)init {
+      if (self = [super init]) {
+          _queue = dispatch_queue_create("com.littlebook.ledger",
+                                         DISPATCH_QUEUE_SERIAL);
+          _transactions = [NSMutableArray array];
+      }
+      return self;
+  }
+  - (void)addTransaction:(LBTransaction *)tx {
+      dispatch_async(_queue, ^{
+          [self->_transactions addObject:tx];
+          NSLog(@"共 %lu 筆", (unsigned long)self.transactions.count);
+      });
+  }
+  - (void)removeAllTransactions {
+      dispatch_async(_queue, ^{ [self->_transactions removeAllObjects]; });
+  }
+  - (NSArray<LBTransaction *> *)transactions {
+      __block NSArray *snapshot;
+      dispatch_sync(_queue, ^{ snapshot = [self->_transactions copy]; });
+      return snapshot;
+  }
+  - (NSUInteger)count {
+      __block NSUInteger n;
+      dispatch_sync(_queue, ^{ n = self->_transactions.count; });
+      return n;
+  }
+  @end
+checks:
+  - must_match: '_queue\s*=\s*dispatch_queue_create\s*\([^;]*DISPATCH_QUEUE_CONCURRENT\s*\)'
+    message: 佇列改成 DISPATCH_QUEUE_CONCURRENT
+  - must_not_match: 'DISPATCH_QUEUE_SERIAL'
+    message: 不再需要串列佇列
+  - must_match: 'dispatch_barrier_async\s*\(\s*(self->)?_queue\s*,\s*\^\s*\{[^}]*addObject\s*:\s*tx'
+    message: addTransaction: 用 dispatch_barrier_async 寫入
+  - must_match: 'dispatch_barrier_async\s*\(\s*(self->)?_queue\s*,\s*\^\s*\{[^}]*removeAllObjects'
+    message: removeAllTransactions 也要用 dispatch_barrier_async
+  - must_match: 'dispatch_sync\s*\(\s*(self->)?_queue\s*,\s*\^\s*\{[^}]*copy'
+    message: transactions 維持 dispatch_sync 讀取快照
+  - must_match: 'dispatch_sync\s*\(\s*(self->)?_queue\s*,\s*\^\s*\{[^}]*_transactions\.count|dispatch_sync\s*\(\s*(self->)?_queue\s*,\s*\^\s*\{[^}]*\[\s*self->_transactions\s+count\s*\]'
+    message: count 維持 dispatch_sync 讀取
+  - must_not_match: 'dispatch_barrier_async\s*\([^{]*\{[^}]*self\.transactions'
+    message: barrier 裡不要經過 self.transactions，直接碰 ivar（否則死結）
+  - must_not_match: '@synchronized|dispatch_get_global_queue'
+    message: 不要用 @synchronized 或全域佇列
+  - brackets_balanced: true
+solution: |
+  @implementation LBLedger {
+      dispatch_queue_t _queue;
+      NSMutableArray<LBTransaction *> *_transactions;
+  }
+  - (instancetype)init {
+      if (self = [super init]) {
+          _queue = dispatch_queue_create("com.littlebook.ledger",
+                                         DISPATCH_QUEUE_CONCURRENT);
+          _transactions = [NSMutableArray array];
+      }
+      return self;
+  }
+  - (void)addTransaction:(LBTransaction *)tx {
+      dispatch_barrier_async(_queue, ^{
+          [self->_transactions addObject:tx];
+          NSLog(@"共 %lu 筆", (unsigned long)self->_transactions.count);
+      });
+  }
+  - (void)removeAllTransactions {
+      dispatch_barrier_async(_queue, ^{ [self->_transactions removeAllObjects]; });
+  }
+  - (NSArray<LBTransaction *> *)transactions {
+      __block NSArray *snapshot;
+      dispatch_sync(_queue, ^{ snapshot = [self->_transactions copy]; });
+      return snapshot;
+  }
+  - (NSUInteger)count {
+      __block NSUInteger n;
+      dispatch_sync(_queue, ^{ n = self->_transactions.count; });
+      return n;
+  }
+  @end
+solution_note: "原版第 16 行在串列佇列的 block 裡呼叫 `self.transactions`，getter 再 dispatch_sync 到同一條佇列：串列版就已經是死結，改成 barrier 後一樣（barrier 獨佔佇列時 sync 進不來）。在保護佇列上的程式只碰 ivar。讀取回傳 copy 的快照，呼叫端拿出去怎麼讀都安全。"
+hints: ["init 裡只改一個常數。", "寫入的兩個方法：dispatch_async → dispatch_barrier_async。", "starter 的 addTransaction: 裡還藏著一個死結：哪一行又進了 _queue？"]

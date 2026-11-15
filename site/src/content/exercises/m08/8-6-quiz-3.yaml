@@ -1,0 +1,19 @@
+id: m08-8-6-quiz-3
+chapter: "8.6"
+section: quiz
+type: quiz
+title: actionSheet 在 iPad 上 crash
+minutes: 1
+prompt: 刪除確認用 `UIAlertControllerStyleActionSheet`，iPhone 上正常，iPad 上一按刪除就 crash。少了什麼？
+options:
+  - "沒有加 UIAlertActionStyleCancel 的動作"
+  - "沒有設 popoverPresentationController 的 sourceView（或 barButtonItem）當錨點"
+  - "iPad 不支援 UIAlertController，要改用 UIActionSheet"
+  - "message 不能是 nil"
+answer: 1
+explain: "iPad 上 actionSheet 會變成 popover，必須知道從哪裡彈出。設 `sheet.popoverPresentationController.sourceView = cell`（或 `barButtonItem`）；在 iPhone 上這個屬性是 nil，設了也無害。"
+hints: ["iPad 的 actionSheet 長什麼樣子？", "popover 需要一個箭頭指向的位置。"]
+feedback:
+  "0": 沒有 Cancel 在 iPad 上可以點外面關掉，不會 crash。
+  "2": UIActionSheet 是已淘汰的前身，模組 11 才會在 Legacy 專案看到。
+  "3": message 可以是 nil。

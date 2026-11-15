@@ -37,7 +37,7 @@ checks:
     message: 過濾要放進 _queue
   - must_match: '__weak'
     message: block 裡用 __weak 避免 operation 或 self 被強持有
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (void)search:(NSString *)query
          results:(void (^)(NSArray<LBTransaction *> *,

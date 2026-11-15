@@ -32,7 +32,7 @@ checks:
     message: values 的起點：寫滿前是 0，寫滿後是 _head
   - must_match: '@\(\s*_slots'
     message: 每個 double 要包成 NSNumber（@(...)）
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (void)append:(double)value {
       _slots[_head] = value;

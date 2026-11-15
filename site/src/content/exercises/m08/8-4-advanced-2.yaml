@@ -31,11 +31,11 @@ checks:
   - must_match: 'return\s+\w+\s*;'
   - must_not_match: 'indexOfObject\s*:'
     message: 這題請自己寫
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   NSUInteger LBLowerBound(NSArray<NSDecimalNumber *> *sorted,
                           NSDecimalNumber *target) {
-      NSUInteger lo = 0, hi = sorted.count;            // [lo, hi)
+      NSUInteger lo = 0, hi = sorted.count;            // 半開區間，不含 hi
       while (lo < hi) {
           NSUInteger mid = lo + (hi - lo) / 2;
           if ([sorted[mid] compare:target] == NSOrderedAscending) {

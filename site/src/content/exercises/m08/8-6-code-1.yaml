@@ -1,0 +1,50 @@
+id: m08-8-6-code-1
+chapter: "8.6"
+type: code
+title: 用 UIAlertController 確認刪除
+mobile: false
+minutes: 8
+prompt: "寫 `confirmDeleteAtIndexPath:`：action sheet 樣式，標題「刪除這筆交易？」，一個紅字「刪除」（按下呼叫 `[weakSelf deleteRowAtIndexPath:indexPath]`）、一個「取消」；iPad 的錨點設成那一列的 cell，最後呈現出來。"
+starter: |
+  - (void)confirmDeleteAtIndexPath:(NSIndexPath *)indexPath {
+
+  }
+checks:
+  - must_match: 'UIAlertController\s+alertControllerWithTitle\s*:\s*@"刪除這筆交易？"'
+    message: 標題是「刪除這筆交易？」
+  - must_match: 'preferredStyle\s*:\s*UIAlertControllerStyleActionSheet'
+    message: 用 action sheet 樣式
+  - must_match: 'UIAlertActionStyleDestructive'
+    message: 刪除用 destructive 樣式（自動紅字）
+  - must_match: 'UIAlertActionStyleCancel'
+    message: 取消用 cancel 樣式
+  - must_match: '__weak\s+typeof\s*\(\s*self\s*\)\s*\w+\s*=\s*self'
+    message: handler 裡用 weakSelf
+  - must_match: '\[\s*weakSelf\s+deleteRowAtIndexPath\s*:\s*indexPath\s*\]'
+    message: "刪除時呼叫 [weakSelf deleteRowAtIndexPath:indexPath]"
+  - must_match: 'popoverPresentationController\.sourceView\s*='
+    message: iPad 需要 sourceView 錨點
+  - must_match: 'presentViewController\s*:\s*\w+\s+animated\s*:'
+    message: 最後要 present
+  - brackets_balanced: true
+solution: |
+  - (void)confirmDeleteAtIndexPath:(NSIndexPath *)indexPath {
+      UIAlertController *sheet =
+          [UIAlertController alertControllerWithTitle:@"刪除這筆交易？"
+                                              message:@"可以從導覽列「復原」救回來。"
+                                       preferredStyle:UIAlertControllerStyleActionSheet];
+      __weak typeof(self) weakSelf = self;
+      [sheet addAction:[UIAlertAction actionWithTitle:@"刪除"
+                                                style:UIAlertActionStyleDestructive
+                                              handler:^(UIAlertAction *action) {
+          [weakSelf deleteRowAtIndexPath:indexPath];
+      }]];
+      [sheet addAction:[UIAlertAction actionWithTitle:@"取消"
+                                                style:UIAlertActionStyleCancel
+                                              handler:nil]];
+      sheet.popoverPresentationController.sourceView =
+          [self.tableView cellForRowAtIndexPath:indexPath];
+      [self presentViewController:sheet animated:YES completion:nil];
+  }
+solution_note: "sheet 持有 action、action 持有 handler block，block 若捕獲 self 而 self 又 present 著 sheet，就是一個暫時的循環；weakSelf 是好習慣。Cancel 樣式自動排在最下面，順序不用自己管。"
+hints: ["alertControllerWithTitle:message:preferredStyle:", "每個按鈕是一個 UIAlertAction，用 addAction: 加進去。", "iPad 錨點：popoverPresentationController.sourceView。"]

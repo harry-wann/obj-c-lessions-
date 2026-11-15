@@ -1,0 +1,35 @@
+id: m08-8-7-crash-1
+chapter: "8.7"
+type: crash
+title: XIB cell 一出列就 crash
+minutes: 3
+prompt: 你把 XIB 版 cell 的 `amountLabel` 屬性改名成 `priceLabel`（直接改 .h），列表一顯示就 crash。讀訊息選出原因。
+log: |
+  *** Terminating app due to uncaught exception 'NSUnknownKeyException',
+  reason: '[<LBTransactionCell 0x7fa3c3812e00> setValue:forUndefinedKey:]:
+  this class is not key value coding-compliant for the key amountLabel.'
+  *** First throw call stack:
+  (
+    2  Foundation  -[NSObject(NSKeyValueCoding) setValue:forUndefinedKey:]
+    3  UIKitCore   -[UIRuntimeOutletConnection connect]
+    4  UIKitCore   -[UINib instantiateWithOwner:options:]
+    5  UIKitCore   -[UITableView _dequeueReusableCellWithIdentifier:forIndexPath:usingPresentationValues:]
+    6  LittleBook  -[LBTransactionListViewController tableView:cellForRowAtIndexPath:]
+  )
+options:
+  - XIB 裡還存著一條連到 amountLabel 的 outlet 連線，但類別已經沒有這個屬性；nib 載入時用 KVC 設值失敗
+  - "LBTransactionCell 沒有用 registerNib: 註冊"
+  - amountLabel 宣告成 weak，載入時已經被釋放
+  - "cellForRowAtIndexPath: 裡呼叫了 [cell valueForKey:@\"amountLabel\"]"
+answer: 0
+fix: |
+  1. 開 LBTransactionCell.xib，選 cell，打開 Connections Inspector（⌥⌘6）
+  2. 找到帶 ⚠ 的 amountLabel 那一行，按 × 斷線
+  3. 從 priceLabel 的圓圈拖到畫面上的金額 label 重新連線
+  4. 以後改 outlet 名字：先斷線 → 改名 → 重連，或用 Refactor → Rename
+solution_note: "讀法：`setValue:forUndefinedKey:` 是 KVC 設了不存在的 key；`UIRuntimeOutletConnection connect` 說是 nib 載入器在接 outlet；key 是 amountLabel、類別是 LBTransactionCell。key 是完全沒看過的名字時，通常是 XIB 的 Class 填錯了。"
+feedback:
+  "1": "沒用 registerNib: 的話 nib 根本不會被載入，堆疊裡就不會有 UINib instantiateWithOwner。"
+  "2": weak outlet 被 view 階層持有，不會在載入時釋放；而且那不會是 NSUnknownKeyException。
+  "3": 堆疊裡是 UIRuntimeOutletConnection，不是你的程式碼呼叫 KVC。
+hints: ["堆疊第 3 行是誰在設值？", "你改了 .h，XIB 知道嗎？"]

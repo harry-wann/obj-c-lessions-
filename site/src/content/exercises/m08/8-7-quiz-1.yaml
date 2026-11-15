@@ -1,0 +1,19 @@
+id: m08-8-7-quiz-1
+chapter: "8.7"
+section: quiz
+type: quiz
+title: IBOutlet 是怎麼接上的
+minutes: 2
+prompt: Storyboard 載入時，`@property (nonatomic, weak) IBOutlet UILabel *currencyLabel;` 是怎麼被設成畫面上那個 label 的？
+options:
+  - 編譯器看到 IBOutlet 巨集，在編譯期產生指定的程式碼
+  - "nib 載入器解碼出 label 後，用 KVC 呼叫 [vc setValue:label forKey:@\"currencyLabel\"]"
+  - UIKit 依 view 階層順序，把第一個 UILabel 指派給第一個 outlet
+  - "要在 viewDidLoad 裡自己呼叫 viewWithTag: 取得"
+answer: 1
+explain: "IBOutlet 是空巨集，只給 Interface Builder 看。連線存在 XML 的 `<outlet property=\"currencyLabel\" .../>`，執行期靠 KVC 以字串 key 設值；所以改名沒更新連線就會 not key value coding-compliant。"
+hints: ["IBOutlet 的定義是 #define IBOutlet，後面什麼都沒有。", "6.4 學過用字串設屬性的機制。"]
+feedback:
+  "0": IBOutlet 展開後是空的，編譯器根本看不到它。
+  "2": 順序無關，每條連線都明確記了 property 名稱與目的物件 id。
+  "3": viewWithTag 是不用 outlet 時的替代做法，跟 outlet 機制無關。

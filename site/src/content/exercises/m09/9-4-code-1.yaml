@@ -50,7 +50,7 @@ checks:
     message: 填 error 前要先判 error 指標不為 NULL
   - must_match: 'return\s+nil'
     message: 不合法要回 nil
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (NSDictionary<NSString *, id> *)dictionaryRepresentation {
       NSMutableDictionary *d = [NSMutableDictionary dictionary];

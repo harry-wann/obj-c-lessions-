@@ -1,0 +1,24 @@
+id: m08-8-6-xcode-1
+chapter: "8.6"
+type: xcode
+title: 編輯表單：輸入、鍵盤、刪除確認與復原
+mobile: false
+minutes: 50
+prompt: 完成 LBTransactionEditorViewController 的表單（金額 / 種類 / 日期 / 分類 / 備註 / 開關），處理鍵盤遮擋；列表的刪除加上確認與「復原」。`testInvalidAmountDoesNotSave` 轉綠。
+starter: xcode/M08-starter
+steps:
+  - "表單放進 `UIScrollView` → 垂直 `UIStackView`（間距 16、左右邊距 16）：金額 `UITextField`（`UIKeyboardTypeDecimalPad`、34 pt 等寬數字靠右）、`UISegmentedControl`（支出 / 收入）、compact `UIDatePicker`、分類列、備註 `UITextField`、兩個 `UISwitch`。"
+  - "金額欄位：`shouldChangeCharactersInRange:replacementString:` 擋掉非數字與第二個小數點；`UIControlEventEditingChanged` 更新「儲存」的 enabled；`amountFromText` 去逗號、比對 NaN、檢查大於零；`saveWithError:` 金額非法回 NO 並填 NSError。"
+  - "鍵盤：`viewWillAppear:` / `viewWillDisappear:` 成對註冊與移除 `UIKeyboardWillShowNotification` / `UIKeyboardWillHideNotification`，用 `UIKeyboardFrameEndUserInfoKey` 算重疊調整 `contentInset`；加點空白收鍵盤的手勢，`cancelsTouchesInView = NO`。"
+  - "列表：改用 `trailingSwipeActionsConfigurationForRowAtIndexPath:`，刪除前跳 `UIAlertController` actionSheet 確認（iPad 給 `sourceView`），確認後走 8.4 的刪除邏輯。"
+  - "列表導覽列左上加「復原」按鈕，按下呼叫 `[self.undoStack undo]`；每次刪除 / 復原後依 `canUndo` 更新它的 enabled。"
+  - "⌘U 跑 `LBTransactionEditorViewControllerTests`，兩個測試都要綠。"
+tests:
+  - LBTransactionEditorViewControllerTests/testInvalidAmountDoesNotSave
+acceptance:
+  - "在 iPhone SE 模擬器點最下面的備註欄位，鍵盤升起後欄位仍完整露在鍵盤上方，可以捲動到最底；收起鍵盤後版面還原"
+  - 點表單空白處鍵盤收起，日期、分類那幾列仍然點得到
+  - 金額欄位貼上「12a」被擋掉、輸入「1.2.3」打不出第二個小數點；金額為空或 0 時「儲存」是 disabled
+  - 滑動刪除先跳出確認，按「取消」資料不變；按「刪除」後該列消失，導覽列「復原」變成可用
+  - 按「復原」那一筆回到原本的月份與位置、header 合計同步；沒有可復原動作時按鈕 disabled
+solution_note: "testInvalidAmountDoesNotSave 設 `amountField.text = @\"abc\"` 呼叫 `saveWithError:`，檢查回 NO、error 不是 nil、假 delegate 沒收到任何交易。鍵盤 inset 被加兩倍 = 通知註冊了兩次（push 分類選擇再回來），回頭檢查是不是在 dealloc 才移除。"

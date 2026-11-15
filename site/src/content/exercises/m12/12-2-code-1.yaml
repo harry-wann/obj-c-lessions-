@@ -27,9 +27,9 @@ checks:
     message: "extension 裡要有 @objc func breakdownItems() -> [StatsBreakdownItem]"
   - must_match: 'categoryBreakdown\s*\(\s*\)\s*\.map'
     message: 用 categoryBreakdown().map 轉換
-  - must_not_match: '@objc[^\n]*categoryBreakdown'
+  - must_not_match: '@objc\s+func\s+categoryBreakdown'
     message: 不要對回傳 tuple 的 categoryBreakdown 加 @objc，那會編譯錯誤
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   // StatsBreakdownItem.swift
   import Foundation

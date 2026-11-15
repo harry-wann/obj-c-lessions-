@@ -38,7 +38,7 @@ checks:
     message: 解析失敗回 nil
   - must_not_match: '@throw|NSException|@try'
     message: 兩種狀況都不該用例外
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (nullable NSDecimalNumber *)amountFromString:(NSString *)text error:(NSError **)error {
       NSParameterAssert(text != nil);

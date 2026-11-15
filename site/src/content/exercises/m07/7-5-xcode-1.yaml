@@ -1,0 +1,22 @@
+id: m07-7-5-xcode-1
+chapter: "7.5"
+type: xcode
+title: 讓 LBLedger 承受多執行緒同時讀寫
+mobile: false
+minutes: 25
+prompt: 把 LBLedger 內部改成並行佇列 + barrier，讓多執行緒同時讀寫不再 crash，並用 Thread Sanitizer 確認沒有資料競爭。
+starter: xcode/M07-starter
+steps:
+  - "先不改程式，跑一次 `LBLedgerConcurrencyTests/testConcurrentReadsAndWritesDoNotCrash`：它用 `dispatch_apply` 同時做 1000 次 `addTransaction:` 與 `transactions` 讀取。看它隨機 crash 或失敗。"
+  - "`LBLedger.m` 加私有 ivar `dispatch_queue_t _queue`，init 裡 `dispatch_queue_create(\"com.littlebook.ledger\", DISPATCH_QUEUE_CONCURRENT)`。"
+  - "所有寫入（`addTransaction:`、`removeTransactionWithIdentifier:error:`、`reset`）改成在 `dispatch_barrier_async(_queue, ...)` 裡碰 `_transactions`。需要回傳成敗的 `removeTransactionWithIdentifier:error:` 用 `dispatch_barrier_sync`，把結果存進 `__block` 變數。"
+  - "所有讀取（`transactions`、`total`、`transactionWithIdentifier:`）用 `dispatch_sync(_queue, ...)`，回傳 `copy` 的快照。"
+  - "檢查每個 barrier block：裡面只碰 ivar，不呼叫公開的 getter（否則死結）。M06 的 KVO 通知若在寫入時發出，改成 barrier 結束後 `dispatch_async(dispatch_get_main_queue(), ...)` 再設 `self.total`，維持「主執行緒通知」的約定。"
+  - "Edit Scheme → Test → Diagnostics 勾 Thread Sanitizer，⌘U 再跑一次。"
+tests:
+  - LBLedgerConcurrencyTests/testConcurrentReadsAndWritesDoNotCrash
+acceptance:
+  - 開啟 Thread Sanitizer 後測試仍通過，Issue Navigator 沒有 Data race 警告。
+  - M06 的 LBLedgerKVOTests 兩個測試仍然是綠的。
+  - "把某個寫入改回普通的 `dispatch_async` 再開 TSan 跑一次，親眼看一次 Data race 報告，再改回來。"
+solution_note: "讀寫鎖只改兩個字：佇列型態、寫入函式。容易漏的是「有回傳值的寫入」要用 barrier_sync，以及 barrier 裡不小心呼叫了 self.transactions。TSan 會讓測試慢 5–10 倍，只在偵錯時開。"

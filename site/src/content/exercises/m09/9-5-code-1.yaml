@@ -24,7 +24,7 @@ checks:
     message: "用 executeFetchRequest:error: 執行"
   - must_match: '\?:\s*@\[\]|if\s*\(\s*!\s*\w+\s*\)\s*return\s+@\[\]'
     message: 失敗時回空陣列
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (NSArray<CDTransaction *> *)expensesAbove:(NSDecimalNumber *)min
                                     inContext:(NSManagedObjectContext *)ctx {

@@ -24,7 +24,7 @@ checks:
     message: 不准寫死絕對路徑
   - must_match: 'return\s+\w+\s*;'
     message: 要回傳目錄 URL
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   + (NSURL *)defaultDirectoryURL {
       NSFileManager *fm = [NSFileManager defaultManager];

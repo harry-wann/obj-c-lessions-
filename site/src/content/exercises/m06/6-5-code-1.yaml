@@ -25,7 +25,7 @@ checks:
     message: ASSIGN 存物件會變懸空指標
   - must_not_match: '_colorHex\b'
     message: 分類不能有實體變數，值要存在關聯物件裡
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   @implementation LBCategory (Color)
   static const void *LBColorHexKey = &LBColorHexKey;

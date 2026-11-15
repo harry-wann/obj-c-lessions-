@@ -24,7 +24,7 @@ checks:
     message: "第三個改成 - (NSArray<LBTransaction *> *)transactionsInCategory:(LBCategory *)category"
   - must_not_match: '\bidx\b|\bcat\b|\btx\b'
     message: 參數名用完整單字
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   NS_ASSUME_NONNULL_BEGIN
   @interface LBLedger : NSObject

@@ -35,7 +35,7 @@ checks:
     message: 沒有 flags 時給 LBTransactionFlagsNone
   - must_not_match: 'unarchiveObjectWithData\s*:|unarchiveTopLevelObjectWithData'
     message: "不要用已棄用的 unarchiveObjectWithData:"
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   + (nullable LBTransaction *)transactionFromLegacyData:(NSData *)data
                                                   error:(NSError **)error {

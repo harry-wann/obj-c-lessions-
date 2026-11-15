@@ -19,7 +19,7 @@ checks:
   - must_match: 'completion\s*:\s*\(\s*(nullable\s+LBImportCompletion|LBImportCompletion\s+_Nullable)\s*\)\s*completion'
     message: "completion 參數要用 LBImportCompletion 型別並標 nullable（`(nullable LBImportCompletion)completion` 或 `(LBImportCompletion _Nullable)completion`）"
   - must_match: '@end'
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   typedef void (^LBImportCompletion)(NSInteger count,
                                      NSError * _Nullable error);

@@ -39,7 +39,7 @@ checks:
     message: 不是自己的通知交給 super
   - must_match: 'removeObserver\s*:\s*self\s+forKeyPath\s*:\s*@"total"'
     message: dealloc 要移除觀察
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   static void *LBTotalContext = &LBTotalContext;
 

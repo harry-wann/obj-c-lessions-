@@ -1,0 +1,40 @@
+id: m08-8-8-crash-1
+chapter: "8.8"
+type: crash
+title: 主控台一串 invalid context 0x0
+minutes: 2
+prompt: 長條圖什麼都沒畫出來，主控台出現下面這些訊息。最可能的原因？
+log: |
+  CGContextSetFillColorWithColor: invalid context 0x0. If you want to see the
+  backtrace, please set CG_CONTEXT_SHOW_BACKTRACE environmental variable.
+  CGContextAddPath: invalid context 0x0.
+  CGContextFillPath: invalid context 0x0.
+options:
+  - "繪圖程式碼寫在 drawRect: 之外（例如 setValues: 或 layoutSubviews 裡「順便畫一下」），UIGraphicsGetCurrentContext() 回 NULL"
+  - barColor 是 nil
+  - "view 的 backgroundColor 沒有設成 clearColor"
+  - "CGPath 沒有 CGPathRelease，記憶體不足"
+answer: 0
+fix: |
+  - (void)setValues:(NSArray<NSNumber *> *)values {
+      _values = [values copy];
+      [self setNeedsDisplay];           // 只排程，不畫
+  }
+
+  - (void)drawRect:(CGRect)rect {
+      CGContextRef ctx = UIGraphicsGetCurrentContext();   // 只有這裡有值
+      // ... 畫基準線與長條
+  }
+
+  // 真的要在別處畫（產生分享用圖片）：自己開 context
+  UIGraphicsImageRenderer *r =
+      [[UIGraphicsImageRenderer alloc] initWithSize:self.bounds.size];
+  UIImage *img = [r imageWithActions:^(UIGraphicsImageRendererContext *c) {
+      [self drawViewHierarchyInRect:self.bounds afterScreenUpdates:YES];
+  }];
+solution_note: "0x0 就是 NULL：UIKit 只在 drawRect: 期間準備好 context。這不是 crash，所以更容易被忽略。其他地方只呼叫 setNeedsDisplay。"
+feedback:
+  "1": 對 nil 送 setFill 只是不設顏色，不會讓 context 變成 NULL。
+  "2": 背景沒設會變黑底，但 context 是正常的。
+  "3": 洩漏不會造成 invalid context；而且從 UIBezierPath.CGPath 拿到的是借用的，不用釋放。
+hints: ["0x0 是什麼值？", "UIGraphicsGetCurrentContext() 什麼時候才有值？"]

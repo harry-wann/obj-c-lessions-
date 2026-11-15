@@ -39,7 +39,7 @@ checks:
     message: 比較要透過 _cmp
   - must_match: 'swap\s*:'
     message: "交換用 swap:with:"
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (void)insert:(id)obj {
       [_heap addObject:obj];

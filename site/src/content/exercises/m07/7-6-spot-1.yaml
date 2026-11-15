@@ -1,0 +1,40 @@
+id: m07-7-6-spot-1
+chapter: "7.6"
+type: spot
+title: 匯率永遠不更新
+minutes: 2
+prompt: 呼叫 `fetchRatesForBase:completion:` 之後，completion 從來沒被呼叫過，Console 也沒有任何錯誤。點選有問題的行並選出原因。
+code: |
+  - (void)fetchRatesForBase:(NSString *)base completion:(LBRatesCompletion)completion {
+      NSURL *url = [self ratesURLForBase:base];
+      NSURLSessionDataTask *task =
+          [self.session dataTaskWithURL:url
+                      completionHandler:^(NSData *data, NSURLResponse *response,
+                                          NSError *error) {
+          NSDictionary *rates = nil;
+          NSError *finalError = error;
+          if (!finalError) {
+              rates = [LBRateService ratesFromJSONData:data error:&finalError];
+          }
+          dispatch_async(dispatch_get_main_queue(), ^{
+              completion(rates, finalError);
+          });
+      }];
+      self.currentTask = task;
+  }
+bug_lines: [16]
+reasons:
+  - "task 建立後是暫停狀態，第 16 行之後少了 [task resume]，請求根本沒送出"
+  - 第 4 行應該用 sharedSession，自訂的 session 不會送出請求
+  - 第 12 行切回主佇列會讓 completion 永遠等不到
+  - "第 16 行把 task 存進屬性會造成循環參考，task 被提早釋放"
+answer_reason: 0
+fix: |
+  self.currentTask = task;
+  [task resume];          // 建立 task 的方法最後一行
+solution_note: 沒有錯誤、沒有 log、就是沒反應，十之八九是忘了 resume。把 resume 寫在建立 task 的同一個方法的最後一行，或包進 service 的 helper，讓呼叫端不可能忘。（這段也還少了 HTTP 狀態碼的檢查，下一題的 parsons 會補上。）
+hints: ["dataTaskWithURL: 建立出來的 task 是什麼狀態？", "整段程式有沒有任何一行讓 task 開始？"]
+feedback:
+  "1": 自訂 session 跟 sharedSession 一樣會送請求，差別只在設定。
+  "2": dispatch_async 到主佇列不會卡住，completion 會在主執行緒被呼叫。
+  "3": 存進屬性是為了之後能 cancel，task 不持有 self，沒有循環。

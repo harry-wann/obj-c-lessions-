@@ -1,0 +1,19 @@
+id: m08-8-6-quiz-1
+chapter: "8.6"
+section: quiz
+type: quiz
+title: 過濾放哪裡、驗證放哪裡
+minutes: 2
+prompt: 金額欄位要做兩件事：(A) 貼上字母時直接擋掉不讓它進去；(B) 每改一個字就更新「儲存」按鈕的 enabled。各自該放在哪裡？
+options:
+  - "A 放 textFieldShouldReturn:，B 放 textFieldDidEndEditing:"
+  - "A 放 shouldChangeCharactersInRange:replacementString:（輸入前，回 NO 就不進去），B 放 UIControlEventEditingChanged 的 target-action（輸入後）"
+  - "A 與 B 都放 UIControlEventEditingChanged，發現字母再把 text 改回去"
+  - "A 放 viewWillAppear:，B 放 viewDidLayoutSubviews"
+answer: 1
+explain: "shouldChange… 在每個字進去**之前**被問，是唯一能「擋」的地方；EditingChanged 在改完**之後**觸發，這時 text 已是新值，適合驗證並更新按鈕狀態。"
+hints: ["哪個回呼的回傳值是 BOOL？", "更新按鈕需要的是改之前還是改之後的文字？"]
+feedback:
+  "0": Return 鍵與結束編輯都太晚：使用者打完整串才發生。
+  "2": 能做到，但字母會先閃一下、游標位置會跳；過濾放在 shouldChange 裡乾淨得多。
+  "3": 這兩個是 VC 生命週期，跟每次輸入無關。

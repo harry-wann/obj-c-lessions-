@@ -1,0 +1,34 @@
+id: m07-7-5-crash-1
+chapter: "7.5"
+type: crash
+title: 讀懂 Main Thread Checker
+minutes: 3
+prompt: 執行時 Xcode 停住並印出這段。該怎麼修？
+log: |
+  Main Thread Checker: UI API called on a background thread: -[UITableView reloadData]
+  PID: 5310, TID: 118402, Thread name: (none), Queue name: NSOperationQueue 0x6000017a4f00 (QOS: UNSPECIFIED), QoS: 0
+  Backtrace:
+  4   LittleBook    __48-[LBTransactionListViewController importFinished:]_block_invoke + 88
+  5   Foundation    __NSBLOCKOPERATION_IS_CALLING_OUT_TO_A_BLOCK__ + 24
+  6   Foundation    -[NSBlockOperation main] + 104
+  7   Foundation    __NSOPERATION_IS_INVOKING_MAIN__ + 20
+options:
+  - 在 importFinished: 的 block 裡，把 reloadData 包進 dispatch_async(dispatch_get_main_queue(), ...) 或 [[NSOperationQueue mainQueue] addOperationWithBlock:]
+  - 到 Scheme → Diagnostics 把 Main Thread Checker 關掉
+  - 把匯入的 NSOperationQueue 的 maxConcurrentOperationCount 設成 1
+  - 用 @synchronized (self.tableView) 包住 reloadData
+answer: 0
+fix: |
+  [self.importQueue addOperationWithBlock:^{
+      NSArray *rows = [self parseRows];                 // 背景
+      [[NSOperationQueue mainQueue] addOperationWithBlock:^{
+          self.rows = rows;
+          [self.tableView reloadData];                  // 主執行緒
+      }];
+  }];
+solution_note: "三段式讀法：哪個 API（`-[UITableView reloadData]`）、哪條佇列（某個 NSOperationQueue，不是 main）、誰呼叫的（第一個 LittleBook frame：`importFinished:` 裡的 block）。自己建的 NSOperationQueue 跟全域佇列一樣在背景跑。maxConcurrentOperationCount = 1 只是讓它變成串列，仍是背景；上鎖也解決不了，UIKit 的規則是只能在主執行緒碰，不是互斥。"
+hints: ["Queue name 那一欄寫的是哪條佇列？", "UIKit 的規則是「要上鎖」還是「只能在某條執行緒」？"]
+feedback:
+  "1": 警告消失、bug 留著，Release 會變成畫面不更新或隨機 crash。
+  "2": 串列的 NSOperationQueue 仍然在背景執行緒，只有 [NSOperationQueue mainQueue] 在主執行緒。
+  "3": UIKit 不是靠鎖保護的，就算一次只有一個人碰，從背景碰還是錯。

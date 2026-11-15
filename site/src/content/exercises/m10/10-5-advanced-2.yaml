@@ -24,11 +24,11 @@ checks:
     message: 用 while 迴圈處理 ready
   - must_match: '-\s*1|--'
     message: 後繼節點入度要減一
-  - must_match: 'count\s*<|count\s*!=|<\s*nodes\.count|!=\s*nodes\.count'
+  - must_match: 'count\s*(<|!=|==)|(<|!=|==)\s*nodes\.count'
     message: 比較 order 與 nodes 數量偵測環
-  - must_match: 'return\s+nil'
+  - must_match: '\bnil\b'
     message: 有環回傳 nil
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   + (nullable NSArray<NSString *> *)
       topologicalOrderWithNodes:(NSArray<NSString *> *)nodes

@@ -25,7 +25,7 @@ checks:
     message: "用 performSelector: 動態呼叫"
   - must_match: '\[\s*\[?\s*cls\s+(alloc\]\s*init|new)'
     message: 用找到的 Class 建立實體（[cls new] 或 [[cls alloc] init]）
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   + (nullable id)objectOfClassNamed:(NSString *)className
                         thenPerform:(NSString *)selectorName {

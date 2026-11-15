@@ -46,7 +46,7 @@ checks:
     message: "_owner 是 assign，不能 release"
   - must_match: '\[\s*super\s+dealloc\s*\]\s*;\s*\}'
     message: "[super dealloc] 要在 dealloc 的最後一行"
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (void)setNote:(NSString *)note {
       if (_note == note) return;

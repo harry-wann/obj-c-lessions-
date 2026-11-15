@@ -1,0 +1,26 @@
+id: m08-8-7-fill-1
+chapter: "8.7"
+type: fill
+title: segue 進 nav 時取出真正的目的地
+minutes: 3
+prompt: "「主幣別」那一列的 segue 是 Present Modally，目的地是一個包著 LBCurrencyPickerViewController 的 UINavigationController。補完屬性注入。"
+code: |
+  - (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
+      if ([segue.___1___ isEqualToString:kShowCurrency]) {
+          UINavigationController *nav = segue.___2___;
+          LBCurrencyPickerViewController *picker =
+              (LBCurrencyPickerViewController *)nav.___3___;
+          picker.settings = self.___4___;
+      }
+  }
+blanks:
+  "1": { accept: ["identifier"], chips: ["identifier", "name", "title", "sourceViewController"] }
+  "2": { accept: ["destinationViewController"], chips: ["destinationViewController", "sourceViewController", "presentedViewController", "parentViewController"] }
+  "3": { accept: ["topViewController"], chips: ["topViewController", "presentedViewController", "childViewControllers", "navigationController"] }
+  "4": { accept: ["settings"], chips: ["settings", "currencyLabel", "view", "storyboard"] }
+hints: ["segue 用什麼分辨是哪一條？", "目的地是 nav，真正的 VC 在 nav 的哪裡？", "傳 model，不傳 outlet。"]
+feedback:
+  "2=sourceViewController": source 是 self（設定頁），要的是目的地。
+  "3=childViewControllers": 那是陣列，要再取 firstObject；topViewController 直接就是。
+  "4=currencyLabel": 傳 outlet 或顯示內容都不對；傳 model，讓目的地自己決定怎麼顯示。
+solution_note: "Show segue 進 nav、或 present 一個 nav 時，destinationViewController 是 nav 本身，要再取 topViewController。目的地的 outlet 此時還是 nil，只能做屬性注入。"

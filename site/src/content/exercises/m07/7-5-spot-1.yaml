@@ -1,0 +1,46 @@
+id: m07-7-5-spot-1
+chapter: "7.5"
+type: spot
+title: atomic 當執行緒安全
+minutes: 3
+prompt: 同步功能每幾十次才 crash 一次，堆疊停在 `-[__NSArrayM insertObject:atIndex:]`；另外上傳筆數偶爾少算。兩個方法都會被多條背景執行緒同時呼叫。點選有問題的行並選出原因。
+code: |
+  @interface LBSyncCoordinator ()
+  @property (atomic, strong) NSMutableArray<LBTransaction *> *pending;
+  @property (atomic, assign) NSUInteger uploadedCount;
+  @end
+
+  @implementation LBSyncCoordinator
+  - (void)didReceiveTransaction:(LBTransaction *)tx {
+      [self.pending addObject:tx];
+  }
+  - (void)didUploadOne {
+      self.uploadedCount = self.uploadedCount + 1;
+  }
+  @end
+bug_lines: [8, 11]
+reasons:
+  - "atomic 只保證單次 getter / setter 完整：第 8 行拿到陣列之後的 addObject: 沒有保護，可變陣列同時寫入會壞；第 11 行讀改寫是兩次存取，中間會被插隊"
+  - 第 2、3 行把 atomic 改成 nonatomic 就安全了
+  - atomic 屬性不能搭配 strong，要改成 copy
+  - 第 11 行應該改成 self.uploadedCount++，++ 是原子操作
+answer_reason: 0
+fix: |
+  @interface LBSyncCoordinator () {
+      dispatch_queue_t _queue;      // init 裡 dispatch_queue_create(..., SERIAL)
+  }
+  @property (nonatomic, strong) NSMutableArray<LBTransaction *> *pending;
+  @property (nonatomic, assign) NSUInteger uploadedCount;
+  @end
+
+  - (void)didReceiveTransaction:(LBTransaction *)tx {
+      dispatch_async(_queue, ^{ [self.pending addObject:tx]; });
+  }
+  - (void)didUploadOne {
+      dispatch_async(_queue, ^{ self.uploadedCount += 1; });
+  }
+solution_note: 看到 atomic 配可變集合、或 atomic 屬性做 ++，就該警覺。修法是把「整個操作」放進同一條串列佇列，屬性本身改回 nonatomic（佇列已經保證一次只有一個人碰，atomic 的自旋鎖只是白花成本）。
+hints: ["atomic 保護的是屬性存取，還是存取之後的操作？", "self.uploadedCount + 1 這一行呼叫了幾次存取方法？"]
+feedback:
+  "1": nonatomic 只會更糟：連單次存取都不保證。要用佇列或鎖保護整段操作。
+  "3": "self.uploadedCount++ 一樣是 getter 加 setter 兩步，ObjC 的 atomic 屬性沒有原子的讀改寫。"

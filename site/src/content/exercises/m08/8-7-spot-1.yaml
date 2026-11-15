@@ -1,0 +1,46 @@
+id: m08-8-7-spot-1
+chapter: "8.7"
+type: spot
+title: 效能面板一片空白
+minutes: 3
+prompt: 從設定頁點「效能面板」，畫面上筆數與 FPS 都是空的，主控台沒有錯誤。點出有問題的行並選原因。
+code: |
+  static NSString * const kShowPerformance = @"showPerformance";
+
+  - (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
+      if ([segue.identifier isEqualToString:kShowPerformance]) {
+          LBPerformanceViewController *perf = segue.destinationViewController;
+          perf.countLabel.text =
+              [NSString stringWithFormat:@"%lu 筆",
+                  (unsigned long)self.ledger.transactions.count];
+          perf.fpsLabel.text = @"60";
+      }
+  }
+bug_lines: [6, 9]
+reasons:
+  - "prepareForSegue 時目的地的 view 還沒載入，outlet 是 nil，設 text 什麼都不發生；應該傳 model（perf.ledger），讓目的地在 viewDidLoad 自己顯示"
+  - segue identifier 不能用常數，要直接寫字串
+  - "destinationViewController 要先 alloc init 才能用"
+  - "stringWithFormat: 不能用 %lu"
+answer_reason: 0
+fix: |
+  - (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
+      if ([segue.identifier isEqualToString:kShowPerformance]) {
+          LBPerformanceViewController *perf = segue.destinationViewController;
+          perf.ledger = self.ledger;               // 傳 model，不傳顯示內容
+      }
+  }
+
+  // LBPerformanceViewController.m
+  - (void)viewDidLoad {
+      [super viewDidLoad];
+      self.countLabel.text =
+          [NSString stringWithFormat:@"%lu 筆",
+              (unsigned long)self.ledger.transactions.count];
+  }
+solution_note: "對 nil 送訊息不 crash 是這個 bug 難查的原因。往 VC 傳 model 屬性、顯示邏輯放在目的地 viewDidLoad，Storyboard 與程式碼建的 VC 都適用。"
+hints: ["目的地 VC 已建立，但它的 view 呢？", "outlet 什麼時候才不是 nil？"]
+feedback:
+  "1": 抽成常數正是課文建議的做法，拼錯會變成編譯錯誤。
+  "2": segue 觸發時 UIKit 已經幫你建好目的地 VC。
+  "3": NSUInteger 轉 unsigned long 配 %lu 是正確寫法。

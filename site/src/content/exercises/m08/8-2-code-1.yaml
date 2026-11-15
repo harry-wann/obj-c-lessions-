@@ -28,7 +28,7 @@ checks:
     message: "viewWillDisappear: 要移除 Hide 通知"
   - must_not_match: 'dealloc'
     message: "不要在 dealloc 移除，要跟 viewWillAppear: 成對"
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   - (void)viewWillAppear:(BOOL)animated {
       [super viewWillAppear:animated];

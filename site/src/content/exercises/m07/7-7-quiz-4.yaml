@@ -1,0 +1,20 @@
+id: m07-7-7-quiz-4
+chapter: "7.7"
+section: quiz
+type: quiz
+title: NSJSONSerialization 的邊界
+minutes: 2
+prompt: 以下關於 NSJSONSerialization 的敘述，哪些正確？（可複選）
+multi: true
+options:
+  - "資料是 `[1, 2]` 時，JSONObjectWithData: 回傳 NSArray、error 是 nil，所以只判 nil 不夠，還要 isKindOfClass:"
+  - "資料是 `{rates: oops}` 時回傳 nil，error 是 NSCocoaErrorDomain code 3840"
+  - "dataWithJSONObject: 可以直接輸出含 NSDate 的字典，會自動轉成 ISO 8601"
+  - "JSON 的 true 會變成 NSNumber（__NSCFBoolean）"
+  - "預設回傳的是可變集合，可以直接 addObject:"
+answer: [0, 1, 3]
+explain: 最外層可能是陣列，合法 JSON 也可能不是你要的形狀；輸出只接受 NSDictionary / NSArray / NSString / NSNumber / NSNull，塞 NSDate 會 raise；要可變集合得傳 NSJSONReadingMutableContainers。
+hints: ["合法 JSON 一定是字典嗎？", "輸出時接受哪五種類別？"]
+feedback:
+  "2": 會 raise NSInvalidArgumentException。日期先轉 ISO 8601 字串，輸出前用 isValidJSONObject: 檢查。
+  "4": 預設是不可變的，要可變要加 NSJSONReadingMutableContainers 選項。

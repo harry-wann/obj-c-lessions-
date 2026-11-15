@@ -1,0 +1,74 @@
+id: m07-7-4-advanced-2
+chapter: "7.4"
+type: code
+tier: advanced
+title: 進階：生產者 / 消費者的阻塞佇列
+mobile: false
+minutes: 12
+prompt: "實作 `LBBlockingQueue`（≈ Java `BlockingQueue` / Kotlin `Channel`）：`put:` 可以從任何執行緒呼叫；`take` 在背景執行緒呼叫，佇列空時**睡著等**，有東西時拿頭端。用 `_guard` 串列佇列保護 `_buffer`、`_items` 號誌當「有幾個可拿」的計數器。注意順序：put 先加進 buffer 再 signal；take 先 wait 再進 `_guard` 拿。"
+starter: |
+  @implementation LBBlockingQueue {
+      dispatch_queue_t _guard;
+      dispatch_semaphore_t _items;
+      NSMutableArray *_buffer;
+  }
+  - (instancetype)init {
+      if (self = [super init]) {
+
+      }
+      return self;
+  }
+  - (void)put:(id)obj {
+
+  }
+  - (id)take {      // 只能在背景執行緒呼叫
+
+  }
+  @end
+checks:
+  - must_match: '_guard\s*=\s*dispatch_queue_create\s*\([^;]*DISPATCH_QUEUE_SERIAL\s*\)'
+    message: _guard 是串列佇列
+  - must_match: '_items\s*=\s*dispatch_semaphore_create\s*\(\s*0\s*\)'
+    message: _items 初始值是 0（一開始沒有東西可拿）
+  - must_match: '_buffer\s*=\s*\[\s*(NSMutableArray\s+array|\[\s*NSMutableArray\s+alloc\s*\]\s*init)\s*\]'
+    message: 建立 _buffer
+  - must_match: 'dispatch_(a?sync)\s*\(\s*(self->)?_guard\s*,\s*\^\s*\{[^}]*addObject\s*:\s*obj[^}]*\}\s*\)\s*;\s*dispatch_semaphore_signal\s*\(\s*(self->)?_items\s*\)'
+    message: put：先在 _guard 上 addObject:，再 dispatch_semaphore_signal
+  - must_match: 'dispatch_semaphore_wait\s*\(\s*(self->)?_items\s*,\s*DISPATCH_TIME_FOREVER\s*\)\s*;\s*__block'
+    message: take：先 dispatch_semaphore_wait 等到有東西，再宣告 __block 變數
+  - must_match: 'dispatch_sync\s*\(\s*(self->)?_guard\s*,\s*\^\s*\{[^}]*(firstObject|objectAtIndex\s*:\s*0|\[\s*0\s*\])[^}]*removeObjectAtIndex\s*:\s*0'
+    message: take：在 _guard 上用 dispatch_sync 取出頭端並移除
+  - must_not_match: 'while\s*\([^)]*count\s*==\s*0'
+    message: 不要用 while 迴圈空轉等待，用號誌讓消費者睡著
+  - brackets_balanced: true
+solution: |
+  @implementation LBBlockingQueue {
+      dispatch_queue_t _guard;
+      dispatch_semaphore_t _items;
+      NSMutableArray *_buffer;
+  }
+  - (instancetype)init {
+      if (self = [super init]) {
+          _guard  = dispatch_queue_create("com.littlebook.blocking",
+                                          DISPATCH_QUEUE_SERIAL);
+          _items  = dispatch_semaphore_create(0);
+          _buffer = [NSMutableArray array];
+      }
+      return self;
+  }
+  - (void)put:(id)obj {
+      dispatch_sync(_guard, ^{ [self->_buffer addObject:obj]; });
+      dispatch_semaphore_signal(_items);              // 多一個可拿
+  }
+  - (id)take {
+      dispatch_semaphore_wait(_items, DISPATCH_TIME_FOREVER);   // 沒東西就睡
+      __block id obj;
+      dispatch_sync(_guard, ^{
+          obj = self->_buffer.firstObject;
+          [self->_buffer removeObjectAtIndex:0];
+      });
+      return obj;
+  }
+  @end
+solution_note: "號誌的值永遠等於 buffer 裡「已經放好、還沒被拿」的數量，所以 take 通過 wait 時 buffer 一定非空。put 若先 signal 再加，消費者可能醒來時 buffer 還是空的。wait 不能放進 _guard 的 block 裡：消費者會占著 _guard 睡覺，生產者永遠進不來，又是死結。take 不能在主執行緒呼叫。buffer 量大時把 removeObjectAtIndex:0 換成上一題的環狀佇列。"
+hints: ["init：串列佇列、初始值 0 的號誌、空陣列。", "put 兩步：dispatch_sync 加進去，然後 signal。", "take：wait 寫在 dispatch_sync 外面、之前。"]

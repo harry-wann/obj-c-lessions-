@@ -37,7 +37,7 @@ checks:
     message: 不要呼叫 synchronize
   - must_not_match: '@"LBAppearance"[^;]*(forKey|ForKey)'
     message: 讀寫時用常數，不要重打字串 key
-  - "brackets_balanced: true"
+  - brackets_balanced: true
 solution: |
   static NSString * const LBSettingsKeyCurrencyCode = @"LBCurrencyCode";
   static NSString * const LBSettingsKeyAppearance = @"LBAppearance";

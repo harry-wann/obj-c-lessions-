@@ -1,0 +1,20 @@
+id: m07-7-5-quiz-2
+chapter: "7.5"
+section: quiz
+type: quiz
+title: 哪些可以直接跨執行緒共用
+minutes: 1
+prompt: 以下哪些物件，建立好之後可以讓多條執行緒同時讀取、不加任何保護？（可複選）
+multi: true
+options:
+  - "`[ledger.transactions copy]` 拿到的 NSArray 快照"
+  - 一個 NSString
+  - 多條執行緒都會寫入的 NSMutableDictionary
+  - 宣告成 atomic 屬性的 NSMutableArray
+  - 一個 NSNumber
+answer: [0, 1, 4]
+explain: Foundation 的規則：不可變物件執行緒安全，可變物件一律不安全。這也是 LBLedger 對外只回不可變快照的原因：快照拿出去怎麼讀都安全。
+hints: ["Foundation 的規則看的是「可變 / 不可變」。", "atomic 改變了陣列本身的性質嗎？"]
+feedback:
+  "2": 可變集合同時寫入會互相踩到內部結構，結果是隨機 crash。
+  "3": atomic 只保護屬性存取，陣列還是 NSMutableArray。

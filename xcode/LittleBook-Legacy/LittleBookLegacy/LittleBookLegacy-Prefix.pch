@@ -2,7 +2,7 @@
 //  LittleBookLegacy-Prefix.pch
 //  LittleBookLegacy
 //
-//  Prefix header for all source files of the 'LittleBookLegacy' target in the 'LittleBookLegacy' project
+//  Prefix header for all source files of the 'LittleBookLegacy' target
 //
 
 #import <Availability.h>

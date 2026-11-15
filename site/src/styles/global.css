@@ -131,3 +131,10 @@ details.fold > summary::before { content: "▸ "; } details.fold[open] > summary
 .sheet[open] { display: block; }
 .sheet > div { position: absolute; left: 0; right: 0; bottom: 0; max-height: 80vh; overflow-y: auto; background: var(--card); border-radius: 16px 16px 0 0; padding: 1rem 1rem calc(env(safe-area-inset-bottom) + 1rem); }
 .readbar { position: fixed; top: 0; left: 0; height: 3px; background: var(--color-tint); z-index: 60; width: 0; }
+
+/* 手機防溢出：長的行內程式碼、連結、題目卡 */
+.prose code:not(pre code), .prose a, .callout code, section[id^=ex-] code { overflow-wrap: anywhere; }
+section[id^=ex-] { min-width: 0; overflow-wrap: anywhere; }
+.prose li, .prose p, .prose td { overflow-wrap: anywhere; }
+section[id^=ex-] .code-plain, section[id^=ex-] pre { overflow-wrap: normal; }
+.lines > button { white-space: pre-wrap; overflow-wrap: anywhere; }

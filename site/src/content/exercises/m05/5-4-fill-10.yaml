@@ -1,7 +1,7 @@
 id: m05-5-4-fill-10
 chapter: "5.4"
 type: fill
-title: block 語法 ⑩：enumerateObjectsUsingBlock: 提早停止
+title: "block 語法 ⑩：enumerateObjectsUsingBlock: 提早停止"
 minutes: 2
 prompt: 找到第一筆支出就停止列舉。
 code: |

@@ -1,0 +1,22 @@
+id: m03-3-5-parsons-1
+chapter: "3.5"
+type: parsons
+title: 對外不可變、對內可變
+minutes: 3
+prompt: 排出 LBLedger.m 的類別延伸與兩個方法，實作「內部持有可變陣列、對外回傳不可變快照」。有兩行是干擾項。
+lines:
+  - "@interface LBLedger ()"
+  - "@property (nonatomic, strong) NSMutableArray<LBTransaction *> *storage;"
+  - "@end"
+  - "@implementation LBLedger"
+  - "- (void)addTransaction:(LBTransaction *)tx { [self.storage addObject:tx]; }"
+  - "- (NSArray<LBTransaction *> *)transactions { return [self.storage copy]; }"
+  - "@end"
+distractors:
+  - "@property (nonatomic, copy) NSMutableArray<LBTransaction *> *storage;"
+  - "- (NSArray<LBTransaction *> *)transactions { return self.storage; }"
+hints:
+  - 類別延伸 @interface LBLedger () 要在 @implementation 之前。
+  - 內部可變狀態用 strong，不能用 copy（copy 會變不可變）。
+  - getter 回傳的是快照，不是 storage 本身。
+solution_note: "`copy` 修飾 NSMutableArray 會讓 setter 存進不可變版本，之後 addObject: 必炸；直接 `return self.storage` 則讓呼叫端 cast 後能改你的內部狀態。正解是 strong 持有、getter 回 `[storage copy]`。"

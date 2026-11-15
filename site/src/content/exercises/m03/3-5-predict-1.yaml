@@ -1,0 +1,21 @@
+id: m03-3-5-predict-1
+chapter: "3.5"
+type: predict
+title: 類別叢集的真面目
+minutes: 2
+code: |
+  NSArray *a = @[@1, @2];
+  NSLog(@"%@ %@ %@", [a class], [[a copy] class], [[a mutableCopy] class]);
+options:
+  - "NSArray NSArray NSMutableArray"
+  - "__NSArrayI __NSArrayI __NSArrayM"
+  - "__NSArrayI __NSArrayM __NSArrayM"
+  - "__NSPlaceholderArray __NSArrayI __NSArrayM"
+accept: ["__NSArrayI __NSArrayI __NSArrayM"]
+hints:
+  - NSArray 是類別叢集，真正的類別是私有子類別。
+  - 對不可變物件 copy 可能直接回自己。
+feedback:
+  "NSArray NSArray NSMutableArray": "你看到的 NSArray 是抽象介面，[a class] 會印出真實的私有類別名。"
+  "__NSPlaceholderArray __NSArrayI __NSArrayM": "__NSPlaceholderArray 只在字面值建構的過程中短暫存在，建好之後就被換成 __NSArrayI 了。"
+solution_note: 兩個元素的字面值是 `__NSArrayI`（I = immutable）；對它 copy 直接回自己，還是 `__NSArrayI`；mutableCopy 才產生 `__NSArrayM`。這些名字就是崩潰訊息裡會看到的，記住 I / M / 0 / Placeholder 四種。

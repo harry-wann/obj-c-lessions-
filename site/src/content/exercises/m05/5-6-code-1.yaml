@@ -1,0 +1,41 @@
+id: m05-5-6-code-1
+chapter: "5.6"
+type: code
+title: 設計一個可取消的非同步方法簽名
+mobile: false
+minutes: 6
+prompt: "定義 `LBSyncCompletion`：接可為 nil 的 `LBSyncResult *` 與可為 nil 的 `NSError *`，無回傳。宣告協定 `LBCancellable`（繼承 NSObject 協定，一個方法 `- (void)cancel;`）。再在 `LBLedger` 宣告 `- (id<LBCancellable>)syncWithCompletion:(LBSyncCompletion)completion;`，並用 `///` 註解寫明 completion 在主執行緒呼叫。"
+starter: |
+  @class LBSyncResult;
+
+  @interface LBLedger : NSObject
+
+  @end
+checks:
+  - "must_match: 'typedef\\s+void\\s*\\(\\s*\\^\\s*LBSyncCompletion\\s*\\)\\s*\\(\\s*LBSyncResult\\s*\\*\\s*_Nullable\\s+\\w+\\s*,\\s*NSError\\s*\\*\\s*_Nullable\\s+\\w+\\s*\\)\\s*;'"
+    message: "typedef void (^LBSyncCompletion)(LBSyncResult * _Nullable result, NSError * _Nullable error);"
+  - "must_match: '@protocol LBCancellable\\s*<\\s*NSObject\\s*>'"
+    message: "要宣告 @protocol LBCancellable <NSObject>"
+  - "selector_equals: \"cancel\""
+    message: "LBCancellable 要有 - (void)cancel;"
+  - "selector_equals: \"syncWithCompletion:\""
+    message: "缺少 syncWithCompletion:"
+  - "must_match: '-\\s*\\(\\s*id\\s*<\\s*LBCancellable\\s*>\\s*\\)\\s*syncWithCompletion\\s*:\\s*\\(\\s*LBSyncCompletion\\s*\\)\\s*completion'"
+    message: "回傳型別 id<LBCancellable>，參數型別 LBSyncCompletion"
+  - "brackets_balanced: true"
+solution: |
+  @class LBSyncResult;
+
+  typedef void (^LBSyncCompletion)(LBSyncResult * _Nullable result,
+                                   NSError * _Nullable error);
+
+  @protocol LBCancellable <NSObject>
+  - (void)cancel;
+  @end
+
+  @interface LBLedger : NSObject
+  /// 完成後在主執行緒呼叫 completion，恰好一次；取消時 error 為 NSUserCancelledError。
+  - (id<LBCancellable>)syncWithCompletion:(LBSyncCompletion)completion;
+  @end
+solution_note: 三個慣例一次到位：(result, error) 簽名、回傳可取消物件、註解寫明執行緒。驗證器會先移除註解，所以註解有沒有寫它看不到，但 code review 看得到。
+hints: ["typedef 先寫，協定第二，類別最後。", "回傳可取消物件：型別是 id<LBCancellable>。", "註解用 /// 開頭，Xcode 的 Quick Help 會顯示。"]

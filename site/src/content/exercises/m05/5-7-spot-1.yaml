@@ -1,0 +1,43 @@
+id: m05-5-7-spot-1
+chapter: "5.7"
+type: spot
+title: 畫面越用越慢
+minutes: 3
+prompt: 使用者來回切換分頁幾次之後，reload 會被叫好幾遍。點選有問題的行並選出原因。
+code: |
+  - (void)viewWillAppear:(BOOL)animated {
+      [super viewWillAppear:animated];
+      [[NSNotificationCenter defaultCenter] addObserver:self
+                                               selector:@selector(ledgerDidChange:)
+                                                   name:LBLedgerDidChangeNotification
+                                                 object:nil];
+  }
+
+  - (void)viewWillDisappear:(BOOL)animated {
+      [super viewWillDisappear:animated];
+  }
+
+  - (void)ledgerDidChange:(NSNotification *)note {
+      LBTransaction *tx = note.object;
+      [self.tableView reloadData];
+  }
+bug_lines: [3, 10, 14]
+reasons:
+  - "viewWillAppear 每次都註冊、viewWillDisappear 沒有對應的移除，觀察者越疊越多；另外 note.object 是發送者（帳本）不是交易，交易應該從 userInfo 拿"
+  - 應該改在 dealloc 註冊
+  - selector 版在 iOS 9 之後不能用了
+  - reloadData 不能在通知回呼裡呼叫
+answer_reason: 0
+fix: |
+  - (void)viewWillDisappear:(BOOL)animated {
+      [super viewWillDisappear:animated];
+      [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                      name:LBLedgerDidChangeNotification
+                                                    object:nil];
+  }
+  // 回呼裡：
+  LBTransaction *tx = note.userInfo[LBLedgerTransactionUserInfoKey];
+solution_note: "addObserver: 不去重；註冊與移除要在生命週期的對稱位置成對出現。或改成在 viewDidLoad 註冊一次。object 是發送者，資料在 userInfo。"
+hints: ["addObserver: 會不會自動去重？", "viewWillAppear 的對稱方法是哪個？", "note.object 是什麼？"]
+feedback:
+  "1": dealloc 是物件要死的時候，在那裡註冊沒有意義；那是移除的地方。

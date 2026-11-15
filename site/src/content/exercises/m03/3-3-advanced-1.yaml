@@ -45,7 +45,7 @@ checks:
   - must_match: '_count\s*(>=|==)\s*_capacity'
     message: append 時滿了（count >= capacity）才 grow
   - must_match: 'NSRangeException|NSAssert|index\s*<\s*_count|index\s*>=\s*_count'
-    message: objectAtIndex: 要檢查越界
+    message: "objectAtIndex: 要檢查越界"
   - brackets_balanced: true
 solution: |
   - (void)grow {

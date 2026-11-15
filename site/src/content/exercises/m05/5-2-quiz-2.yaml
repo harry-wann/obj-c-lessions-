@@ -15,5 +15,5 @@ explain: 第一個參數是來源物件，名字是去掉前綴、小寫開頭�
 hints: ["delegate 方法的第一個參數放什麼？", "參數名怎麼寫：UITableView 的 delegate 方法第一段是 tableView: 還是 UITableView:？"]
 feedback:
   "0": 沒有來源物件，一個控制器當兩本帳的 delegate 時分不出誰在叫。
-  "1": 來源參數名要去掉前綴並小寫：ledger: 不是 LBLedger:。
+  "1": "來源參數名要去掉前綴並小寫：ledger: 不是 LBLedger:。"
   "3": "on... 是 Android / JS 的命名；Cocoa 慣例把來源放第一個參數。"

@@ -1,0 +1,35 @@
+id: m05-5-6-spot-2
+chapter: "5.6"
+type: spot
+title: completion 忘了呼叫
+minutes: 3
+prompt: 呼叫端的 spinner 在某些情況下永遠不停。點選有問題的行並選出原因。
+code: |
+  - (void)importFromURL:(NSURL *)url completion:(LBImportCompletion)completion {
+      NSData *data = [NSData dataWithContentsOfURL:url];
+      if (!data) return;
+      NSArray *rows = [self parseCSV:data];
+      if (rows.count == 0) {
+          if (completion) completion(0, nil);
+          return;
+      }
+      [self.ledger addTransactionsFromRows:rows];
+      if (completion) completion(rows.count, nil);
+  }
+bug_lines: [3]
+reasons:
+  - 讀檔失敗的路徑直接 return，沒有呼叫 completion，呼叫端永遠等不到
+  - rows.count == 0 時不應該呼叫 completion
+  - "最後一行應該在 addTransactionsFromRows: 之前呼叫"
+  - "dataWithContentsOfURL: 不能用在這裡"
+answer_reason: 0
+fix: |
+  if (!data) {
+      NSError *e = [NSError errorWithDomain:LBErrorDomain code:LBErrorReadFailed userInfo:nil];
+      if (completion) completion(0, e);
+      return;
+  }
+solution_note: "每個 return 往上看兩行，前面都要有 completion 呼叫。rows 為空不是錯誤，呼叫 completion(0, nil) 是對的。另外 dataWithContentsOfURL: 是同步阻塞的，實務上要放背景佇列，模組 7 講。"
+hints: ["數一下有幾個 return，每個前面有沒有 completion？", "呼叫端收不到 completion 會怎樣？"]
+feedback:
+  "1": 零筆是正常結果，呼叫 completion(0, nil) 讓呼叫端知道「完成了，沒有新資料」。

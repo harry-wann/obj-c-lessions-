@@ -8,7 +8,7 @@ log: |
   reason: '*** Collection <__NSArrayM: 0x600003a1c2d0> was mutated while being enumerated.'
 options:
   - 有人在 for-in 走訪一個 NSMutableArray 的過程中對它 add / remove
-  - 對不可變陣列呼叫了 addObject:
+  - "對不可變陣列呼叫了 addObject:"
   - 陣列越界
   - 兩個執行緒同時讀同一個 NSArray
 answer: 0

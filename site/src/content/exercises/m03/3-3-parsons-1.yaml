@@ -14,6 +14,6 @@ lines:
 distractors:
   - "            return [a.date compare:b.date];"
 hints:
-  - sortedArrayUsingComparator: 回傳新陣列，sortUsingComparator: 才是原地排。
+  - sortedArrayUsingComparator: "回傳新陣列，sortUsingComparator: 才是原地排。"
   - 倒序就是把 a、b 對調去比。
 solution_note: "`[b.date compare:a.date]` 在 b 比 a 新時回 NSOrderedDescending，排序器就把 a 放後面——所以是由新到舊。`[a.date compare:b.date]` 是由舊到新。"

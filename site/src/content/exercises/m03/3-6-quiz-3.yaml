@@ -1,0 +1,17 @@
+id: m03-3-6-quiz-3
+chapter: "3.6"
+section: quiz
+type: quiz
+title: null_resettable 是什麼？
+minutes: 1
+prompt: "`UIView` 的 `tintColor` 宣告為 `null_resettable`。這代表？"
+options:
+  - getter 可能回 nil，setter 不接受 nil
+  - getter 永遠回非 nil 的值；setter 接受 nil，表示「重設回預設值」
+  - 這個屬性會在記憶體不足時自動變 nil
+  - 和 nullable 一樣，只是舊寫法
+answer: 1
+explain: null_resettable 用在「有預設值」的屬性：設 nil 表示恢復預設（繼承自父視圖的 tint），讀取時一定有值。Swift 端 getter 非 Optional、setter 是 Optional。
+hints: ["resettable = 可以重設。", "讀的時候會拿到 nil 嗎？"]
+feedback:
+  "0": "剛好反過來。"

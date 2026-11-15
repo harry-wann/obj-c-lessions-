@@ -1,0 +1,22 @@
+id: m03-3-6-crash-1
+chapter: "3.6"
+type: crash
+title: objects[1] 是誰？
+minutes: 2
+log: |
+  *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+  reason: '*** -[__NSPlaceholderArray initWithObjects:count:]: attempt to insert nil object from objects[1]'
+options:
+  - 某一行陣列字面值 @[ ] 的第二個元素（索引 1）是 nil，通常來自回傳 nullable 的方法或字典取值
+  - "對 NSMutableArray addObject: 傳了 nil"
+  - 陣列越界，索引 1 不存在
+  - 陣列正在被列舉時被修改
+answer: 0
+fix: |
+  NSArray *row = @[tx.note, category ?: [NSNull null], tx.amount];
+  // 或：有值才 addObject: 到 NSMutableArray
+solution_note: "`__NSPlaceholderArray` 只在字面值 / arrayWithObjects: 建構時出現，所以事發點是某一行 `@[ … ]`；`objects[1]` 從 0 數，是第二個元素。addObject:nil 的訊息會是 `-[__NSArrayM insertObject:atIndex:]: object cannot be nil`，類別名不同。"
+hints: ["__NSPlaceholderArray 只在什麼時候出現？", "objects[1] 是第幾個元素？", "字面值裡哪個元素最可能是 nil？找回傳 nullable 的方法。"]
+feedback:
+  "1": "那會是 __NSArrayM 與 object cannot be nil。類別名告訴你事發位置。"
+  "2": "越界是 NSRangeException，訊息會有 beyond bounds。"

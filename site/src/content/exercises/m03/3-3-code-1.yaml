@@ -13,11 +13,11 @@ checks:
   - must_match: 'sortedArrayUsingComparator:'
     message: 用 sortedArrayUsingComparator:（回新陣列）
   - must_not_match: 'sortUsingComparator:'
-    message: sortUsingComparator: 會原地改動 _storage
+    message: "sortUsingComparator: 會原地改動 _storage"
   - must_match: '\^\s*NSComparisonResult'
     message: block 的回傳型別是 NSComparisonResult
   - must_match: '\[\s*(\w+)\s*\.\s*date\s+compare:\s*(\w+)\s*\.\s*date\s*\]'
-    message: 用 date 的 compare: 比較
+    message: "用 date 的 compare: 比較"
   - must_match: 'return'
   - brackets_balanced: true
 solution: |

@@ -17,7 +17,7 @@ checks:
   - must_match: 'for\s*\(|enumerateObjectsUsingBlock:'
     message: 要走訪 txs
   - must_match: '\?:|\?\s*.*:\s*@"未分類"|if\s*\('
-    message: 要處理 category 為 nil 的情況（?: 或 if）
+    message: "要處理 category 為 nil 的情況（?: 或 if）"
   - must_match: 'return'
   - brackets_balanced: true
 solution: |

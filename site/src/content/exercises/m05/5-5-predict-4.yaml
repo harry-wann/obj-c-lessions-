@@ -15,5 +15,5 @@ accept: ["午餐 午餐"]
 feedback:
   "午餐 晚餐": block 拷貝的是指標，重新賦值讓外面的 note 指向新物件，block 裡的指標還指著舊的。
   "午 午": 透過指標修改物件內容，block 看得到，因為是同一個物件。
-solution_note: 對物件來說「值」就是指標。appendString: 改的是同一個物件，看得到；重新賦值換了物件，block 不知道。
+solution_note: "對物件來說「值」就是指標。appendString: 改的是同一個物件，看得到；重新賦值換了物件，block 不知道。"
 hints: ["block 裡存的是指標還是字串內容？", "appendString: 跟重新賦值，哪一個換了物件？"]

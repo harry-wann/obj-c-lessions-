@@ -1,0 +1,17 @@
+id: m03-3-7-quiz-1
+chapter: "3.7"
+section: quiz
+type: quiz
+title: "@count 後面的 key"
+minutes: 1
+prompt: "`[txs valueForKeyPath:@\"@count.amount\"]` 回傳什麼？"
+options:
+  - amount 總和
+  - "有 amount 的交易數"
+  - "txs 的元素數；`@count` 後面的 key 會被忽略"
+  - "crash：NSUnknownKeyException"
+answer: 2
+explain: "`@count` 是唯一不需要右側 key 的運算子，寫了也會被忽略，回傳 `@(txs.count)`。寫 `@\"@count\"` 就好。"
+hints: ["@count 數的是什麼？", "它需要知道元素的屬性嗎？"]
+feedback:
+  "0": "總和是 @sum.amount。"

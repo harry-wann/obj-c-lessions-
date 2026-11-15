@@ -7,7 +7,7 @@ minutes: 1
 prompt: "`@protocol LBLedgerObserver <NSObject>` 裡的 `<NSObject>` 代表什麼？"
 options:
   - 這個協定只能被 NSObject 的子類別遵循
-  - 這個協定繼承 NSObject 協定，遵循者保證有 respondsToSelector: 等基本方法
+  - "這個協定繼承 NSObject 協定，遵循者保證有 respondsToSelector: 等基本方法"
   - 這個協定會自動取得 NSObject 類別的所有實作
   - 這是必填的語法，沒有意義
 answer: 1

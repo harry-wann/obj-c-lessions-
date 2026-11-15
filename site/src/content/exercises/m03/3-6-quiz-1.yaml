@@ -1,0 +1,14 @@
+id: m03-3-6-quiz-1
+chapter: "3.6"
+section: quiz
+type: quiz
+title: Swift 看到什麼？
+minutes: 1
+prompt: "一個**沒有**任何 nullability 標注的標頭檔裡宣告了 `- (LBTransaction *)transactionWithIdentifier:(NSUUID *)identifier;`。Swift 匯入後的回傳型別是？"
+options: ["`LBTransaction`", "`LBTransaction?`", "`LBTransaction!`", "`Any`"]
+answer: 2
+explain: 沒標注就是 null_unspecified，Swift 匯入成隱式解包 Optional `LBTransaction!`，一存取就可能 crash。加上 `nullable` 變 `?`，包進 NS_ASSUME_NONNULL 區段變成非 Optional。
+hints: ["沒標注等於哪一種？", "隱式解包 Optional 的符號是什麼？"]
+feedback:
+  "1": "要標 nullable 才會是 ?。"
+  "0": "要在 NS_ASSUME_NONNULL_BEGIN / END 裡或標 nonnull 才會是非 Optional。"

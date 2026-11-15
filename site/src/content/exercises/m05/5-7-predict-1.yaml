@@ -1,0 +1,22 @@
+id: m05-5-7-predict-1
+chapter: "5.7"
+type: predict
+title: 註冊兩次會怎樣
+minutes: 2
+code: |
+  // LBCounter 的 bump: 方法會 NSLog(@"bump")
+  LBCounter *c = [LBCounter new];
+  NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
+  [nc addObserver:c selector:@selector(bump:) name:@"LBTick" object:nil];
+  [nc addObserver:c selector:@selector(bump:) name:@"LBTick" object:nil];
+  [nc postNotificationName:@"LBTick" object:nil];
+  [nc removeObserver:c name:@"LBTick" object:nil];
+  [nc postNotificationName:@"LBTick" object:nil];
+  NSLog(@"end");
+options: ["bump\nend", "bump\nbump\nend", "bump\nbump\nbump\nend", "end"]
+accept: ["bump bump end"]
+feedback:
+  "bump end": "addObserver: 不會去重，註冊兩次就被叫兩次。"
+  "bump bump bump end": "removeObserver:name:object: 一次移除該觀察者對這個名字的所有註冊，第二次 post 沒人收。"
+solution_note: "第一次 post 兩個註冊各被叫一次；removeObserver:name:object: 把 c 對 LBTick 的所有註冊一次移光；第二次 post 沒有輸出。"
+hints: ["addObserver: 會不會檢查已經註冊過？", "removeObserver:name:object: 是移除一筆還是全部？"]

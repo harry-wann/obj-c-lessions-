@@ -1,0 +1,58 @@
+id: m05-5-7-code-1
+chapter: "5.7"
+type: code
+title: 宣告帳本的變動通知
+mobile: false
+minutes: 5
+prompt: "在 LBLedger.h 用 `extern` 宣告 `LBLedgerDidChangeNotification`（型別 NSNotificationName）與 userInfo 的 key 常數 `LBLedgerTransactionUserInfoKey`（NSString *）。在 .m 定義它們，並寫出 `addTransaction:` 裡發送通知的那一段（object 是 self，userInfo 帶交易）。"
+starter: |
+  // LBLedger.h
+  @interface LBLedger : NSObject
+  - (void)addTransaction:(LBTransaction *)tx;
+  @end
+
+  // LBLedger.m
+  @implementation LBLedger
+  - (void)addTransaction:(LBTransaction *)tx {
+      [_items addObject:tx];
+
+  }
+  @end
+checks:
+  - "must_match: 'extern\\s+NSNotificationName\\s+const\\s+LBLedgerDidChangeNotification\\s*;'"
+    message: "標頭檔要 extern NSNotificationName const LBLedgerDidChangeNotification;"
+  - "must_match: 'extern\\s+NSString\\s*\\*\\s*const\\s+LBLedgerTransactionUserInfoKey\\s*;'"
+    message: "標頭檔要 extern NSString * const LBLedgerTransactionUserInfoKey;"
+  - "must_match: 'NSNotificationName\\s+const\\s+LBLedgerDidChangeNotification\\s*=\\s*@\"LBLedgerDidChangeNotification\"\\s*;'"
+    message: ".m 裡定義常數，值就是常數名的字串"
+  - "must_match: 'NSString\\s*\\*\\s*const\\s+LBLedgerTransactionUserInfoKey\\s*=\\s*@\"[^\"]+\"\\s*;'"
+    message: ".m 裡要定義 LBLedgerTransactionUserInfoKey"
+  - "must_match: '\\[\\s*NSNotificationCenter\\s+defaultCenter\\s*\\]'"
+    message: 用 [NSNotificationCenter defaultCenter]
+  - "must_match: 'postNotificationName\\s*:\\s*LBLedgerDidChangeNotification\\s+object\\s*:\\s*self\\s+userInfo\\s*:\\s*@\\{\\s*LBLedgerTransactionUserInfoKey\\s*:\\s*tx\\s*\\}'"
+    message: "postNotificationName:LBLedgerDidChangeNotification object:self userInfo:@{ LBLedgerTransactionUserInfoKey: tx }"
+  - "brackets_balanced: true"
+solution: |
+  // LBLedger.h
+  extern NSNotificationName const LBLedgerDidChangeNotification;
+  extern NSString * const LBLedgerTransactionUserInfoKey;
+
+  @interface LBLedger : NSObject
+  - (void)addTransaction:(LBTransaction *)tx;
+  @end
+
+  // LBLedger.m
+  NSNotificationName const LBLedgerDidChangeNotification = @"LBLedgerDidChangeNotification";
+  NSString * const LBLedgerTransactionUserInfoKey = @"transaction";
+
+  @implementation LBLedger
+  - (void)addTransaction:(LBTransaction *)tx {
+      [_items addObject:tx];
+      [[NSNotificationCenter defaultCenter]
+          postNotificationName:LBLedgerDidChangeNotification
+                        object:self
+                      userInfo:@{ LBLedgerTransactionUserInfoKey: tx }];
+  }
+  @end
+solution_note: 常數的值慣例跟名字一樣，debug 時在 log 裡一眼認出；key 常數的值可以短一點。object 放 self，交易走 userInfo。
+hints: ["1.4 的全域常數：.h 用 extern 宣告、.m 定義。", "NSNotificationName 就是 NSString * 的 typedef。", "object: 放發送者，userInfo: 放字典。"]

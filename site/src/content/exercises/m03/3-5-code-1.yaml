@@ -1,0 +1,60 @@
+id: m03-3-5-code-1
+chapter: "3.5"
+type: code
+title: 宣告對外唯讀的分類清單
+mobile: false
+minutes: 5
+prompt: "為 `LBBudget` 寫出 .h 的屬性宣告與 .m 的類別延伸、getter、新增方法：對外是不可變的 `categories`（NSArray 的 LBCategory），內部用 `mutableCategories` 持有可變版本，`addCategory:` 加進去，getter 回傳快照。"
+starter: |
+  // LBBudget.h
+  @interface LBBudget : NSObject
+
+  - (void)addCategory:(LBCategory *)category;
+  @end
+
+  // LBBudget.m
+  @interface LBBudget ()
+
+  @end
+
+  @implementation LBBudget
+
+  @end
+checks:
+  - property_attrs: { name: categories, attrs: [nonatomic, copy, readonly] }
+    message: 對外的 categories 要 nonatomic、copy、readonly，而且型別是 NSArray
+  - must_match: '@property\s*\([^)]*\)\s*NSArray\s*<\s*LBCategory\s*\*\s*>\s*\*\s*categories'
+    message: categories 的型別要是 NSArray<LBCategory *> *
+  - property_attrs: { name: mutableCategories, attrs: [nonatomic, strong] }
+    message: 內部的 mutableCategories 用 strong（不能 copy）
+  - must_match: '@property\s*\([^)]*\)\s*NSMutableArray\s*<\s*LBCategory\s*\*\s*>\s*\*\s*mutableCategories'
+    message: mutableCategories 的型別要是 NSMutableArray<LBCategory *> *
+  - must_match: '-\s*\(\s*NSArray\s*<\s*LBCategory\s*\*\s*>\s*\*\s*\)\s*categories\s*\{[^}]*copy\s*\]'
+    message: categories getter 要回傳 [mutableCategories copy]
+  - must_match: 'addCategory:\s*\(\s*LBCategory\s*\*\s*\)\s*\w+\s*\{[^}]*addObject:'
+    message: "addCategory: 要對 mutableCategories 做 addObject:"
+  - must_not_match: 'NSMutableArray[^\n]*\n[^\n]*-\s*\(void\)addCategory'
+    message: NSMutableArray 不要出現在 .h（只能在類別延伸）
+  - brackets_balanced: true
+solution: |
+  // LBBudget.h
+  @interface LBBudget : NSObject
+  @property (nonatomic, copy, readonly) NSArray<LBCategory *> *categories;
+  - (void)addCategory:(LBCategory *)category;
+  @end
+
+  // LBBudget.m
+  @interface LBBudget ()
+  @property (nonatomic, strong) NSMutableArray<LBCategory *> *mutableCategories;
+  @end
+
+  @implementation LBBudget
+  - (instancetype)init {
+      if (self = [super init]) { _mutableCategories = [NSMutableArray array]; }
+      return self;
+  }
+  - (NSArray<LBCategory *> *)categories { return [self.mutableCategories copy]; }
+  - (void)addCategory:(LBCategory *)category { [self.mutableCategories addObject:category]; }
+  @end
+solution_note: "這就是 LBLedger 用的模式。自己寫了 getter 之後，編譯器不會再合成 `_categories` ivar，`categories` 純粹是 `mutableCategories` 的唯讀視圖。別忘了在 init 建立可變陣列，否則對 nil 送 addObject: 什麼都不會發生、也不會報錯。"
+hints: ["對外屬性的三個修飾詞是什麼？型別是 NSArray 還是 NSMutableArray？", "內部可變陣列為什麼不能用 copy？", "getter 回的是 copy，不是陣列本身。"]

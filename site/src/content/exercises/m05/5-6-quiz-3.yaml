@@ -1,0 +1,18 @@
+id: m05-5-6-quiz-3
+chapter: "5.6"
+section: quiz
+type: quiz
+title: completion 在哪條執行緒
+minutes: 1
+prompt: 你寫了一個給 UI 層用的 `syncWithCompletion:`，內部用 NSURLSession 抓資料。關於 completion 的執行緒，最好的做法是？
+options:
+  - 直接在 NSURLSession 的回呼裡呼叫 completion，呼叫端自己切主執行緒
+  - 內部 dispatch_async 回主執行緒再呼叫 completion，並在標頭檔註解寫明
+  - 用 dispatch_sync 切回主執行緒以保證順序
+  - 執行緒不重要，UIKit 會自己處理
+answer: 1
+explain: 給 UI 用的 API 在內部切回主執行緒，呼叫端不必每次包一層。註解比簽名更重要：NSURLSession 在背景佇列、UIView 動畫在主執行緒，不寫沒人知道。
+hints: ["NSURLSession 的 completion 預設在哪條執行緒？", "誰最知道這個 API 的回呼在哪：寫的人還是用的人？"]
+feedback:
+  "2": dispatch_sync 從主執行緒呼叫會死結；切回主執行緒一律 async。
+  "3": UIKit 不是執行緒安全的；在背景執行緒更新 UI 是未定義行為，Main Thread Checker 會報紫色警告。

@@ -10,22 +10,22 @@ starter: |
 
   @end
 checks:
-  - must_match: '@interface NSArray\s*<\s*ObjectType\s*>\s*\(\s*LBFunctional\s*\)'
+  - "must_match: '@interface NSArray\\s*<\\s*ObjectType\\s*>\\s*\\(\\s*LBFunctional\\s*\\)'"
     message: "要宣告成 @interface NSArray<ObjectType> (LBFunctional)"
-  - selector_equals: "lb_map:"
+  - "selector_equals: \"lb_map:\""
     message: "缺少 lb_map:"
-  - selector_equals: "lb_filter:"
+  - "selector_equals: \"lb_filter:\""
     message: "缺少 lb_filter:"
-  - selector_equals: "lb_reduce:initial:"
+  - "selector_equals: \"lb_reduce:initial:\""
     message: "缺少 lb_reduce:initial:"
-  - must_match: 'lb_map\s*:\s*\(\s*id\s*\(\s*\^\s*\)\s*\('
+  - "must_match: 'lb_map\\s*:\\s*\\(\\s*id\\s*\\(\\s*\\^\\s*\\)\\s*\\('"
     message: "lb_map: 的參數是回傳 id 的 block：(id (^)(ObjectType obj))"
-  - must_match: 'lb_filter\s*:\s*\(\s*BOOL\s*\(\s*\^\s*\)\s*\('
+  - "must_match: 'lb_filter\\s*:\\s*\\(\\s*BOOL\\s*\\(\\s*\\^\\s*\\)\\s*\\('"
     message: "lb_filter: 的參數是回傳 BOOL 的 block：(BOOL (^)(ObjectType obj))"
-  - must_not_match: '-\s*\([^)]*\)\s*(map|filter|reduce)\s*:'
+  - "must_not_match: '-\\s*\\([^)]*\\)\\s*(map|filter|reduce)\\s*:'"
     message: 方法名要加 lb_ 前綴
-  - must_match: '@end'
-  - brackets_balanced: true
+  - "must_match: '@end'"
+  - "brackets_balanced: true"
 solution: |
   @interface NSArray<ObjectType> (LBFunctional)
   - (NSArray *)lb_map:(id (^)(ObjectType obj))transform;

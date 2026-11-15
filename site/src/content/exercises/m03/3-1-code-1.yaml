@@ -11,7 +11,7 @@ starter: |
   }
 checks:
   - must_match: 'stringWithFormat:'
-    message: 用 stringWithFormat: 組字串
+    message: "用 stringWithFormat: 組字串"
   - must_match: '%@[^"]*(%ld|%zd)[^"]*%@'
     message: 順序是 note（%@）、count（%ld 或 %zd）、amount（%@）
   - must_not_match: '%d(?![a-zA-Z])'

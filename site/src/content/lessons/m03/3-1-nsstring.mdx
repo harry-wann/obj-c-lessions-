@@ -6,10 +6,10 @@ order: 1
 minutes: 30
 prereq: ["2.8"]
 objectives:
-  - 用 stringWithFormat: 組字串，格式指定子一次寫對
-  - 用 isEqualToString: 比較、用 hasPrefix: / containsString: / componentsSeparatedByString: 處理字串
+  - "用 stringWithFormat: 組字串，格式指定子一次寫對"
+  - "用 isEqualToString: 比較、用 hasPrefix: / containsString: / componentsSeparatedByString: 處理字串"
   - 知道 length 數的是 UTF-16 單位，emoji 算 2，以及金額與日期要交給 Formatter
-summary: 字面值、stringWithFormat: 與格式指定子、比較與搜尋、切割、length 的 UTF-16 陷阱、NSNumberFormatter / NSDateFormatter、NSLocalizedString。
+summary: "字面值、stringWithFormat: 與格式指定子、比較與搜尋、切割、length 的 UTF-16 陷阱、NSNumberFormatter / NSDateFormatter、NSLocalizedString。"
 terms:
   - { en: string literal, tw: 字串字面值, cn: 字符串字面量, jp: 文字列リテラル }
   - { en: format specifier, tw: 格式指定子, cn: 格式说明符, jp: 書式指定子 }
@@ -108,6 +108,10 @@ NSLog(@"%d", r.location == NSNotFound);     // 1 —— 找不到是 NSNotFound�
 ```
 
 `==` 在 Objective-C 永遠比較兩個指標是不是同一個物件，字串內容相同與否它完全不管。比字串一律 `isEqualToString:`（型別已知時比 `isEqual:` 快一點，而且更清楚）。要排序用 `compare:`，排給人看的清單用 `localizedStandardCompare:`，它會把「第 2 筆」排在「第 10 筆」前面。
+
+<Tip title="大小寫與地區感知的比較">
+`rangeOfString:options:` 與 `compare:options:` 都吃 `NSCaseInsensitiveSearch`（不分大小寫）、`NSDiacriticInsensitiveSearch`（忽略重音）、`NSAnchoredSearch`（只比開頭）。搜尋框過濾交易備註時，用 `[tx.note rangeOfString:keyword options:NSCaseInsensitiveSearch].location != NSNotFound` 或更短的 `localizedCaseInsensitiveContainsString:`，不要先 `lowercaseString` 再比——土耳其文的 i 會讓你吃驚。順帶一提，`NSMutableString` 是 `NSString` 的子類別，任何收 `NSString *` 的地方都能塞一個可變字串進去，這就是 2.4 說字串屬性要 `copy` 的原因。
+</Tip>
 
 ### 切、拆、合
 

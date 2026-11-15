@@ -1,0 +1,20 @@
+id: m05-5-7-quiz-4
+chapter: "5.7"
+section: quiz
+type: quiz
+title: 哪些情境不該用通知
+minutes: 1
+prompt: 下列哪些情境**不該**用 NSNotification？（可複選）
+multi: true
+options:
+  - 帳本變了，三個互不相識的畫面都要刷新
+  - 匯入前要問使用者介面層「這筆要不要匯」，拿回 BOOL
+  - 只有 LBReportViewController 一個接收者，而且 LBLedger 知道是它
+  - A 做完發通知叫 B 做，B 做完發通知叫 C 做
+  - 鍵盤出現時調整版面
+answer: [1, 2, 3]
+explain: 通知是單向廣播，拿不到回傳值；只有一個已知接收者時 delegate 更好追蹤；當流程控制會讓執行順序取決於註冊順序，沒人能從上到下讀懂。
+hints: ["通知能不能回傳值？", "接收者只有一個而且你知道是誰，有更直接的工具嗎？"]
+feedback:
+  "0": 這正是通知的場景：一對多、發送者不認識接收者。
+  "4": UIKeyboardWillShowNotification 就是系統給你的通知，當然用。

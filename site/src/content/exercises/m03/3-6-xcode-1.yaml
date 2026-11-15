@@ -1,0 +1,22 @@
+id: m03-3-6-xcode-1
+chapter: "3.6"
+type: xcode
+title: 月結分組與加總
+mobile: false
+minutes: 30
+prompt: "完成 LBLedger 剩下的兩個方法：`transactionsGroupedByMonth`（回 `NSArray<LBMonthSection *>`，依年月由新到舊）與 `totalForKind:`（NSDecimalNumber 加總）。標頭檔要有完整的泛型與 nullability。"
+starter: xcode/M03-starter
+steps:
+  - 把 LBLedger.h 與 LBMonthSection.h 包進 NS_ASSUME_NONNULL_BEGIN / END，陣列加泛型，`transactionWithIdentifier:` 與 `delegate` 標 nullable。
+  - "`totalForKind:`：從 `[NSDecimalNumber zero]` 開始，走訪 storage，kind 相符就 `decimalNumberByAdding:`。"
+  - "`transactionsGroupedByMonth`：用 `NSCalendar.currentCalendar` 取每筆的 year / month，以 `@(year * 100 + month)` 當鍵放進 `NSMutableDictionary<NSNumber *, NSMutableArray<LBTransaction *> *>`。"
+  - 把字典的鍵排序（由大到小），對每個鍵建一個 LBMonthSection（year、month、該月交易依日期倒序、expenseTotal / incomeTotal）。
+  - 不要依賴字典走訪順序——先排鍵。
+  - ⌘U 跑 LBLedgerTests，五個都要綠。
+tests:
+  - LBLedgerTests/testGroupedByMonth
+  - LBLedgerTests/testTotalForKind
+acceptance:
+  - 標頭檔沒有「Pointer is missing a nullability type specifier」警告
+  - "空帳本的 transactionsGroupedByMonth 回空陣列，totalForKind: 回 0"
+solution_note: "鍵用 NSNumber（year * 100 + month）而不是 @\"yyyy-MM\" 字串，排序時直接 compare: 就是時間順序。LBMonthSection 的初始化器在 starter 已給；它的 transactions 也是 copy 的不可變快照。"

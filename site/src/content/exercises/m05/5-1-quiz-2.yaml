@@ -2,7 +2,7 @@ id: m05-5-1-quiz-2
 chapter: "5.1"
 section: quiz
 type: quiz
-title: conformsToProtocol: 與 respondsToSelector: 的差別
+title: "conformsToProtocol: 與 respondsToSelector: 的差別"
 minutes: 1
 prompt: "LBConsoleObserver 宣告遵循 LBLedgerObserver，但沒實作 optional 的 `ledgerDidReset:`。下列哪個敘述正確？"
 options:

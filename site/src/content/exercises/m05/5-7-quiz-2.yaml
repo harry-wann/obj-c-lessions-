@@ -1,0 +1,17 @@
+id: m05-5-7-quiz-2
+chapter: "5.7"
+section: quiz
+type: quiz
+title: 觀察者在哪條執行緒被呼叫
+minutes: 1
+prompt: LBLedger 在背景佇列更新資料後 post 通知。用 `addObserver:selector:name:object:` 註冊的觀察者方法會在哪裡執行？
+options:
+  - 主執行緒，通知中心會自動切換
+  - 發送者所在的背景執行緒，而且是同步執行、post 返回前跑完
+  - 一條專用的通知執行緒
+  - 下一個 RunLoop 迭代的主執行緒
+answer: 1
+explain: "postNotificationName: 同步地在呼叫者的執行緒依序呼叫所有觀察者。要在主執行緒更新 UI，發送端在主執行緒 post，或接收端用 block 版指定 mainQueue，或自己 dispatch_async。"
+hints: ["post 是同步還是非同步的？", "selector 版有沒有 queue 參數？"]
+feedback:
+  "0": "只有 block 版 addObserverForName:object:queue:usingBlock: 傳 mainQueue 才會切。"

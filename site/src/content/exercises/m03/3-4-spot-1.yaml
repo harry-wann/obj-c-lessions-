@@ -14,7 +14,7 @@ code: |
 bug_lines: [5]
 reasons:
   - 物件放進 NSSet 後改了參與 hash 的欄位，它還躺在舊 hash 對應的桶裡，新 hash 去查找不到
-  - NSMutableSet 的 containsObject: 只比指標
+  - "NSMutableSet 的 containsObject: 只比指標"
   - note 屬性應該用 strong 而不是 copy
   - 應該用 NSArray 而不是 NSSet
 answer_reason: 0
@@ -23,7 +23,7 @@ fix: |
   [selected removeObject:draft];
   draft.note = @"晚餐";
   [selected addObject:draft];
-solution_note: NSSet 底下是雜湊表，元素位置由加入當時的 hash 決定。改了 note，hash 變了，containsObject: 去新的桶找，當然找不到；更糟的是 removeObject: 也刪不掉它。這就是字典要 copy 鍵、以及 2.7 說「hash 只用不會變的欄位」的原因。
+solution_note: "NSSet 底下是雜湊表，元素位置由加入當時的 hash 決定。改了 note，hash 變了，containsObject: 去新的桶找，當然找不到；更糟的是 removeObject: 也刪不掉它。這就是字典要 copy 鍵、以及 2.7 說「hash 只用不會變的欄位」的原因。"
 hints: ["hash 是在什麼時候算的？物件的 hash 之後變了會怎樣？", "錯的不是哪個 API，是改欄位的時機。"]
 feedback:
   "1": "containsObject: 用 hash 選桶再 isEqual: 確認，不是比指標。"

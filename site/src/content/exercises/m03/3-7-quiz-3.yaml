@@ -1,0 +1,17 @@
+id: m03-3-7-quiz-3
+chapter: "3.7"
+section: quiz
+type: quiz
+title: 鍵路徑中途遇到 nil
+minutes: 1
+prompt: "`tx.category` 是 nil 時，`[tx valueForKeyPath:@\"category.parent.name\"]` 會？"
+options:
+  - "crash：NSUnknownKeyException"
+  - 回傳 nil
+  - "回傳 [NSNull null]"
+  - 回傳空字串
+answer: 1
+explain: 鍵路徑每一段對前一段的結果做 valueForKey:，中途是 nil 就直接回 nil，和 Swift 的 `?.` 一樣。只有「鍵名不存在」才會 NSUnknownKeyException。
+hints: ["對 nil 送訊息會怎樣？", "NSUnknownKeyException 是在什麼情況下丟的？"]
+feedback:
+  "0": "那是鍵名打錯（valueForUndefinedKey:）才會丟的；nil 只是中斷鏈條。"

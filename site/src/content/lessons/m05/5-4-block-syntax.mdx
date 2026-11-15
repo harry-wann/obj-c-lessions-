@@ -156,6 +156,12 @@ block 是指標，呼叫 `nil` 的 block 不像對 `nil` 物件送訊息會安�
 
 `enumerateObjectsUsingBlock:` 的 `BOOL *stop` 值得注意：block 裡不能 `break`，所以 Foundation 給你一個指標，`*stop = YES;` 就是 `break`。
 
+### 怎麼讀一個複雜的 block 型別
+
+看到 `NSArray *(^(^factory)(NSString *))(NSInteger)` 這種東西不要慌，從名稱往外讀：`factory` 是一個 block，接 `NSString *`，回傳另一個 block；那個 block 接 `NSInteger`，回傳 `NSArray *`。實務上沒有人這樣寫，看到就先 typedef 內層再 typedef 外層。同樣的道理，方法簽名裡 block 參數超過一個、或 block 本身有三個以上參數，就該 typedef；`NSURLSession` 的 `(NSData *, NSURLResponse *, NSError *)` 沒有 typedef 是歷史包袱，不是榜樣。
+
+另一個常見的疑問是 Swift 的 `@escaping` 在 Objective-C 對應什麼。答案是預設就是 escaping：編譯器假設每個 block 參數都可能被存起來，所以會做捕獲與 retain。只有在方法保證「block 在方法返回前就用完」時，才在參數上加 `NS_NOESCAPE`，例如 `sortedArrayUsingComparator:`；標了之後 Swift 端就不必寫 `@escaping`，block 裡用 `self` 也不會有循環參考的疑慮，編譯器還能省掉 copy。
+
 ### 完整範例（可貼進 Scratch）
 
 ```objc

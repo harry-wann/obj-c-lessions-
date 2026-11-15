@@ -1,0 +1,23 @@
+id: m03-3-7-predict-1
+chapter: "3.7"
+type: predict
+title: 集合運算子
+minutes: 2
+code: |
+  NSArray<NSDictionary *> *txs = @[
+      @{ @"note": @"早餐", @"amount": @60 },
+      @{ @"note": @"午餐", @"amount": @120 },
+      @{ @"note": @"午餐", @"amount": @250 },
+  ];
+  NSLog(@"%@ %@ %@", [txs valueForKeyPath:@"@sum.amount"],
+                     [txs valueForKeyPath:@"@max.amount"],
+                     [txs valueForKeyPath:@"@distinctUnionOfObjects.note"].count);
+options: ["430 250 2", "430 250 3", "3 250 2", "430 120 2"]
+accept: ["430 250 2"]
+hints:
+  - NSDictionary 也支援 valueForKey:，就是 objectForKey:。
+  - distinctUnionOfObjects 會去重。
+feedback:
+  "430 250 3": "distinctUnionOfObjects 會去重，兩個「午餐」只算一個。"
+  "3 250 2": "@sum 是加總，@count 才是數量。"
+solution_note: "60 + 120 + 250 = 430；最大是 250；去重後的 note 是「早餐」「午餐」兩個。這裡用 NSDictionary 當元素，因為它對 valueForKey: 的回應就是 objectForKey:，不必自己寫類別。"

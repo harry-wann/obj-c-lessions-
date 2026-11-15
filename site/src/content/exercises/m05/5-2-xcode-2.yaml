@@ -12,4 +12,4 @@ steps:
   - 測試裡的 observer 故意沒實作 ledgerDidReset:，⌘U 看它會不會 crash。
 tests:
   - LBLedgerObserverTests/testOptionalMethodNotRequired
-solution_note: 沒有 respondsToSelector: 的話，測試會以 unrecognized selector 失敗。這就是 5.1 崩潰現場的單元測試版。
+solution_note: "沒有 respondsToSelector: 的話，測試會以 unrecognized selector 失敗。這就是 5.1 崩潰現場的單元測試版。"

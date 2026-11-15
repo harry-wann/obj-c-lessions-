@@ -1,0 +1,24 @@
+id: m03-3-6-predict-1
+chapter: "3.6"
+type: predict
+title: 型別抹除現場
+minutes: 2
+code: |
+  NSMutableArray<NSNumber *> *amounts = [NSMutableArray array];
+  [amounts addObject:@120];
+  [amounts addObject:(id)@"一百"];
+  NSLog(@"%@ %@", [amounts[0] class], [amounts[1] class]);
+  NSLog(@"%ld", (long)amounts[1].integerValue);
+options:
+  - "__NSCFNumber __NSCFConstantString 0"
+  - "NSNumber NSNumber 100"
+  - "__NSCFNumber __NSCFConstantString 然後 crash"
+  - 編譯錯誤
+accept: ["__NSCFNumber __NSCFConstantString 0"]
+hints:
+  - 泛型只在編譯期；cast 成 id 之後沒人攔。
+  - NSString 剛好也有 integerValue，@"一百" 解析不出數字。
+feedback:
+  "__NSCFNumber __NSCFConstantString 然後 crash": "NSString 也有 integerValue 方法，所以不會 unrecognized selector；它只是解析失敗回 0。如果呼叫的是 NSNumber 專有的方法才會 crash。"
+  "NSNumber NSNumber 100": "class 印的是真實私有類別；第二個元素就是字串，型別宣告救不了它。"
+solution_note: 執行期的陣列裡就是一個 `__NSCFNumber` 和一個 `__NSCFConstantString`，泛型宣告只是編譯器的提示。`@"一百".integerValue` 是 0——3.1 的陷阱在這裡又出現一次。這就是為什麼邊界資料要 `isKindOfClass:`。

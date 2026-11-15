@@ -1,0 +1,17 @@
+id: m03-3-5-quiz-2
+chapter: "3.5"
+section: quiz
+type: quiz
+title: 從 Kotlin 來的你
+minutes: 1
+prompt: "Kotlin 裡 `val readOnly: List<T> = mutableList` 之後，`mutableList.add(x)` 會讓 `readOnly` 跟著變，因為它們是同一個物件。Objective-C 的哪個情況與此完全對應？"
+options:
+  - "`NSArray *a = [m copy];` 之後對 m addObject:"
+  - "`NSArray *a = m;`（直接把 NSMutableArray 賦給 NSArray 變數）之後對 m addObject:"
+  - "`NSArray *a = @[];`"
+  - "ObjC 不會發生這種事，NSArray 一定是獨立物件"
+answer: 1
+explain: 可變是不可變的子類別，`NSArray *a = m` 只是換個型別看同一個物件，m 改了 a 就跟著變。要切斷就 `copy`——這和 Kotlin 的 `toList()` 是同一個動作。
+hints: ["哪一行沒有建立新物件？", "Kotlin 的 List / MutableList 和 NSArray / NSMutableArray 的關係一樣：介面 vs 實作。"]
+feedback:
+  "0": "copy 建立了新的不可變快照，m 之後怎麼改都不影響 a。"

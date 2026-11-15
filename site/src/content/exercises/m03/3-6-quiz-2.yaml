@@ -1,0 +1,20 @@
+id: m03-3-6-quiz-2
+chapter: "3.6"
+section: quiz
+type: quiz
+title: 泛型在執行期還在嗎？
+minutes: 1
+code: |
+  NSMutableArray<NSNumber *> *nums = [NSMutableArray array];
+  [nums addObject:(id)@"七"];
+prompt: 這段程式會發生什麼？
+options:
+  - 編譯錯誤
+  - 執行期丟例外：型別不符
+  - 編譯通過（cast 成 id 連警告都沒有）、執行正常，陣列裡躺著一個 NSString
+  - "編譯通過但 addObject: 被忽略"
+answer: 2
+explain: "輕量泛型只在編譯期：沒有 cast 會有 incompatible pointer types 警告，cast 成 id 就安靜了；執行期的 NSArray 根本不知道它該裝什麼。所以從 JSON 等邊界來的集合要用 isKindOfClass: 檢查。"
+hints: ["「輕量」泛型輕在哪裡？", "執行期的 NSMutableArray 知道自己的元素型別嗎？"]
+feedback:
+  "1": "Foundation 不會檢查元素型別，泛型資訊在編譯後就不存在了（型別抹除，和 Java 一樣）。"

@@ -1,0 +1,23 @@
+id: m05-5-6-parsons-1
+chapter: "5.6"
+type: parsons
+title: 排出單一出口的非同步方法
+minutes: 3
+prompt: "把 syncWithCompletion: 排成「背景算、統一在主執行緒呼叫一次 completion」的形狀。"
+lines:
+  - "- (void)syncWithCompletion:(LBSyncCompletion)completion {"
+  - "    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{"
+  - "        NSError *error = nil;"
+  - "        LBSyncResult *result = [self performSyncReturningError:&error];"
+  - "        dispatch_async(dispatch_get_main_queue(), ^{"
+  - "            if (!completion) return;"
+  - "            if (error) completion(nil, error);"
+  - "            else completion(result, nil);"
+  - "        });"
+  - "    });"
+  - "}"
+distractors:
+  - "        if (error) completion(nil, error);   // 在背景執行緒直接呼叫"
+  - "    completion(nil, nil);"
+solution_note: 工作在背景佇列、出口只有一個且在主執行緒；`if (!completion) return;` 放在出口最前面，之後 error / result 二選一。
+hints: ["外層先切背景，內層再切回主執行緒。", "nil 檢查放在統一出口的第一行。", "error 與 result 互斥，用 if / else。"]

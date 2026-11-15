@@ -13,7 +13,7 @@ checks:
   - must_match: 'NSDecimalNumber\s*\.?\s*zero|decimalNumberWithString:\s*@"0"|decimalNumberWithString:\s*@"0\.0+"'
     message: 起始值用 [NSDecimalNumber zero]（或從字串 @"0" 建立）
   - must_match: 'decimalNumberByAdding:'
-    message: 用 decimalNumberByAdding: 累加
+    message: "用 decimalNumberByAdding: 累加"
   - must_match: 'for\s*\(|enumerateObjectsUsingBlock:'
     message: 走訪陣列（快速列舉或 enumerateObjectsUsingBlock:）
   - must_not_match: 'doubleValue|floatValue'

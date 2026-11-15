@@ -1,0 +1,23 @@
+id: m03-3-7-fill-1
+chapter: "3.7"
+type: fill
+title: 寫出鍵路徑
+minutes: 2
+prompt: 填入鍵路徑字串，分別取得：所有交易的 note 陣列、金額最小值、不重複的分類名稱。
+code: |
+  NSArray *notes      = [txs valueForKey:@"___1___"];
+  NSNumber *smallest  = [txs valueForKeyPath:@"___2___"];
+  NSArray *categories = [txs valueForKeyPath:@"___3___"];
+blanks:
+  "1": { accept: ["note"], chips: ["note", "@note", "notes", "@unionOfObjects.note"] }
+  "2": { accept: ["@min.amount"], chips: ["@min.amount", "min.amount", "@minimum.amount", "amount.@min"] }
+  "3": { accept: ["@distinctUnionOfObjects.category.name"], chips: ["@distinctUnionOfObjects.category.name", "@unionOfObjects.category.name", "category.name", "@distinct.category.name"] }
+hints:
+  - "對陣列做 valueForKey: 會逐元素展開，鍵就是屬性名。"
+  - 運算子以 @ 開頭，放在鍵路徑的最前面。
+  - 「不重複」是 distinct。
+feedback:
+  "2=min.amount": "沒有 @ 就會被當成屬性名 min，丟 NSUnknownKeyException。"
+  "3=@unionOfObjects.category.name": "unionOfObjects 不去重，會有重複的分類名。"
+  "3=category.name": "這樣會拿到每筆交易的分類名（含重複），沒有去重。"
+solution_note: 運算子寫在最前面、用 . 接要處理的鍵路徑；右側可以是多段路徑（category.name）。`@distinctUnionOfObjects` 去重但順序不保證。

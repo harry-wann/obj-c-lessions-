@@ -1,0 +1,25 @@
+id: m05-5-7-parsons-1
+chapter: "5.7"
+type: parsons
+title: 排出 block 版觀察者的完整生命週期
+minutes: 3
+prompt: 把控制器用 block 版註冊、處理、移除通知的程式碼排成正確順序（viewDidLoad 註冊，dealloc 移除）。
+lines:
+  - "- (void)viewDidLoad {"
+  - "    [super viewDidLoad];"
+  - "    __weak typeof(self) weakSelf = self;"
+  - "    self.ledgerToken = [[NSNotificationCenter defaultCenter]"
+  - "        addObserverForName:LBLedgerDidChangeNotification object:nil"
+  - "                     queue:[NSOperationQueue mainQueue]"
+  - "                usingBlock:^(NSNotification *note) {"
+  - "                    [weakSelf.tableView reloadData];"
+  - "                }];"
+  - "}"
+  - "- (void)dealloc {"
+  - "    [[NSNotificationCenter defaultCenter] removeObserver:self.ledgerToken];"
+  - "}"
+distractors:
+  - "                    [self.tableView reloadData];   // 捕獲 self"
+  - "    [[NSNotificationCenter defaultCenter] removeObserver:self];   // 移錯對象"
+solution_note: weakSelf 在 block 之前宣告；token 存成屬性；dealloc 移除的是 token 不是 self（block 版的觀察者是通知中心造的物件）。
+hints: ["weakSelf 要在 block 建立前宣告。", "queue 傳 mainQueue 就不用自己切執行緒。", "移除時傳的是什麼？"]

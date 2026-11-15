@@ -7,10 +7,10 @@ minutes: 15
 prereq: ["3.6"]
 optional: true
 objectives:
-  - 看懂 valueForKey: / valueForKeyPath: 與 @sum、@max、@distinctUnionOfObjects 在做什麼
+  - "看懂 valueForKey: / valueForKeyPath: 與 @sum、@max、@distinctUnionOfObjects 在做什麼"
   - 知道它們為什麼好用、為什麼效能與型別安全差、什麼時候可以用
   - 讀懂 NSUnknownKeyException 並找到打錯的鍵
-summary: KVC 的 valueForKey: / valueForKeyPath:、集合運算子 @sum / @avg / @max / @min / @count / @distinctUnionOfObjects，好用但沒型別檢查、鍵打錯執行期才知道。
+summary: "KVC 的 valueForKey: / valueForKeyPath:、集合運算子 @sum / @avg / @max / @min / @count / @distinctUnionOfObjects，好用但沒型別檢查、鍵打錯執行期才知道。"
 terms:
   - { en: key-value coding (KVC), tw: 鍵值編碼（KVC）, cn: 键值编码, jp: キー値コーディング }
   - { en: key path, tw: 鍵路徑, cn: 键路径, jp: キーパス }
@@ -92,6 +92,17 @@ NSLog(@"%@", [tx valueForKeyPath:@"category.parent.name"]);   // 一路往下取
 
 <Term en="key path" tw="鍵路徑" cn="键路径" jp="キーパス" />是用 `.` 串起來的鍵，每一段對前一段的結果做 `valueForKey:`。中途遇到 nil 會直接回 nil，不會 crash，這點和 Swift 的 `?.` 一樣。
 
+### KVC 藏在哪些你每天用的 API 裡
+
+```objc
+[tx setValue:@"午餐（改）" forKey:@"note"];          // 反方向：用字串設屬性
+NSPredicate *p = [NSPredicate predicateWithFormat:@"%K > %@", @"amount",
+                  [NSDecimalNumber decimalNumberWithString:@"100"]];
+NSSortDescriptor *d = [NSSortDescriptor sortDescriptorWithKey:@"date" ascending:NO];
+```
+
+`%K` 是 `NSPredicate` 專門代入**鍵路徑**的格式指定子，和 `NSSortDescriptor` 的 `sortDescriptorWithKey:` 一樣，底下都是對每個元素做 `valueForKeyPath:`。Interface Builder 的 User Defined Runtime Attributes、Core Data 的屬性存取、`NSUserDefaults` 的 KVO 都走這條路。所以你雖然不會主動寫 `valueForKey:`，卻天天在用它——這也是為什麼它的崩潰訊息值得認得。
+
 ### 集合運算子：`@sum`、`@max`、`@distinctUnionOfObjects`
 
 ```objc
@@ -114,6 +125,10 @@ NSLog(@"%@", [[txs valueForKeyPath:@"@distinctUnionOfObjects.note"]
 | `@unionOfArrays.key` / `@distinctUnionOfArrays.key` | 對「陣列的陣列」攤平後收集 | `NSArray` |
 
 **不能自訂**新的運算子，就這幾個。一行就能算出月結總額看起來很誘人，但小帳本的 `totalForKind:` 還是用 `decimalNumberByAdding:` 迴圈加總，原因在下面。
+
+<Tip title="讓鍵路徑字串被編譯器檢查：#keyPath">
+Xcode 8 之後可以寫 `[NSSortDescriptor sortDescriptorWithKey:NSStringFromSelector(@selector(date)) ascending:NO]`，或更直接的 `#keyPath(LBTransaction.date)`：編譯器會把它展開成 `@"date"`，而且屬性不存在時直接編譯錯誤、Rename 也會跟著改。凡是不得不用字串鍵的地方（`NSSortDescriptor`、`NSPredicate` 的 `%K`、KVO 的 `addObserver:forKeyPath:`），一律用 `#keyPath`，`NSUnknownKeyException` 就只剩 Storyboard 一種來源。
+</Tip>
 
 <Tip title="什麼時候用、什麼時候不用">
 用：讀舊專案時看懂它；偵錯時在 LLDB 裡 `po [txs valueForKeyPath:@"@sum.amount"]` 快速看數字；`NSSortDescriptor` 與 `NSPredicate` 這些本來就吃字串鍵的 API。不用：新寫的業務邏輯、金額計算、效能敏感的路徑。鍵用字串寫，`@"amout"` 這種錯字編譯器不會抓、重新命名屬性時 Xcode 的 Rename 也不會跟著改，上線後才在崩潰回報裡看到。

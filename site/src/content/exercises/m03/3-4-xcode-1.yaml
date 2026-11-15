@@ -21,6 +21,6 @@ tests:
   - LBHashMapTests/testGrowsBeyondInitialBuckets
   - LBHashMapTests/testCustomKeyUsesHashAndIsEqual
 acceptance:
-  - 兩個 isEqual: 但不同實體的自訂鍵，能取到同一個值
+  - "兩個 isEqual: 但不同實體的自訂鍵，能取到同一個值"
   - 放入 100 個元素後 bucketCount 大於 8
 solution_note: 擴容時不能直接搬鏈，要對每個 entry 重新算 `hash % 新桶數`。測完後在 Scratch 對 LBHashMap 與 NSDictionary 各做 10 萬次 setObject / objectForKey 計時比較，NSDictionary 用開放定址加上各種最佳化，應該快好幾倍——這就是「什麼時候真的該自己寫」的答案：幾乎從不，但你現在知道它底下在做什麼。

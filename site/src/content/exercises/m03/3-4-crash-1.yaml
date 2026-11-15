@@ -1,7 +1,7 @@
 id: m03-3-4-crash-1
 chapter: "3.4"
 type: crash
-title: 沒人呼叫 copy，為什麼 copyWithZone: 會炸？
+title: "沒人呼叫 copy，為什麼 copyWithZone: 會炸？"
 minutes: 2
 log: |
   *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
@@ -17,7 +17,7 @@ fix: |
   - (id)copyWithZone:(NSZone *)zone { return self; }   // 不可變物件直接回自己
   // 方法二：改用 identifier 字串當鍵
   budget[category.identifier] = @6000;
-solution_note: copyWithZone: 是 NSCopying 唯一的方法，而 NSDictionary 會對鍵呼叫它。堆疊往上看會有 `-[__NSDictionaryM setObject:forKeyedSubscript:]` 或 `-[__NSPlaceholderDictionary initWithObjects:forKeys:count:]`，告訴你是可變字典寫入還是字面值建構。
+solution_note: "copyWithZone: 是 NSCopying 唯一的方法，而 NSDictionary 會對鍵呼叫它。堆疊往上看會有 `-[__NSDictionaryM setObject:forKeyedSubscript:]` 或 `-[__NSPlaceholderDictionary initWithObjects:forKeys:count:]`，告訴你是可變字典寫入還是字面值建構。"
 hints: ["copyWithZone: 屬於哪個協定？", "Foundation 裡誰會主動 copy 你的物件？", "如果程式裡沒寫 copy，那就是某個容器替你呼叫的。"]
 feedback:
   "1": "mutableCopy 需要 NSMutableCopying，一樣沒實作；而且問題是「誰呼叫的」。"

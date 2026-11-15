@@ -1,0 +1,18 @@
+id: m05-5-6-interview-1
+chapter: "5.6"
+type: flash
+tier: interview
+title: 面試題：怎麼保證 completion 只呼叫一次？
+minutes: 2
+front: "面試官：你設計的非同步 API 有多條錯誤路徑。怎麼保證 completion 恰好被呼叫一次？出了問題怎麼抓？"
+back: |
+  設計面：
+  - 每個 completion(...) 後面緊跟 return，用眼睛就能驗證。
+  - 路徑多時集中成單一出口（私有方法 -finishWithResult:error: 或最後的 dispatch_async 區塊）。
+  - 取消路徑也要呼叫，帶 NSUserCancelledError。
+  - 就算結果已在手上也非同步呼叫，避免有時同步有時非同步。
+  偵測面：
+  - 開發期用 __block BOOL called 加 NSAssert(!called)。
+  - 單元測試用 XCTestExpectation，設 expectedFulfillmentCount = 1 並開 assertForOverFulfill，呼叫兩次測試直接失敗。
+  - 呼叫端若用 dispatch_group，重複呼叫會以「Unbalanced call to dispatch_group_leave()」crash，反而好抓。
+  加分：Swift 的 async / await 與 Promise 把這條保證做進語言；ObjC 照慣例寫，Swift 會自動匯入成 async throws。

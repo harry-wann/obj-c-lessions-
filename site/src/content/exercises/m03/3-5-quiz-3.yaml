@@ -1,0 +1,18 @@
+id: m03-3-5-quiz-3
+chapter: "3.5"
+section: quiz
+type: quiz
+title: 怎麼判斷一個陣列能不能改？
+minutes: 1
+prompt: 你拿到一個宣告為 `NSArray *` 的參數，想知道能不能對它 `addObject:`。正確做法是？
+options:
+  - "用 `[arr isKindOfClass:[NSMutableArray class]]` 判斷"
+  - "用 `[arr respondsToSelector:@selector(addObject:)]` 判斷"
+  - 不判斷。宣告是 NSArray 就當不可變；要改就 mutableCopy 一份
+  - "印出 `[arr class]`，看到 __NSArrayM 就可以改"
+answer: 2
+explain: "NSArray 是類別叢集，Apple 文件明講不可用 isKindOfClass: 判斷可變性；即使底下真的是 __NSArrayM，呼叫端給你 NSArray 型別就是不希望你改。唯一可靠的依據是型別宣告。"
+hints: ["類別叢集的真實類別是實作細節。", "就算技術上能改，改別人給你的 NSArray 合理嗎？"]
+feedback:
+  "0": "某些版本對不可變陣列也回 YES；而且就算判斷對了，改掉呼叫端的內部狀態也是 bug。"
+  "3": "執行期判斷能不能改，等於把型別系統丟掉；而且類別名隨版本變。"

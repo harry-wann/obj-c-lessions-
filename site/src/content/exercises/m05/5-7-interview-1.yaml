@@ -1,0 +1,13 @@
+id: m05-5-7-interview-1
+chapter: "5.7"
+type: flash
+tier: interview
+title: 面試題：delegate、block、通知、KVO 怎麼選？
+minutes: 3
+front: "面試官：iOS 有 delegate、block、NSNotification、KVO 四種「告訴別人事情發生了」的方式。你怎麼選？各有什麼坑？"
+back: |
+  - delegate：一對一、長期、一組相關事件、需要回傳值（should 類）。坑：屬性要 weak；optional 方法先 respondsToSelector:；忘記設 delegate 悄悄沒反應。
+  - block：一次性結果、跟呼叫點放在一起、需要捕獲上下文。坑：self 持有 block 且 block 捕獲 self 的循環；呼叫前判 nil；completion 要恰好呼叫一次。
+  - NSNotification：一對多、發送者不認識接收者。坑：同步且在發送者執行緒；block 版 token 要移除；object 與 userInfo 別搞混；濫用成流程控制沒人能追。
+  - KVO（6.4）：觀察某個屬性值的變化，不用自己 post。坑：移除時機、context 用靜態變數位址、observeValueForKeyPath: 一個方法處理所有鍵很醜；Swift 端多半改用 Combine。
+  一句話：先問「幾個接收者」「要不要回傳值」「是事件還是屬性變化」，答案就出來了。

@@ -1,7 +1,7 @@
 id: m05-5-2-parsons-1
 chapter: "5.2"
 type: parsons
-title: 排出 addTransaction: 的委派流程
+title: "排出 addTransaction: 的委派流程"
 minutes: 3
 prompt: "把 `LBLedger` 的 `addTransaction:` 方法排成正確順序：先問 should（optional，否決就離開）、再新增、最後通知 did（optional）。"
 lines:

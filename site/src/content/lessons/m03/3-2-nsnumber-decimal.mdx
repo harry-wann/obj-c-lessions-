@@ -83,6 +83,8 @@ NSLog(@"%@", @3.0);                          // 3 —— description 會把 .0 �
 
 `@42`、`@YES`、`@(expr)` 都是編譯器幫你呼叫 `[NSNumber numberWithInt:]` 之類方法的語法糖。拆箱時你自己決定要什麼型別：`integerValue`、`doubleValue`、`boolValue`、`unsignedIntegerValue`。要注意拆箱會**轉型**：`@3.7.integerValue` 是 3，`@(300).charValue` 會溢位成 44。`NSNumber` 本身記得自己當初是什麼型別，`[a objCType]` 回傳 `"i"`、`"d"`、`"c"` 這種編碼字串，3.4 的字典取值時偶爾會用到。
 
+JSON 解出來的 `true` 會變成 `__NSCFBoolean`（`@YES` 的實際類別），`[@YES isEqualToNumber:@1]` 是 YES，所以把布林和數字混在一起比對會「剛好過」。要分辨當初是不是布林，看 `[n objCType]` 是不是 `"c"`，或直接用 `n == (id)kCFBooleanTrue`——這是少數可以用 `==` 的場合，因為 Foundation 的布林是兩個單例。
+
 ### 整數相除的老問題
 
 ```objc
@@ -141,6 +143,10 @@ NSLog(@"%@", [NSDecimalNumber zero]);                // 0 —— 加總的起始
 ```
 
 比大小用 `compare:`，不要用 `==`，也不要拆成 `doubleValue` 再比。從使用者輸入建立用 `decimalNumberWithString:`；從常數建立也用字串（`@"0.1"`），千萬不要寫 `[NSDecimalNumber decimalNumberWithDecimal:@(0.1).decimalValue]`——0.1 先變 double 就白搭了。
+
+<Tip title="另一條路：整數分（cents）">
+M1 寫的 `LBFormatCents(long long cents)` 用的是另一個常見策略：金額一律以「分」為單位存成整數，加減完全精確，資料庫與 JSON 也好存。它的弱點是乘除——匯率換算、分攤、百分比折扣一算就會出現小數，還是得回到十進位型別來進位。所以小帳本的規則是：**儲存與傳輸可以用整數分，計算一律 `NSDecimalNumber`**，兩者之間用 `[NSDecimalNumber decimalNumberWithMantissa:cents exponent:-2 isNegative:NO]` 轉換，不經過 `double`。
+</Tip>
 
 ### 四捨五入：`NSDecimalNumberHandler`
 

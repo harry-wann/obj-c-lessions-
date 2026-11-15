@@ -8,7 +8,7 @@ log: |
   reason: '*** -[__NSCFConstantString substringWithRange:]: Range {4, 3} out of bounds; string length 6'
 options:
   - 對一個字面值字串取子字串，範圍 4 + 3 = 7 超過了長度 6；很可能把 emoji 算成 1 個單位
-  - 字串是 nil，對 nil 送 substringWithRange: 會 crash
+  - "字串是 nil，對 nil 送 substringWithRange: 會 crash"
   - NSRange 的 location 不能從 4 開始
   - 字串是可變的，在切的時候被別的執行緒改了
 answer: 0

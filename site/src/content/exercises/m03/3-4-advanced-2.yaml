@@ -20,11 +20,11 @@ starter: |
   @end
 checks:
   - must_match: 'isKindOfClass:|\[\s*object\s+class\s*\]\s*!=|\[\s*self\s+class\s*\]'
-    message: isEqual: 先檢查型別
+    message: "isEqual: 先檢查型別"
   - must_match: 'year\s*==\s*\w+\.?\s*year|\.year\s*==\s*\w+\.year'
-    message: isEqual: 要比 year
+    message: "isEqual: 要比 year"
   - must_match: 'month\s*==\s*\w+\.?\s*month|\.month\s*==\s*\w+\.month'
-    message: isEqual: 要比 month
+    message: "isEqual: 要比 month"
   - must_match: '\^|\*\s*31|<<'
     message: hash 要把 year 與 month 混合（XOR、乘質數或位移），不能只回傳其中一個
   - must_not_match: 'return\s+1\s*;'

@@ -1,0 +1,17 @@
+id: m03-3-5-quiz-1
+chapter: "3.5"
+section: quiz
+type: quiz
+title: copy 與 mutableCopy 回什麼？
+minutes: 1
+prompt: "`NSMutableArray *m = [NSMutableArray array];` 之後，`[m copy]` 與 `[m mutableCopy]` 的型別分別是？"
+options:
+  - "`NSMutableArray`、`NSMutableArray`（copy 保留原本的可變性）"
+  - "`NSArray`（不可變）、`NSMutableArray`（可變）"
+  - "`NSArray`、`NSArray`"
+  - 取決於 m 裡有幾個元素
+answer: 1
+explain: "`copy` 永遠回不可變版本、`mutableCopy` 永遠回可變版本，和接收者原本是哪種無關。這也是 `@property (copy) NSMutableArray` 會出事的原因。"
+hints: ["copy 的回傳型別跟接收者有關嗎？", "NSCopying 與 NSMutableCopying 是兩個不同協定。"]
+feedback:
+  "0": "copy 回的是不可變的 __NSArrayI，對它 addObject: 會 unrecognized selector。"

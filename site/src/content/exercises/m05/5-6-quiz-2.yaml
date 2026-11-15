@@ -1,0 +1,18 @@
+id: m05-5-6-quiz-2
+chapter: "5.6"
+section: quiz
+type: quiz
+title: 取消之後 completion 要不要呼叫
+minutes: 1
+prompt: 使用者在同步完成前離開畫面，程式呼叫了 `[task cancel]`。completion 應該怎麼處理？
+options:
+  - 不呼叫，反正沒人要結果了
+  - 呼叫一次，帶 NSUserCancelledError（或自訂的取消錯誤），讓呼叫端收尾
+  - 呼叫一次，result 與 error 都是 nil
+  - 呼叫兩次：一次成功一次取消
+answer: 1
+explain: 「恰好呼叫一次」在取消路徑也成立。安靜地不呼叫，呼叫端分不出「被取消」跟「卡住」，spinner 停不下來。NSURLSession 取消後也會以 NSURLErrorCancelled 呼叫 completion。
+hints: ["呼叫端收不到 completion 會怎樣？", "NSURLSessionTask cancel 之後 completion 會收到什麼？"]
+feedback:
+  "0": 呼叫端的 spinner、按鈕鎖定、dispatch_group 都在等這次呼叫。
+  "2": 兩個都 nil 違反「互斥」慣例，呼叫端不知道發生什麼事。

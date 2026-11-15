@@ -1,0 +1,22 @@
+id: m05-5-7-crash-1
+chapter: "5.7"
+type: crash
+title: 讀懂這則崩潰訊息
+minutes: 2
+log: |
+  *** -[LBReportViewController ledgerDidChange:]: message sent to deallocated instance 0x7fa3c9d0a2c0
+options:
+  - "ledgerDidChange: 方法不存在"
+  - LBReportViewController 已經釋放，通知中心仍持有它的位址並在下一次 post 時對它送訊息（觀察者沒移除）
+  - 通知的 userInfo 是 nil
+  - 主執行緒被阻塞
+answer: 1
+fix: |
+  - (void)dealloc {
+      [[NSNotificationCenter defaultCenter] removeObserver:self];   // 舊專案 / MRC
+  }
+  // block 版：[[NSNotificationCenter defaultCenter] removeObserver:self.ledgerToken];
+solution_note: 這是開了 Zombie Objects 之後的訊息；沒開只會看到落在 _CFXNotificationPost 附近的 EXC_BAD_ACCESS。iOS 9 起 selector 版會自動解除，但舊專案（模組 11）與 block 版 token 沒移除時仍會發生。
+hints: ["message sent to deallocated instance 跟 unrecognized selector 差在哪？", "誰還記得這個已經死掉的物件的位址？"]
+feedback:
+  "0": 方法不存在是 unrecognized selector；這裡是物件不存在。

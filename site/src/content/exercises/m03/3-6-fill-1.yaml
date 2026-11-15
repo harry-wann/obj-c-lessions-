@@ -1,0 +1,33 @@
+id: m03-3-6-fill-1
+chapter: "3.6"
+type: fill
+title: 補上泛型與 nullability
+minutes: 3
+prompt: 補齊 LBMonthSection.h：陣列與屬性要有泛型；整個檔案在稽核區段內；`note` 可能沒有。
+code: |
+  ___1___
+
+  @interface LBMonthSection : NSObject
+  @property (nonatomic, assign, readonly) NSInteger year, month;
+  @property (nonatomic, copy, readonly) NSArray<___2___> *transactions;
+  @property (nonatomic, copy, readonly, ___3___) NSString *note;
+  @property (nonatomic, strong, readonly) NSDecimalNumber *expenseTotal;
+  - (___4___ LBTransaction *)firstTransaction;   // 可能沒有交易
+  @end
+
+  ___5___
+blanks:
+  "1": { accept: ["NS_ASSUME_NONNULL_BEGIN"], chips: ["NS_ASSUME_NONNULL_BEGIN", "NS_ASSUME_NONNULL_END", "#import <Foundation/Foundation.h>", "NS_NONNULL"] }
+  "2": { accept: ["LBTransaction *"], chips: ["LBTransaction *", "LBTransaction", "id", "__kindof LBTransaction"] }
+  "3": { accept: ["nullable"], chips: ["nullable", "nonnull", "_Nullable", "null_resettable"] }
+  "4": { accept: ["nullable"], chips: ["nullable", "nonnull", "_Nullable", "null_unspecified"] }
+  "5": { accept: ["NS_ASSUME_NONNULL_END"], chips: ["NS_ASSUME_NONNULL_END", "NS_ASSUME_NONNULL_BEGIN", "@end", "NS_NULLABLE"] }
+hints:
+  - 稽核區段用一對巨集包住整個標頭檔。
+  - 泛型角括號裡寫的是指標型別，要有 *。
+  - 屬性與回傳值用不帶底線的 nullable。
+feedback:
+  "2=LBTransaction": "角括號裡是指標型別，要寫 LBTransaction *。"
+  "3=_Nullable": "屬性修飾詞用不帶底線的 nullable；_Nullable 是放在星號後面給 C 指標與 block 參數用的。"
+  "4=_Nullable": "方法回傳值的標注寫在括號裡、型別前面，用 nullable。"
+solution_note: 整個標頭檔包在 NS_ASSUME_NONNULL_BEGIN / END 裡，預設全部 nonnull，只標出例外的 nullable。這樣 Swift 看到 `[LBTransaction]`、`String?`、`LBTransaction?`，沒有任何 `!`。

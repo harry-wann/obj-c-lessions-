@@ -1,0 +1,19 @@
+id: m03-3-5-xcode-1
+chapter: "3.5"
+type: xcode
+title: 讓 transactions 回傳不可變快照
+mobile: false
+minutes: 10
+prompt: "回到 M03 專案，確認 `LBLedger.transactions` 回傳的是不可變快照：不是內部陣列本身、之後 addTransaction: 不會改到已回傳的陣列、對它送 addObject: 會失敗。"
+starter: xcode/M03-starter
+steps:
+  - 檢查 LBLedger.h 的 transactions 宣告是 `(nonatomic, copy, readonly) NSArray<LBTransaction *> *`。
+  - 檢查 getter 回傳的是 `sortedArrayUsingComparator:` 的結果（本來就是新陣列）或 `[storage copy]`，而不是 storage 本身。
+  - "在測試裡先拿 `NSArray *before = ledger.transactions;`，再 addTransaction:，確認 `before.count` 沒變。"
+  - ⌘U 跑 testTransactionsReturnsImmutableSnapshot。
+tests:
+  - LBLedgerTests/testTransactionsReturnsImmutableSnapshot
+acceptance:
+  - "`ledger.transactions != ledger.storage`（不是同一個物件）"
+  - "對 `(id)ledger.transactions` 送 `addObject:` 會丟 unrecognized selector 而不是改到帳本"
+solution_note: 如果 3.3 的 getter 已經用 sortedArrayUsingComparator:，這個測試應該直接過：排序方法本來就回新陣列。這題的重點是看懂測試在驗證什麼，之後你寫任何回傳集合的 API 都要能過同樣的測試。

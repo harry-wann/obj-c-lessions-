@@ -1,0 +1,15 @@
+id: m05-5-6-quiz-4
+chapter: "5.6"
+section: quiz
+type: quiz
+title: 有快取時的 completion
+minutes: 1
+prompt: "`loadWithCompletion:` 有快取時立刻同步呼叫 completion，沒快取時非同步呼叫。這個設計的問題是？"
+options:
+  - 沒問題，有快取就快一點很合理
+  - 呼叫端寫程式時假設 completion 之後才跑，有快取時順序倒過來（例如 stop 跑在 start 之前），而且只在特定狀態重現
+  - 同步呼叫會造成循環參考
+  - 同步呼叫 completion 會 crash
+answer: 1
+explain: 非同步 API 就算結果早在手上，也要非同步呼叫 completion（dispatch_async 回主執行緒），保持行為一致。Node 社群叫這問題 Zalgo。
+hints: ["呼叫端在 loadWithCompletion: 的下一行寫了什麼？", "有時同步有時非同步的 bug 為什麼難抓？"]

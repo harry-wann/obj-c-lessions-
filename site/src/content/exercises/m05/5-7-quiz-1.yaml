@@ -1,0 +1,18 @@
+id: m05-5-7-quiz-1
+chapter: "5.7"
+section: quiz
+type: quiz
+title: object 與 userInfo 各放什麼
+minutes: 1
+prompt: "LBLedger 新增交易後發通知。`postNotificationName:object:userInfo:` 的 object 與 userInfo 應該分別放什麼？"
+options:
+  - "object 放交易 tx，userInfo 放 nil"
+  - "object 放帳本 self（發送者），userInfo 放 @{ LBLedgerTransactionUserInfoKey: tx }"
+  - "object 放 nil，userInfo 放 @{ @\"ledger\": self, @\"tx\": tx }"
+  - "object 放交易 tx，userInfo 放 @{ @\"ledger\": self }"
+answer: 1
+explain: object 永遠是發送者，接收端註冊時可以用它過濾來源（`object:ledger` 只聽這本帳）；資料走 userInfo 加具名 key 常數。
+hints: ["接收端註冊時 object: 參數用來做什麼？", "系統通知 UIKeyboardWillShowNotification 的 userInfo 放什麼？object 呢？"]
+feedback:
+  "0": 接收端就沒辦法只聽某一本帳，而且跟系統慣例相反。
+  "2": object 放 nil 失去過濾來源的能力；發送者應該放 object。

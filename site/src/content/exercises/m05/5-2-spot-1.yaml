@@ -21,7 +21,7 @@ code: |
   @end
 bug_lines: [3, 7, 12]
 reasons:
-  - 方法名缺來源物件、delegate 屬性 strong 會循環參考、optional 方法沒先 respondsToSelector:
+  - "方法名缺來源物件、delegate 屬性 strong 會循環參考、optional 方法沒先 respondsToSelector:"
   - 協定不應該用 @optional，全部改 @required 就沒問題
   - delegate 應該用 copy
   - _count 應該改成 self.count

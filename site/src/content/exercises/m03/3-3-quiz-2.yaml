@@ -2,7 +2,7 @@ id: m03-3-3-quiz-2
 chapter: "3.3"
 section: quiz
 type: quiz
-title: indexOfObject: 找不到時
+title: "indexOfObject: 找不到時"
 minutes: 1
 prompt: "`NSUInteger i = [arr indexOfObject:x];` 之後，判斷「找不到」的正確寫法是？"
 options: ["`i == -1`", "`i < 0`", "`i == NSNotFound`", "`i == nil`"]

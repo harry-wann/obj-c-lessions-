@@ -12,14 +12,14 @@ starter: |
 
   @end
 checks:
-  - must_match: 'typedef\s+void\s*\(\s*\^\s*LBImportCompletion\s*\)\s*\(\s*NSInteger\s+\w+\s*,\s*NSError\s*\*\s*_Nullable\s+\w+\s*\)\s*;'
+  - "must_match: 'typedef\\s+void\\s*\\(\\s*\\^\\s*LBImportCompletion\\s*\\)\\s*\\(\\s*NSInteger\\s+\\w+\\s*,\\s*NSError\\s*\\*\\s*_Nullable\\s+\\w+\\s*\\)\\s*;'"
     message: "typedef void (^LBImportCompletion)(NSInteger count, NSError * _Nullable error);"
-  - selector_equals: "importFromURL:completion:"
+  - "selector_equals: \"importFromURL:completion:\""
     message: "缺少方法 importFromURL:completion:"
-  - must_match: 'completion\s*:\s*\(\s*(nullable\s+LBImportCompletion|LBImportCompletion\s+_Nullable)\s*\)\s*completion'
+  - "must_match: 'completion\\s*:\\s*\\(\\s*(nullable\\s+LBImportCompletion|LBImportCompletion\\s+_Nullable)\\s*\\)\\s*completion'"
     message: "completion 參數要用 LBImportCompletion 型別並標 nullable（`(nullable LBImportCompletion)completion` 或 `(LBImportCompletion _Nullable)completion`）"
-  - must_match: '@end'
-  - brackets_balanced: true
+  - "must_match: '@end'"
+  - "brackets_balanced: true"
 solution: |
   typedef void (^LBImportCompletion)(NSInteger count, NSError * _Nullable error);
 

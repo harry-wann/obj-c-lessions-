@@ -4,7 +4,7 @@ type: xcode
 title: NSArray+LBFunctional
 mobile: false
 minutes: 15
-prompt: 替 NSArray 加分類 LBFunctional，提供 lb_map: / lb_filter: / lb_reduce:initial:，把 TS 的 map / filter / reduce 直覺帶進 Objective-C。
+prompt: "替 NSArray 加分類 LBFunctional，提供 lb_map: / lb_filter: / lb_reduce:initial:，把 TS 的 map / filter / reduce 直覺帶進 Objective-C。"
 starter: xcode/M05-starter
 steps:
   - 新增 NSArray+LBFunctional.h / .m，介面照課文（含輕量泛型 `NSArray<ObjectType>`）。

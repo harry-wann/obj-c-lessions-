@@ -1,0 +1,24 @@
+id: m05-5-6-crash-1
+chapter: "5.6"
+type: crash
+title: 讀懂這則崩潰訊息
+minutes: 2
+log: |
+  BUG IN CLIENT OF LIBDISPATCH: Unbalanced call to dispatch_group_leave()
+  Thread 5: EXC_BREAKPOINT (code=1, subcode=0x1a2b3c4d)
+  // 呼叫端：dispatch_group_enter(g); [ledger syncWithCompletion:^(id r, NSError *e) { dispatch_group_leave(g); }];
+options:
+  - dispatch_group 不能在背景執行緒使用
+  - "syncWithCompletion: 的某條路徑呼叫了 completion 兩次，leave 比 enter 多"
+  - 忘記呼叫 dispatch_group_enter
+  - group 已經被釋放
+answer: 1
+fix: |
+  // syncWithCompletion: 裡，每個 completion 呼叫後緊跟 return，
+  // 或集中成單一出口
+  if (error) { if (completion) completion(nil, error); return; }
+solution_note: 「BUG IN CLIENT OF LIBDISPATCH」是 libdispatch 在說錯在呼叫端。leave 多於 enter 幾乎都是 completion 被呼叫兩次。這個 crash 把平常靜悄悄的重複呼叫變成可重現的崩潰，是好事。
+hints: ["enter 跟 leave 要成對。多出來的 leave 是誰呼叫的？", "completion 裡只有一個 leave，那是 completion 被呼叫了幾次？"]
+feedback:
+  "2": 忘記 enter 也會 unbalanced，但題目的呼叫端有 enter；而且 enter 寫在呼叫前，不會漏。
+  "3": group 釋放後呼叫會是 EXC_BAD_ACCESS，不是這則訊息。

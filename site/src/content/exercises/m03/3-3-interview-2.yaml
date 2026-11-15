@@ -6,7 +6,7 @@ title: 面試題：合併區間
 minutes: 3
 prompt: "合併重疊的區間，例如 `[[1,3],[2,6],[8,10],[15,18]]` → `[[1,6],[8,10],[15,18]]`。在 Objective-C 中，下列哪個步驟組合正確且最有效率？"
 options:
-  - 先用 sortedArrayUsingComparator: 依起點排序，再走訪一次，與結果陣列 lastObject 比較決定合併或加入；O(n log n)
+  - "先用 sortedArrayUsingComparator: 依起點排序，再走訪一次，與結果陣列 lastObject 比較決定合併或加入；O(n log n)"
   - 兩層迴圈兩兩比較是否重疊，重疊就合併並從頭再來；O(n²) 以上
   - 用 NSSet 去重後直接回傳
   - 用 NSPredicate 過濾掉被包含的區間

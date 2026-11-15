@@ -132,6 +132,8 @@ const observer: LedgerObserver = {
 
 如果你還需要類別的方法（例如只收 `UIView` 的子類別），可以寫 `UIView<LBLedgerObserver> *`。
 
+協定還有一個低調的用途：當作「能力標記」。Foundation 的 `NSCopying`、`NSCoding`、`NSFastEnumeration` 都是協定，`[obj copy]` 能不能用、`for-in` 能不能跑，看的就是類別有沒有遵循它們。2.7 做過的 `LBTransaction <NSCopying>` 就是這件事。你自己設計 API 時也可以這樣用：方法參數要求 `id<LBExportable>` 而不是某個具體類別，之後要支援新的匯出格式，只要新類別遵循協定就能塞進去，呼叫端一行都不用改。
+
 ### 呼叫 optional 方法前先問
 
 ```objc

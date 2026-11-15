@@ -1,0 +1,18 @@
+id: m03-3-7-quiz-2
+chapter: "3.7"
+section: quiz
+type: quiz
+title: "為什麼 totalForKind: 不用 @sum？"
+minutes: 1
+prompt: "`[txs valueForKeyPath:@\"@sum.amount\"]` 一行就能加總，小帳本卻用迴圈 `decimalNumberByAdding:`。哪些是合理的理由？（可複選）"
+multi: true
+options:
+  - 回傳型別是 NSNumber，要再轉回 NSDecimalNumber，而且無法指定 NSDecimalNumberHandler
+  - 鍵是字串，`amount` 改名時編譯器與 Rename 都不會提醒，執行期才 crash
+  - 還要依 kind 過濾、略過作廢交易，業務規則塞不進一個通用運算子
+  - "@sum 會改動原陣列"
+answer: [0, 1, 2]
+explain: KVC 集合運算子適合偵錯與吃字串鍵的 API（NSSortDescriptor、NSPredicate）；新寫的金額邏輯要型別安全、要能套進位規則、要可讀，五行迴圈更好。
+hints: ["拿到的是什麼型別？", "鍵打錯會在什麼時候發現？"]
+feedback:
+  "3": "@sum 不會改動陣列，它只是讀。"

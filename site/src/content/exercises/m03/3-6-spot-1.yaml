@@ -1,0 +1,28 @@
+id: m03-3-6-spot-1
+chapter: "3.6"
+type: spot
+title: nullable 直接進了字面值
+minutes: 3
+prompt: 這個方法在某些交易上會 crash。點選有問題的行並選出原因。
+code: |
+  // - (nullable LBCategory *)categoryNamed:(NSString *)name;
+  - (NSArray *)rowForTransaction:(LBTransaction *)tx {
+      LBCategory *category = [self categoryNamed:tx.categoryName];
+      NSString *symbol = category.symbolName;
+      return @[tx.note, category, symbol, tx.amount];
+  }
+bug_lines: [5]
+reasons:
+  - categoryNamed: 回傳 nullable，category 與 symbol 可能是 nil，放進 @[ ] 字面值會 crash
+  - 第 4 行對 nil 送 symbolName 會 crash
+  - 回傳型別 NSArray 沒寫泛型是編譯錯誤
+  - tx.note 應該先 copy
+answer_reason: 0
+fix: |
+  return @[tx.note, category ?: [NSNull null], symbol ?: @"", tx.amount];
+  // 或先判斷 if (!category) return nil; 並把回傳標成 nullable
+solution_note: "崩潰訊息會是 `-[__NSPlaceholderArray initWithObjects:count:]: attempt to insert nil object from objects[1]`。看到 nullable 的回傳值，放進集合前要用 NSNull 或預設值佔位。第 4 行對 nil 送訊息是安全的，只是得到 nil。"
+hints: ["第 1 行的註解告訴你 categoryNamed: 的回傳可能是什麼？", "nil 可以放進 @[ ] 嗎？", "對 nil 送訊息會 crash 嗎？"]
+feedback:
+  "1": "對 nil 送訊息安靜地回 nil，不會 crash；問題在下一行把 nil 放進字面值。"
+  "2": "沒寫泛型只是少了型別提示，能編譯。"

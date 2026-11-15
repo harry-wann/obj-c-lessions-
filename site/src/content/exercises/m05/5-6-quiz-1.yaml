@@ -1,0 +1,18 @@
+id: m05-5-6-quiz-1
+chapter: "5.6"
+section: quiz
+type: quiz
+title: completion 的參數順序
+minutes: 1
+prompt: 哪個 completion 簽名符合 Cocoa 慣例，且能讓 Swift 自動匯入成 `async throws`？
+options:
+  - "void (^)(NSError * _Nullable error, LBSyncResult * _Nullable result)"
+  - "void (^)(LBSyncResult * _Nullable result, NSError * _Nullable error)"
+  - "void (^)(LBSyncResult * _Nonnull result, NSString * _Nullable errorMessage)"
+  - "BOOL (^)(LBSyncResult * _Nullable result)"
+answer: 1
+explain: 結果在前、`NSError *` 在最後，兩者 nullable 且互斥。Swift 看到「最後一個 block 參數是 NSError」就會匯入成 `func sync() async throws -> SyncResult`。
+hints: ["NSURLSession 的 completion 是 (data, response, error)。", "Swift 靠什麼判斷哪個參數是錯誤？"]
+feedback:
+  "0": error 要放最後，Swift 的自動匯入規則看的是最後一個參數。
+  "2": 用字串當錯誤沒有 domain / code，Swift 也不會當成 throws。

@@ -1,0 +1,45 @@
+id: m03-3-6-code-1
+chapter: "3.6"
+type: code
+title: 幫 LBLedger.h 加上泛型與 nullability
+mobile: false
+minutes: 5
+prompt: "這份 LBLedger.h 沒有任何泛型與 nullability。補上：整個介面放進稽核區段；`transactions` 與 `transactionsGroupedByMonth` 的陣列加泛型；`transactionWithIdentifier:` 的回傳與 `delegate` 標 nullable。"
+starter: |
+  @interface LBLedger : NSObject
+  @property (nonatomic, copy, readonly) NSArray *transactions;
+  @property (nonatomic, weak) id<LBLedgerObserver> delegate;
+  - (void)addTransaction:(LBTransaction *)tx;
+  - (LBTransaction *)transactionWithIdentifier:(NSUUID *)identifier;
+  - (NSArray *)transactionsGroupedByMonth;
+  - (NSDecimalNumber *)totalForKind:(LBTransactionKind)kind;
+  @end
+checks:
+  - must_match: 'NS_ASSUME_NONNULL_BEGIN[\s\S]*@interface[\s\S]*@end[\s\S]*NS_ASSUME_NONNULL_END'
+    message: 整個 @interface 要包在 NS_ASSUME_NONNULL_BEGIN / END 之間
+  - must_match: 'NSArray\s*<\s*LBTransaction\s*\*\s*>\s*\*\s*transactions'
+    message: transactions 要是 NSArray<LBTransaction *> *
+  - must_match: '\(\s*NSArray\s*<\s*LBMonthSection\s*\*\s*>\s*\*\s*\)\s*transactionsGroupedByMonth'
+    message: transactionsGroupedByMonth 回傳 NSArray<LBMonthSection *> *
+  - must_match: '\(\s*nullable\s+LBTransaction\s*\*\s*\)\s*transactionWithIdentifier'
+    message: "transactionWithIdentifier: 的回傳標 nullable"
+  - property_attrs: { name: delegate, attrs: [nonatomic, weak, nullable] }
+    message: delegate 要標 nullable
+  - must_not_match: 'nonnull'
+    message: 在稽核區段裡不需要逐一寫 nonnull
+  - brackets_balanced: true
+solution: |
+  NS_ASSUME_NONNULL_BEGIN
+
+  @interface LBLedger : NSObject
+  @property (nonatomic, copy, readonly) NSArray<LBTransaction *> *transactions;
+  @property (nonatomic, weak, nullable) id<LBLedgerObserver> delegate;
+  - (void)addTransaction:(LBTransaction *)tx;
+  - (nullable LBTransaction *)transactionWithIdentifier:(NSUUID *)identifier;
+  - (NSArray<LBMonthSection *> *)transactionsGroupedByMonth;
+  - (NSDecimalNumber *)totalForKind:(LBTransactionKind)kind;
+  @end
+
+  NS_ASSUME_NONNULL_END
+solution_note: 包進稽核區段後只剩兩個 nullable 要標：找不到會回 nil 的查詢方法，和本來就可能沒有的 delegate。Swift 看到的就是 `[LBTransaction]`、`LBTransaction?`、`LBLedgerObserver?`。
+hints: ["先包 NS_ASSUME_NONNULL_BEGIN / END，再想哪些真的可能是 nil。", "泛型寫在 NSArray 後面的角括號裡，元素是指標型別。", "方法回傳值的 nullable 寫在括號裡、型別前面。"]

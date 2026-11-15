@@ -1,0 +1,18 @@
+id: m05-5-7-quiz-3
+chapter: "5.7"
+section: quiz
+type: quiz
+title: block 版觀察者的 token
+minutes: 1
+prompt: "用 `addObserverForName:object:queue:usingBlock:` 註冊，回傳的 token 隨手丟掉沒存。會怎樣？"
+options:
+  - 沒事，iOS 9 起自動解除
+  - 觀察者永遠留在通知中心；block 若捕獲 self，控制器永遠不釋放；就算用 weakSelf 也會每次白跑一次且 block 本身洩漏
+  - 立刻解除註冊，收不到通知
+  - 編譯錯誤
+answer: 1
+explain: "iOS 9 的自動解除只對 selector 版有效。block 版的觀察者是通知中心造的物件，必須存 token 並在 dealloc 用 removeObserver: 移除。"
+hints: ["自動解除對哪一種註冊方式有效？", "通知中心持有 block，block 持有誰？"]
+feedback:
+  "0": 自動解除只對 selector 版；block 版要自己移除。
+  "2": token 沒人持有不會影響註冊；觀察者是通知中心內部持有的。

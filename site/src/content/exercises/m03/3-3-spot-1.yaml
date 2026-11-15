@@ -17,7 +17,7 @@ bug_lines: [3, 5]
 reasons:
   - 在快速列舉中修改被列舉的集合，Foundation 會丟 NSGenericException
   - compare: 不能用在 NSDecimalNumber 上
-  - removeObject: 應該改成 removeObjectAtIndex:
+  - removeObject: "應該改成 removeObjectAtIndex:"
   - storage 應該宣告成 NSArray 才能刪
 answer_reason: 0
 fix: |

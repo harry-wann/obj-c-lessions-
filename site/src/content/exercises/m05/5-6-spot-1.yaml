@@ -1,0 +1,33 @@
+id: m05-5-6-spot-1
+chapter: "5.6"
+type: spot
+title: completion 被呼叫兩次
+minutes: 3
+prompt: 這個方法在失敗時會讓呼叫端收到兩次 completion。點選有問題的行並選出原因。
+code: |
+  - (void)syncWithCompletion:(LBSyncCompletion)completion {
+      [self.client fetch:^(NSData *data, NSError *error) {
+          if (error) {
+              if (completion) completion(nil, error);
+          }
+          LBSyncResult *r = [self parse:data];
+          if (completion) completion(r, nil);
+      }];
+  }
+bug_lines: [4]
+reasons:
+  - 錯誤路徑呼叫 completion 之後沒有 return，程式繼續往下再呼叫一次成功版
+  - "fetch: 的 block 裡不能呼叫外層的 completion"
+  - "parse: 應該在 if (error) 之前執行"
+  - completion 應該用 __block 修飾
+answer_reason: 0
+fix: |
+  if (error) {
+      if (completion) completion(nil, error);
+      return;
+  }
+solution_note: 慣例寫法：每個 `completion(...)` 後面緊跟 `return`，用眼睛就能驗證每條路徑只呼叫一次。
+hints: ["if (error) 分支結束後，程式會往哪裡走？", "每個 completion 呼叫後面應該跟什麼？"]
+feedback:
+  "1": block 捕獲外層的 completion 是標準做法。
+  "3": completion 只是被讀取、呼叫，沒有被重新賦值，不需要 __block。

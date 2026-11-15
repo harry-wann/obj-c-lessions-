@@ -1,0 +1,22 @@
+id: m03-3-7-crash-1
+chapter: "3.7"
+type: crash
+title: 哪個鍵打錯了？
+minutes: 2
+log: |
+  *** Terminating app due to uncaught exception 'NSUnknownKeyException',
+  reason: '[<LBTransaction 0x600002d1c2a0> valueForUndefinedKey:]: this class is not key value coding-compliant for the key amout.'
+options:
+  - 某處用字串鍵 "amout" 存取 LBTransaction（KVC、NSSortDescriptor、NSPredicate 或 Storyboard），屬性其實叫 amount
+  - LBTransaction 的 amount 是 nil
+  - LBTransaction 沒有遵循 NSCopying
+  - amount 是 readonly 所以不能透過 KVC 讀取
+answer: 0
+fix: |
+  // 全專案搜尋 "amout"，改成 "amount"，例如：
+  [NSSortDescriptor sortDescriptorWithKey:@"amount" ascending:YES];
+solution_note: NSUnknownKeyException 是 KVC 專屬；`valueForUndefinedKey:` 表示找遍 -amout、-isAmout、_amout 都沒有；訊息最後就是打錯的鍵。若訊息是 `setValue:forUndefinedKey:` 且在畫面載入時發生，去 Storyboard 找斷掉的 IBOutlet。
+hints: ["訊息最後一個字就是鍵名，拼對了嗎？", "KVC compliant 的意思是「有同名的 getter / setter 或 ivar」。"]
+feedback:
+  "1": "nil 值不會丟例外，valueForKey: 會直接回 nil。"
+  "3": "readonly 只是沒有 setter，valueForKey: 讀取照樣可以。"

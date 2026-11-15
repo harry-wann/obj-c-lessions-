@@ -1,0 +1,32 @@
+id: m03-3-7-code-1
+chapter: "3.7"
+type: code
+title: 偵錯用的一行摘要
+mobile: false
+minutes: 4
+prompt: "寫一個偵錯用的函式 `LBDebugSummary`，用 KVC 集合運算子回傳像「3 筆，合計 430，最大 250」的字串（數量、`amount` 總和、`amount` 最大值）。這是偵錯用，所以可以用 @sum。"
+starter: |
+  NSString *LBDebugSummary(NSArray<LBTransaction *> *txs) {
+
+  }
+checks:
+  - must_match: '@"@count'
+    message: 數量用 @count
+  - must_match: '@"@sum\.amount"'
+    message: 總和用 @sum.amount
+  - must_match: '@"@max\.amount"'
+    message: 最大值用 @max.amount
+  - must_match: 'valueForKeyPath:'
+    message: "用 valueForKeyPath:"
+  - must_match: 'stringWithFormat:'
+  - must_match: 'return'
+  - brackets_balanced: true
+solution: |
+  NSString *LBDebugSummary(NSArray<LBTransaction *> *txs) {
+      return [NSString stringWithFormat:@"%@ 筆，合計 %@，最大 %@",
+              [txs valueForKeyPath:@"@count"],
+              [txs valueForKeyPath:@"@sum.amount"],
+              [txs valueForKeyPath:@"@max.amount"]];
+  }
+solution_note: 三個運算子的回傳都是物件（NSNumber / NSDecimalNumber），直接用 %@ 印。空陣列時 @sum 回 0、@max 回 nil 印成 (null)——偵錯用無妨，正式邏輯要自己處理。
+hints: ["@count 不需要右側鍵。", "三個值都是物件，格式指定子全用 %@。"]

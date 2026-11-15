@@ -1,0 +1,24 @@
+id: m03-3-5-crash-1
+chapter: "3.5"
+type: crash
+title: 這個陣列為什麼不能 add？
+minutes: 2
+log: |
+  *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+  reason: '-[__NSArrayI addObject:]: unrecognized selector sent to instance 0x600002f1c6c0'
+options:
+  - "某個宣告為 NSMutableArray 的變數實際裝的是不可變陣列；最常見是 `@property (copy) NSMutableArray` 或 cast 了一個 NSArray"
+  - 陣列越界
+  - addObject: 傳入了 nil
+  - 陣列正在被列舉
+answer: 0
+fix: |
+  // 錯：@property (nonatomic, copy) NSMutableArray *drafts;   // setter 存的是 [value copy] → __NSArrayI
+  @property (nonatomic, strong) NSMutableArray *drafts;
+  // 或在拿到 NSArray 的地方 mutableCopy，而不是 cast
+solution_note: "`__NSArrayI` 的 I 是 immutable，`addObject:` 是可變陣列的方法，所以是「對不可變陣列送可變訊息」。往回找那個變數從哪拿到不可變物件：copy 修飾詞的 setter、API 回傳值、字面值。"
+hints: ["類別名 __NSArrayI 的 I 代表什麼？", "addObject: 是誰的方法？", "copy 修飾詞的 setter 存進去的是什麼？"]
+feedback:
+  "1": "越界是 NSRangeException，訊息會有 beyond bounds。"
+  "2": "傳 nil 的訊息是 object cannot be nil，而且類別會是 __NSArrayM。"
+  "3": "那是 NSGenericException 的 mutated while being enumerated。"

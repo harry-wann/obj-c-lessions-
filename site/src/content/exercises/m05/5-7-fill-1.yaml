@@ -1,0 +1,31 @@
+id: m05-5-7-fill-1
+chapter: "5.7"
+type: fill
+title: 定義與發送通知
+minutes: 2
+prompt: 補完通知常數的宣告、定義與發送。
+code: |
+  // LBLedger.h
+  ___1___ NSNotificationName const LBLedgerDidChangeNotification;
+
+  // LBLedger.m
+  NSNotificationName const LBLedgerDidChangeNotification = ___2___;
+
+  - (void)addTransaction:(LBTransaction *)tx {
+      [_items addObject:tx];
+      [[NSNotificationCenter ___3___]
+          postNotificationName:LBLedgerDidChangeNotification
+                        object:___4___
+                      userInfo:@{ LBLedgerTransactionUserInfoKey: tx }];
+  }
+blanks:
+  "1": { accept: ["extern"], chips: ["extern", "static", "const", "FOUNDATION_EXPORT"] }
+  "2": { accept: ["@\"LBLedgerDidChangeNotification\""], chips: ["@\"LBLedgerDidChangeNotification\"", "\"LBLedgerDidChangeNotification\"", "LBLedgerDidChangeNotification", "@\"didChange\""] }
+  "3": { accept: ["defaultCenter"], chips: ["defaultCenter", "sharedCenter", "new", "mainCenter"] }
+  "4": { accept: ["self"], chips: ["self", "tx", "nil", "_items"] }
+hints: ["標頭檔裡宣告全域常數用哪個關鍵字（1.4）？", "字串字面值要 @ 開頭；慣例是跟常數同名。", "object 放發送者。"]
+feedback:
+  "1=static": static 會讓每個 import 的檔案各有一份，指標不相等，雖然字串相等仍能運作，但不是慣例。
+  "2=\"LBLedgerDidChangeNotification\"": 少了 @ 就是 C 字串，型別不符。
+  "4=tx": object 是發送者；交易走 userInfo。
+solution_note: "`extern` 宣告、`.m` 定義成跟名字相同的字串、`defaultCenter`、`object:self`。FOUNDATION_EXPORT 也是常見寫法（混編 C++ 時更安全）。"

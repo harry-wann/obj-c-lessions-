@@ -1,0 +1,38 @@
+id: m03-3-5-spot-1
+chapter: "3.5"
+type: spot
+title: 這個帳本的內部狀態守不住
+minutes: 3
+prompt: 這個類別能編譯、測試也會過，但有兩處違反本章的設計哲學。點選有問題的行並選出原因。
+code: |
+  // LBLedger.h
+  @interface LBLedger : NSObject
+  @property (nonatomic, strong, readonly) NSMutableArray<LBTransaction *> *transactions;
+  @end
+  // LBLedger.m
+  @implementation LBLedger
+  - (NSArray<LBTransaction *> *)sortedTransactions {
+      [self.transactions sortUsingComparator:^NSComparisonResult(LBTransaction *a, LBTransaction *b) {
+          return [b.date compare:a.date];
+      }];
+      return self.transactions;
+  }
+  @end
+bug_lines: [3, 11]
+reasons:
+  - 標頭檔外露了 NSMutableArray，呼叫端可以直接改內部狀態；回傳值又是內部陣列本身，不是快照
+  - readonly 屬性不能是 NSMutableArray
+  - sortUsingComparator: "應該改成 sortedArrayUsingComparator: 才會排到"
+  - 比較器的 a、b 順序反了
+answer_reason: 0
+fix: |
+  // .h：對外只給不可變型別
+  @property (nonatomic, copy, readonly) NSArray<LBTransaction *> *transactions;
+  // .m：內部持有可變版本，getter 回傳快照
+  @property (nonatomic, strong) NSMutableArray<LBTransaction *> *storage;
+  - (NSArray<LBTransaction *> *)transactions { return [self.storage copy]; }
+solution_note: 標頭檔只出現 NSArray，呼叫端從型別就知道不能改、不會變；getter 回 `[storage copy]` 快照，呼叫端存起來當 table view 資料來源時，你之後的 add 不會讓它背後長度改變。順帶一提，第 8 行在 getter 以外的方法裡原地排序內部陣列本身沒錯，只是回傳時要 copy。
+hints: ["標頭檔裡出現了哪個型別？呼叫端拿到它能做什麼？", "回傳的是不是 storage 本身？呼叫端轉型後能做什麼？"]
+feedback:
+  "1": "語法上完全合法，問題在設計：外露可變型別。"
+  "2": "sortUsingComparator: 是原地排序，確實會排到；問題是回傳內部陣列。"

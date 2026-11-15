@@ -1,0 +1,24 @@
+id: m10-10-6-xcode-1
+chapter: "10.6"
+type: xcode
+title: LBSearchController：debounce、背景過濾、世代計數
+mobile: false
+minutes: 45
+prompt: 完成 LBSearchController 並接到帳本列表的搜尋列（畫面 03 搜尋中）：10 萬筆搜尋輸入到結果 < 100 ms，快速輸入時舊結果不覆蓋新結果。
+starter: xcode/M10-starter
+steps:
+  - "`LBSearchController`：`initWithLedger:` 建 `maxConcurrentOperationCount = 1`、QoS userInitiated 的 `NSOperationQueue`；`debounceInterval` 預設 0.25。"
+  - "`search:results:`：`++_generation`、`cancelAllOperations`、`dispatch_after` debounce（世代不符 return）、`NSBlockOperation` 走訪 `_ledger.transactions` 快照，每 1024 筆檢查 `isCancelled`；回主佇列前比世代。"
+  - "`cancel`：遞增世代並 `cancelAllOperations`；搜尋列取消或頁面消失時呼叫。"
+  - "`LBTransactionListViewController` 設 `UISearchController`，`updateSearchResultsForSearchController:` 呼叫 `search:results:`，用 diffable data source 套用結果，footnote 顯示「N 筆 · X ms」（扣掉 debounce 等待）。"
+  - "設定頁匯入 100,000 筆測試資料（10.3），在搜尋列快速打字、刪字，觀察列表與筆數是否一致。"
+  - "⌘U 跑兩個測試；測試裡把 `debounceInterval` 設成 0.05 縮短時間。"
+tests:
+  - LBSearchControllerTests/testStaleResultsAreDropped
+  - LBSearchControllerTests/testDebounceCoalescesInput
+acceptance:
+  - 10 萬筆資料，停手後到結果上畫面 < 100 ms（扣掉 250 ms debounce；效能面板或 footnote 數字）
+  - 快速輸入「早」→「早餐」時，畫面永遠是最後一次輸入的結果，舊結果不覆蓋新結果
+  - 搜尋期間列表可捲動，效能面板 FPS 正常；匯入同時打字不 crash
+  - 關閉搜尋頁後 Memory Graph 看不到殘留的 LBSearchController
+solution_note: "testStaleResultsAreDropped 注入一個很慢的第一次搜尋（大量命中）與很快的第二次搜尋，斷言 results 只被呼叫一次且 query 是第二次的字串。testDebounceCoalescesInput 在 debounceInterval 內連續呼叫 5 次，等待後斷言只回呼 1 次。過濾若慢於 100 ms，先檢查是否在迴圈內建 formatter 或每筆讀 isCancelled；note 比對用 rangeOfString:options: 即可，10 萬筆約 20–40 ms。"

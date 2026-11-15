@@ -1,0 +1,307 @@
+---
+title: 搜尋與 debounce
+module: 10
+chapter: "10.6"
+order: 6
+minutes: 40
+prereq: ["10.3", "10.5", "7.4"]
+objectives:
+  - 用 250 ms debounce 合併連續輸入，只對使用者停手後的字串做一次搜尋
+  - 用可取消的 NSOperation 在背景過濾 10 萬筆交易，迴圈內定期檢查 isCancelled
+  - 用世代計數（generation counter）丟棄晚到的舊結果，確保新結果不被覆蓋
+summary: "輸入 → 250 ms debounce → 背景過濾（可取消 NSOperation、檢查 isCancelled）→ 主執行緒更新；世代計數丟棄晚到的舊結果；快照讀取、取消只是旗標、debounce 計時器與 self 的生命週期；對照 Flow.debounce、lodash debounce、Combine / Task 取消、ScheduledExecutor。"
+terms:
+  - { en: debounce, tw: 防抖（debounce）, cn: 防抖, jp: デバウンス }
+  - { en: generation counter, tw: 世代計數, cn: 代计数器, jp: 世代カウンタ }
+  - { en: stale result, tw: 過期結果, cn: 过期结果, jp: 古い結果 }
+  - { en: snapshot, tw: 快照, cn: 快照, jp: スナップショット }
+  - { en: cooperative cancellation, tw: 協作式取消, cn: 协作式取消, jp: 協調的キャンセル }
+appProgress: 帳本列表的搜尋列（畫面 03 搜尋中）可即時搜尋 10 萬筆，輸入到結果 < 100 ms，顯示筆數與耗時；舊結果不再覆蓋新結果；兩個 LBSearchControllerTests 轉綠。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="kotlin">
+```kotlin
+queryFlow                                  // MutableStateFlow<String>
+    .debounce(250)                         // 停手 250 ms 才放行
+    .distinctUntilChanged()
+    .mapLatest { q ->                      // 新值來了就取消舊的
+        withContext(Dispatchers.Default) {
+            txs.filter { ensureActive(); it.note.contains(q, true) }
+        }
+    }
+    .flowOn(Dispatchers.Default)
+    .collect { adapter.submitList(it) }    // 主執行緒
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+import debounce from "lodash/debounce";
+let gen = 0;
+const run = debounce(async (q: string) => {
+  const my = ++gen;                         // 世代計數
+  const hits = await worker.filter(q);      // 背景（Web Worker）
+  if (my !== gen) return;                   // 舊結果晚到：丟掉
+  render(hits);
+}, 250);
+input.addEventListener("input", (e) =>
+  run((e.target as HTMLInputElement).value));
+```
+</Fragment>
+<Fragment slot="swift">
+```swift
+// Combine
+$query.debounce(for: .milliseconds(250), scheduler: RunLoop.main)
+    .removeDuplicates()
+    .sink { [weak self] q in self?.search(q) }
+    .store(in: &bag)
+
+// 或 Task：新輸入取消舊任務
+func search(_ q: String) {
+    task?.cancel()
+    task = Task {
+        try await Task.sleep(for: .milliseconds(250))  // 取消時丟錯
+        let hits = await filter(q)          // 內部檢查 Task.isCancelled
+        guard !Task.isCancelled else { return }
+        show(hits)                          // @MainActor
+    }
+}
+```
+</Fragment>
+<Fragment slot="java">
+```java
+ScheduledExecutorService timer =
+    Executors.newSingleThreadScheduledExecutor();
+ScheduledFuture<?> pending;
+final AtomicLong gen = new AtomicLong();
+
+void onInput(String q) {
+    if (pending != null) pending.cancel(true);   // 重新計時
+    long my = gen.incrementAndGet();
+    pending = timer.schedule(() -> {
+        List<Tx> hits = filter(q);               // 內部檢查 interrupted
+        SwingUtilities.invokeLater(() -> {
+            if (my == gen.get()) show(hits);     // 舊結果丟棄
+        });
+    }, 250, TimeUnit.MILLISECONDS);
+}
+```
+</Fragment>
+四個語言做的是同一條流水線：**停手才搜、背景過濾、新的取消舊的、只顯示最新的**。Kotlin 的 `mapLatest` 與 Swift 的 `task?.cancel()` 把「取消舊的」內建了；lodash 只管 debounce，舊結果要你自己用 `gen` 擋。ObjC 沒有現成的運算子，四件事都要自己接線，但每件事都不難。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 為什麼要 debounce
+
+使用者打「早餐」是 4 次按鍵（注音組字還更多）。每個按鍵都搜一次 10 萬筆，就是 4 次背景過濾，前 3 次的結果使用者根本看不到。<Term en="debounce" tw="防抖（debounce）" cn="防抖" jp="デバウンス" />的規則是：**每次輸入都重新計時，安靜滿 250 ms 才真正執行一次**。它跟 10.3 的節流（throttle）不同：節流是「固定每 100 ms 最多一次」，連續輸入時會一直執行；debounce 在連續輸入時一次都不執行。
+
+### 世代計數：一個整數擋掉兩種問題
+
+<Term en="generation counter" tw="世代計數" cn="代计数器" jp="世代カウンタ" />是一個只在主執行緒讀寫的整數。每次 `search:` 先 `++_generation`，把當下的值抓進 block；之後任何時候發現 `gen != _generation`，就代表已經有更新的輸入，這份工作作廢。它一次解決兩件事：
+
+- **debounce**：`dispatch_after` 排出去的 block 不能取消，但醒來時世代不符就直接 return，效果等於取消。
+- **<Term en="stale result" tw="過期結果" cn="过期结果" jp="古い結果" />**：「早」的過濾比「早餐」慢（結果多），晚 30 ms 才回來。沒有檢查的話，畫面最後顯示的是「早」的結果，搜尋列卻寫著「早餐」。10.5 說過，這是競態條件，TSan 抓不到。
+
+### LBSearchController
+
+```objc
+// LBSearchController.m（介面見 TESTS.md M10）
+@implementation LBSearchController {
+    LBLedger *_ledger;
+    NSOperationQueue *_queue;
+    NSUInteger _generation;            // 只在主執行緒讀寫
+}
+
+- (instancetype)initWithLedger:(LBLedger *)ledger {
+    if ((self = [super init])) {
+        _ledger = ledger;
+        _debounceInterval = 0.25;
+        _queue = [NSOperationQueue new];
+        _queue.maxConcurrentOperationCount = 1;
+        _queue.qualityOfService = NSQualityOfServiceUserInitiated;
+    }
+    return self;
+}
+
+- (void)search:(NSString *)query
+       results:(void (^)(NSArray<LBTransaction *> *,
+                         NSString *))results {
+    NSAssert(NSThread.isMainThread, @"search: 只能在主執行緒呼叫");
+    NSUInteger gen = ++_generation;        // 1. 新世代
+    [_queue cancelAllOperations];          // 2. 正在跑的舊過濾停掉
+    __weak typeof(self) weakSelf = self;
+    int64_t delay = (int64_t)(self.debounceInterval * NSEC_PER_SEC);
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, delay),
+                   dispatch_get_main_queue(), ^{
+        typeof(self) self_ = weakSelf;
+        if (!self_ || gen != self_->_generation) return;  // 3. debounce
+        [self_ filter:query generation:gen results:results];
+    });
+}
+
+- (void)filter:(NSString *)query generation:(NSUInteger)gen
+       results:(void (^)(NSArray<LBTransaction *> *,
+                         NSString *))results {
+    NSArray<LBTransaction *> *snapshot = _ledger.transactions;  // 快照
+    NSBlockOperation *op = [NSBlockOperation new];
+    __weak NSBlockOperation *weakOp = op;
+    __weak typeof(self) weakSelf = self;
+    [op addExecutionBlock:^{
+        NSMutableArray *hits = [NSMutableArray array];
+        NSStringCompareOptions opts =
+            NSCaseInsensitiveSearch | NSDiacriticInsensitiveSearch;
+        NSUInteger i = 0;
+        for (LBTransaction *tx in snapshot) {
+            if ((++i & 1023) == 0 && weakOp.isCancelled) return;
+            if (query.length == 0 ||
+                [tx.note rangeOfString:query options:opts].location
+                    != NSNotFound) {
+                [hits addObject:tx];
+            }
+        }
+        if (weakOp.isCancelled) return;
+        NSArray *out = [hits copy];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            typeof(self) self_ = weakSelf;
+            if (!self_ || gen != self_->_generation) return;  // 4. 丟舊
+            results(out, query);
+        });
+    }];
+    [_queue addOperation:op];
+}
+
+- (void)cancel {
+    _generation++;                         // 所有在途工作一起作廢
+    [_queue cancelAllOperations];
+}
+@end
+```
+
+四道關卡各管一件事：`++_generation` 標記新世代；`cancelAllOperations` 讓舊過濾**提早**停（省 CPU）；`dispatch_after` 醒來比世代做 debounce；回主執行緒前再比一次世代，擋掉已經算完、正在排隊的舊結果。第 2 關是省電，第 4 關才是正確性：就算取消來不及，舊結果也不會上畫面。
+
+`isCancelled` 每 1024 筆檢查一次，不是每筆：讀屬性有鎖的成本，10 萬筆檢查 100 次就夠在 1 ms 內停下。`_ledger.transactions` 是 `copy` 的<Term en="snapshot" tw="快照" cn="快照" jp="スナップショット" />，背景過濾時主執行緒新增交易也不會互相干擾（10.4 的 barrier 讀）。
+
+### 接到 UISearchController（畫面 03 搜尋中）
+
+```objc
+- (void)updateSearchResultsForSearchController:(UISearchController *)sc {
+    CFTimeInterval t0 = CACurrentMediaTime();
+    __weak typeof(self) weakSelf = self;
+    [self.searcher search:sc.searchBar.text
+                  results:^(NSArray<LBTransaction *> *hits,
+                            NSString *q) {
+        [weakSelf showResults:hits];          // diffable 套用
+        weakSelf.statusLabel.text = [NSString stringWithFormat:
+            @"%lu 筆 · %.0f ms", (unsigned long)hits.count,
+            (CACurrentMediaTime() - t0) * 1000 - 250];
+    }];
+}
+```
+
+對應設計稿 **01 畫面 · 淺色** 的 **03 帳本 · 搜尋中**（https://www.figma.com/design/4d6HGy38x11n2uOfkzOBzj ）：導覽列下方的搜尋列進入編輯狀態，列表換成結果，結果上方一行 footnote 顯示「筆數 · 耗時」，就是上面的 `statusLabel`。耗時扣掉 250 ms 的等待，才是驗收指標「10 萬筆 &lt; 100 ms」量的那一段。結果用 `UITableViewDiffableDataSource` 的 `applySnapshot:animatingDifferences:` 套用，差異它幫你算，不會撞到 10.3 的 `Invalid update`。
+
+### 在 Scratch 看 debounce 與世代計數
+
+Scratch 是命令列程式，主佇列要靠 run loop 推動。模擬 5 次快速輸入，間隔 50 ms：
+
+```objc
+#import <Foundation/Foundation.h>
+
+static NSUInteger gGeneration = 0;
+static NSUInteger gRuns = 0;
+
+static void search(NSString *q) {
+    NSUInteger gen = ++gGeneration;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                                 (int64_t)(0.25 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        if (gen != gGeneration) return;          // 被新輸入取代
+        gRuns++;
+        NSLog(@"搜尋「%@」", q);
+    });
+}
+
+int main(void) {
+    @autoreleasepool {
+        NSArray *keys = @[@"早", @"早餐", @"早餐店", @"早", @"早餐"];
+        for (NSString *k in keys) {
+            search(k);
+            [[NSRunLoop currentRunLoop] runUntilDate:
+                [NSDate dateWithTimeIntervalSinceNow:0.05]];
+        }
+        [[NSRunLoop currentRunLoop] runUntilDate:
+            [NSDate dateWithTimeIntervalSinceNow:0.5]];
+        NSLog(@"輸入 %lu 次，實際搜尋 %lu 次",
+              (unsigned long)keys.count, (unsigned long)gRuns);
+    }
+    return 0;
+}
+// 預期輸出：
+// 搜尋「早餐」
+// 輸入 5 次，實際搜尋 1 次
+```
+
+把迴圈裡的 0.05 改成 0.3（每次都停超過 250 ms），會變成搜尋 5 次。這就是 `testDebounceCoalescesInput` 測的事。
+
+<Pitfall title="cancel 不會中斷正在跑的 block">
+`[_queue cancelAllOperations]` 只是把每個 operation 的 `isCancelled` 設成 YES。過濾迴圈沒有檢查的話，舊的那次會把 10 萬筆跑完，而 `maxConcurrentOperationCount = 1` 讓新的那次排在它後面，使用者多等一整輪。這叫<Term en="cooperative cancellation" tw="協作式取消" cn="协作式取消" jp="協調的キャンセル" />：取消是請求，要工作自己看旗標停下。Swift `Task` 與 Kotlin coroutine 也一樣，只是它們的 `sleep` / `ensureActive` 會幫你檢查。
+</Pitfall>
+
+<Pitfall title="只靠取消、不比世代">
+<Fragment slot="bad">
+```objc
+[op addExecutionBlock:^{
+    NSArray *out = [self filter:snapshot query:query];
+    if (weakOp.isCancelled) return;          // 剛檢查完沒被取消
+    dispatch_async(dispatch_get_main_queue(), ^{
+        results(out, query);                 // 排隊期間新輸入進來了
+    });
+}];
+```
+</Fragment>
+<Fragment slot="good">
+```objc
+dispatch_async(dispatch_get_main_queue(), ^{
+    if (gen != self_->_generation) return;   // 在主執行緒最後一刻比
+    results(out, query);
+});
+```
+</Fragment>
+`isCancelled` 檢查與 `dispatch_async` 之間、以及 block 在主佇列排隊的時間，都是空窗。新的 `search:` 在空窗裡呼叫 `cancelAllOperations` 已經太晚，這個 op 早就跑完了。世代比較必須放在主執行緒、套用結果前的最後一行，因為 `_generation` 也只在主執行緒改，兩者不可能交錯。
+</Pitfall>
+
+<Pitfall title="背景直接讀可變陣列">
+過濾 block 裡寫 `for (tx in self.ledger.mutableTransactions)`，主執行緒同時新增一筆，就是 `NSGenericException`（下面的 Crash）或 TSan 的 data race。進背景前先拿快照：`_ledger.transactions` 是 `copy` 回來的不可變陣列，複製 10 萬個指標約 0.3 ms，比任何鎖都省事。
+</Pitfall>
+
+<Pitfall title="debounce 計時器強持有 self">
+用 `[NSTimer scheduledTimerWithTimeInterval:0.25 target:self ...]` 做 debounce，timer 強持有 target，搜尋頁關掉了 controller 還活著，250 ms 後照樣去碰已經消失的 table view。用 `dispatch_after` 搭 `__weak`，或用 block 版 timer 並在 `dealloc` / `viewWillDisappear:` 呼叫 `cancel`。另一個舊寫法 `cancelPreviousPerformRequestsWithTarget:` + `performSelector:withObject:afterDelay:` 也能 debounce，但同樣強持有 target，而且只認同一個 run loop。
+</Pitfall>
+
+<Crash message={`*** Terminating app due to uncaught exception 'NSGenericException', reason: '*** Collection <__NSArrayM: 0x600003c2a1f0> was mutated while being enumerated.'
+*** First throw call stack:
+(
+	0   CoreFoundation     __exceptionPreprocess + 226
+	1   libobjc.A.dylib    objc_exception_throw + 48
+	2   CoreFoundation     -[__NSArrayM countByEnumeratingWithState:objects:count:] + 0
+	3   LittleBook         __47-[LBSearchController filter:generation:results:]_block_invoke + 212
+	4   Foundation         __NSBLOCKOPERATION_IS_CALLING_OUT_TO_A_BLOCK__ + 24
+	5   Foundation         -[NSBlockOperation main] + 104
+)`}>
+讀法：`__NSArrayM` 是**可變**陣列，`was mutated while being enumerated` 表示 `for...in` 走到一半，有人改了它。第 3 個 frame 是自己的程式：`LBSearchController` 的背景過濾 block。另一個改它的人不在這份堆疊裡（它在主執行緒），通常是匯入或新增交易。原因是過濾 block 拿到的是帳本內部的 `NSMutableArray`，不是快照。修法：在主執行緒（或帳本的 barrier 讀）取得 `[_ledger.transactions copy]`，背景只走訪這份不可變的快照。這個 crash 不是每次都發生，跑 10.3 的匯入同時打字最容易重現。
+</Crash>
+
+## 小結
+
+- 搜尋流水線四步：debounce 250 ms → 背景 `NSOperation` 過濾快照 → 檢查 `isCancelled` 提早停 → 主執行緒比世代後套用。
+- debounce 是「安靜滿 N ms 才執行一次」，節流是「每 N ms 最多一次」；搜尋用前者，進度條用後者。
+- 世代計數只在主執行緒讀寫，`++` 一次就讓所有在途工作作廢；最後一關一定放在套用結果前。
+- 取消是協作式的：`cancel` 只設旗標，迴圈要每隔一段檢查 `isCancelled`。
+- 背景只讀不可變快照；計時器與 block 用 `__weak` 避免頁面關掉後還在跑。

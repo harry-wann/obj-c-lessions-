@@ -1,0 +1,18 @@
+id: m08-8-4-quiz-3
+chapter: "8.4"
+section: quiz
+type: quiz
+title: NSBinarySearchingInsertionIndex 回傳什麼
+minutes: 2
+prompt: "用 `indexOfObject:inSortedRange:options:usingComparator:` 找新交易的插入點，陣列已依同一個 comparator 排好，裡面沒有同一天的交易。`options` 給 `NSBinarySearchingInsertionIndex` 時回傳什麼？"
+options:
+  - NSNotFound，因為陣列裡找不到相等的元素
+  - 應該插入的位置，範圍是 0 到 count（含 count）
+  - 永遠是 0，要自己再往後找
+  - 最接近那一筆的索引，可能需要加一或減一
+answer: 1
+explain: "InsertionIndex 的意思就是「找不到也告訴我它該在哪」，回傳值可以直接給 `insertObject:atIndex:`，插在最後時等於 count。FirstEqual / LastEqual 決定同一天時排在前面還是後面。"
+hints: ["旗標名字裡就有答案。", "插在陣列最尾端時，索引是多少？"]
+feedback:
+  "0": 不給 InsertionIndex 時才會回 NSNotFound；給了就保證回一個合法插入點。
+  "3": 那是手寫二元搜尋邊界沒想清楚時的症狀；Foundation 版回的就是插入點本身。

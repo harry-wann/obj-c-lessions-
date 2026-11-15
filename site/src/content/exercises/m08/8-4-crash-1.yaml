@@ -1,0 +1,42 @@
+id: m08-8-4-crash-1
+chapter: "8.4"
+type: crash
+title: 一打開列表就 crash
+minutes: 2
+prompt: 新加了一個搜尋結果用的 cell，App 一打開帳本分頁就 crash。讀訊息，選出最可能的原因。
+log: |
+  *** Terminating app due to uncaught exception 'NSInternalInconsistencyException',
+  reason: 'unable to dequeue a cell with identifier LBTransactionCell - must register
+  a nib or a class for the identifier or connect a prototype cell in a storyboard'
+  *** First throw call stack:
+  (
+    0  CoreFoundation  __exceptionPreprocess
+    1  libobjc.A.dylib objc_exception_throw
+    2  Foundation      -[NSAssertionHandler handleFailureInMethod:object:file:lineNumber:description:]
+    3  UIKitCore       -[UITableView dequeueReusableCellWithIdentifier:forIndexPath:]
+    4  LittleBook      -[LBTransactionListViewController tableView:cellForRowAtIndexPath:]
+  )
+options:
+  - "這張表格沒有對 LBTransactionCell 這個識別字呼叫 registerClass:forCellReuseIdentifier:，或註冊時的字串跟 dequeue 的不一樣"
+  - LBTransactionCell 沒有覆寫 prepareForReuse
+  - "numberOfRowsInSection: 回傳的數字比資料筆數多"
+  - cell 的子視圖沒有關掉 translatesAutoresizingMaskIntoConstraints
+answer: 0
+fix: |
+  static NSString * const kCellID = @"LBTransactionCell";   // 兩邊共用一個符號
+
+  - (void)viewDidLoad {
+      [super viewDidLoad];
+      [self.tableView registerClass:[LBTransactionCell class]
+             forCellReuseIdentifier:kCellID];
+  }
+
+  // cellForRowAtIndexPath:
+  LBTransactionCell *cell =
+      [tableView dequeueReusableCellWithIdentifier:kCellID forIndexPath:indexPath];
+solution_note: "`forIndexPath:` 版保證不回 nil，所以找不到登記就斷言失敗。檢查三件事：有沒有註冊、字串是否一模一樣、是不是對錯的 tableView 註冊（搜尋結果表格最常見）。識別字抽成 `static NSString * const` 常數，拼錯就變編譯錯誤。"
+feedback:
+  "1": 沒有 prepareForReuse 只會讓內容錯亂，不會在 dequeue 時 crash。
+  "2": 列數多於資料會在你自己的 `transactions[indexPath.row]` 越界，訊息是 index beyond bounds。
+  "3": 那是約束衝突的主控台警告，不會丟 NSInternalInconsistencyException。
+hints: ["訊息裡 must register 後面列了哪三種修法？", "堆疊第 3 行是哪個 API？"]

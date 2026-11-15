@@ -1,0 +1,78 @@
+id: m10-10-6-code-1
+chapter: "10.6"
+type: code
+title: 寫出帶世代計數的 search:results:
+mobile: false
+minutes: 12
+prompt: "實作 `search:results:`：遞增 `_generation`、取消佇列裡的舊過濾、`debounceInterval` 秒後在主佇列醒來（世代不符就 return）；醒來後建一個 `NSBlockOperation` 在背景過濾 `_ledger.transactions` 的快照（備註含 query），迴圈每 1024 筆檢查 `isCancelled`；結果回主佇列，套用前再比一次世代。`_generation` 只在主執行緒讀寫。"
+starter: |
+  @implementation LBSearchController {
+      LBLedger *_ledger;
+      NSOperationQueue *_queue;      // maxConcurrentOperationCount = 1
+      NSUInteger _generation;
+  }
+  - (void)search:(NSString *)query
+         results:(void (^)(NSArray<LBTransaction *> *,
+                           NSString *))results {
+
+  }
+  @end
+checks:
+  - selector_equals: "search:results:"
+  - must_match: '\+\+\s*_generation|_generation\s*\+\+|_generation\s*\+=\s*1'
+    message: 一開始要遞增 _generation 標記新世代
+  - must_match: 'cancelAllOperations'
+    message: 用 cancelAllOperations 讓舊過濾提早停
+  - must_match: 'dispatch_after|afterDelay|NSTimer'
+    message: 要延遲 debounceInterval 秒才執行（dispatch_after）
+  - must_match: 'debounceInterval'
+    message: 延遲時間用 debounceInterval 屬性，不要寫死
+  - must_match: 'isCancelled'
+    message: 背景迴圈要檢查 isCancelled
+  - must_match: '(!=|==)\s*\w*(->|\.)?_?generation|_generation\s*(!=|==)'
+    message: 回主執行緒套用前要比較世代
+  - must_match: 'dispatch_get_main_queue|mainQueue'
+    message: 結果要回主執行緒
+  - must_match: 'addOperation'
+    message: 過濾要放進 _queue
+  - must_match: '__weak'
+    message: block 裡用 __weak 避免 operation 或 self 被強持有
+  - "brackets_balanced: true"
+solution: |
+  - (void)search:(NSString *)query
+         results:(void (^)(NSArray<LBTransaction *> *,
+                           NSString *))results {
+      NSUInteger gen = ++_generation;
+      [_queue cancelAllOperations];
+      __weak typeof(self) weakSelf = self;
+      int64_t delay = (int64_t)(self.debounceInterval * NSEC_PER_SEC);
+      dispatch_after(dispatch_time(DISPATCH_TIME_NOW, delay),
+                     dispatch_get_main_queue(), ^{
+          typeof(self) s = weakSelf;
+          if (!s || gen != s->_generation) return;      // debounce
+          NSArray<LBTransaction *> *snapshot = s->_ledger.transactions;
+          NSBlockOperation *op = [NSBlockOperation new];
+          __weak NSBlockOperation *weakOp = op;
+          [op addExecutionBlock:^{
+              NSMutableArray *hits = [NSMutableArray array];
+              NSUInteger i = 0;
+              for (LBTransaction *tx in snapshot) {
+                  if ((++i & 1023) == 0 && weakOp.isCancelled) return;
+                  if (query.length == 0 ||
+                      [tx.note localizedCaseInsensitiveContainsString:query]) {
+                      [hits addObject:tx];
+                  }
+              }
+              if (weakOp.isCancelled) return;
+              NSArray *out = [hits copy];
+              dispatch_async(dispatch_get_main_queue(), ^{
+                  typeof(self) s2 = weakSelf;
+                  if (!s2 || gen != s2->_generation) return; // 丟舊
+                  results(out, query);
+              });
+          }];
+          [s->_queue addOperation:op];
+      });
+  }
+solution_note: "一個整數做兩件事：dispatch_after 不能取消，但醒來比世代就等於取消（debounce）；回主執行緒前比世代擋掉晚到的舊結果。cancelAllOperations 只是省 CPU，正確性靠最後那次比較。op 用 __weak 抓，否則 block 強持有 op、op 持有 block，形成循環參考。"
+hints: ["第一行：NSUInteger gen = ++_generation;", "dispatch_after 醒來時世代不符就 return。", "回主佇列後、呼叫 results 之前，再比一次 gen。"]

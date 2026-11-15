@@ -1,0 +1,43 @@
+id: m08-8-4-advanced-1
+chapter: "8.4"
+type: code
+tier: advanced
+title: 遞迴把分類樹攤平成「有深度的列表」
+mobile: false
+minutes: 10
+prompt: "寫 C 函式 `void LBFlatten(LBCategory *node, NSUInteger depth, NSMutableArray<NSDictionary *> *rows)`：前序走訪整棵樹（全部展開），每個節點產生一列 `@{ @\"category\": node, @\"depth\": @(depth) }` 加進 `rows`。深度用參數往下傳，**不要**呼叫 `node.depth`（它每次沿 parent 走到根，O(高度)）。"
+starter: |
+  void LBFlatten(LBCategory *node, NSUInteger depth,
+                 NSMutableArray<NSDictionary *> *rows) {
+
+  }
+
+  // 用法：
+  // NSMutableArray *rows = [NSMutableArray array];
+  // for (LBCategory *root in [LBCategory defaultTree]) LBFlatten(root, 0, rows);
+checks:
+  - must_match: 'void\s+LBFlatten\s*\(\s*LBCategory\s*\*\s*\w+\s*,\s*NSUInteger\s+\w+\s*,\s*NSMutableArray'
+    message: "簽名要是 void LBFlatten(LBCategory *node, NSUInteger depth, NSMutableArray *rows)"
+  - must_match: 'addObject\s*:\s*@\{'
+    message: 每個節點加一個字典到 rows
+  - must_match: '@"depth"\s*:\s*@\('
+    message: "字典要有 @\"depth\": @(depth)"
+  - must_match: 'for\s*\(\s*LBCategory\s*\*\s*\w+\s+in\s+\w+\.children\s*\)'
+    message: 用 for-in 走 children
+  - must_match: 'LBFlatten\s*\([\s\S]*LBFlatten\s*\(\s*\w+\s*,\s*\w+\s*\+\s*1\s*,'
+    message: 對每個子節點遞迴呼叫 LBFlatten，深度加一
+  - must_match: 'addObject[\s\S]*for\s*\('
+    message: 前序：先加自己，再走子節點
+  - must_not_match: '\.depth\b'
+    message: 不要呼叫 node.depth，深度用參數傳
+  - "brackets_balanced: true"
+solution: |
+  void LBFlatten(LBCategory *node, NSUInteger depth,
+                 NSMutableArray<NSDictionary *> *rows) {
+      [rows addObject:@{ @"category": node, @"depth": @(depth) }];   // 先自己
+      for (LBCategory *child in node.children) {
+          LBFlatten(child, depth + 1, rows);                         // 再子樹
+      }
+  }
+solution_note: "前序走訪：自己 → 第一個子樹 → 第二個子樹…，剛好就是畫面由上到下的順序。終止條件藏在 for-in 裡：葉節點的 children 是空陣列，迴圈不跑就回去。深度用參數傳，整體 O(n)；每列呼叫 `node.depth` 會變成 O(n × 高度)。換成後序（先子樹再自己）就是「刪除整棵子樹」該用的順序。"
+hints: ["先 addObject 自己，再處理 children。", "子節點的深度是 depth + 1。", "遞迴什麼時候停？葉節點的 children 是空的。"]

@@ -1,0 +1,66 @@
+id: m07-7-3-code-1
+chapter: "7.3"
+type: code
+title: 用 dispatch_group 等三個匯率都回來
+mobile: false
+minutes: 10
+prompt: "補完 `fetchAll:completion:`：對每個幣別呼叫 `[self.fetcher fetchRate:completion:]`（回呼在背景執行緒，可能帶 error），全部回來後在**主佇列**呼叫 `completion`，傳入成功抓到的匯率。規則：用 `dispatch_group_enter` / `dispatch_group_leave` 配對；`error` 的分支會 return，那條路徑也要 leave；成功路徑要在寫入 `rates` **之後**才 leave；寫入 `rates` 走 `guard` 串列佇列；不准用 `dispatch_group_wait`。"
+starter: |
+  - (void)fetchAll:(NSArray<NSString *> *)codes
+        completion:(void (^)(NSDictionary *rates))completion {
+      NSMutableDictionary *rates = [NSMutableDictionary dictionary];
+      dispatch_queue_t guard =
+          dispatch_queue_create("com.littlebook.rates", DISPATCH_QUEUE_SERIAL);
+
+      for (NSString *code in codes) {
+          [self.fetcher fetchRate:code
+                       completion:^(NSDecimalNumber *rate, NSError *error) {
+              if (error) {
+                  return;
+              }
+              dispatch_sync(guard, ^{ rates[code] = rate; });
+          }];
+      }
+  }
+checks:
+  - must_match: 'dispatch_group_t\s+\w+\s*=\s*dispatch_group_create\s*\(\s*\)'
+    message: 先用 dispatch_group_create() 建一個 group
+  - must_match: 'dispatch_group_enter\s*\(\s*\w+\s*\)\s*;\s*\[\s*self\.fetcher\s+fetchRate'
+    message: 每次呼叫 fetchRate:completion: 之前先 dispatch_group_enter
+  - must_match: 'if\s*\(\s*error\s*\)\s*\{[^}]*dispatch_group_leave\s*\([^)]*\)\s*;\s*return\s*;'
+    message: error 分支在 return 之前也要 dispatch_group_leave
+  - must_match: 'rates\s*\[\s*code\s*\]\s*=\s*rate\s*;\s*\}\s*\)\s*;\s*dispatch_group_leave'
+    message: 成功路徑在寫入 rates 的 dispatch_sync 之後才 leave
+  - must_match: 'dispatch_group_notify\s*\(\s*\w+\s*,\s*dispatch_get_main_queue\s*\(\s*\)'
+    message: 用 dispatch_group_notify 在主佇列回呼
+  - must_match: 'completion\s*\(\s*(\[\s*rates\s+copy\s*\]|rates)\s*\)'
+    message: notify 的 block 裡呼叫 completion(rates)（或 [rates copy]）
+  - must_not_match: 'dispatch_group_wait'
+    message: 不要用 dispatch_group_wait，它會卡住呼叫的執行緒
+  - brackets_balanced: true
+solution: |
+  - (void)fetchAll:(NSArray<NSString *> *)codes
+        completion:(void (^)(NSDictionary *rates))completion {
+      NSMutableDictionary *rates = [NSMutableDictionary dictionary];
+      dispatch_queue_t guard =
+          dispatch_queue_create("com.littlebook.rates", DISPATCH_QUEUE_SERIAL);
+      dispatch_group_t group = dispatch_group_create();
+
+      for (NSString *code in codes) {
+          dispatch_group_enter(group);                       // +1
+          [self.fetcher fetchRate:code
+                       completion:^(NSDecimalNumber *rate, NSError *error) {
+              if (error) {
+                  dispatch_group_leave(group);               // 失敗也要 −1
+                  return;
+              }
+              dispatch_sync(guard, ^{ rates[code] = rate; });
+              dispatch_group_leave(group);                   // 寫完才 −1
+          }];
+      }
+      dispatch_group_notify(group, dispatch_get_main_queue(), ^{
+          completion([rates copy]);
+      });
+  }
+solution_note: "enter 寫在發出請求之前，不是回呼裡；每條結束路徑各一個 leave。成功路徑若把 leave 放在第一行，計數可能先歸零、notify 在最後一筆寫入前就跑，少一個幣別。notify 排進主佇列時所有寫入都已完成，所以在主執行緒讀 rates 是安全的。codes 是空陣列時 notify 會立刻觸發，completion 收到空字典，這是對的行為。"
+hints: ["group 什麼時候建立？enter 寫在請求前還是回呼裡？", "會 return 的分支有幾條？每條都要 leave。", "最後一步：dispatch_group_notify(group, 哪個佇列, ...)。"]

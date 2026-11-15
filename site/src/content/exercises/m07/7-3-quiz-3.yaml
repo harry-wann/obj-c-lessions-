@@ -1,0 +1,17 @@
+id: m07-7-3-quiz-3
+chapter: "7.3"
+section: quiz
+type: quiz
+title: 對全域佇列用 barrier
+minutes: 1
+prompt: "`dispatch_barrier_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{ 寫入 })` 會怎樣？"
+options:
+  - 編譯錯誤，barrier 只接受自建佇列
+  - 執行期 crash，libdispatch 會印出 BUG IN CLIENT
+  - 不報錯，但 barrier 語意消失，變成普通的 dispatch_async，寫入仍會跟其他讀取同時發生
+  - 正常運作，整個全域佇列會暫停讓寫入獨佔
+answer: 2
+explain: 全域佇列是整個 App（含系統框架）共用的，GCD 不讓你獨佔它，所以 barrier 直接退化。讀寫鎖要自己 dispatch_queue_create 一條 DISPATCH_QUEUE_CONCURRENT 佇列。
+hints: ["全域佇列是誰在用？", "最危險的 bug 是會報錯的還是不報錯的？"]
+feedback:
+  "3": 如果真的這樣，系統框架丟進全域佇列的工作都會被你卡住，所以 GCD 不允許。

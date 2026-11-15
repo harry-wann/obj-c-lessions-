@@ -1,0 +1,22 @@
+id: m08-8-4-xcode-2
+chapter: "8.4"
+type: xcode
+title: 分類選擇：樹狀攤平與縮排
+mobile: false
+minutes: 30
+prompt: 完成 LBCategoryPickerViewController：把 `+[LBCategory defaultTree]` 依展開狀態攤平成 `visibleRows`，用縮排顯示階層，`testRowsRespectExpansion` 轉綠。
+starter: xcode/M08-starter
+steps:
+  - "在 `LBCategory.m` 加 `flattenedWithExpanded:`：前序走訪，先放自己，自己的 identifier 在展開集合裡才遞迴走 `children`。"
+  - "在 `LBCategoryPickerViewController.m` 用 `NSMutableSet<NSString *> *expandedIDs`（初始為空，全部收合）存展開狀態；`rebuildRows` 依序攤平每個根節點，結果存進 `visibleRows`。"
+  - "`cellForRowAtIndexPath:`：`textLabel.text = c.name`、`imageView.image` 用 `symbolName`、`indentationLevel = c.depth`、`indentationWidth = 20`；有子分類顯示 disclosure indicator，選中的那個顯示 checkmark。"
+  - "`didSelectRowAtIndexPath:`：有子分類就 `toggleExpansionOf:`（先用 `reloadData`），沒有子分類就呼叫 `onSelect`（8.5 會接上）。"
+  - "⌘U 跑 `LBCategoryPickerViewControllerTests`。進階：把 `toggleExpansionOf:` 改成 `performBatchUpdates:` 插入 / 刪除子分類那一段。"
+tests:
+  - LBCategoryPickerViewControllerTests/testRowsRespectExpansion
+acceptance:
+  - 打開分類選擇只看到五個根分類（飲食 / 交通 / 居住 / 娛樂 / 收入），每列右邊有 chevron
+  - 點「飲食」展開出早餐 / 午餐 / 晚餐，子分類比根分類往右縮排 20 pt；再點一次收合
+  - 展開兩個根分類後再收合其中一個，另一個保持展開，列的順序與樹的順序一致
+  - 目前選中的分類顯示 checkmark，捲動與展開收合後 checkmark 不會跑到別列
+solution_note: "testRowsRespectExpansion 檢查三件事：全收合時 visibleRows 只有根、展開一個根後它的子節點緊接在它後面、收合後又消失。攤平是 O(n)，遞迴深度等於樹高，分類樹兩三層不用擔心堆疊。checkmark 會跑掉，就是 accessoryType 沒在每一列都重設（跟交易 cell 同一個重用問題）。"

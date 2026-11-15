@@ -1,0 +1,18 @@
+id: m07-7-3-quiz-1
+chapter: "7.3"
+section: quiz
+type: quiz
+title: 並行佇列保證什麼
+minutes: 1
+prompt: "在自建的 `DISPATCH_QUEUE_CONCURRENT` 佇列上依序 `dispatch_async` 三個 block A、B、C。下列哪一句正確？"
+options:
+  - A、B、C 依 FIFO 順序開始，但可以同時在跑，誰先結束沒有保證
+  - A、B、C 一定依序結束，跟串列佇列一樣
+  - 並行佇列連開始的順序都不保證，C 可能比 A 先開始
+  - 三個 block 一定在三條不同的執行緒上同時執行
+answer: 0
+explain: 並行佇列仍然是 FIFO 佇列：拿出來的順序固定，只是前一個還沒結束就可以拿下一個。要「一次一個、順序保證」就用串列佇列。
+hints: ["佇列本身還是先進先出嗎？", "串列與並行的差別在「拿出來」還是「做完」？"]
+feedback:
+  "1": 那是串列佇列的行為。並行佇列上 A 跑得慢，B、C 可以先結束。
+  "3": 系統決定用幾條執行緒，可能三個都排在同一條上依序跑，GCD 不承諾一定同時。

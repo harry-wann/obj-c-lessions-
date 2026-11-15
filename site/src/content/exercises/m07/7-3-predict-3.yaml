@@ -1,0 +1,23 @@
+id: m07-7-3-predict-3
+chapter: "7.3"
+type: predict
+title: 預測輸出：dispatch_after 遇到忙碌的主執行緒
+minutes: 3
+prompt: 這段程式寫在 `viewDidLoad` 裡（主執行緒）。中間故意讓主執行緒睡 2 秒。依序會印出什麼？
+code: |
+  NSLog(@"A");
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                               (int64_t)(1 * NSEC_PER_SEC)),
+                 dispatch_get_main_queue(), ^{ NSLog(@"B"); });
+  dispatch_async(dispatch_get_main_queue(), ^{ NSLog(@"C"); });
+  NSLog(@"D");
+  [NSThread sleepForTimeInterval:2];      // 主執行緒忙 2 秒
+  NSLog(@"E");
+options: ["A\nD\nE\nC\nB", "A\nB\nD\nE\nC", "A\nD\nB\nE\nC", "A\nD\nE\nB\nC"]
+accept: ["A D E C B"]
+feedback:
+  "A B D E C": dispatch_after 也是把 block 排進佇列，不會插隊；1 秒到了只代表「可以排進去了」。
+  "A D B E C": 主執行緒在睡，主佇列上的 block 不會在 sleep 中間被執行；E 一定在任何 block 之前。
+  "A D E B C": C 在一開始就排進主佇列了；B 要等 1 秒後才排進去，排在 C 後面。
+solution_note: dispatch_after 是「至少 N 秒後排進佇列」，不是「剛好 N 秒後執行」。C 立刻排進主佇列、B 在 1 秒後排到 C 後面，但主執行緒睡到第 2 秒才印 E、結束 viewDidLoad，之後依 FIFO 跑 C、B。B 實際上晚了一秒多才執行。
+hints: ["主佇列在 sleep 期間能跑別的 block 嗎？", "B 和 C 誰先被排進主佇列？"]

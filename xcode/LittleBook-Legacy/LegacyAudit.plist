@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- 修完一處就把對應的 <false/> 改成 <true/>；LBLegacyAuditTests 會讀這個檔 -->
+<plist version="1.0">
+<dict>
+	<key>fixedOverRelease</key>
+	<false/>
+	<key>fixedSetterLeak</key>
+	<false/>
+	<key>fixedBrokenOutlet</key>
+	<false/>
+	<key>fixedSegueIdentifier</key>
+	<false/>
+	<key>addedObjCLinkerFlag</key>
+	<false/>
+	<key>cancelsConnectionInDealloc</key>
+	<false/>
+</dict>
+</plist>

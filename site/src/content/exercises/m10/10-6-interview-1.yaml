@@ -1,0 +1,30 @@
+id: m10-10-6-interview-1
+chapter: "10.6"
+type: flash
+tier: interview
+title: 面試題：手寫 debounce 與 throttle
+minutes: 5
+front: |
+  不用任何第三方，在 ObjC 寫一個通用的 debounce（停手 N 秒後執行最後一次）與 throttle（每 N 秒最多一次）。兩者差在哪？各用在哪？
+back: |
+  debounce：每次呼叫遞增世代，dispatch_after 醒來時世代不符就放棄。
+
+  - (void)debounce:(dispatch_block_t)block {
+      NSUInteger gen = ++_gen;                 // 主執行緒
+      dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                     (int64_t)(_interval * NSEC_PER_SEC)),
+                     dispatch_get_main_queue(), ^{
+          if (gen == self->_gen) block();
+      });
+  }
+
+  throttle：記住上次執行時間，間隔不到就略過（或記下最後一次在尾端補跑）。
+
+  - (void)throttle:(dispatch_block_t)block {
+      CFTimeInterval now = CACurrentMediaTime();
+      if (now - _last < _interval) return;
+      _last = now;
+      block();
+  }
+
+  差別：debounce 在連續事件期間一次都不跑，適合搜尋、自動存檔、視窗縮放結束；throttle 以固定頻率跑，適合進度回報、捲動事件、按鈕防連點。追問「throttle 會漏掉最後一次」：加 trailing，略過時記下 block，間隔到了再補跑一次（lodash 的 leading / trailing 選項就是這個）。追問「為什麼不用 NSTimer」：timer 強持有 target，且要綁 run loop mode，捲動時（UITrackingRunLoopMode）預設不觸發。

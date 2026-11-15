@@ -1,0 +1,57 @@
+id: m08-8-4-code-1
+chapter: "8.4"
+type: code
+title: 滑動刪除：資料先改、畫面後改
+mobile: false
+minutes: 10
+prompt: "完成 `tableView:commitEditingStyle:forRowAtIndexPath:`：只處理刪除；先用 `removeTransactionWithIdentifier:` 從 `self.ledger` 移除、再用 `transactionsGroupedByMonth` 重算 `self.sections`，最後更新畫面。該月只剩這一筆時用 `deleteSections:`，否則用 `deleteRowsAtIndexPaths:`。"
+starter: |
+  - (void)tableView:(UITableView *)tableView
+      commitEditingStyle:(UITableViewCellEditingStyle)editingStyle
+       forRowAtIndexPath:(NSIndexPath *)indexPath {
+      // 1. 不是刪除就 return
+      // 2. 取出這筆交易，記下這個 section 會不會消失
+      // 3. 先改資料、重算 sections
+      // 4. 再改畫面
+  }
+checks:
+  - must_match: 'editingStyle\s*!=\s*UITableViewCellEditingStyleDelete|UITableViewCellEditingStyleDelete\s*!=\s*editingStyle|editingStyle\s*==\s*UITableViewCellEditingStyleDelete'
+    message: 先判斷 editingStyle 是不是刪除
+  - must_match: 'count\s*==\s*1|count\s*<=\s*1|1\s*==\s*\S*count'
+    message: 刪除前記下該 section 是否只剩一筆
+  - must_match: 'removeTransactionWithIdentifier\s*:'
+    message: "用 removeTransactionWithIdentifier: 從帳本移除"
+  - must_match: 'self\.sections\s*=\s*\[\s*self\.ledger\s+transactionsGroupedByMonth\s*\]'
+    message: 移除後要重算 self.sections
+  - must_match: 'removeTransactionWithIdentifier[\s\S]*deleteRowsAtIndexPaths'
+    message: 資料要在 deleteRowsAtIndexPaths 之前改好
+  - must_match: 'deleteSections\s*:\s*\[\s*NSIndexSet\s+indexSetWithIndex\s*:\s*indexPath\.section\s*\]'
+    message: "section 消失時用 deleteSections: 刪整個 section"
+  - must_match: 'deleteRowsAtIndexPaths\s*:\s*@\[\s*indexPath\s*\]'
+    message: "一般情況用 deleteRowsAtIndexPaths: 刪那一列"
+  - not_contains: reloadData
+    message: 這題練局部更新，不用 reloadData
+  - "brackets_balanced: true"
+solution: |
+  - (void)tableView:(UITableView *)tableView
+      commitEditingStyle:(UITableViewCellEditingStyle)editingStyle
+       forRowAtIndexPath:(NSIndexPath *)indexPath {
+      if (editingStyle != UITableViewCellEditingStyleDelete) return;
+
+      LBMonthSection *section = self.sections[indexPath.section];
+      LBTransaction *tx = section.transactions[indexPath.row];
+      BOOL sectionWillVanish = section.transactions.count == 1;
+
+      [self.ledger removeTransactionWithIdentifier:tx.identifier];
+      self.sections = [self.ledger transactionsGroupedByMonth];
+
+      if (sectionWillVanish) {
+          [tableView deleteSections:[NSIndexSet indexSetWithIndex:indexPath.section]
+                   withRowAnimation:UITableViewRowAnimationFade];
+      } else {
+          [tableView deleteRowsAtIndexPaths:@[ indexPath ]
+                           withRowAnimation:UITableViewRowAnimationFade];
+      }
+  }
+solution_note: "`sectionWillVanish` 一定要在改資料**之前**算，改完之後那個 section 已經不在 `self.sections` 裡。課文版本再多兩件事：包進 `performBatchUpdates:`、completion 裡 `reloadSections:` 讓 header 合計更新，並對 `LBUndoStack` 登記復原。"
+hints: ["section 會不會消失，要在刪資料之前還是之後判斷？", "deleteRowsAtIndexPaths: 收的是陣列 @[ indexPath ]。", "deleteSections: 收的是 NSIndexSet。"]

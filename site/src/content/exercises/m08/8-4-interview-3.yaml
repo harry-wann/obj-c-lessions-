@@ -1,0 +1,40 @@
+id: m08-8-4-interview-3
+chapter: "8.4"
+type: flash
+tier: interview
+title: 面試題：在旋轉過的已排序陣列中搜尋
+minutes: 5
+front: "面試官：一個遞增、沒有重複值的陣列被旋轉過（例如 `@[ @4, @5, @6, @7, @0, @1, @2 ]`），寫 `NSInteger LBSearchRotated(NSArray<NSNumber *> *a, NSInteger target)`，找到回索引、找不到回 -1，要求 O(log n)。"
+back: |
+  關鍵觀察：從 mid 切開，**左右兩半至少有一半是有序的**。判斷 target 是否落在有序那一半的範圍內，在就往那邊縮，不在就往另一邊。
+
+  ```objc
+  NSInteger LBSearchRotated(NSArray<NSNumber *> *a, NSInteger target) {
+      NSInteger lo = 0, hi = (NSInteger)a.count - 1;      // 閉區間 [lo, hi]
+      while (lo <= hi) {
+          NSInteger mid = lo + (hi - lo) / 2;
+          NSInteger m = a[mid].integerValue;
+          if (m == target) return mid;
+          NSInteger l = a[lo].integerValue, r = a[hi].integerValue;
+          if (l <= m) {                                    // 左半 [lo, mid] 有序
+              if (l <= target && target < m) hi = mid - 1;
+              else lo = mid + 1;
+          } else {                                         // 右半 [mid, hi] 有序
+              if (m < target && target <= r) lo = mid + 1;
+              else hi = mid - 1;
+          }
+      }
+      return -1;
+  }
+  ```
+
+  走一次：找 0，lo=0、hi=6、mid=3（7）。左半 4..7 有序，0 不在 [4, 7)，往右：lo=4。mid=5（1），左半 [0, 1] 有序，0 在 [0, 1) 裡，hi=4。mid=4（0），命中，回 4。
+
+  邊界重點：
+  - 這裡用閉區間 [lo, hi]，所以是 while (lo <= hi)、hi = mid - 1；跟本章半開區間 [lo, hi) 的插入點寫法不同，兩種不要混用。
+  - 索引用 NSInteger 而不是 NSUInteger：hi 會變成 -1，無號型別會繞回超大數。
+  - l <= m 的等號處理 lo == mid 的情況（只剩兩個元素時）。
+
+  追問：
+  - 有重複值時（如 @[ @1, @1, @1, @3, @1 ]）無法判斷哪半有序，遇到 l == m == r 只能 lo++、hi--，最差退化成 O(n)。
+  - 找旋轉點（最小值）：同樣的二元搜尋，比較 a[mid] 與 a[hi]。

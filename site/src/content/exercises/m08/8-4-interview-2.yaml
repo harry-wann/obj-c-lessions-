@@ -1,0 +1,43 @@
+id: m08-8-4-interview-2
+chapter: "8.4"
+type: flash
+tier: interview
+title: 面試題：驗證二元搜尋樹（BST）
+minutes: 5
+front: "面試官：寫 `BOOL LBIsValidBST(LBTreeNode *root)`，判斷一棵二元樹是不是合法的 BST（左子樹全部小於節點、右子樹全部大於節點，不允許重複）。只比較節點跟它的左右孩子對不對？"
+back: |
+  只比孩子是錯的，這是最常見的錯誤答案：
+
+  ```
+          10
+         /  \
+        5    15
+            /  \
+           6    20     ← 6 < 15 沒錯，但 6 在 10 的右子樹，應該 > 10
+  ```
+
+  正解一：帶上下界遞迴。每個節點都要落在祖先給的開區間 (min, max) 裡；往左走更新上界、往右走更新下界。
+
+  ```objc
+  static BOOL LBCheck(LBTreeNode *n, NSNumber *min, NSNumber *max) {
+      if (!n) return YES;                                  // 空樹合法
+      if (min && n.value <= min.integerValue) return NO;
+      if (max && n.value >= max.integerValue) return NO;
+      return LBCheck(n.left, min, @(n.value)) &&           // 左：上界變自己
+             LBCheck(n.right, @(n.value), max);            // 右：下界變自己
+  }
+
+  BOOL LBIsValidBST(LBTreeNode *root) {
+      return LBCheck(root, nil, nil);                      // nil = 無界
+  }
+  ```
+
+  用 NSNumber 的 nil 表示「沒有界」，避開用 NSIntegerMin / NSIntegerMax 當哨兵時，節點值剛好等於極值的邊界錯誤。
+
+  正解二：中序走訪必須嚴格遞增。走訪時記住上一個值，只要目前值 <= 上一個就回 NO。
+
+  複雜度：兩種都是時間 O(n)、空間 O(h)。
+
+  追問：
+  - 允許重複怎麼改？看規格把 <= 改成 <（重複放右邊時，右界判斷維持 >=）。
+  - 最近共同祖先（LCA）在 BST 上：兩個值都比節點小就往左、都比較大就往右，否則目前節點就是答案，O(h)。

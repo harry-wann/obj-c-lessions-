@@ -1,0 +1,38 @@
+id: m08-8-4-fill-1
+chapter: "8.4"
+section: quiz
+type: fill
+title: 依月份分 section 的 dataSource
+minutes: 3
+prompt: 補完 LBTransactionListViewController 的三個 dataSource 方法：section 數、每個 section 的列數、拿 cell。
+code: |
+  - (NSInteger)___1___:(UITableView *)tableView {
+      return self.sections.count;
+  }
+
+  - (NSInteger)tableView:(UITableView *)tableView
+   ___2___:(NSInteger)section {
+      return self.sections[section].transactions.count;
+  }
+
+  - (UITableViewCell *)tableView:(UITableView *)tableView
+           cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+      LBTransactionCell *cell =
+          [tableView ___3___:kCellID forIndexPath:indexPath];
+      LBMonthSection *s = self.sections[indexPath.___4___];
+      LBTransaction *tx = s.transactions[indexPath.row];
+      [cell configureWithViewModel:
+          [LBTransactionViewModel viewModelWithTransaction:tx]];
+      return cell;
+  }
+blanks:
+  "1": { accept: ["numberOfSectionsInTableView"], chips: ["numberOfSectionsInTableView", "numberOfSections", "sectionCount", "numberOfRowsInSection"] }
+  "2": { accept: ["numberOfRowsInSection"], chips: ["numberOfRowsInSection", "numberOfItemsInSection", "rowsInSection", "heightForRowAtIndexPath"] }
+  "3": { accept: ["dequeueReusableCellWithIdentifier"], chips: ["dequeueReusableCellWithIdentifier", "cellForRowAtIndexPath", "registerClass", "dequeueReusableHeaderFooterViewWithIdentifier"] }
+  "4": { accept: ["section"], chips: ["section", "row", "item", "length"] }
+hints: ["dataSource 先問有幾個 section，再問每個幾列。", "拿 cell 是「出列」不是「建立」。", "NSIndexPath 在表格裡有兩個成員。"]
+feedback:
+  "2=numberOfItemsInSection": 那是 UICollectionView 的名字，表格用 Rows。
+  "3=cellForRowAtIndexPath": 那是你正在實作的 dataSource 方法；在這裡呼叫表格的 cellForRowAtIndexPath: 只會拿到可見的 cell 或 nil。
+  "4=row": row 是列；先用 section 取月份，再用 row 取那一筆。
+solution_note: "三個方法依序回答「幾個 section、每個幾列、第 n 列長什麼樣」。`cellForRowAtIndexPath:` 只做出列與賦值，字串格式化交給 LBTransactionViewModel 先算好。"

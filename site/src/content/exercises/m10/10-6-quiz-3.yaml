@@ -1,0 +1,18 @@
+id: m10-10-6-quiz-3
+chapter: "10.6"
+section: quiz
+type: quiz
+title: isCancelled 檢查頻率
+minutes: 1
+prompt: 背景過濾 10 萬筆交易，`isCancelled` 怎麼檢查最合理？
+options:
+  - 每 1,000 筆左右檢查一次，加上迴圈結束、回主執行緒前再檢查一次
+  - 每筆都檢查，越頻繁越好
+  - 只在 operation 開始時檢查一次
+  - 不用檢查，cancelAllOperations 會中斷 block
+answer: 0
+explain: 讀 isCancelled 有鎖的成本，每筆檢查會讓過濾變慢；只在開頭檢查則取消形同無效。每千筆一次，10 萬筆檢查 100 次，1 ms 內就能停。
+hints: ["讀屬性的成本跟比對字串比起來如何？", "cancel 會不會中斷正在跑的程式碼？"]
+feedback:
+  "1": 檢查本身有成本，10 萬次會拖慢過濾。
+  "3": NSOperation 的取消是協作式的，只設旗標。

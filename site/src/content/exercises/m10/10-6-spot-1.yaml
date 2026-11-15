@@ -1,0 +1,41 @@
+id: m10-10-6-spot-1
+chapter: "10.6"
+type: spot
+title: 搜尋「早餐」卻顯示「早」的結果
+minutes: 3
+prompt: 打字很快時，搜尋列寫著「早餐」，列表卻偶爾顯示「早」的結果（筆數比較多）。點出有問題的行並選出原因。
+code: |
+  - (void)search:(NSString *)query
+         results:(void (^)(NSArray *, NSString *))results {
+      [_queue cancelAllOperations];
+      NSArray *snapshot = _ledger.transactions;
+      NSBlockOperation *op = [NSBlockOperation new];
+      __weak NSBlockOperation *weakOp = op;
+      [op addExecutionBlock:^{
+          NSArray *hits = [self filter:snapshot query:query];
+          if (weakOp.isCancelled) return;
+          dispatch_async(dispatch_get_main_queue(), ^{
+              results(hits, query);
+          });
+      }];
+      [_queue addOperation:op];
+  }
+bug_lines: [10, 11]
+reasons:
+  - 沒有世代計數：「早」的 op 在取消前已過了 isCancelled 檢查、結果排進主佇列，晚於「早餐」才套用，舊結果覆蓋新結果
+  - snapshot 應該在背景 block 裡取，才會是最新的
+  - "_queue 應該用 mainQueue，避免執行緒問題"
+  - weakOp 應該改成強參考，否則 op 會提早釋放
+answer_reason: 0
+fix: |
+  NSUInteger gen = ++_generation;               // 方法開頭（主執行緒）
+  ...
+  dispatch_async(dispatch_get_main_queue(), ^{
+      if (gen != self->_generation) return;     // 舊結果丟棄
+      results(hits, query);
+  });
+solution_note: 這是競態條件：每次賦值都在主執行緒，TSan 不會報。cancelAllOperations 只能停「還沒過檢查點」的 op；已經算完、正在主佇列排隊的結果只有在套用前比世代才擋得住。另外這段也沒有 debounce，每個按鍵都會跑一次過濾。
+hints: ["cancel 在第 9 行之後才發生會怎樣？", "主佇列裡排了兩個結果 block，哪個後跑？"]
+feedback:
+  "1": 快照在主執行緒取才安全；背景去讀帳本反而可能撞上寫入。
+  "3": op 被佇列持有，執行期間不會釋放；__weak 是為了避免 block ↔ op 循環參考。

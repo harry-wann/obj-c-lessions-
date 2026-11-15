@@ -1,0 +1,25 @@
+# Podfile（CocoaPods）—— 先 `xcodegen generate` 再 `pod install`，之後一律開 .xcworkspace
+# 每次重跑 xcodegen generate 都會蓋掉 CocoaPods 對 .xcodeproj 的修改，要再 pod install 一次
+platform :ios, '12.0'
+
+project 'LittleBookLegacy.xcodeproj'
+
+# 純 ObjC 專案不加 use_frameworks!：pod 都編成靜態庫
+target 'LittleBookLegacy' do
+  pod 'AFNetworking', '~> 4.0'
+  pod 'Masonry'
+  pod 'SDWebImage'
+end
+
+# 2015/06 某 SDK 跟 -ObjC 一起用會 duplicate symbol，當時從 Pods 的設定裡拿掉了。
+# 那個 SDK 早就移除了，這段沒人敢刪。
+post_install do |installer|
+  installer.aggregate_targets.each do |aggregate|
+    aggregate.user_build_configurations.each_key do |config_name|
+      path = aggregate.xcconfig_path(config_name)
+      next unless File.exist?(path)
+      content = File.read(path)
+      File.write(path, content.gsub(' -ObjC', ''))
+    end
+  end
+end

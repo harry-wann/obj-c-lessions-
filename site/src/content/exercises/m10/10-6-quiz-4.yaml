@@ -1,0 +1,18 @@
+id: m10-10-6-quiz-4
+chapter: "10.6"
+section: quiz
+type: quiz
+title: 搜尋流水線的對照
+minutes: 2
+prompt: 以下對照哪些正確？（可複選）
+multi: true
+options:
+  - "Kotlin 的 `mapLatest` 相當於「新輸入來就取消舊的過濾」"
+  - "lodash 的 `debounce` 只管延遲合併，舊結果晚到仍要自己用計數擋"
+  - "Swift `Task.cancel()` 會立刻中斷正在跑的迴圈，不需要檢查 `Task.isCancelled`"
+  - "背景過濾應該走訪 `_ledger.transactions` 的不可變快照，而不是帳本內部的可變陣列"
+answer: [0, 1, 3]
+explain: 四個平台的取消都是協作式的：Swift Task、Kotlin coroutine、NSOperation 都只設旗標，要在檢查點停下（Task.sleep、ensureActive 會自動檢查）。
+hints: ["哪一個平台的取消是強制中斷？", "背景讀可變陣列會發生什麼？"]
+feedback:
+  "2": Swift 的取消也是協作式的，迴圈裡要自己看 Task.isCancelled 或呼叫 Task.checkCancellation()。

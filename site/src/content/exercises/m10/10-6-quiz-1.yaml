@@ -1,0 +1,18 @@
+id: m10-10-6-quiz-1
+chapter: "10.6"
+section: quiz
+type: quiz
+title: debounce 與節流的差別
+minutes: 1
+prompt: 使用者以每 50 ms 一個字的速度連續打 2 秒，然後停手。debounce 250 ms 與節流（throttle）250 ms 各會執行幾次？
+options:
+  - debounce 約 1 次（停手後 250 ms）；節流約 8 次（每 250 ms 一次）
+  - 兩者都約 8 次
+  - debounce 約 8 次；節流約 1 次
+  - 兩者都只有 1 次
+answer: 0
+explain: debounce 每次輸入都重新計時，連續輸入期間一次都不跑；節流是固定間隔最多一次，輸入期間持續執行。搜尋用 debounce，10.3 的進度條用節流。
+hints: ["debounce 的計時器什麼時候會重設？", "節流在連續事件期間會不會執行？"]
+feedback:
+  "2": 剛好反過來：節流才會在輸入期間一直跑。
+  "3": 節流的重點是「固定頻率執行」，2 秒內會跑好幾次。

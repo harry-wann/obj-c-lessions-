@@ -1,0 +1,26 @@
+id: m07-7-3-quiz-2
+chapter: "7.3"
+section: quiz
+type: quiz
+title: 單例每次都是新的
+minutes: 1
+prompt: "使用者回報「設定存了又不見」。查到 `+[LBSettings shared]` 每次都回傳不同的物件。最可能的原因是？"
+code: |
+  + (instancetype)shared {
+      static LBSettings *instance;
+      dispatch_once_t token;
+      dispatch_once(&token, ^{ instance = [LBSettings new]; });
+      return instance;
+  }
+options:
+  - "`instance` 應該宣告成 `__block`"
+  - "`token` 不是 `static`，每次呼叫都是新的變數，dispatch_once 每次都當成第一次"
+  - "`dispatch_once` 不是執行緒安全的，兩條執行緒同時呼叫才會這樣"
+  - "應該用 `[[LBSettings alloc] init]`，`new` 不會呼叫 init"
+answer: 1
+explain: dispatch_once 靠 token 的記憶體位置記住「跑過了」。區域變數每次呼叫都重新配置，值是 0 或垃圾，block 就一直重跑。token 一定要 static 或全域。
+hints: ["dispatch_once 怎麼知道 block 跑過了？", "區域變數每次呼叫都是同一塊記憶體嗎？"]
+feedback:
+  "0": "`instance` 是 static，block 可以直接寫入，不需要 __block。"
+  "2": dispatch_once 正是為了執行緒安全設計的，兩條執行緒同時第一次呼叫也只會建一個。
+  "3": "`new` 就是 alloc + init，兩者等價。"

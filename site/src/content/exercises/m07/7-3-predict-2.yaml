@@ -1,0 +1,27 @@
+id: m07-7-3-predict-2
+chapter: "7.3"
+type: predict
+title: 預測輸出：dispatch_sync 與主佇列死結
+minutes: 3
+prompt: 這段程式寫在 `viewDidLoad` 裡（主執行緒）。會印出什麼？
+code: |
+  dispatch_queue_t q =
+      dispatch_queue_create("com.littlebook.demo", DISPATCH_QUEUE_SERIAL);
+  NSLog(@"1");
+  dispatch_async(q, ^{ NSLog(@"2"); });
+  dispatch_sync(q, ^{ NSLog(@"3"); });
+  NSLog(@"4");
+  dispatch_sync(dispatch_get_main_queue(), ^{ NSLog(@"5"); });
+  NSLog(@"6");
+options:
+  - "1\n2\n3\n4\n5\n6"
+  - "1\n2\n3\n4\n（之後畫面卡死，什麼都不再印）"
+  - "1\n3\n4\n2\n5\n6"
+  - "1\n2\n3\n4\n6\n5"
+accept: ["1 2 3 4 （之後畫面卡死，什麼都不再印）"]
+feedback:
+  "1 2 3 4 5 6": 主執行緒上 dispatch_sync 到主佇列：你在等 5 執行完，5 在等你讓出主佇列，兩邊永遠等不到。
+  "1 3 4 2 5 6": q 是串列佇列，2 先進去，3 要排在 2 後面；dispatch_sync 等到 3 做完才回來，所以 2、3 都在 4 之前。
+  "1 2 3 4 6 5": 那是 dispatch_async 的行為。dispatch_sync 會卡在原地等 block 做完，而 block 永遠輪不到。
+solution_note: "前半段是正常的 sync：q 是串列佇列，2 先排、3 後排，dispatch_sync 等 3 做完才回來，所以 1 2 3 4 有保證。後半段是死結：viewDidLoad 占著主佇列，dispatch_sync 把 5 排在主佇列尾端然後等，5 要等 viewDidLoad 結束才輪到。沒有錯誤訊息，按 Pause 會看到 Thread 1 停在 `_dispatch_sync_f_slow`。"
+hints: ["dispatch_sync 到串列佇列 q 時，前面已經排了什麼？", "第 7 行時，主佇列正在執行什麼？", "dispatch_sync 什麼時候才會回來？"]

@@ -1,0 +1,31 @@
+id: m07-7-3-predict-6
+chapter: "7.3"
+type: predict
+title: 預測輸出：dispatch_once 單例
+minutes: 2
+code: |
+  @implementation LBSettings
+  + (instancetype)shared {
+      static LBSettings *instance;
+      static dispatch_once_t token;
+      NSLog(@"shared");
+      dispatch_once(&token, ^{
+          NSLog(@"建立");
+          instance = [[self alloc] init];
+      });
+      return instance;
+  }
+  @end
+
+  // 呼叫端
+  LBSettings *a = [LBSettings shared];
+  LBSettings *b = [LBSettings shared];
+  NSLog(@"%d", a == b);
+options: ["shared\n建立\nshared\n1", "shared\n建立\nshared\n建立\n0", "建立\nshared\nshared\n1", "shared\n建立\nshared\n建立\n1"]
+accept: ["shared 建立 shared 1"]
+feedback:
+  "shared 建立 shared 建立 0": token 是 static，第二次呼叫時 dispatch_once 已經記得跑過了，block 不會再執行。
+  "建立 shared shared 1": dispatch_once 外面的 NSLog 每次呼叫都會跑，而且排在 dispatch_once 之前。
+  "shared 建立 shared 建立 1": block 只跑一次，「建立」只會出現一次。
+solution_note: "`shared` 這行在 dispatch_once 外面，每次呼叫都印；block 只在整個程式生命週期跑一次，所以「建立」只印一次，兩次拿到的是同一個物件，`a == b` 是 1。"
+hints: ["哪一行在 dispatch_once 外面？", "token 是 static，第二次呼叫時它記得什麼？"]

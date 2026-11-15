@@ -1,0 +1,24 @@
+id: m08-8-4-xcode-1
+chapter: "8.4"
+type: xcode
+title: 交易列表：月份 section、自訂 cell、滑動刪除
+mobile: false
+minutes: 60
+prompt: 在 M08-starter 完成 LBTransactionListViewController：依月份分 section、LBTransactionCell 每個欄位都重設、滑動刪除與 header 合計同步，三個測試轉綠。
+starter: xcode/M08-starter
+steps:
+  - "`viewDidLoad` 用 `static NSString * const` 常數註冊 `LBTransactionCell`（`registerClass:forCellReuseIdentifier:`）與 `LBMonthHeaderView`（`registerClass:forHeaderFooterViewReuseIdentifier:`），`rowHeight = 64`、`sectionHeaderHeight = 44`。"
+  - "寫 `reloadSections`：`self.sections = [self.ledger transactionsGroupedByMonth]`，沒有資料時 `backgroundView` 放空狀態視圖。`sections` 在 .h 是 readonly，在 .m 的 class extension 重新宣告成 readwrite。"
+  - "實作 `numberOfSectionsInTableView:`、`tableView:numberOfRowsInSection:`、`tableView:cellForRowAtIndexPath:`（只做 dequeue 與 `configureWithViewModel:`）、`tableView:viewForHeaderInSection:`。"
+  - "在 `LBTransactionCell` 的 `configureWithViewModel:` 設好標題、副標、金額、顏色、圖示**每一個欄位**（兩個分支都設），再加 `prepareForReuse` 清回預設。"
+  - "實作 `tableView:commitEditingStyle:forRowAtIndexPath:`：先記下 section 會不會消失 → 移除資料並重算 sections → 對 `LBUndoStack` 登記 undo / redo（block 裡用 weakSelf）→ `performBatchUpdates:` 裡 `deleteSections:` 或 `deleteRowsAtIndexPaths:` → completion 裡 `reloadSections:` 更新 header 合計。"
+  - "⌘U 跑 `LBTransactionListViewControllerTests`；接著在 `SceneDelegate` 用迴圈塞 200 筆跨月份的交易（`initWithAmount:kind:date:note:category:`，日期每筆往前推一天）手動驗收。"
+tests:
+  - LBTransactionListViewControllerTests/testSectionsMatchMonths
+  - LBTransactionListViewControllerTests/testCellResetsAllFields
+  - LBTransactionListViewControllerTests/testDeletingLastRowRemovesSection
+acceptance:
+  - 載入 200 筆跨多個月的交易，上下快速捲動數次，沒有任何一列出現別筆的備註、收入不會變紅色、圖示不會錯位
+  - 向左滑動刪除一筆支出後，該月 header 的支出合計立刻扣掉那筆金額
+  - 刪到某個月的最後一筆，整個 section 連同 header 一起淡出消失，App 不 crash；全部刪完顯示空狀態
+solution_note: "testSectionsMatchMonths 比對 `sections` 與 `transactionsGroupedByMonth` 的月份順序；testCellResetsAllFields 用同一個 cell 先後設定兩筆不同的 view model；testDeletingLastRowRemovesSection 直接呼叫 commitEditingStyle: 刪掉只有一筆的月份，檢查 `numberOfSections` 少一。crash 在 Invalid update 就回頭檢查「資料先改、畫面後改」。"

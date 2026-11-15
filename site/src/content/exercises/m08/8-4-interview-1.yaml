@@ -1,0 +1,63 @@
+id: m08-8-4-interview-1
+chapter: "8.4"
+type: flash
+tier: interview
+title: 面試題：二元樹的四種走訪
+minutes: 5
+front: "面試官：給一個二元樹節點 `LBTreeNode`（`value`、`left`、`right`）。寫出前序、中序、後序三種遞迴走訪，再寫層序（一層一層由左到右）。各自的時間與空間複雜度？"
+back: |
+  前 / 中 / 後序差在「自己」放在哪：自己→左→右、左→自己→右、左→右→自己。
+
+  ```objc
+  @interface LBTreeNode : NSObject
+  @property (nonatomic) NSInteger value;
+  @property (nonatomic, strong, nullable) LBTreeNode *left, *right;
+  @end
+
+  void LBPreorder(LBTreeNode *n, NSMutableArray *out) {
+      if (!n) return;
+      [out addObject:@(n.value)];        // 自己
+      LBPreorder(n.left, out);
+      LBPreorder(n.right, out);
+  }
+  void LBInorder(LBTreeNode *n, NSMutableArray *out) {
+      if (!n) return;
+      LBInorder(n.left, out);
+      [out addObject:@(n.value)];        // 中間
+      LBInorder(n.right, out);
+  }
+  void LBPostorder(LBTreeNode *n, NSMutableArray *out) {
+      if (!n) return;
+      LBPostorder(n.left, out);
+      LBPostorder(n.right, out);
+      [out addObject:@(n.value)];        // 最後
+  }
+
+  // 層序：用佇列（FIFO），一次處理一層
+  NSArray<NSArray<NSNumber *> *> *LBLevelOrder(LBTreeNode *root) {
+      NSMutableArray *levels = [NSMutableArray array];
+      if (!root) return levels;
+      NSMutableArray<LBTreeNode *> *queue = [NSMutableArray arrayWithObject:root];
+      while (queue.count > 0) {
+          NSUInteger width = queue.count;           // 這一層有幾個
+          NSMutableArray *level = [NSMutableArray array];
+          for (NSUInteger i = 0; i < width; i++) {
+              LBTreeNode *n = queue.firstObject;
+              [queue removeObjectAtIndex:0];        // dequeue
+              [level addObject:@(n.value)];
+              if (n.left)  [queue addObject:n.left];
+              if (n.right) [queue addObject:n.right];
+          }
+          [levels addObject:level];
+      }
+      return levels;
+  }
+  ```
+
+  複雜度：四種都是時間 O(n)。遞迴三種的空間是 O(h)（h 為樹高，歪斜樹最差 O(n)）；層序是 O(w)（最寬一層的節點數）。
+
+  追問常見：
+  - 中序走訪 BST 會得到遞增序列（下一題 BST 驗證就用這點）。
+  - 不用遞迴寫前序：用 NSMutableArray 當堆疊，先 push right 再 push left。
+  - removeObjectAtIndex:0 是 O(n)；面試可說明，正式程式改用 head 索引或鏈結串列（4.x）當佇列。
+  - 對應本章：分類樹攤平就是前序；刪除整棵子樹要後序（先刪子再刪自己）。

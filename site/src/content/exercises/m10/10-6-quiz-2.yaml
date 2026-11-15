@@ -1,0 +1,18 @@
+id: m10-10-6-quiz-2
+chapter: "10.6"
+section: quiz
+type: quiz
+title: 世代計數擋的是什麼
+minutes: 2
+prompt: "LBSearchController 已經在 `search:` 開頭呼叫 `[_queue cancelAllOperations]`，為什麼主執行緒套用結果前還要再比一次 `gen != _generation`？"
+options:
+  - 取消只設旗標；舊 op 若已過了最後一次 isCancelled 檢查、或結果 block 已在主佇列排隊，取消來不及，只有世代比較擋得住
+  - 因為 cancelAllOperations 是非同步的，要等它完成
+  - 為了避免資料競爭，TSan 會報警
+  - 不需要，取消已經足夠
+answer: 0
+explain: 取消負責「省 CPU」，世代比較負責「正確性」。`_generation` 只在主執行緒讀寫，在主執行緒最後一刻比較，不可能跟新的 search 交錯。
+hints: ["cancel 會不會中斷已經跑完的 block？", "結果 block 在主佇列排隊時發生了新輸入呢？"]
+feedback:
+  "2": 這是競態條件不是資料競爭，所有存取都在主執行緒。
+  "3": 取消有空窗：檢查完 isCancelled 到套用結果之間。

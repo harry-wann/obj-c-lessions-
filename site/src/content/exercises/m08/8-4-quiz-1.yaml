@@ -1,0 +1,19 @@
+id: m08-8-4-quiz-1
+chapter: "8.4"
+section: quiz
+type: quiz
+title: dequeue 會不會回 nil
+minutes: 1
+prompt: "`viewDidLoad` 已經呼叫 `registerClass:forCellReuseIdentifier:`。`cellForRowAtIndexPath:` 裡用 `dequeueReusableCellWithIdentifier:forIndexPath:` 拿 cell，下列哪個說法正確？"
+options:
+  - 第一次顯示時會回 nil，要寫 if (cell == nil) 自己建
+  - 永遠不回 nil：有閒置的 cell 就回收給你，沒有就用註冊的類別建新的
+  - 每次都建一個全新的 cell，所以不用重設欄位
+  - 只有 prepareForReuse 回傳 YES 時才會回收舊 cell
+answer: 1
+explain: "帶 `forIndexPath:` 的版本保證回傳可用的 cell；找不到註冊就斷言 crash，而不是回 nil。正因為會回收，綁定時每個欄位都要重設。"
+hints: ["registerClass: 告訴表格什麼？", "這個 API 找不到註冊時是回 nil 還是 crash？"]
+feedback:
+  "0": "那是舊 API `dequeueReusableCellWithIdentifier:`（沒有 forIndexPath:）的行為，`if (cell == nil)` 是 iOS 6 以前的樣板。"
+  "2": 剛好相反：螢幕放得下 12 列就只建十幾個 cell 輪著用，捲出去的立刻被拿來顯示新資料。
+  "3": "prepareForReuse 回傳 void，它是回收時給你清欄位的掛鉤，不決定要不要回收。"

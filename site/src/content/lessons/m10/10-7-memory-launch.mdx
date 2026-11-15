@@ -1,0 +1,236 @@
+---
+title: 記憶體與啟動時間（選讀）
+module: 10
+chapter: "10.7"
+order: 7
+minutes: 35
+prereq: ["10.2", "10.3", "4.4"]
+optional: true
+objectives:
+  - 回應記憶體警告，分清 NSCache 的自動清除與自寫 LRU 的取捨
+  - 用 Memory Graph 看持有鏈，用 Instruments Allocations / Leaks 找峰值與洩漏
+  - 知道 main 之前 dyld 做了什麼，讓 +load 少做事、能懶載入的都懶載入，並用 App Launch 量啟動
+summary: "didReceiveMemoryWarning 與 UIApplicationDidReceiveMemoryWarningNotification、NSCache（自動清除、不複製 key、totalCostLimit）vs 自寫 LRU（可預測、可統計）、Memory Graph 持有鏈、Allocations 的 Mark Generation、Leaks；啟動：main 前的 dyld 時間、+load vs +initialize、懶載入、App Launch Instrument。"
+terms:
+  - { en: memory warning, tw: 記憶體警告, cn: 内存警告, jp: メモリ警告 }
+  - { en: jetsam, tw: jetsam（系統強制終止）, cn: jetsam, jp: jetsam }
+  - { en: retain chain, tw: 持有鏈, cn: 持有链, jp: 保持チェーン }
+  - { en: lazy loading, tw: 懶載入, cn: 懒加载, jp: 遅延読み込み }
+  - { en: dynamic linker (dyld), tw: 動態連結器（dyld）, cn: 动态链接器, jp: 動的リンカ }
+  - { en: cold launch, tw: 冷啟動, cn: 冷启动, jp: コールドスタート }
+appProgress: 收到記憶體警告時清掉 view model 快取與匯入暫存；Memory Graph 無紫色驚嘆號；啟動路徑上沒有 +load，冷啟動在 App Launch 量到 < 400 ms。
+---
+import Compare from '../../../components/Compare.astro';
+import Pitfall from '../../../components/Pitfall.astro';
+import Crash from '../../../components/Crash.astro';
+import Tip from '../../../components/Tip.astro';
+import Term from '../../../components/Term.astro';
+import Steps from '../../../components/Steps.astro';
+
+<Compare>
+<Fragment slot="swift">
+```swift
+final class ThumbCache {
+    private let cache = NSCache<NSString, UIImage>()   // 同一個類別
+    init() {
+        cache.totalCostLimit = 20 * 1024 * 1024        // 20 MB
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didReceiveMemoryWarningNotification,
+            object: nil, queue: .main) { [weak self] _ in
+            self?.cache.removeAllObjects()
+        }
+    }
+}
+// 懶載入
+lazy var formatter: DateFormatter = { DateFormatter() }()
+```
+</Fragment>
+<Fragment slot="kotlin">
+```kotlin
+val cache = object : LruCache<String, Bitmap>(20 * 1024 * 1024) {
+    override fun sizeOf(key: String, v: Bitmap) = v.byteCount
+}
+class App : Application() {
+    override fun onTrimMemory(level: Int) {           // ↔ memory warning
+        if (level >= TRIM_MEMORY_RUNNING_LOW) cache.evictAll()
+    }
+}
+val formatter by lazy { SimpleDateFormat("M/d") }    // 懶載入
+```
+</Fragment>
+<Fragment slot="java">
+```java
+// JVM 沒有記憶體警告；靠 GC 與 SoftReference
+Map<String, SoftReference<Bitmap>> cache = new ConcurrentHashMap<>();
+// LRU：LinkedHashMap(accessOrder = true) + removeEldestEntry
+Map<String, Bitmap> lru = new LinkedHashMap<>(16, 0.75f, true) {
+    protected boolean removeEldestEntry(Map.Entry<String, Bitmap> e) {
+        return size() > 500;
+    }
+};
+```
+</Fragment>
+<Fragment slot="ts">
+```ts
+// 瀏覽器沒有記憶體警告；WeakRef / FinalizationRegistry 最接近
+const cache = new Map<string, WeakRef<ImageBitmap>>();
+// LRU：Map 保留插入順序，get 時刪掉再 set 到尾端
+function get(k: string) {
+  const v = lru.get(k);
+  if (v !== undefined) { lru.delete(k); lru.set(k, v); }
+  return v;
+}
+```
+</Fragment>
+Android 的 `onTrimMemory` 與 iOS 的記憶體警告是同一件事：系統請你自己先放手，不然它來殺。Java 與 TS 有 GC，用軟 / 弱參考讓收集器決定；iOS 沒有 GC，`NSCache` 是官方給的「系統緊時自動放手」容器。四個語言的 LRU 寫法幾乎一樣：雜湊表 + 存取順序。
+</Compare>
+
+## Objective-C 怎麼寫
+
+### 記憶體警告與 jetsam
+
+iOS 沒有 swap。實體記憶體緊張時，系統先發<Term en="memory warning" tw="記憶體警告" cn="内存警告" jp="メモリ警告" />，再不夠就由 <Term en="jetsam" tw="jetsam（系統強制終止）" cn="jetsam" jp="jetsam" /> 直接殺行程，前景 App 也一樣。警告有三個入口，選一個就好：
+
+```objc
+// 1. view controller：只清這個畫面自己的東西
+- (void)didReceiveMemoryWarning {
+    [super didReceiveMemoryWarning];
+    if (!self.isViewLoaded || !self.view.window) {
+        self.chartImage = nil;          // 不在畫面上，可以重算的都放掉
+    }
+}
+
+// 2. 服務層：聽通知，跟畫面無關
+- (instancetype)init {
+    if ((self = [super init])) {
+        [[NSNotificationCenter defaultCenter]
+            addObserver:self selector:@selector(purge:)
+                   name:UIApplicationDidReceiveMemoryWarningNotification
+                 object:nil];
+    }
+    return self;
+}
+- (void)purge:(NSNotification *)n { [self.viewModelCache removeAll]; }
+
+// 3. App delegate：applicationDidReceiveMemoryWarning:
+```
+
+模擬器選單 **Debug → Simulate Memory Warning** 可以手動觸發，驗證每個快取都會清。
+
+### NSCache vs 自寫 LRU
+
+10.2 的 view model 快取用的是 4.4 寫的 `LBLRUCache`。`NSCache` 也能放，差別在誰決定丟：
+
+| | `NSCache` | `LBLRUCache` |
+|---|---|---|
+| 何時丟 | 系統記憶體緊時自動丟、`countLimit` / `totalCostLimit` 是「提示」 | 超過容量丟最久沒用的，完全可預測 |
+| 丟哪個 | 不保證順序 | 一定是最久沒用的 |
+| key | 不複製（強參考） | 依你的實作（通常 `copy`） |
+| 執行緒 | 內建執行緒安全 | 要自己加鎖（10.4） |
+| 可觀察 | 幾乎沒有，`delegate` 只告訴你誰被丟 | 能加命中率統計 |
+
+經驗法則：**可以重算、丟了也只是慢一點**的（縮圖、格式化字串）放 `NSCache`；**容量要精準、要量命中率**的用 LRU，並自己聽記憶體警告清空。`NSCache` 不是字典，`objectForKey:` 回 nil 永遠要處理。
+
+### 貼進 Scratch：NSCache 的 cost 與 countLimit
+
+```objc
+#import <Foundation/Foundation.h>
+
+int main(void) {
+    @autoreleasepool {
+        NSCache<NSString *, NSData *> *cache = [NSCache new];
+        cache.totalCostLimit = 1024 * 1024;              // 1 MB
+        for (int i = 0; i < 10; i++) {
+            NSData *d = [NSMutableData dataWithLength:256 * 1024];
+            [cache setObject:d forKey:@(i).stringValue
+                        cost:d.length];                  // 每筆 256 KB
+        }
+        int alive = 0;
+        for (int i = 0; i < 10; i++) {
+            if ([cache objectForKey:@(i).stringValue]) alive++;
+        }
+        NSLog(@"放 10 筆 × 256 KB，還在 %d 筆", alive);
+        [cache removeAllObjects];
+        NSLog(@"清空後 0 號：%@", [cache objectForKey:@"0"]);
+    }
+    return 0;
+}
+// 預期輸出（目前版本的行為，不保證）：
+// 放 10 筆 × 256 KB，還在 4 筆
+// 清空後 0 號：(null)
+```
+
+數字可能不是 4：文件明說限制不是嚴格的，丟哪幾筆也不保證。這正是「需要可預測就自己寫 LRU」的理由。
+
+### Memory Graph、Allocations、Leaks
+
+<Steps title="三個工具各看什麼">
+1. **Memory Graph**（Debug 列的三個圓圈圖示）：暫停 App、列出所有活著的物件。左側找 `LBTransactionListViewController`，關掉頁面後它還在就是沒釋放；點它看<Term en="retain chain" tw="持有鏈" cn="持有链" jp="保持チェーン" />，粗線是強參考，順著找到 block 或 timer 就是兇手。紫色驚嘆號是 Xcode 認定的循環參考。
+2. **Allocations**（⌘I）：看峰值與成長。進出搜尋頁之前按 **Mark Generation**，來回 5 次再按一次，Generation 之間的 Growth 應該接近 0；持續成長代表「沒洩漏但一直囤」，例如快取沒上限。10.3 的 150 MB 峰值也是在這裡量。
+3. **Leaks**：找「已經沒有人指到、卻沒釋放」的記憶體，主要是 CF 物件忘了 `CFRelease`（4.5）與循環參考。Leaks 沒紅 ≠ 沒問題，被快取囤住的物件仍然有人指，它不會報。
+</Steps>
+
+### 啟動：main 之前
+
+<Term en="cold launch" tw="冷啟動" cn="冷启动" jp="コールドスタート" />分兩段：`main` 之前是<Term en="dynamic linker (dyld)" tw="動態連結器（dyld）" cn="动态链接器" jp="動的リンカ" />載入 App 與 framework、綁定符號、跑 ObjC runtime 註冊類別與分類、呼叫每個 `+load` 與 C++ 靜態建構子；`main` 之後是 `application:didFinishLaunchingWithOptions:` 到第一幀畫出來。
+
+```objc
+// ✗ +load：dyld 階段、主執行緒、App 還沒準備好就跑，每個類別都會被叫
++ (void)load {
+    [LBThemeManager registerDefaultThemes];       // 讀 plist、建字型
+}
+
+// ✓ +initialize：第一次送訊息給這個類別時才跑，且只跑一次
++ (void)initialize {
+    if (self != [LBThemeManager class]) return;   // 子類別也會觸發
+    [self registerDefaultThemes];
+}
+
+// ✓ 懶載入：用到才建
+- (NSDateFormatter *)formatter {
+    if (!_formatter) {
+        _formatter = [NSDateFormatter new];
+        _formatter.dateFormat = @"M/d EEE";
+    }
+    return _formatter;
+}
+```
+
+`+load` 唯一合理的用途是 method swizzling（6.5），而且要放 `dispatch_once`。其他初始化往後移：`didFinishLaunching` 只建第一個畫面需要的東西；帳本 JSON 讀檔（9.1）放背景、先顯示空狀態或骨架；匯率服務、效能面板等第一次用到才建。
+
+<Steps title="量啟動時間">
+1. Scheme → Run → Arguments → Environment Variables 加 `DYLD_PRINT_STATISTICS = 1`（舊版 dyld 會在主控台印出 main 前各階段時間；新版 iOS 已不支援，改用下一步）。
+2. ⌘I → **App Launch** 範本，錄一次冷啟動（先把 App 從背景清掉）。時間軸會分成 Process Creation、dyld、Static Runtime Initialization（`+load` 在這裡）、UIKit Initialization、Initial Frame Rendering。
+3. 點最長的那段，下方 Call Tree 勾 Hide System Libraries，找自己的方法。
+4. Xcode Organizer → Launch Time 看真實使用者的分佈；目標是冷啟動 &lt; 400 ms 讓第一幀出現。
+</Steps>
+
+<Pitfall title="把 NSCache 當字典用">
+存進去、下一行馬上 `objectForKey:` 拿得到，於是當成資料來源。到了使用者手機上記憶體一緊，或 App 進背景，`NSCache` 會整批丟掉內容，`objectForKey:` 回 nil，列表顯示空白或 `nil` 塞進陣列 crash。快取只放「拿不到就重算」的東西，資料本身放在帳本。
+</Pitfall>
+
+<Pitfall title="+load 裡做重活">
+`+load` 在 dyld 階段、主執行緒上依序被呼叫，CocoaPods 一加，十幾個第三方的 `+load` 一起跑，使用者看到的是白畫面多停半秒。它跑的時候 `UIApplication` 還不存在，連 `NSUserDefaults` 的 `registerDefaults:` 都可能還沒做。能用 `+initialize`、懶載入或 `didFinishLaunching` 之後再做的都搬走；App Launch 的 Static Runtime Initialization 那段就是在量它。
+</Pitfall>
+
+<Pitfall title="Allocations 只看當下數字">
+一次截圖顯示 80 MB，看起來沒事；但進出搜尋頁十次後是 300 MB。要用 Mark Generation 比較「做同一件事前後」的成長，Persistent 那欄持續增加的類別才是問題。記憶體警告也要配合測：手動 Simulate Memory Warning 後，Allocations 曲線應該明顯掉下來，沒掉代表快取沒接到通知。
+</Pitfall>
+
+<Crash message={`Exception Type:  EXC_RESOURCE
+Exception Subtype: MEMORY
+Termination Reason: Namespace JETSAM, Code 0x0
+Exception Note:  EXC_CORPSE_NOTIFY
+Message from debugger: Terminated due to memory issue
+
+Highest-memory process:
+  LittleBook  [8812]  rpages: 368640  (1440 MB)  reason: per-process-limit`}>
+讀法：`JETSAM` 與 `per-process-limit` 表示系統依這台裝置給單一 App 的上限把你殺了，不是程式碼存取錯誤，所以沒有自己的堆疊可看。`rpages` 乘 4 KB 就是當時用量，這裡約 1.4 GB。Xcode 主控台只會看到 `Terminated due to memory issue`。原因要回到 Allocations 找：常見的是匯入沒有迴圈內 `@autoreleasepool`（10.3）、view model 快取沒上限，或記憶體警告來了沒人清。修法：快取設 `totalCostLimit` / 容量上限並聽警告清空，大量處理分批、迴圈內排水，再用 Allocations 確認峰值壓在 150 MB 以下。
+</Crash>
+
+## 小結
+
+- iOS 沒有 swap：先記憶體警告、再 jetsam。VC 用 `didReceiveMemoryWarning`，服務層聽 `UIApplicationDidReceiveMemoryWarningNotification`。
+- `NSCache` 自動清、執行緒安全、限制只是提示；LRU 可預測、可統計，但要自己加鎖、自己清。
+- Memory Graph 看持有鏈；Allocations 用 Mark Generation 看成長與峰值；Leaks 只抓沒人指到的。
+- 啟動：`+load` 少做事（改 `+initialize` 或懶載入），`didFinishLaunching` 只建第一個畫面；用 App Launch 分段量。

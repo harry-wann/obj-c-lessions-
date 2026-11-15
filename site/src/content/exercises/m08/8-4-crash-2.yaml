@@ -1,0 +1,46 @@
+id: m08-8-4-crash-2
+chapter: "8.4"
+type: crash
+title: 滑動刪除時 Invalid update
+minutes: 3
+prompt: 滑動刪除一筆交易就 crash。讀懂訊息裡的三個數字，選出原因。
+log: |
+  *** Terminating app due to uncaught exception 'NSInternalInconsistencyException',
+  reason: 'Invalid update: invalid number of rows in section 0. The number of rows
+  contained in an existing section after the update (5) must be equal to the number
+  of rows contained in that section before the update (5), plus or minus the number
+  of rows inserted or deleted from that section (0 inserted, 1 deleted) and plus or
+  minus the number of rows moved into or out of that section (0 moved in, 0 moved out).'
+  *** First throw call stack:
+  (
+    2  UIKitCore   -[UITableView _endCellAnimationsWithContext:]
+    3  UIKitCore   -[UITableView deleteRowsAtIndexPaths:withRowAnimation:]
+    4  LittleBook  -[LBTransactionListViewController tableView:commitEditingStyle:forRowAtIndexPath:]
+  )
+options:
+  - "呼叫 deleteRowsAtIndexPaths: 之前沒有從 ledger 移除那筆、也沒重算 self.sections，更新後 numberOfRowsInSection: 還是回 5"
+  - 刪除的 indexPath 超出範圍，應該用 indexPath.row - 1
+  - "deleteRowsAtIndexPaths: 不能在 commitEditingStyle: 裡呼叫，只能用 reloadData"
+  - cell 沒有註冊，表格不知道要刪哪一種 cell
+answer: 0
+fix: |
+  LBTransaction *tx = self.sections[indexPath.section].transactions[indexPath.row];
+  BOOL sectionWillVanish =
+      self.sections[indexPath.section].transactions.count == 1;
+
+  [self.ledger removeTransactionWithIdentifier:tx.identifier];   // 1. 先改資料
+  self.sections = [self.ledger transactionsGroupedByMonth];       // 2. 重算模型
+
+  if (sectionWillVanish) {                                        // 3. 再改畫面
+      [tableView deleteSections:[NSIndexSet indexSetWithIndex:indexPath.section]
+               withRowAnimation:UITableViewRowAnimationFade];
+  } else {
+      [tableView deleteRowsAtIndexPaths:@[ indexPath ]
+                       withRowAnimation:UITableViewRowAnimationFade];
+  }
+solution_note: "公式是「更新後 = 更新前 ± 插入 / 刪除」：5 = 5 − 1 不成立，所以表格知道你說刪了一列、資料卻沒少。鐵律：資料先改、畫面後改，兩邊差異一致。該月只剩一筆時要 deleteSections:，否則會換成 invalid number of sections。"
+feedback:
+  "1": 越界會是另一種訊息（index beyond bounds）；這裡的 indexPath 是表格自己傳進來的，一定合法。
+  "2": 在 commitEditingStyle: 裡局部刪除是標準寫法，問題在呼叫之前的資料。
+  "3": 沒註冊會在 dequeue 時就 crash，到不了刪除。
+hints: ["after (5) 應該等於 before (5) − deleted (1)，差在哪？", "deleteRows 之後表格會重新問誰？"]

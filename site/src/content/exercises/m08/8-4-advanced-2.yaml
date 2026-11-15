@@ -1,0 +1,50 @@
+id: m08-8-4-advanced-2
+chapter: "8.4"
+type: code
+tier: advanced
+title: 手寫二元搜尋找插入點
+mobile: false
+minutes: 10
+prompt: "「依金額排序」檢視的陣列由小到大排好。寫 `NSUInteger LBLowerBound(NSArray<NSDecimalNumber *> *sorted, NSDecimalNumber *target)`，回傳第一個「大於或等於 target」的索引（全部都比較小就回 `sorted.count`），新的金額插在那裡陣列仍然有序。用半開區間 `[lo, hi)` 手寫，不要用 `indexOfObject:inSortedRange:`。"
+starter: |
+  NSUInteger LBLowerBound(NSArray<NSDecimalNumber *> *sorted,
+                          NSDecimalNumber *target) {
+
+  }
+
+  // @[ 10, 20, 20, 50 ] 找 20 → 1；找 30 → 3；找 99 → 4；找 5 → 0
+checks:
+  - must_match: 'NSUInteger\s+LBLowerBound\s*\(\s*NSArray'
+    message: 簽名要是 NSUInteger LBLowerBound(NSArray *sorted, NSDecimalNumber *target)
+  - must_match: '\w+\s*=\s*\w+\.count'
+    message: hi 從 sorted.count 開始（半開區間）
+  - must_match: 'while\s*\(\s*\w+\s*<\s*\w+\s*\)'
+    message: "半開區間的迴圈條件是 while (lo < hi)"
+  - must_match: '\w+\s*=\s*\w+\s*\+\s*\(\s*\w+\s*-\s*\w+\s*\)\s*/\s*2'
+    message: "mid = lo + (hi - lo) / 2，避免溢位"
+  - must_match: 'compare\s*:'
+    message: "NSDecimalNumber 用 compare: 比大小"
+  - must_match: '\w+\s*=\s*\w+\s*\+\s*1\s*;'
+    message: mid 太小時 lo = mid + 1
+  - must_match: '\w+\s*=\s*mid\s*;'
+    message: 否則 hi = mid
+  - must_match: 'return\s+\w+\s*;'
+  - must_not_match: 'indexOfObject\s*:'
+    message: 這題請自己寫
+  - "brackets_balanced: true"
+solution: |
+  NSUInteger LBLowerBound(NSArray<NSDecimalNumber *> *sorted,
+                          NSDecimalNumber *target) {
+      NSUInteger lo = 0, hi = sorted.count;            // [lo, hi)
+      while (lo < hi) {
+          NSUInteger mid = lo + (hi - lo) / 2;
+          if ([sorted[mid] compare:target] == NSOrderedAscending) {
+              lo = mid + 1;                            // mid < target，答案在右
+          } else {
+              hi = mid;                                // mid >= target，可能就是它
+          }
+      }
+      return lo;                                       // lo == hi
+  }
+solution_note: "不變式：`[0, lo)` 都小於 target，`[hi, count)` 都大於等於 target；迴圈結束時 lo == hi 就是分界。`hi = mid` 而不是 `mid - 1`，因為 mid 本身可能就是答案；用 NSUInteger 時 `mid - 1` 在 mid 為 0 會繞回超大數。Foundation 等價寫法：`NSBinarySearchingInsertionIndex | NSBinarySearchingFirstEqual`。"
+hints: ["lo = 0、hi = count，區間不含 hi。", "sorted[mid] 比 target 小，答案一定在 mid 右邊。", "否則 hi = mid，不是 mid - 1。"]

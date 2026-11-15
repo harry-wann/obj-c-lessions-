@@ -1,0 +1,49 @@
+id: m08-8-4-spot-1
+chapter: "8.4"
+type: spot
+title: 捲一捲，收入變紅色了
+minutes: 3
+prompt: 列表捲動 200 筆之後，有幾筆收入的金額變成紅色，沒有備註的列顯示別筆交易的備註。點出有問題的行並選原因。
+code: |
+  - (void)configureWithViewModel:(LBTransactionViewModel *)vm {
+      _titleLabel.text = vm.title;
+      _amountLabel.text = vm.amountText;
+      if (vm.isExpense) {
+          _amountLabel.textColor = UIColor.systemRedColor;
+      }
+      if (vm.subtitle.length > 0) {
+          _subtitleLabel.text = vm.subtitle;
+      }
+      _iconView.image = [UIImage systemImageNamed:vm.symbolName];
+  }
+bug_lines: [4, 7]
+reasons:
+  - "if 只在一個分支設值：cell 被重用時，另一個分支保留上一筆的紅色與備註"
+  - 應該在 cellForRowAtIndexPath 裡每次 alloc 新的 UILabel
+  - "systemImageNamed: 不能在 configure 方法裡呼叫"
+  - UILabel 的 text 不能設成空字串，所以要用 if 擋掉
+answer_reason: 0
+fix: |
+  - (void)configureWithViewModel:(LBTransactionViewModel *)vm {
+      _titleLabel.text = vm.title;
+      _subtitleLabel.text = vm.subtitle;            // 空字串也要設
+      _amountLabel.text = vm.amountText;
+      _amountLabel.textColor = vm.isExpense ? UIColor.systemRedColor
+                                            : UIColor.systemGreenColor;
+      _iconView.image = [UIImage systemImageNamed:vm.symbolName];
+  }
+
+  - (void)prepareForReuse {                         // 第二道防線
+      [super prepareForReuse];
+      _titleLabel.text = nil;
+      _subtitleLabel.text = nil;
+      _amountLabel.text = nil;
+      _amountLabel.textColor = UIColor.labelColor;
+      _iconView.image = nil;
+  }
+solution_note: "cell 會被重用，所以綁定時**每個欄位、每個分支**都要有值；`prepareForReuse` 清回預設當保險。`testCellResetsAllFields` 測的就是：先用支出設定、再用沒備註的收入設定同一個 cell，所有欄位都要是後者的值。"
+hints: ["同一個 cell 先顯示一筆支出、再顯示一筆收入，第二次誰把顏色設回來？", "備註是空字串時，label 上留著什麼？"]
+feedback:
+  "1": 每次 alloc 就失去重用的意義，捲動會掉幀；正解是把欄位全部重設。
+  "2": 這行沒問題，SF Symbol 查詢很便宜，而且每次都有設。
+  "3": 空字串完全合法，設 @"" 才能蓋掉上一筆的內容。

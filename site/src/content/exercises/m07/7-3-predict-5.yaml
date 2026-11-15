@@ -1,0 +1,24 @@
+id: m07-7-3-predict-5
+chapter: "7.3"
+type: predict
+title: 預測輸出：barrier 會等慢的讀取嗎
+minutes: 3
+prompt: "`q` 是自建的並行佇列。讀 1 故意做得比較慢。最可能印出什麼？"
+code: |
+  dispatch_queue_t q = dispatch_queue_create("com.littlebook.ledger",
+                                             DISPATCH_QUEUE_CONCURRENT);
+  dispatch_async(q, ^{
+      [NSThread sleepForTimeInterval:0.2];
+      NSLog(@"讀1");
+  });
+  dispatch_async(q, ^{ NSLog(@"讀2"); });
+  dispatch_barrier_async(q, ^{ NSLog(@"寫"); });
+  dispatch_async(q, ^{ NSLog(@"讀3"); });
+options: ["讀2\n讀1\n寫\n讀3", "讀2\n寫\n讀1\n讀3", "讀2\n寫\n讀3\n讀1", "寫\n讀1\n讀2\n讀3"]
+accept: ["讀2 讀1 寫 讀3", "讀1 讀2 寫 讀3"]
+feedback:
+  "讀2 寫 讀1 讀3": barrier 要等「前面已經開始的 block 全部結束」，包括還在睡的讀 1。
+  "讀2 寫 讀3 讀1": 讀 1 排在 barrier 前面，barrier 一定在它之後；讀 3 又在 barrier 之後。
+  "寫 讀1 讀2 讀3": barrier 不會插隊到前面，它只是讓自己獨佔、並擋住後面的人。
+solution_note: 讀 1 和讀 2 同時開始，讀 2 先印（讀 1 在睡）。barrier 等兩個都結束才單獨跑「寫」，寫完讀 3 才能開始。這就是讀寫鎖：讀可以同時，寫要獨佔。讀 1、讀 2 的先後本身沒有保證，所以「讀1 讀2 寫 讀3」也算對；barrier 前後的關係才是保證。
+hints: ["讀 1 與讀 2 能同時跑嗎？", "barrier 開始前要等誰？", "讀 3 能跟寫同時嗎？"]

@@ -1,0 +1,39 @@
+id: m08-8-4-spot-2
+chapter: "8.4"
+type: spot
+title: dealloc 的 NSLog 從來沒出現
+minutes: 3
+prompt: 列表 VC 把編輯頁存成屬性重複使用。切換帳本重建列表之後，Memory Graph 裡舊的列表 VC 與編輯頁還在，兩個的 `dealloc` 都沒被呼叫。點出有問題的行並選原因。
+code: |
+  // LBTransactionEditorViewController.h
+  @interface LBTransactionEditorViewController : UIViewController
+  - (instancetype)initWithLedger:(LBLedger *)ledger
+                     transaction:(nullable LBTransaction *)transaction;
+  @property (nonatomic, strong) id<LBTransactionEditorDelegate> delegate;
+  @property (nonatomic, strong) UITextField *amountField;
+  @end
+
+  // LBTransactionListViewController.m
+  - (void)addTapped {
+      self.editor = [[LBTransactionEditorViewController alloc]
+                        initWithLedger:self.ledger transaction:nil];
+      self.editor.delegate = self;
+      UINavigationController *nav = [[UINavigationController alloc]
+                        initWithRootViewController:self.editor];
+      [self presentViewController:nav animated:YES completion:nil];
+  }
+bug_lines: [5]
+reasons:
+  - "delegate 宣告成 strong：列表 strong 持有編輯頁，編輯頁又 strong 持有列表，形成循環參考"
+  - amountField 應該宣告成 weak
+  - 編輯頁不該包進 UINavigationController
+  - "initWithLedger:transaction: 少了 NS_DESIGNATED_INITIALIZER，所以不會釋放"
+answer_reason: 0
+fix: |
+  @property (nonatomic, weak) id<LBTransactionEditorDelegate> delegate;
+solution_note: "delegate、dataSource 永遠 weak（5.2）。發事件的一方不擁有聽事件的一方；`UITableView` 自己的 dataSource / delegate 也是 weak。改成 weak 後，`self.editor` 這個 strong 屬性就只是單向持有，不會循環。"
+hints: ["畫出誰持有誰：list → editor → ？", "4.x 的循環參考要兩個方向都是 strong。"]
+feedback:
+  "1": amountField 是編輯頁自己建、自己擁有的 view，strong 合法（TESTS.md 的介面就是 strong）。
+  "2": 包 nav 是為了顯示導覽列按鈕，nav 只持有編輯頁，不構成循環。
+  "3": NS_DESIGNATED_INITIALIZER 只影響編譯器檢查初始化鏈，跟記憶體釋放無關。

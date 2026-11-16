@@ -6,3 +6,5 @@ xcode/**/*.xcodeproj/
 xcode/**/DerivedData/
 xcode/**/*.xcworkspace/
 xcode/**/Pods/
+# xcodegen generate 依 project.yml 的 info.properties 產生，不進版控
+xcode/**/Info.plist

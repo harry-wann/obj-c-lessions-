@@ -32,7 +32,7 @@ import Steps from '../../../components/Steps.astro';
 // Swift 專案裡混了一個舊 ObjC pod，它的 .m 檔用 -fno-objc-arc 編譯。
 // Swift 端完全感覺不到：拿到的物件照 ARC 規則走。
 let tx = LBLegacyTransaction(note: "午餐")   // 內部 alloc/init + autorelease
-ledger.add(tx)                                 // 內部 [tx retain]
+ledger.addTransaction(tx)                      // 內部 [tx retain]
 // 離開範圍時 Swift 自動 release
 ```
 </Fragment>

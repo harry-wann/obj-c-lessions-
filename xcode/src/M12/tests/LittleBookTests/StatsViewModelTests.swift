@@ -27,7 +27,7 @@ final class StatsViewModelTests: XCTestCase {
                                date: Date(),
                                note: note,
                                category: category)
-        ledger.add(tx)   // -addTransaction: 在 Swift 端自動縮成 add(_:)
+        ledger.addTransaction(tx)   // 不是 add(_:)：LBLedger 有 transactions 屬性，Swift 保留 Transaction 這個字
         return tx
     }
 

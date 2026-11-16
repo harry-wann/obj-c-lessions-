@@ -31,7 +31,7 @@ import Term from '../../../components/Term.astro';
 let ledger = LBLedger()
 let tx = LBTransaction(amount: NSDecimalNumber(string: "120"),
                        note: "午餐")
-ledger.add(tx)                           // -addTransaction: 自動縮短
+ledger.addTransaction(tx)                // 沒有縮成 add(_:)，原因見下文
 let first: LBTransaction? = ledger.transactions.first
 ```
 </Fragment>
@@ -108,11 +108,13 @@ Swift 端看到的就是：
 open class LBLedger : NSObject {
     open var transactions: [LBTransaction] { get }
     open var total: NSDecimalNumber { get }
-    open func add(_ transaction: LBTransaction)
+    open func addTransaction(_ transaction: LBTransaction)
     open func transaction(withIdentifier identifier: String) -> LBTransaction?
     open func removeTransaction(withIdentifier identifier: String) -> Bool
 }
 ```
+
+`addTransaction:` 為什麼沒變成 `add(_:)`？Swift 會把 selector 尾端和參數型別重複的字去掉：`NSMutableArray` 的 `addObject:` 是 `add(_:)`，一個沒有其他成員的類別裡，`addTransaction:(LBTransaction *)` 也會縮成 `add(_:)`。但只要同一個類別有同字根的屬性（這裡是 `transactions`），編譯器就保留那個字，所以 `LBLedger` 在 Swift 端是 `addTransaction(_:)`。縮不縮是編譯器依整個類別算出來的，看 Generated Interface 確認，想固定名字就用下面的 `NS_SWIFT_NAME`。
 
 注意 `NS_ASSUME_NONNULL` 只管「指標」：`NSArray<LBTransaction *> *` 整個是 nonnull，但陣列裡的元素型別也要靠泛型角括號內的標注。另外 `NSError **` 之類的雙重指標不受 ASSUME 影響，自己有一套規則（下面講）。
 

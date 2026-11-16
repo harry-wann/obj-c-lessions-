@@ -36,7 +36,7 @@ final class StatsViewModelTests: XCTestCase {
     var ledger: LBLedger!
     override func setUp() { super.setUp(); ledger = LBLedger() }
     func testTotalsFromLedger() {
-        ledger.add(LBTransaction(amount: NSDecimalNumber(string: "100"), note: "午餐"))
+        ledger.addTransaction(LBTransaction(amount: NSDecimalNumber(string: "100"), note: "午餐"))
         let vm = StatsViewModel(ledger: ledger)
         XCTAssertEqual(vm.expenseTotal, NSDecimalNumber(string: "100"))   // Equatable，比值
     }

@@ -518,6 +518,7 @@ extern NSRunLoopMode const NSDefaultRunLoopMode;
 + (NSTimer *)scheduledTimerWithTimeInterval:(NSTimeInterval)i repeats:(BOOL)r
                                       block:(void (^)(NSTimer *timer))block;
 - (void)invalidate;
++ (NSTimer *)scheduledTimerWithTimeInterval:(NSTimeInterval)ti target:(id)aTarget selector:(SEL)aSelector userInfo:(nullable id)userInfo repeats:(BOOL)yesOrNo;
 @end
 
 // URL loading

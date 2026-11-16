@@ -274,7 +274,7 @@ It is possible that this object was over-released, or is in the process of deall
 Thread 1: abort with payload or reason`}>
 這是 runtime 自己印的，訊息已經把兩個可能原因寫出來了：（一）物件正在 `dealloc`，你在裡面（或在它觸發的方法裡）建立了 `__weak` 參考——最常見的是 `dealloc` 裡呼叫了某個會 `addObserver:` 或設 delegate 的清理方法；（二）物件被多 release 一次（MRC 檔案或 `__bridge_transfer` 用錯，4.5），計數提早歸零，而某處還拿著 strong 指標並嘗試轉成 weak。
 
-查法：除錯器停在系統的 `__abort_with_payload`，往下看堆疊，`_objc_fatal` → `weak_register_no_lock` → `objc_initWeak` 下面第一個你的 frame 就是建立 weak 參考的那一行；再往下有沒有 `-[LBLedger dealloc]` 或 `.cxx_destruct`。有，就是原因一，把那段清理改成不需要 weak 的同步寫法；沒有，就開 Zombie Objects 找多出來的那一次 release。
+查法：除錯器停在系統的 `__abort_with_payload`，往下看堆疊，`_objc_fatal` → `weak_register_no_lock` → `objc_initWeak` 下面第一個你的 frame 就是建立 weak 參考的那一行；看那一格或再往下有沒有 `-[LBLedger dealloc]` 或 `.cxx_destruct`。有，就是原因一，把那段清理改成不需要 weak 的同步寫法；沒有，就開 Zombie Objects 找多出來的那一次 release。
 </Crash>
 
 ## 小結

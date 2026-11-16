@@ -40,7 +40,7 @@ node scripts/qa-mobile.mjs                    # iPhone 尺寸全站：橫向溢�
 # Xcode（Mac）
 cd xcode/M05-starter && xcodegen generate && open LittleBook.xcodeproj
 xcodebuild test -project LittleBook.xcodeproj -scheme LittleBook \
-  -destination 'platform=iOS Simulator,name=iPhone 16'
+  -destination 'platform=iOS Simulator,name=iPhone 17'   # 機型名稱以 xcrun simctl list devices available 為準
 bash xcode/tools/check.sh xcode/M10-solution  # 沒有 Xcode 時：替身 SDK 的 clang 語法檢查
 ```
 

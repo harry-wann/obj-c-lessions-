@@ -11,7 +11,7 @@
 #import "LBTransaction.h"
 
 /// 並行請求壓力測試用的公開匯率 API（格式和 LBRateService 期待的一樣：{"base":…, "rates":{…}}）。
-static NSString * const LBPerformanceRateBaseURL = @"https://api.frankfurter.app";
+static NSString * const LBPerformanceRateBaseURL = @"https://api.frankfurter.dev/v1";   // 舊網域 api.frankfurter.app 會 301 轉址到這裡
 static const NSUInteger LBPerformanceRequestCount = 50;
 static const NSUInteger LBPerformanceRequestLimit = 4;
 static const NSUInteger LBPerformanceUndoRounds = 200;

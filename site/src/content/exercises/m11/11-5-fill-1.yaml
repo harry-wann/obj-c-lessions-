@@ -3,9 +3,9 @@ chapter: "11.5"
 type: fill
 title: 補完 Podfile
 minutes: 2
-prompt: 為小帳本補完 Podfile：iOS 13、主 target 加 Masonry 1.1.x、測試 target 繼承搜尋路徑。
+prompt: 為小帳本補完 Podfile：iOS 17、主 target 加 Masonry 1.1.x、測試 target 繼承搜尋路徑。
 code: |
-  platform :ios, '13.0'
+  platform :ios, '17.0'
 
   ___1___ 'LittleBook' do
     pod 'Masonry', '___2___'

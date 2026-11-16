@@ -91,6 +91,11 @@ OTHER_LDFLAGS:
 `-ObjC` 叫連結器把所有含 ObjC 類別或 category 的 object file 都拉進來（11.6）。
 若仍無效，可改用 `-force_load $(BUILT_PRODUCTS_DIR)/libLBLegacyKit.a`。
 
+**跟 XcodeGen 的關係**：XcodeGen 預設會替依賴靜態庫的 target 自動加 `-ObjC`（target 設定
+`requiresObjCLinking`，靜態庫預設 `true`），等於工具替你修好了這顆雷。手動建立或年代久遠的
+`.xcodeproj` 不會有這個貼心設計，所以 `project.yml` 在 `LBLegacyKit` 上把它設成 `false`，
+重現原始專案的狀態。修法仍然是在 App 自己的 `OTHER_LDFLAGS` 加 `-ObjC`，不要去改那一行。
+
 **跟 CocoaPods 的關係**：CocoaPods 產生的 xcconfig 本來會帶 `-ObjC`，透過 `$(inherited)`
 就會「意外」修好這顆雷。這個 Podfile 的 `post_install` 是歷史遺留，會把 Pods xcconfig 裡的
 `-ObjC` 拿掉，所以有沒有 `pod install` 雷都在。正確的修法是在 **App 自己的** Build Settings

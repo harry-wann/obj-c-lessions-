@@ -8,16 +8,16 @@ prompt: 用第一天 SOP 走一遍 LittleBook-Legacy，修掉剩下四處埋雷�
 starter: xcode/M11-starter
 steps:
   - "SOP 第 1–2 步：跑起來、列出 target 與 Build Settings。記下 `Other Linker Flags` 目前的值與有 `-fno-objc-arc` 的檔案清單。"
-  - "埋雷 3：進列表頁 crash `NSUnknownKeyException ... key totalLabel`。開 `Main.storyboard`，LBLegacyListViewController 的 Connections inspector 找黃色三角形，刪掉、重拖到正確屬性。"
-  - "埋雷 4：點某一列 crash `has no segue with identifier 'showDetail'`。點選 segue 箭頭，Identifier 欄把打錯的字改成 `showDetail`（跟程式碼常數一致）。"
-  - "埋雷 5：啟動後 `-[__NSCFString lb_trimmed]: unrecognized selector`。主 target Build Settings → Other Linker Flags 加 `$(inherited) -ObjC`。"
-  - "埋雷 6：進出列表頁快速來回，偶爾 crash 在 `LBLegacyRateService` 的 delegate 回呼。在 `LBLegacyListViewController` 的 `dealloc` 加 `_rateService.delegate = nil; [_rateService cancel];`（若 11.2 已改成 NSURLSession，則 `[self.currentTask cancel]`）。開 Zombie Objects 再來回 20 次。"
-  - "打開 `LegacyAudit.plist`，六個 key（`fixedOverRelease`、`fixedSetterLeak`、`fixedBrokenOutlet`、`fixedSegueIdentifier`、`addedObjCLinkerFlag`、`cancelsConnectionInDealloc`）全部設 YES。⌘U 跑 `LBLegacyAuditTests/testLegacyChecklistComplete`。"
+  - "埋雷 3：一啟動就 crash `NSUnknownKeyException ... not key value coding-compliant for the key summaryLabel`。開 `Main.storyboard`，LBLegacyListViewController 的 Connections inspector 找黃色三角形（`summaryLabel`），刪掉、從表頭 label 重拖到現在的屬性 `totalLabel`。"
+  - "埋雷 4：點某一列 crash `has no segue with identifier 'showDetial'`。storyboard 的 segue 與 `prepareForSegue:` 都是 `showDetail`，打錯的是 `LBLegacyListViewController.m` 裡 `performSegueWithIdentifier:` 的字串；改正後抽成 `static NSString * const` 常數。"
+  - "埋雷 5：列表第一次顯示就 crash `-[__NSCFConstantString lb_trimmed]: unrecognized selector`。App target 的 Other Linker Flags 加 `-ObjC`（保留 `$(inherited)`）：改 `project.yml` 的 `OTHER_LDFLAGS` 後重新 `xcodegen generate`（有用 Pods 再 `pod install`）。"
+  - "埋雷 6：進明細頁後立刻按返回，網路慢時（Network Link Conditioner 選 3G）幾秒後 crash：`-[LBLegacyDetailViewController rateService:didLoadRates:]: message sent to deallocated instance`（需開 Zombie Objects）。在 `LBLegacyDetailViewController` 的 `dealloc` 加 `_rateService.delegate = nil; [_rateService cancel];`，`LBLegacyRateService` 的 `dealloc` 也補 `[_connection cancel]`（若 11.2 已改成 NSURLSession，則 cancel 對應的 task）。開 Zombie Objects 再來回 20 次。"
+  - "打開 `LittleBook-Legacy/LegacyAudit.plist` 與主線專案的 `LittleBookTests/LegacyAudit.plist`，六個 key（`fixedOverRelease`、`fixedSetterLeak`、`fixedBrokenOutlet`、`fixedSegueIdentifier`、`addedObjCLinkerFlag`、`cancelsConnectionInDealloc`）全部設 YES。⌘U 跑 `LBLegacyAuditTests/testLegacyChecklistComplete`。"
   - "每個埋雷一個 commit；最後補 `docs/ONBOARDING.md`（SOP 第 9 步）。"
 tests:
   - LBLegacyAuditTests/testLegacyChecklistComplete
 acceptance:
-  - "Zombie Objects 開啟下，列表 ↔ 詳情 ↔ 設定頁來回 20 次不 crash"
+  - "Zombie Objects 開啟、Network Link Conditioner 選 3G，列表 ↔ 明細來回 20 次不 crash"
   - "啟動 log 無 unrecognized selector"
   - "git log 六個獨立 commit，每個訊息說明修的是哪個埋雷"
   - "ONBOARDING.md 列出 target 表、Singleton 清單、通知清單、-fno-objc-arc 檔案清單"

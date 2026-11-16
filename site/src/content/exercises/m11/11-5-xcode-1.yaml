@@ -8,7 +8,7 @@ prompt: 為 LittleBook 建 Podfile 加入 Masonry，開 .xcworkspace，把 LBTra
 starter: xcode/M11-starter
 steps:
   - "終端機 `cd` 到 `LittleBook.xcodeproj` 所在目錄，`pod init`。"
-  - "Podfile：`platform :ios, '13.0'`、主 target `pod 'Masonry', '~> 1.1'`、測試 target `inherit! :search_paths`。**不加** `use_frameworks!`。"
+  - "Podfile：`platform :ios, '17.0'`、主 target `pod 'Masonry', '~> 1.1'`、測試 target `inherit! :search_paths`。**不加** `use_frameworks!`。"
   - "`pod install`，關掉 .xcodeproj，`open LittleBook.xcworkspace`。⌘B 一次。"
   - "`LBTransactionEditorViewController.m` 加 `#import <Masonry/Masonry.h>`，把 `activateConstraints:` 那一大段逐條改成 `mas_makeConstraints:`。每改一個 view 就 ⌘R 比對一次版面。"
   - "⌘U：M08 的兩個 LBTransactionEditorViewControllerTests 要照過。"

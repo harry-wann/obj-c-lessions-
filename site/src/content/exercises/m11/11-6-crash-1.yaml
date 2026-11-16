@@ -16,7 +16,7 @@ fix: |
   // Build Settings → Other Linker Flags：
   $(inherited) -ObjC
   // 若該 .a 只有 category 沒有類別，改用：
-  -force_load $(SRCROOT)/Vendor/LBLegacyKit.a
+  -force_load $(BUILT_PRODUCTS_DIR)/libLBLegacyKit.a
 solution_note: "關鍵線索：方法明明有宣告有實作、編譯連結都過、接收者是真的 NSString（`__NSCFString` 是它的私有子類別）。排除拼錯與 import 後，就剩「實作沒進執行檔」這一個可能，而這只發生在靜態連結 + 純 category。LittleBook-Legacy 埋雷 5。"
 hints: ["編譯連結都過了，實作卻不在執行檔裡——誰決定哪些 object file 進執行檔？", "11.6 課文 -ObjC 那一節。"]
 feedback:

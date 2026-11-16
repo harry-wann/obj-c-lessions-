@@ -22,6 +22,9 @@ targets:
     # 2013 年從另一個專案搬過來的共用小工具，編成靜態庫 libLBLegacyKit.a
     type: library.static
     platform: iOS
+    # XcodeGen 專用：XcodeGen 預設會替「連結這個靜態庫的 target」自動補連結旗標，
+    # 這裡關掉，讓產生的 .xcodeproj 和 2013 年手動建的原始專案設定一致。這行保持原樣（見 SOLUTIONS.md 雷 5）
+    requiresObjCLinking: false
     sources:
       - path: LBLegacyKit
         headerVisibility: project

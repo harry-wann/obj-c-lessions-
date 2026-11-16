@@ -52,7 +52,7 @@ open LittleBookLegacy.xcworkspace   # 從此開 .xcworkspace，不要開 .xcodep
 `not key value coding-compliant for the key ...`。在程式碼裡搜那個 key，一個也找不到。
 
 **雷 5 · 列表第一次顯示**
-crash：`-[__NSCFString lb_trimmed]: unrecognized selector sent to instance ...`。
+crash：`-[__NSCFConstantString lb_trimmed]: unrecognized selector sent to instance ...`。
 可是 `lb_trimmed` 明明有宣告、也有實作，編譯、連結都沒有錯誤。
 
 **雷 4 · 點任一筆交易**
@@ -86,7 +86,8 @@ crash：`Receiver (<LBLegacyListViewController: 0x...>) has no segue with identi
 | `addedObjCLinkerFlag` | 5 |
 | `cancelsConnectionInDealloc` | 6 |
 
-主線專案的 `LBLegacyAuditTests/testLegacyChecklistComplete` 會讀這個檔，六個都是 YES 才綠。
+主線專案（M11）的 `LittleBookTests/LegacyAudit.plist` 有同樣六個 key，也一起改：
+`LBLegacyAuditTests/testLegacyChecklistComplete` 讀的是主線那一份（測試 bundle 的資源），六個都是 YES 才綠。
 這是**誠實制**：測試只看勾選；真正的驗收是 App 能跑、上面六個症狀都不再出現。
 
 ## 修完還可以做（11.1 / 11.2 / 11.7）

@@ -15,7 +15,7 @@ node --experimental-strip-types scripts/check-solutions.mjs   # code 題參考�
 node scripts/qa-mobile.mjs                    # 手機尺寸全站檢查（需先 build + preview）
 ```
 
-部署：GitHub Pages。把本分支合併到 `main`，在 repo Settings → Pages 選「GitHub Actions」，`.github/workflows/deploy.yml` 會自動建置並發佈到 `https://harry-wann.github.io/obj-c-lessions-/`。
+部署：GitHub Pages（已上線）。推送到 `main` 時 `.github/workflows/deploy.yml` 會自動建置並發佈到 https://harry-wann.github.io/obj-c-lessions-/ 。
 
 Xcode 專案：`xcode/README.md`（需要 Mac，`brew install xcodegen`）。在 Linux 上可用 `bash xcode/tools/check.sh xcode/M10-solution` 以替身 SDK 做語法檢查。
 

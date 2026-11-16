@@ -1,0 +1,32 @@
+# .clang-format（12.5）：團隊唯一可以吵排版的地方，吵完 commit 進去就結案。
+# 用法：find LittleBook LittleBookTests -name '*.[hm]' | xargs clang-format -i
+# CI：  find LittleBook LittleBookTests -name '*.[hm]' | xargs clang-format --dry-run --Werror
+Language: ObjC
+BasedOnStyle: Google
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+ObjCBlockIndentWidth: 4
+ObjCSpaceAfterProperty: true          # @property (nonatomic) 的括號前留空格
+ObjCSpaceBeforeProtocolList: true     # id <LBDelegate> → id<LBDelegate> 由此控制
+AlignTrailingComments: true
+AllowShortBlocksOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+BreakBeforeBraces: Attach
+PointerAlignment: Right               # NSString *name，星號靠變數
+SpacesInContainerLiterals: true       # @[ a, b ]、@{ k : v }
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+IncludeBlocks: Preserve
+SortIncludes: false                   # ObjC 的 #import 順序常有意義，不要自動排
+---
+# 課文那一份之外只加這一段：只有 #import 的標頭（例如兩個橋接標頭）沒有任何 ObjC 關鍵字，
+# clang-format 會把它猜成 C++ 然後報「do(es) not support C++」；給 C++ 一套相同的排版即可。
+Language: Cpp
+BasedOnStyle: Google
+IndentWidth: 4
+ColumnLimit: 100
+PointerAlignment: Right
+SortIncludes: false

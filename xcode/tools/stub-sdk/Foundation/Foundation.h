@@ -139,6 +139,12 @@ enum { NSKeyValueObservingOptionNew = 1 };
 - (NSRange)rangeOfString:(NSString *)s options:(NSUInteger)options;
 - (nullable NSData *)dataUsingEncoding:(NSUInteger)encoding;
 - (void)enumerateLinesUsingBlock:(void (^)(NSString *line, BOOL *stop))block;
++ (nullable instancetype)stringWithContentsOfFile:(NSString *)path encoding:(NSUInteger)enc
+                                            error:(NSError **)error;
+@property (readonly, copy) NSString *pathExtension;
+@property (readonly, copy) NSString *lastPathComponent;
+@property (readonly, copy) NSString *stringByDeletingLastPathComponent;
+- (NSString *)stringByAppendingPathComponent:(NSString *)s;
 @property (readonly) double doubleValue;
 @property (readonly) NSInteger integerValue;
 @end
@@ -255,6 +261,7 @@ enum { NSSortStable = 16, NSBinarySearchingFirstEqual = 256, NSBinarySearchingLa
 @property (readonly, copy) NSArray<KeyType> *allKeys;
 - (nullable ObjectType)objectForKey:(KeyType)k;
 - (nullable ObjectType)objectForKeyedSubscript:(KeyType)k;
++ (nullable NSDictionary<KeyType, ObjectType> *)dictionaryWithContentsOfURL:(NSURL *)url;
 @end
 @interface NSMutableDictionary<KeyType, ObjectType> : NSDictionary<KeyType, ObjectType>
 + (instancetype)dictionaryWithCapacity:(NSUInteger)c;
@@ -340,6 +347,11 @@ NSString *NSTemporaryDirectory(void);
 @end
 
 enum { NSApplicationSupportDirectory = 14, NSUserDomainMask = 1 };
+@interface NSEnumerator<ObjectType> : NSObject <NSFastEnumeration>
+- (nullable ObjectType)nextObject;
+@end
+@interface NSDirectoryEnumerator<ObjectType> : NSEnumerator<ObjectType>
+@end
 @interface NSFileManager : NSObject
 @property (class, readonly, strong) NSFileManager *defaultManager;
 - (NSArray<NSURL *> *)URLsForDirectory:(NSUInteger)d inDomains:(NSUInteger)m;
@@ -349,6 +361,8 @@ enum { NSApplicationSupportDirectory = 14, NSUserDomainMask = 1 };
 - (BOOL)removeItemAtURL:(NSURL *)u error:(NSError **)e;
 - (BOOL)moveItemAtURL:(NSURL *)a toURL:(NSURL *)b error:(NSError **)e;
 - (nullable NSArray<NSString *> *)contentsOfDirectoryAtPath:(NSString *)p error:(NSError **)e;
+- (BOOL)fileExistsAtPath:(NSString *)p isDirectory:(nullable BOOL *)d;
+- (nullable NSDirectoryEnumerator<NSString *> *)enumeratorAtPath:(NSString *)p;
 @end
 
 @interface NSJSONSerialization : NSObject
@@ -489,6 +503,9 @@ enum { NSNumberFormatterDecimalStyle = 1 };
 @end
 
 @interface NSBundle : NSObject
+@property (class, readonly, strong) NSBundle *mainBundle;
++ (NSBundle *)bundleForClass:(Class)c;
+- (nullable NSURL *)URLForResource:(nullable NSString *)name withExtension:(nullable NSString *)ext;
 @end
 
 typedef NSString *NSRunLoopMode;

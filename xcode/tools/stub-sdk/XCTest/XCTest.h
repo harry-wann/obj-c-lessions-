@@ -40,3 +40,4 @@ void _XCTFail(const char *f, ...);
     double _c = (acc); (void)(_a - _b < _c); _XCT_MSG(__VA_ARGS__); } while (0)
 #define XCTAssertNoThrow(e, ...) do { (e); _XCT_MSG(__VA_ARGS__); } while (0)
 #define XCTFail(...) _XCT_MSG(__VA_ARGS__)
+#define XCTSkip(...) _XCT_MSG(__VA_ARGS__)

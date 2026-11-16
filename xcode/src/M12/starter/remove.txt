@@ -1,0 +1,2 @@
+# M12 starter：.clang-format 是 12.5 要學生自己放的（照課文那一份）
+.clang-format

@@ -12,7 +12,7 @@ steps:
   - "埋雷 4：點某一列 crash `has no segue with identifier 'showDetail'`。點選 segue 箭頭，Identifier 欄把打錯的字改成 `showDetail`（跟程式碼常數一致）。"
   - "埋雷 5：啟動後 `-[__NSCFString lb_trimmed]: unrecognized selector`。主 target Build Settings → Other Linker Flags 加 `$(inherited) -ObjC`。"
   - "埋雷 6：進出列表頁快速來回，偶爾 crash 在 `LBLegacyRateService` 的 delegate 回呼。在 `LBLegacyListViewController` 的 `dealloc` 加 `_rateService.delegate = nil; [_rateService cancel];`（若 11.2 已改成 NSURLSession，則 `[self.currentTask cancel]`）。開 Zombie Objects 再來回 20 次。"
-  - "打開 `LegacyAudit.plist`，六個 key（`overReleaseFixed`、`setterLeakFixed`、`outletReconnected`、`segueIdentifierFixed`、`objcLinkerFlagAdded`、`connectionCancelledInDealloc`）全部設 YES。⌘U 跑 `LBLegacyAuditTests/testLegacyChecklistComplete`。"
+  - "打開 `LegacyAudit.plist`，六個 key（`fixedOverRelease`、`fixedSetterLeak`、`outletReconnected`、`fixedSegueIdentifier`、`objcLinkerFlagAdded`、`connectionCancelledInDealloc`）全部設 YES。⌘U 跑 `LBLegacyAuditTests/testLegacyChecklistComplete`。"
   - "每個埋雷一個 commit；最後補 `docs/ONBOARDING.md`（SOP 第 9 步）。"
 tests:
   - LBLegacyAuditTests/testLegacyChecklistComplete

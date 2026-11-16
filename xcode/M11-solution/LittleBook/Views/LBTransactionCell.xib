@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="22505" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES">
+    <device id="retina6_12" orientation="portrait" appearance="light"/>
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="22504"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <!--File's Owner 維持 NSObject、不連任何 outlet：registerNib: 載入時 owner 是 nil（11.4）-->
+        <placeholder placeholderIdentifier="IBFilesOwner" id="-1" userLabel="File's Owner"/>
+        <placeholder placeholderIdentifier="IBFirstResponder" id="-2" customClass="UIResponder"/>
+        <!--唯一的頂層物件：Class 與 reuse identifier 都設在 cell 上-->
+        <tableViewCell contentMode="scaleToFill" selectionStyle="default" accessoryType="disclosureIndicator" indentationWidth="10" reuseIdentifier="LBTransactionCell" rowHeight="64" id="tXc-Ce-001" customClass="LBTransactionCell">
+            <rect key="frame" x="0.0" y="0.0" width="375" height="64"/>
+            <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+            <tableViewCellContentView key="contentView" opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="center" preservesSuperviewLayoutMargins="YES" tableViewCell="tXc-Ce-001" id="tXc-Cv-001">
+                <rect key="frame" x="0.0" y="0.0" width="348" height="64"/>
+                <autoresizingMask key="autoresizingMask"/>
+                <subviews>
+                    <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="tXc-Bg-001" userLabel="Icon Background">
+                        <rect key="frame" x="16" y="12" width="40" height="40"/>
+                        <subviews>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" translatesAutoresizingMaskIntoConstraints="NO" id="tXc-Ic-001" userLabel="Icon View">
+                                <rect key="frame" x="6" y="6" width="28" height="28"/>
+                                <constraints>
+                                    <constraint firstAttribute="width" constant="28" id="tXc-K0-001"/>
+                                    <constraint firstAttribute="height" constant="28" id="tXc-K0-002"/>
+                                </constraints>
+                            </imageView>
+                        </subviews>
+                        <constraints>
+                            <constraint firstAttribute="width" constant="40" id="tXc-K1-001"/>
+                            <constraint firstAttribute="height" constant="40" id="tXc-K1-002"/>
+                            <constraint firstItem="tXc-Ic-001" firstAttribute="centerX" secondItem="tXc-Bg-001" secondAttribute="centerX" id="tXc-K1-003"/>
+                            <constraint firstItem="tXc-Ic-001" firstAttribute="centerY" secondItem="tXc-Bg-001" secondAttribute="centerY" id="tXc-K1-004"/>
+                        </constraints>
+                        <userDefinedRuntimeAttributes>
+                            <userDefinedRuntimeAttribute type="number" keyPath="layer.cornerRadius">
+                                <integer key="value" value="20"/>
+                            </userDefinedRuntimeAttribute>
+                        </userDefinedRuntimeAttributes>
+                    </view>
+                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="250" verticalHuggingPriority="251" horizontalCompressionResistancePriority="250" text="標題" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontForContentSizeCategory="YES" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="tXc-Tt-001" userLabel="Title Label">
+                        <rect key="frame" x="68" y="10" width="34" height="20.333333333333332"/>
+                        <fontDescription key="fontDescription" style="UICTFontTextStyleBody"/>
+                        <nil key="textColor"/>
+                        <nil key="highlightedColor"/>
+                    </label>
+                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="250" verticalHuggingPriority="251" horizontalCompressionResistancePriority="250" text="副標" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontForContentSizeCategory="YES" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="tXc-Sb-001" userLabel="Subtitle Label">
+                        <rect key="frame" x="68" y="34.333333333333336" width="24" height="14.333333333333334"/>
+                        <fontDescription key="fontDescription" style="UICTFontTextStyleCaption1"/>
+                        <nil key="textColor"/>
+                        <nil key="highlightedColor"/>
+                    </label>
+                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" horizontalCompressionResistancePriority="1000" text="-1,280.00" textAlignment="right" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="tXc-Am-001" userLabel="Amount Label">
+                        <rect key="frame" x="250" y="22" width="82" height="20.333333333333332"/>
+                        <fontDescription key="fontDescription" type="system" weight="semibold" pointSize="17"/>
+                        <nil key="textColor"/>
+                        <nil key="highlightedColor"/>
+                    </label>
+                </subviews>
+                <constraints>
+                    <!--圖示：leading 對 margin、垂直置中-->
+                    <constraint firstItem="tXc-Bg-001" firstAttribute="leading" secondItem="tXc-Cv-001" secondAttribute="leadingMargin" id="tXc-K2-001"/>
+                    <constraint firstItem="tXc-Bg-001" firstAttribute="centerY" secondItem="tXc-Cv-001" secondAttribute="centerY" id="tXc-K2-002"/>
+                    <!--標題：leading 對圖示 trailing 12、top 10-->
+                    <constraint firstItem="tXc-Tt-001" firstAttribute="leading" secondItem="tXc-Bg-001" secondAttribute="trailing" constant="12" id="tXc-K2-003"/>
+                    <constraint firstItem="tXc-Tt-001" firstAttribute="top" secondItem="tXc-Cv-001" secondAttribute="top" constant="10" id="tXc-K2-004"/>
+                    <!--副標：對齊標題、top 4、bottom ≥ 10（列高固定 64，用 ≥ 避免和列高打架）-->
+                    <constraint firstItem="tXc-Sb-001" firstAttribute="leading" secondItem="tXc-Tt-001" secondAttribute="leading" id="tXc-K2-005"/>
+                    <constraint firstItem="tXc-Sb-001" firstAttribute="top" secondItem="tXc-Tt-001" secondAttribute="bottom" constant="4" id="tXc-K2-006"/>
+                    <constraint firstAttribute="bottom" relation="greaterThanOrEqual" secondItem="tXc-Sb-001" secondAttribute="bottom" constant="10" id="tXc-K2-007"/>
+                    <!--金額：trailing 對 margin、垂直置中；標題 / 副標太長時壓它們不壓金額-->
+                    <constraint firstAttribute="trailingMargin" secondItem="tXc-Am-001" secondAttribute="trailing" id="tXc-K2-008"/>
+                    <constraint firstItem="tXc-Am-001" firstAttribute="centerY" secondItem="tXc-Cv-001" secondAttribute="centerY" id="tXc-K2-009"/>
+                    <constraint firstItem="tXc-Am-001" firstAttribute="leading" relation="greaterThanOrEqual" secondItem="tXc-Tt-001" secondAttribute="trailing" constant="8" id="tXc-K2-010"/>
+                    <constraint firstItem="tXc-Am-001" firstAttribute="leading" relation="greaterThanOrEqual" secondItem="tXc-Sb-001" secondAttribute="trailing" constant="8" id="tXc-K2-011"/>
+                </constraints>
+            </tableViewCellContentView>
+            <connections>
+                <outlet property="amountLabel" destination="tXc-Am-001" id="tXc-Ou-001"/>
+                <outlet property="iconBackground" destination="tXc-Bg-001" id="tXc-Ou-002"/>
+                <outlet property="iconView" destination="tXc-Ic-001" id="tXc-Ou-003"/>
+                <outlet property="subtitleLabel" destination="tXc-Sb-001" id="tXc-Ou-004"/>
+                <outlet property="titleLabel" destination="tXc-Tt-001" id="tXc-Ou-005"/>
+            </connections>
+            <point key="canvasLocation" x="0.0" y="0.0"/>
+        </tableViewCell>
+    </objects>
+</document>

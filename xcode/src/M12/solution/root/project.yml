@@ -1,0 +1,89 @@
+# XcodeGen 專案描述檔：在此資料夾執行 `xcodegen generate` 產生 LittleBook.xcodeproj
+# M11 起：Settings.storyboard、LBTransactionCell.xib、LegacyAudit.plist、Podfile（Masonry）。
+# M12 起：Swift 混編（StatsViewModel / StatsViewController），App 與測試 target 各一份橋接標頭。
+# 用 CocoaPods 時順序固定：`xcodegen generate` → `pod install` → `open LittleBook.xcworkspace`
+# （每次重跑 xcodegen 都會蓋掉 Pods 的整合設定，所以之後要再 `pod install` 一次）。
+name: LittleBook
+options:
+  bundleIdPrefix: com.littlebook
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    CLANG_ENABLE_OBJC_ARC: YES
+    CLANG_ENABLE_MODULES: YES
+    GCC_WARN_UNDECLARED_SELECTOR: YES
+    # 12.1：專案第一個 .swift 檔。兩個 target 共用同一個 Swift 版本
+    SWIFT_VERSION: "5.0"
+    # 12.4 / 12.5：想驗證「-Werror 可建置」時取消下面兩行註解（Pods 已在 Podfile 關掉 -Werror）
+    # WARNING_CFLAGS: ["-Wall", "-Wextra", "-Wno-unused-parameter", "-Wimplicit-retain-self"]
+    # GCC_TREAT_WARNINGS_AS_ERRORS: YES
+    # 若 Xcode 抱怨 signing，取消下一行註解並填入你的 Team ID（模擬器通常不需要）
+    # DEVELOPMENT_TEAM: ABCDE12345
+targets:
+  LittleBook:
+    type: application
+    platform: iOS
+    # 資源：XcodeGen 依副檔名自動分類，.storyboard / .xib 會進「Copy Bundle Resources」
+    # （編譯成 .storyboardc / .nib），.h 不進任何 build phase，Info.plist 由下面 excludes 排除。
+    # 驗證方法：Xcode → LittleBook target → Build Phases → Copy Bundle Resources 要看到
+    # Settings.storyboard 與 LBTransactionCell.xib（11.4 的 Crash：Could not load NIB）。
+    sources:
+      - path: LittleBook
+        excludes:
+          - "Info.plist"
+    info:
+      path: LittleBook/Info.plist
+      properties:
+        CFBundleDisplayName: 小帳本
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        # 仍然不設 UIMainStoryboardFile：主畫面由 SceneDelegate 以程式碼建立，
+        # 只有設定頁從 Settings.storyboard 載入（storyboardWithName:bundle:）
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneDelegateClassName: SceneDelegate
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1"
+        # 12.1：Swift 看得到哪些 ObjC 類別，由這份橋接標頭決定
+        SWIFT_OBJC_BRIDGING_HEADER: LittleBook/LittleBook-Bridging-Header.h
+        # 12.2：產生模組（LittleBook）與 ObjC 用的 LittleBook-Swift.h（檔名 = 模組名 + -Swift.h）
+        DEFINES_MODULE: YES
+        SWIFT_OBJC_INTERFACE_HEADER_NAME: LittleBook-Swift.h
+      configs:
+        # 11.4：Debug 用 XIB 版 cell、Release 用程式碼版；把 1 改成 0 就能比較兩個版本
+        Debug:
+          GCC_PREPROCESSOR_DEFINITIONS:
+            - "$(inherited)"
+            - "LB_USE_NIB_CELL=1"
+    scheme:
+      testTargets:
+        - LittleBookTests
+  LittleBookTests:
+    type: bundle.unit-test
+    platform: iOS
+    # LegacyAudit.plist 一樣依副檔名進測試 bundle 的 Copy Bundle Resources，
+    # LBLegacyAuditTests 用 [NSBundle bundleForClass:] 讀它
+    sources:
+      - path: LittleBookTests
+    dependencies:
+      - target: LittleBook
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        # 讓測試可以 #import "LBXxx.h"（Xcode 的 header map 通常已夠用，這行是保險）；
+        # 第三行讓 ObjC 測試（LBBridgingTests.m）找得到 App target 產生的 LittleBook-Swift.h
+        HEADER_SEARCH_PATHS:
+          - "$(inherited)"
+          - "$(SRCROOT)/LittleBook/**"
+          - "$(CONFIGURATION_TEMP_DIR)/LittleBook.build/DerivedSources"
+        # 12.3：Swift 測試（StatsViewModelTests.swift）用 @testable import LittleBook 拿 Swift 類別，
+        # ObjC 類別與測試專用的 LBStubURLProtocol 則透過測試自己的橋接標頭
+        SWIFT_OBJC_BRIDGING_HEADER: LittleBookTests/LittleBookTests-Bridging-Header.h

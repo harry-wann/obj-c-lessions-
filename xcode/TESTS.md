@@ -76,8 +76,8 @@ NSString *LBFormatCents(long long cents);       // 128000 → @"1,280.00"
 | M08 | `LBTransactionListViewControllerTests/testSectionsMatchMonths`、`LBTransactionListViewControllerTests/testCellResetsAllFields`、`LBTransactionListViewControllerTests/testDeletingLastRowRemovesSection`、`LBCategoryPickerViewControllerTests/testRowsRespectExpansion`、`LBTransactionEditorViewControllerTests/testSaveCallsDelegateWithTransaction`、`LBTransactionEditorViewControllerTests/testInvalidAmountDoesNotSave` ＋ 手動驗收 12 項 | 8.1–8.8 |
 | M09 | `LBPersistenceTests/testRoundTripJSON`、`LBPersistenceTests/testWritesAtomicallyToDirectory`、`LBPersistenceTests/testCorruptFileReturnsError`、`LBPersistenceTests/testMissingFileReturnsEmptyLedger`、`LBSettingsTests/testDefaultsRegistered`、`LBSettingsTests/testCurrencyCodePersists`、`LBTransactionCodingTests/testDictionaryRoundTrip`、`LBTransactionCodingTests/testSecureCodingRoundTrip` | 9.1–9.4 |
 | M10 | `LBRingBufferTests/testOverwritesOldest`、`LBRingBufferTests/testAverageAndMax`、`LBFPSMonitorTests/testClassifiesDroppedFrames`、`LBImportServiceTests/testImportsInBatchesAndReportsProgress`、`LBImportServiceTests/testCancelStopsImport`、`LBSearchControllerTests/testStaleResultsAreDropped`、`LBSearchControllerTests/testDebounceCoalescesInput`、`LBLedgerConcurrencyTests/testBarrierWritesAreSerialized`、`LBLockBenchmarkTests/testAllLocksProduceSameCount`、`LBRateServiceTests/testConcurrentFetchLimitedBySemaphore`、`LBTransactionViewModelTests/testFormatsOnceAndCaches` | 10.1–10.7 |
-| M11 | `LBSettingsStoryboardTests/testStoryboardInstantiatesSettingsViewController`、`LBSettingsStoryboardTests/testOutletsConnectedAfterLoadView`、`LBTransactionCellNibTests/testNibLoadsCellWithOutlets`、`LBLegacyAuditTests/testLegacyChecklistComplete`（讀 `LegacyAudit.plist` 的 6 個勾選）＋ `LittleBook-Legacy/` 手動驗收 6 項 | 11.1–11.7 |
-| M12 | `StatsViewModelTests/testTotalsFromLedger`（Swift）、`StatsViewModelTests/testCategoryBreakdownSorted`（Swift）、`LBBridgingTests/testObjCCanInstantiateSwiftStatsViewController`、`LBBridgingTests/testNullabilityAnnotationsPresent`（檢查 `LBLedger.h` 等標頭有 `NS_ASSUME_NONNULL_BEGIN`）＋ 全套測試全綠、Analyze 零警告、`-Werror` 可建置 | 12.1–12.6 |
+| M11 | `LBSettingsStoryboardTests/testStoryboardInstantiatesSettingsViewController`、`LBSettingsStoryboardTests/testOutletsConnectedAfterLoadView`、`LBTransactionCellNibTests/testNibLoadsCellWithOutlets`、`LBLegacyAuditTests/testLegacyChecklistComplete`（讀 `LegacyAudit.plist` 的 6 個勾選）＋ `LittleBook-Legacy/` 手動驗收 6 項；補充：`LBSettingsStoryboardTests/testPrepareForSegueInjectsLedgerAndMonitor` | 11.1–11.7 |
+| M12 | `StatsViewModelTests/testTotalsFromLedger`（Swift）、`StatsViewModelTests/testCategoryBreakdownSorted`（Swift）、`LBBridgingTests/testObjCCanInstantiateSwiftStatsViewController`、`LBBridgingTests/testNullabilityAnnotationsPresent`（掃專案所有 `.h` 都有 `NS_ASSUME_NONNULL_BEGIN / END`、`NS_SWIFT_NAME` ≥ 2 處）＋ 全套測試全綠、Analyze 零警告、`-Werror` 可建置；補充：`LBSwiftAsyncTests/testFetchRatesCanBeAwaitedFromSwift`、`LBSwiftAsyncTests/testFetchRatesErrorBecomesThrow`（Swift，`async` 呼叫 completion handler）、`LBLedgerTests/testAddingExpenseLowersTotal`（12.3 課文範例） | 12.1–12.6 |
 
 ## Phase 2 共用介面（名稱固定）
 
@@ -191,12 +191,18 @@ typedef NS_ERROR_ENUM(LBErrorDomain, LBErrorCode) { LBErrorCodeMalformedJSON = 1
 
 // M11 ----------------------------------------------------------------
 // Settings.storyboard：LBSettingsViewController（static cells；IBOutlet currencyLabel / centsSwitch / appearanceLabel；segue identifier "showPerformance" → LBPerformanceViewController）
+//   Storyboard ID "Settings"（instantiateViewControllerWithIdentifier:）；initial VC 是包著它的 UINavigationController
+//   （SceneDelegate 用 instantiateInitialViewController）；IBAction centsSwitchChanged:；unwind 目的地 unwindFromPerformance:
 // LBTransactionCell.xib：同一個 cell 的 XIB 版；registerNib:；File's Owner 不用
+//   列表用 #if LB_USE_NIB_CELL 二選一註冊（課文 11.4 的巨集名；project.yml 的 Debug 定義成 1）
 // Podfile：Masonry（編輯頁改寫一次）；use_frameworks! 不用（靜態）
 // LittleBook-Legacy/：獨立專案（MRC、全 Storyboard、NSURLConnection、UIAlertView、CocoaPods），埋雷 6 處：
 //   1 LBLegacyTransaction over-release（dealloc 多 release）2 setter 漏 release 洩漏 3 LBLegacyListViewController 一條 IBOutlet 斷線
 //   4 segue identifier 打錯 5 category 在靜態庫未加 -ObjC 6 NSURLConnection delegate 未在 dealloc 取消（類別名以課文為準：LBLegacyRateService、NSString+LBUtils、LBLegacyLedgerManager；詳見 LittleBook-Legacy/SOLUTIONS.md）
 // LegacyAudit.plist：6 個 BOOL 勾選；LBLegacyAuditTests 讀它（學生修完後手動勾）
+//   key 與 LittleBook-Legacy/LegacyAudit.plist 相同：fixedOverRelease / fixedSetterLeak / fixedBrokenOutlet /
+//   fixedSegueIdentifier / addedObjCLinkerFlag / cancelsConnectionInDealloc
+//   （練習題 11.1 / 11.6 寫的 overReleaseFixed … connectionCancelledInDealloc 測試也認，當別名）
 
 // M12 ----------------------------------------------------------------
 // StatsViewController.swift / StatsViewModel.swift（@objc，繼承 NSObject）：
@@ -206,7 +212,7 @@ typedef NS_ERROR_ENUM(LBErrorDomain, LBErrorCode) { LBErrorCodeMalformedJSON = 1
 // 全部 ObjC 標頭補 NS_ASSUME_NONNULL；NS_SWIFT_NAME 示範至少 2 處；completion handler 方法 Swift 端可 async 呼叫
 ```
 
-## Phase 2 補充介面（M08–M10 實作時為測試 / 頁面新增；名稱同樣固定）
+## Phase 2 補充介面（M08–M12 實作時為測試 / 頁面新增；名稱同樣固定）
 
 ```objc
 // M08 ----------------------------------------------------------------
@@ -255,4 +261,37 @@ extern NSNotificationName const LBLedgerDidImportBatchNotification;   // userInf
 // LBPerformanceViewController：- initWithLedger:；importCount（預設 100,000）
 // LBFrameHistoryView（Views/）：values（毫秒）/ maximumMilliseconds / slotCount
 // 測試用 LBStubURLProtocol（M10 版）：+ setResponseDelay: / + maxConcurrentRequests / + totalRequests / + resetConcurrencyStats
+
+// M11 ----------------------------------------------------------------
+// LBSettingsViewController（Storyboard 版；initWithCoder: 是唯一的指定初始化器，其餘 init 全 NS_UNAVAILABLE）：
+extern NSString * const LBSettingsStoryboardName;          // @"Settings"
+extern NSString * const LBSettingsStoryboardIdentifier;    // @"Settings"（Storyboard ID）
+extern NSString * const LBSettingsShowPerformanceSegue;    // @"showPerformance"
++ (instancetype)instantiateFromStoryboard;                 // bundleForClass: 載入，測試與 App 共用
+@property (nonatomic, strong, null_resettable) LBSettings *settings;   // 沒注入 = [LBSettings shared]
+@property (nonatomic, strong, nullable) LBLedger *ledger;               // 以下三個沒注入時資料功能停用
+@property (nonatomic, strong, nullable) LBUndoStack *undoStack;
+@property (nonatomic, strong, nullable) LBPersistence *persistence;
+@property (nonatomic, weak, readonly, nullable) IBOutlet UILabel *currencyLabel;   // centsSwitch / appearanceLabel 同
+- (IBAction)centsSwitchChanged:(UISwitch *)sender;
+- (IBAction)unwindFromPerformance:(UIStoryboardSegue *)segue;
+//   Storyboard 區段：0「一般」主幣別 / 顯示小數位 / 外觀；1「資料」效能面板（segue）/ 匯出 JSON / 匯入測試資料 / 清除全部資料
+// LBPerformanceViewController：initWithCoder: 改為指定初始化器（ledger 先給空帳本）；ledger 改 readwrite；
+@property (nonatomic, strong, null_resettable) LBFPSMonitor *monitor;   // prepareForSegue: 注入，沒注入 = shared
+// LBTransactionCell：+ (NSString *)nibName（@"LBTransactionCell"）；XIB 版另有私有 outlet iconBackground
+// LBTransactionEditorViewController：#if __has_include(<Masonry/Masonry.h>) 用 Masonry，否則原生 anchor（約束相同）
+// 檔案位置：LittleBook/Resources/Settings.storyboard、LittleBook/Views/LBTransactionCell.xib、
+//           LittleBookTests/LegacyAudit.plist（測試 bundle 資源）、專案根目錄 Podfile
+
+// M12 ----------------------------------------------------------------
+// project.yml：SWIFT_VERSION 5.0；App：SWIFT_OBJC_BRIDGING_HEADER = LittleBook/LittleBook-Bridging-Header.h、
+//   DEFINES_MODULE YES；測試：SWIFT_OBJC_BRIDGING_HEADER = LittleBookTests/LittleBookTests-Bridging-Header.h、
+//   HEADER_SEARCH_PATHS 加 $(CONFIGURATION_TEMP_DIR)/LittleBook.build/DerivedSources（ObjC 測試 import LittleBook-Swift.h）
+// NS_SWIFT_NAME（三處）：LBTransactionKind → LBTransaction.Kind；+expenseWithAmount:note: → init(amount:note:)；
+//   -[LBLedger totalForKind:] → total(for:)
+@objc(StatsViewController) final class StatsViewController: UIViewController { @objc let viewModel: StatsViewModel; @objc init(ledger: LBLedger) }   // title = "統計"
+@objc final class StatsViewModel: NSObject { @objc let ledger: LBLedger; static let uncategorizedName = "未分類"; @objc func categoryNames() -> [String] }
+@objc final class StatsBreakdownItem: NSObject { @objc let name: String; @objc let total: NSDecimalNumber }   // + extension StatsViewModel { @objc func breakdownItems() -> [StatsBreakdownItem] }
+// categoryBreakdown()：只算支出、依分類名分桶（沒分類 →「未分類」）、金額由大到小，同額依名稱
+// 專案根目錄 .clang-format：課文 12.5 那一份（solution 才有）
 ```

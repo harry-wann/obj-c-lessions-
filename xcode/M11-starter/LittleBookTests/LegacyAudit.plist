@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- 修完 LittleBook-Legacy 的一顆雷，就把對應的 <false/> 改成 <true/>；LBLegacyAuditTests 讀這份 -->
+<plist version="1.0">
+<dict>
+	<!-- 雷 1：LBLegacyTransaction 的 dealloc 多 release（11.1） -->
+	<key>fixedOverRelease</key>
+	<false/>
+	<!-- 雷 2：setter 漏 release 舊值（11.1） -->
+	<key>fixedSetterLeak</key>
+	<false/>
+	<!-- 雷 3：LBLegacyListViewController 的 IBOutlet 斷線（11.3） -->
+	<key>fixedBrokenOutlet</key>
+	<false/>
+	<!-- 雷 4：segue identifier 打錯（11.3） -->
+	<key>fixedSegueIdentifier</key>
+	<false/>
+	<!-- 雷 5：靜態庫的 category 沒加 -ObjC（11.6） -->
+	<key>addedObjCLinkerFlag</key>
+	<false/>
+	<!-- 雷 6：dealloc 沒取消 NSURLConnection（11.2） -->
+	<key>cancelsConnectionInDealloc</key>
+	<false/>
+</dict>
+</plist>

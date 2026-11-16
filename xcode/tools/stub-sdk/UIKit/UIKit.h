@@ -6,6 +6,7 @@ _Pragma("clang assume_nonnull begin")
 typedef struct { CGFloat top, left, bottom, right; } UIEdgeInsets;
 typedef struct { CGFloat top, leading, bottom, trailing; } NSDirectionalEdgeInsets;
 NSDirectionalEdgeInsets NSDirectionalEdgeInsetsMake(CGFloat t, CGFloat l, CGFloat b, CGFloat r);
+UIEdgeInsets UIEdgeInsetsMake(CGFloat t, CGFloat l, CGFloat b, CGFloat r);
 extern const CGFloat UIViewNoIntrinsicMetric;
 extern const CGFloat UITableViewAutomaticDimension;
 typedef float UILayoutPriority;
@@ -15,10 +16,23 @@ void UIRectFill(CGRect r);
 int UIApplicationMain(int argc, char *_Nullable argv[_Nonnull], NSString *_Nullable p,
                       NSString *_Nullable d);
 
+// Interface Builder 標記：對編譯器是空巨集
+#define IBOutlet
+#define IBAction void
+#define IB_DESIGNABLE
+#define IBInspectable
+
 @class NSLayoutXAxisAnchor, NSLayoutYAxisAnchor, NSLayoutDimension, UITextField;
 @class UIView, UIWindow, UIViewController, UIScene, UIWindowScene, UINavigationController,
     UITabBarController, UIImage, UINavigationItem, UITabBarItem, UIBarButtonItem, UITableView,
-    UIGestureRecognizer, UISearchController, UISearchBar, UIPopoverPresentationController;
+    UIGestureRecognizer, UISearchController, UISearchBar, UIPopoverPresentationController,
+    UIStoryboard, UIStoryboardSegue, UINib;
+
+// 11.4：XIB 載入完成後對每個物件呼叫
+@interface NSObject (UINibLoadingAdditions)
+- (void)awakeFromNib;
+- (void)prepareForInterfaceBuilder;
+@end
 
 @interface UIColor : NSObject
 @property (class, readonly) UIColor *systemBackgroundColor, *systemGroupedBackgroundColor,
@@ -120,6 +134,7 @@ typedef enum UIUserInterfaceStyle : NSInteger { UIUserInterfaceStyleUnspecified,
 - (BOOL)endEditing:(BOOL)f;
 - (CGRect)convertRect:(CGRect)r fromView:(nullable UIView *)v;
 - (void)addGestureRecognizer:(UIGestureRecognizer *)g;
+- (BOOL)isDescendantOfView:(UIView *)v;
 - (void)setContentHuggingPriority:(UILayoutPriority)p forAxis:(UILayoutConstraintAxis)a;
 - (void)setContentCompressionResistancePriority:(UILayoutPriority)p
                                         forAxis:(UILayoutConstraintAxis)a;
@@ -298,6 +313,9 @@ typedef enum UITableViewRowAnimation : NSInteger { UITableViewRowAnimationFade,
 - (void)tableView:(UITableView *)t didSelectRowAtIndexPath:(NSIndexPath *)i;
 @end
 @interface UITableView : UIScrollView
+- (instancetype)initWithFrame:(CGRect)f style:(UITableViewStyle)s NS_DESIGNATED_INITIALIZER;
+- (void)registerNib:(nullable UINib *)n forCellReuseIdentifier:(NSString *)i;
+- (nullable NSIndexPath *)indexPathForCell:(UITableViewCell *)c;
 @property CGFloat rowHeight;
 @property CGFloat sectionHeaderHeight;
 @property CGFloat estimatedSectionHeaderHeight;
@@ -361,6 +379,10 @@ typedef enum UIBarButtonItemStyle : NSInteger { UIBarButtonItemStylePlain } UIBa
 @property (nullable, strong) UITabBarItem *tabBarItem;
 @property BOOL definesPresentationContext;
 - (void)loadViewIfNeeded;
+@property (nullable, readonly, strong) UIStoryboard *storyboard;
+- (void)prepareForSegue:(UIStoryboardSegue *)s sender:(nullable id)sender;
+- (void)performSegueWithIdentifier:(NSString *)i sender:(nullable id)sender;
+- (BOOL)shouldPerformSegueWithIdentifier:(NSString *)i sender:(nullable id)sender;
 - (void)viewDidLoad;
 - (void)viewWillAppear:(BOOL)a;
 - (void)viewDidAppear:(BOOL)a;
@@ -385,6 +407,7 @@ typedef enum UIBarButtonItemStyle : NSInteger { UIBarButtonItemStylePlain } UIBa
 @end
 @interface UINavigationController : UIViewController
 - (instancetype)initWithRootViewController:(UIViewController *)r;
+@property (nullable, readonly, strong) UIViewController *topViewController;
 @property (copy) NSArray<__kindof UIViewController *> *viewControllers;
 @property (readonly) UINavigationBar *navigationBar;
 - (void)pushViewController:(UIViewController *)v animated:(BOOL)a;
@@ -469,6 +492,26 @@ extern const UIBackgroundTaskIdentifier UIBackgroundTaskInvalid;
 - (instancetype)initWithFrame:(CGRect)f;
 @property (nullable, strong) UIViewController *rootViewController;
 - (void)makeKeyAndVisible;
+@end
+
+// Storyboard / XIB（M11）
+@interface UIStoryboard : NSObject
++ (UIStoryboard *)storyboardWithName:(NSString *)name bundle:(nullable NSBundle *)b;
+- (nullable __kindof UIViewController *)instantiateInitialViewController;
+- (__kindof UIViewController *)instantiateViewControllerWithIdentifier:(NSString *)i;
+@end
+@interface UIStoryboardSegue : NSObject
++ (instancetype)segueWithIdentifier:(nullable NSString *)i source:(UIViewController *)s
+                        destination:(UIViewController *)d
+                     performHandler:(void (^)(void))h;
+@property (nullable, readonly) NSString *identifier;
+@property (readonly) __kindof UIViewController *sourceViewController;
+@property (readonly) __kindof UIViewController *destinationViewController;
+@end
+@interface UINib : NSObject
++ (UINib *)nibWithNibName:(NSString *)name bundle:(nullable NSBundle *)b;
+- (NSArray *)instantiateWithOwner:(nullable id)owner
+                          options:(nullable NSDictionary *)options;
 @end
 
 _Pragma("clang assume_nonnull end")

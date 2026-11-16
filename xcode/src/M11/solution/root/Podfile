@@ -1,0 +1,29 @@
+# 11.5：CocoaPods 三件組之一。用法（在這個資料夾）：
+#   xcodegen generate        # 先產生 LittleBook.xcodeproj
+#   pod install              # 照 Podfile.lock 裝（第一次會產生它；之後 commit 進版控）
+#   open LittleBook.xcworkspace   # 之後一律開 workspace，不開 .xcodeproj
+# 沒有跑 pod install 也能建置：編輯頁用 __has_include(<Masonry/Masonry.h>) 判斷，
+# 找不到 Masonry 時退回原生 NSLayoutAnchor 寫法（見 LBTransactionEditorViewController.m）。
+platform :ios, '17.0'
+inhibit_all_warnings!            # 第三方庫的警告不要淹掉自己的
+
+# 純 ObjC 主線不用 use_frameworks!：pod 建成靜態函式庫連進主執行檔（M12 加 Swift 也一樣可用）
+
+target 'LittleBook' do
+  pod 'Masonry', '~> 1.1'        # 1.1.x，不自動升到 1.2
+
+  target 'LittleBookTests' do
+    inherit! :search_paths       # 測試 target 看得到主 target 的 pod 標頭
+  end
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |t|
+    t.build_configurations.each do |c|
+      # Masonry 的 podspec 寫的最低版本很舊，統一拉到 17.0，避免 Xcode 的部署版本警告
+      c.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '17.0'
+      # 12.4：主專案開 -Werror 時，pod 的警告不該讓建置失敗
+      c.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
+    end
+  end
+end

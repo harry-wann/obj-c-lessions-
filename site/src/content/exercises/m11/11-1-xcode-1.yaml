@@ -13,7 +13,7 @@ steps:
   - "埋雷 2：`setCategory:`（retain 屬性）漏了 `[_category release]`。補上，順序是先 retain 新的再 release 舊的。Product → Profile → Leaks 或 Memory Graph 確認 LBLegacyCategory 不再累積。"
   - "git commit「Fix MRC over-release and setter leak in LBLegacyTransaction」。"
   - "拿掉 `LBLegacyTransaction.m` 的 `-fno-objc-arc`；Edit → Convert → To Objective-C ARC...，只勾這一個檔案，按 Check，讀 Preview 的每一行 diff：被刪的 release 是不是都對應你標的 −1？`assign` 的 `owner` 工具問你時選 `weak`。"
-  - "Save，⌘U 全綠，commit「ARC: LBLegacyTransaction」。在 `LegacyAudit.plist` 把 `overReleaseFixed` 與 `setterLeakFixed` 勾成 YES。"
+  - "Save，⌘U 全綠，commit「ARC: LBLegacyTransaction」。在 `LegacyAudit.plist` 把 `fixedOverRelease` 與 `fixedSetterLeak` 勾成 YES。"
 tests:
   - LBLegacyAuditTests/testLegacyChecklistComplete
 acceptance:

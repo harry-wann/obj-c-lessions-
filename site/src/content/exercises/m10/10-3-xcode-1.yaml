@@ -23,4 +23,4 @@ acceptance:
   - 模擬器完成時間 < 20 s
   - 進度條平順前進，取消按鈕 0.5 s 內停止匯入且 completion 收到 LBErrorCodeCancelled
   - 把迴圈內 @autoreleasepool 拿掉再量一次，能說出峰值差多少
-solution_note: testImportsInBatchesAndReportsProgress 用 10,000 筆、批次 500：帳本最後 10,000 筆、進度回呼次數 < 200、最後一次 done == total。testCancelStopsImport 在第一次進度回呼時 cancel，等 completion，檢查 error.code == LBErrorCodeCancelled 且帳本筆數 < 總數。測試裡要把 debounce / 節流時間縮短或注入時鐘，否則會很慢。
+solution_note: testImportsInBatchesAndReportsProgress 用 1,000 筆、每批 100：帳本最後 1,000 筆、批次通知剛好 10 次、進度回呼次數 < 50（節流）、最後一次 done == total、數字只增不減。testCancelStopsImport 用 20,000 筆、每批 500，`importCSVAtURL:` 一回傳就 cancel，等 completion，檢查 error.code == LBErrorCodeCancelled 且帳本筆數 < 總數。每批結束都要檢查 isCancelled，否則取消要等整個檔解析完才生效。

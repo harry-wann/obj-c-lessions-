@@ -272,7 +272,7 @@ NSString *s = @"午餐";
 [s isMemberOfClass:[NSString class]];      // NO！實際類別是 __NSCFConstantString
 [s isKindOfClass:[NSString class]];        // YES
 
-NSArray *a = @[@1];
+NSArray *a = [NSArray arrayWithObjects:@1, @2, nil];
 NSStringFromClass([a class]);              // @"__NSArrayI"，不是 NSArray
 ```
 `NSString`、`NSArray`、`NSDictionary`、`NSNumber` 都是<Term en="class cluster" tw="類別叢集" cn="类簇" jp="クラスクラスタ" />：公開的類別只是介面，`alloc` / `init` 回傳的是某個私有子類別。所以 `isMemberOfClass:` 對它們永遠是 NO，`[obj class] == [NSString class]` 這種比法也一樣錯。用 `isKindOfClass:`，或更好的是只問 `respondsToSelector:`。這也是為什麼不該繼承 `NSString` / `NSArray`——你繼承的是空殼，所有方法都在私有子類別裡。

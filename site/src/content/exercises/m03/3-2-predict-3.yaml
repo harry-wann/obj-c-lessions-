@@ -5,9 +5,11 @@ title: NSNumber 的 == 陷阱
 minutes: 2
 note: 64 位元模擬器
 code: |
-  NSNumber *a = @42;
+  NSInteger x = 42;
+  double big = 1e300;
+  NSNumber *a = @(x);
   NSNumber *b = [NSNumber numberWithInteger:42];
-  NSNumber *c = @(1e300), *d = @(1e300);
+  NSNumber *c = @(big), *d = @(big);
   NSLog(@"%d %d %d", a == b, c == d, [c isEqualToNumber:d]);
 options: ["1 0 1", "0 0 1", "1 1 1", "0 1 1"]
 accept: ["1 0 1"]
@@ -15,6 +17,6 @@ hints:
   - 小整數會變成 tagged pointer，值直接寫在指標裡。
   - 1e300 放不進指標，會各自配置一個物件。
 feedback:
-  "0 0 1": "@42 與 numberWithInteger:42 在 64 位元都是 tagged pointer，位元相同所以 == 是 1——這正是陷阱：它「剛好」對。"
+  "0 0 1": "@(x) 與 numberWithInteger:42 在執行期都是 tagged pointer，位元相同所以 == 是 1——這正是陷阱：它「剛好」對。"
   "1 1 1": "1e300 放不進 tagged pointer，c 與 d 是兩個獨立物件，== 比位址是 0。"
-solution_note: "`a == b` 是 1 只因為 tagged pointer 把 42 直接編在指標裡；`c == d` 是 0 因為大數字另外配置物件。同一段程式對小數字過、對大數字掛，所以 NSNumber 要用 `isEqualToNumber:` 或 `compare:`。"
+solution_note: "`a == b` 是 1 只因為 tagged pointer 把 42 直接編在指標裡；`c == d` 是 0 因為大數字另外配置物件。同一段程式對小數字過、對大數字掛，所以 NSNumber 要用 `isEqualToNumber:` 或 `compare:`。題目刻意用變數 x、big：直接寫 `@42` 的話（iOS 14 以上）它是編譯期建好的常數物件，`a == b` 反而是 0——又一個「看情況」的例子。"

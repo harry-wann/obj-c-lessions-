@@ -252,7 +252,7 @@ int main(void) {
 }
 ```
 
-`testCancelStopsImport` 在第一批回呼時 `cancel`，檢查 completion 收到 `LBErrorCodeCancelled` 且帳本筆數遠小於總數。取消不是「立刻停在這一行」，是「下一次檢查點停」：每批一次剛好，每行檢查太頻繁、整個檔才檢查一次則停不下來。
+`testCancelStopsImport` 產生 20,000 筆、`importCSVAtURL:` 一回傳就 `cancel`（此時背景解析才剛開始），檢查 completion 收到 `LBErrorCodeCancelled` 且帳本筆數小於總數。取消不是「立刻停在這一行」，是「下一次檢查點停」：每批一次剛好，每行檢查太頻繁、整個檔才檢查一次則停不下來。
 
 ### 匯入期間仍可新增
 

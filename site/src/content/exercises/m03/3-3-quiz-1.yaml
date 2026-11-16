@@ -14,4 +14,4 @@ answer: 1
 explain: "`a[0]` 等於 `objectAtIndex:0`，越界會丟 NSRangeException；`firstObject` / `lastObject` 在空陣列回 nil。「拿第一筆、可能沒有」永遠用 firstObject。"
 hints: ["下標語法等於哪個方法？", "哪個方法設計上就允許回 nil？"]
 feedback:
-  "0": "下標是 objectAtIndex: 的語法糖，一樣會越界 crash。"
+  "0": "下標是 objectAtIndexedSubscript: 的語法糖，行為和 objectAtIndex: 相同，一樣會越界 crash。"

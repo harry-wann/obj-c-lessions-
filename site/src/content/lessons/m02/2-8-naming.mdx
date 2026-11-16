@@ -205,10 +205,10 @@ Clang 會對這種情況給警告 `Property follows Cocoa naming convention for 
 </Pitfall>
 
 <Crash message={`objc[48213]: Class Category is implemented in both
-/System/Library/Frameworks/Foundation.framework/Foundation (0x1e2a3c4d8)
-and /private/var/containers/Bundle/Application/…/LittleBook.app/LittleBook (0x1046f8e20).
-One of the two will be used. Which one is undefined.`}>
-這一行不是 crash，是 App 啟動時 runtime 印在 console 的警告，但接下來發生的 crash 幾乎都是它造成的：`-[Category addChild:]: unrecognized selector`（用到了另一個 `Category`）、`EXC_BAD_ACCESS`（ivar 排版不同）、或是莫名其妙的行為。讀法：類別 `Category` 在兩個 binary 都有定義，runtime 隨便挑一個。修法只有一個：**改名加前綴**。第三方 framework 撞名改不了的話，看能不能換成有前綴的版本，或是用 `-ObjC` / 連結順序去賭——別賭，改名。這則訊息也是 code review 要求前綴最有力的證據。
+/private/var/containers/Bundle/Application/…/LittleBook.app/Frameworks/AnalyticsKit.framework/AnalyticsKit (0x1046f8e20)
+and /private/var/containers/Bundle/Application/…/LittleBook.app/LittleBook (0x1021bc0c0).
+This may cause spurious casting failures and mysterious crashes. One of the duplicates must be removed or renamed.`}>
+這一行不是 crash，是 App 啟動時 runtime 印在 console 的警告，但接下來發生的 crash 幾乎都是它造成的：`-[Category addChild:]: unrecognized selector`（用到了另一個 `Category`）、`EXC_BAD_ACCESS`（ivar 排版不同）、或是莫名其妙的行為。讀法：類別 `Category` 在兩個 binary 都有定義——這裡是 App 自己和它內嵌的第三方 `AnalyticsKit.framework`——runtime 只會用其中一個，後半句的「spurious casting failures」指的就是 `isKindOfClass:` 之類的判斷莫名失敗。修法只有一個：**改名加前綴**。第三方 framework 撞名改不了的話，看能不能換成有前綴的版本，或是用 `-ObjC` / 連結順序去賭——別賭，改名。這則訊息也是 code review 要求前綴最有力的證據。
 </Crash>
 
 ## 小結

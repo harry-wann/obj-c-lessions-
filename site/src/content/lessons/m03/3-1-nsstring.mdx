@@ -220,9 +220,9 @@ NSLog(@"%ld", (long)count);       // 正確
 `@"120".integerValue` 是 120，`@"120 元".integerValue` 也是 120，`@"一百二十".integerValue` 是 0 ——它不會告訴你解析失敗。使用者輸入的金額要用 `NSNumberFormatter` 的 `numberFromString:`，失敗會回 nil，你才判斷得出來。3.2 會接著講金額為什麼連 `double` 都不能用。
 </Pitfall>
 
-<Crash message={`*** Terminating app due to uncaught exception 'NSRangeException',
-reason: '*** -[__NSCFConstantString substringWithRange:]: Range {3, 2} out of bounds; string length 4'`}>
-讀法：例外類別 `NSRangeException` 表示範圍越界；接收者類別 `__NSCFConstantString` 代表這是一個字面值字串（`@"..."`），不是執行期組出來的；selector 是 `substringWithRange:`；`Range {3, 2}` 是從索引 3 取 2 個單位，但字串只有 4 個單位，3 + 2 = 5 超過了。典型成因是先用別的字串算出 `NSRange`，再套到另一條字串上，或者以為 emoji 只佔 1 個單位。修法：切之前檢查 `NSMaxRange(range) <= s.length`，或改用 `rangeOfComposedCharacterSequenceAtIndex:` 對齊邊界。
+<Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
+reason: '-[__NSCFConstantString substringWithRange:]: Range {3, 2} out of bounds; string length 4'`}>
+讀法：例外名稱是 `NSInvalidArgumentException` 而不是 `NSRangeException`——`NSString` 把越界的 range 當成「參數不合法」，陣列的索引越界才是 `NSRangeException`（3.3），所以別只靠例外名稱判斷是不是越界，要讀 reason；接收者類別 `__NSCFConstantString` 代表這是一個字面值字串（`@"..."`），不是執行期組出來的；selector 是 `substringWithRange:`；`Range {3, 2}` 是從索引 3 取 2 個單位，但字串只有 4 個單位，3 + 2 = 5 超過了。典型成因是先用別的字串算出 `NSRange`，再套到另一條字串上，或者以為 emoji 只佔 1 個單位。修法：切之前檢查 `NSMaxRange(range) <= s.length`，或改用 `rangeOfComposedCharacterSequenceAtIndex:` 對齊邊界。
 </Crash>
 
 ## 小結

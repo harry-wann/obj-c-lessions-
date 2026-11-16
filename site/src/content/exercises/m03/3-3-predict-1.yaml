@@ -22,4 +22,4 @@ hints:
 feedback:
   "午餐 (null) (null) 沒印到這行": "objectAtIndex:0 不會回 nil，它丟 NSRangeException：index 0 beyond bounds for empty array。"
   "午餐 然後 crash": "firstObject 在空陣列安全地回 nil，%@ 印出 (null)，第三行才 crash。"
-solution_note: "`firstObject` 回 nil，`%@` 把 nil 印成 `(null)`；`objectAtIndex:0` 對空陣列丟 `-[__NSArray0 objectAtIndex:]: index 0 beyond bounds for empty NSArray`。類別名 `__NSArray0` 就是空陣列單例。"
+solution_note: "`firstObject` 回 nil，`%@` 把 nil 印成 `(null)`；`objectAtIndex:0` 對空陣列丟 `*** -[__NSArray0 objectAtIndex:]: index 0 beyond bounds for empty array`。類別名 `__NSArray0` 就是空陣列單例。"

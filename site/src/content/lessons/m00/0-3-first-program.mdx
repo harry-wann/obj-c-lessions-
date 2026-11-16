@@ -189,8 +189,7 @@ NSLog(@"%zd 筆", count);         // 免轉型的替代寫法
 <Fragment slot="bad">
 ```objc
 NSLog("Hello");
-// error: Implicit conversion of a non-Objective-C pointer type
-//        'char[6]' to 'NSString * _Nonnull' is disallowed with ARC
+// error: string literal must be prefixed by '@'
 ```
 </Fragment>
 <Fragment slot="good">
@@ -198,7 +197,7 @@ NSLog("Hello");
 NSLog(@"Hello");
 ```
 </Fragment>
-好消息是 ARC 下這是編譯錯誤，不會悄悄過關。但反過來把 `NSString` 傳給要 `char *` 的 C 函式（`printf`、`strlen`）時只有警告，執行期印出亂碼：記得 `[str UTF8String]`。
+好消息是這是編譯錯誤，Xcode 還會給 Fix-it 幫你補上 `@`。反方向要小心：把 `NSString` 直接傳給 `strlen(str)` 這種 `char *` 參數，ARC 下也是錯誤；但透過格式字串傳進去（`printf("%s", str)`、`NSLog(@"%s", str)`）只有 `-Wformat` 警告，執行期印出亂碼。要給 C 函式就寫 `[str UTF8String]`。
 </Pitfall>
 
 <Pitfall title="NSLog 與 printf 混用，輸出順序亂掉">

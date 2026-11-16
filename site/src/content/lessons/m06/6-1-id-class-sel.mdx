@@ -170,13 +170,13 @@ int main(void) {
 // 預期輸出：
 // LBTransaction
 // __NSCFConstantString
-// __NSCFNumber
+// NSConstantIntegerNumber
 // LBTransaction / (null)
 // 1 1 0
 // setAmount:
 ```
 
-注意第二段：`@"字串"` 的類別印出來是 `__NSCFConstantString`，不是 `NSString`。Foundation 很多類別是「類別叢集」（class cluster），公開的 `NSString` 只是門面，真正的實體是私有子類別。這會在 6.3 影響你怎麼判斷型別。
+注意第一段：`@"字串"` 的類別印出來是 `__NSCFConstantString`，不是 `NSString`；`@42` 是編譯期建好的常數物件 `NSConstantIntegerNumber`（3.2），執行期才裝箱的數字（例如 JSON 解出來的）則是 `__NSCFNumber`。Foundation 很多類別是「類別叢集」（class cluster），公開的 `NSString` 只是門面，真正的實體是私有子類別。這會在 6.3 影響你怎麼判斷型別。
 
 <Tip title="三件組記法">
 `NSStringFromClass` / `NSClassFromString`、`NSStringFromSelector` / `NSSelectorFromString`、再加一個 `NSStringFromProtocol` / `NSProtocolFromString`。方向看名字：`From` 後面是你手上有的東西。它們是 C 函式不是方法，所以是 `NSClassFromString(@"...")` 而不是 `[... classFromString:]`。

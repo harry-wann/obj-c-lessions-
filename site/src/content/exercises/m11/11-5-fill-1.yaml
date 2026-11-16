@@ -3,7 +3,7 @@ chapter: "11.5"
 type: fill
 title: 補完 Podfile
 minutes: 2
-prompt: 為小帳本補完 Podfile：iOS 17、主 target 加 Masonry 1.1.x、測試 target 繼承搜尋路徑。
+prompt: 為小帳本補完 Podfile：iOS 17、主 target 加 Masonry（1.1 以上、不升到 2.0）、測試 target 繼承搜尋路徑。
 code: |
   platform :ios, '17.0'
 
@@ -16,7 +16,7 @@ code: |
   end
 blanks:
   "1": { accept: ["target"], chips: ["target", "project", "workspace", "scheme"] }
-  "2": { accept: ["~> 1.1", "~> 1.1.0"], chips: ["~> 1.1", "1.1", ">= 1.1", "latest"] }
+  "2": { accept: ["~> 1.1"], chips: ["~> 1.1", "1.1", ">= 1.1", "latest"] }
   "3": { accept: ["inherit!"], chips: ["inherit!", "use_frameworks!", "import", "include"] }
 hints: ["Podfile 以 target 區塊為單位。", "樂觀鎖的符號。", "測試 target 要看得到主 target 的 pod，但不重複連結。"]
 feedback:

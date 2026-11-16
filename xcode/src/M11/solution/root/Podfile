@@ -10,7 +10,7 @@ inhibit_all_warnings!            # 第三方庫的警告不要淹掉自己的
 # 純 ObjC 主線不用 use_frameworks!：pod 建成靜態函式庫連進主執行檔（M12 加 Swift 也一樣可用）
 
 target 'LittleBook' do
-  pod 'Masonry', '~> 1.1'        # 1.1.x，不自動升到 1.2
+  pod 'Masonry', '~> 1.1'        # ≥ 1.1、< 2.0（樂觀鎖），不會自動升到 2.0
 
   target 'LittleBookTests' do
     inherit! :search_paths       # 測試 target 看得到主 target 的 pod 標頭

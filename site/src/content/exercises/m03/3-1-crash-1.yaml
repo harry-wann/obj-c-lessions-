@@ -18,7 +18,7 @@ fix: |
       sub = [s substringWithRange:r];
   }
   // 或依字元邊界：[s rangeOfComposedCharacterSequenceAtIndex:4]
-solution_note: "`__NSCFConstantString` 代表 @\"...\" 字面值；`Range {4, 3}` 從索引 4 取 3 個單位，到 7，但 `string length 6`。常見成因是用另一條字串算出的 range，或以為 emoji 只佔 1 個單位。注意例外名稱是 `NSInvalidArgumentException`：NSString 把越界的 range 當成參數錯誤，不是 `NSRangeException`。"
+solution_note: "`__NSCFConstantString` 代表 @\"...\" 字面值；`Range {4, 3}` 從索引 4 取 3 個單位，到 7，但 `string length 6`。常見成因是用另一條字串算出的 range，或以為 emoji 只佔 1 個單位。注意例外名稱是 `NSInvalidArgumentException` 不是 `NSRangeException`：`substringWithRange:` 把越界的 range 當成參數錯誤（`substringFromIndex:` 越界才是 `NSRangeException`），要讀 reason，別只看名稱。"
 hints: ["看類別名：__NSCFConstantString 告訴你它是什麼來源。", "Range {4, 3} 的結尾是幾？字串長度是幾？", "對 nil 送訊息會發生什麼？（2.2）"]
 feedback:
   "1": "對 nil 送訊息會安靜地回 nil，不會丟例外；而且訊息裡有類別名，表示物件存在。"

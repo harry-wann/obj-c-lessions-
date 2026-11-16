@@ -81,7 +81,7 @@ NSLog(@"%d", c.boolValue);                   // 1
 NSLog(@"%@", @3.0);                          // 3 —— description 會把 .0 吃掉
 ```
 
-`@42`、`@YES`、`@(expr)` 都是編譯器幫你呼叫 `[NSNumber numberWithInt:]` 之類方法的語法糖（部署目標 iOS 14 以上時，`@42` 這種純常數會直接編成常數物件，連方法都不呼叫）。拆箱時你自己決定要什麼型別：`integerValue`、`doubleValue`、`boolValue`、`unsignedIntegerValue`。要注意拆箱會**轉型**：`@3.7.integerValue` 是 3，`@(300).charValue` 會溢位成 44。`NSNumber` 本身記得自己當初是什麼型別，`[a objCType]` 回傳 `"i"`、`"d"`、`"c"` 這種編碼字串，3.4 的字典取值時偶爾會用到。
+`@42`、`@YES`、`@(expr)` 都是編譯器幫你呼叫 `[NSNumber numberWithInt:]` 之類方法的語法糖（部署目標 iOS 14 / macOS 11 以上時，`@42` 這種純常數會直接編成常數物件，連方法都不呼叫）。拆箱時你自己決定要什麼型別：`integerValue`、`doubleValue`、`boolValue`、`unsignedIntegerValue`。要注意拆箱會**轉型**：`@3.7.integerValue` 是 3，`@(300).charValue` 會溢位成 44。`NSNumber` 本身記得自己當初是什麼型別，`[a objCType]` 回傳 `"i"`、`"d"`、`"c"` 這種編碼字串，3.4 的字典取值時偶爾會用到。
 
 JSON 解出來的 `true` 會變成 `__NSCFBoolean`（`@YES` 的實際類別），`[@YES isEqualToNumber:@1]` 是 YES，所以把布林和數字混在一起比對會「剛好過」。要分辨當初是不是布林，看 `[n objCType]` 是不是 `"c"`，或直接用 `n == (id)kCFBooleanTrue`——這是少數可以用 `==` 的場合，因為 Foundation 的布林是兩個單例。
 
@@ -181,7 +181,7 @@ NSLog(@"%d", [c isEqualToNumber:d]);   // 1
 NSNumber *e = @42;
 NSLog(@"%d", e == b);          // 0 —— @42 是編譯期建好的常數物件，不是 tagged pointer
 ```
-和 3.1 的字串一樣：執行期的小整數塞進指標本身所以「剛好相等」，大數字、小數另外配置物件就不相等；而直接寫在程式碼裡的 `@42`（部署目標 iOS 14 以上）是編譯器做好的常數物件 `NSConstantIntegerNumber`，跟執行期算出來的 42 反而不同位址。同樣是 42，`==` 的結果取決於它從哪裡來，所以比 `NSNumber` 一律用 `isEqualToNumber:` 或 `compare:`。
+和 3.1 的字串一樣：執行期的小整數塞進指標本身所以「剛好相等」，大數字、小數另外配置物件就不相等；而直接寫在程式碼裡的 `@42`（部署目標 iOS 14 / macOS 11 以上，Scratch 也算）是編譯器做好的常數物件 `NSConstantIntegerNumber`，跟執行期算出來的 42 反而不同位址。同樣是 42，`==` 的結果取決於它從哪裡來，所以比 `NSNumber` 一律用 `isEqualToNumber:` 或 `compare:`。
 </Pitfall>
 
 <Pitfall title="從 JSON 來的 NSNumber 不是你想的型別">
@@ -194,7 +194,7 @@ NSLog(@"%d", e == b);          // 0 —— @42 是編譯期建好的常數物件
 
 <Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
 reason: '-[__NSCFNumber length]: unrecognized selector sent to instance 0xb7c5913b75cb013b'`}>
-讀法：接收者類別是 `__NSCFNumber`，也就是 `NSNumber` 的實際類別；selector 是 `length`，這是 `NSString` 的方法。翻譯成白話：「你把一個數字當成字串用了」。幾乎都是 JSON 欄位型別和你想的不同：後端把 `"id": "1347"` 改成 `"id": 1347`，你的 `NSString *identifier = json[@"id"]` 編譯照樣過（型別是 `id`，編譯器不會抱怨），執行到 `identifier.length` 就炸。注意位址 `0xb7c5913b75cb013b`：最高位元是 1、整整 16 位、看起來像亂數，這就是 tagged pointer 的長相——值直接寫在指標裡，iOS 12 起再和每次啟動隨機產生的鑰匙做 XOR，所以看不出 1347；它不是懸空指標，一般物件的位址短得多。修法：解析 JSON 時用 `isKindOfClass:` 檢查，或統一用 `[json[@"id"] description]` 轉成字串。
+讀法：接收者類別是 `__NSCFNumber`，也就是 `NSNumber` 的實際類別；selector 是 `length`，這是 `NSString` 的方法。翻譯成白話：「你把一個數字當成字串用了」。幾乎都是 JSON 欄位型別和你想的不同：後端把 `"id": "1347"` 改成 `"id": 1347`，你的 `NSString *identifier = json[@"id"]` 編譯照樣過（型別是 `id`，編譯器不會抱怨），執行到 `identifier.length` 就炸。注意位址 `0xb7c5913b75cb013b`：最高位元是 1、共 16 個十六進位數字、看起來像亂數，這就是 tagged pointer 的長相——值直接寫在指標裡，iOS 12 起再和每次啟動隨機產生的金鑰做 XOR，所以看不出 1347；它不是懸空指標，一般物件的位址短得多。修法：解析 JSON 時用 `isKindOfClass:` 檢查，或統一用 `[json[@"id"] description]` 轉成字串。
 </Crash>
 
 ## 小結

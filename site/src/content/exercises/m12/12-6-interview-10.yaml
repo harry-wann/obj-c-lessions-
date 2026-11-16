@@ -10,4 +10,4 @@ back: |
   因為傳進來的可能是 NSMutableString：strong 只是多一個指標指向同一個物件，外面之後 appendString: 你的 name 也跟著變，違反「屬性值不會莫名其妙改變」的預期。
   copy 的 setter 呼叫 [value copy]，對可變字串得到一個不可變快照；對本來就不可變的 NSString，-copy 只是 retain 回傳自己，沒有額外配置。
   同理適用於 NSArray、NSDictionary、NSSet 與 block（block 要 copy 到堆積才能活過作用域）。
-  加分延伸：copy 拿到的是不可變版本，所以屬性宣告成 NSMutableString 卻用 copy 會讓 setter 存進一個 NSString，之後呼叫 appendString: 就丟 NSInvalidArgumentException（Attempt to mutate immutable object with appendString:）；可變的要用 strong 加自己 mutableCopy。
+  加分延伸：copy 拿到的是不可變版本，所以屬性宣告成 NSMutableString 卻用 copy 會讓 setter 存進一個 NSString，之後呼叫 appendString: 就丟 NSInvalidArgumentException（多數字串是 Attempt to mutate immutable object，短的 ASCII 字串則是 NSTaggedPointerString 的 unrecognized selector）；可變的要用 strong 加自己 mutableCopy。

@@ -14,4 +14,4 @@ answer: 1
 explain: "`copy` 永遠回不可變版本、`mutableCopy` 永遠回可變版本，和接收者原本是哪種無關。這也是 `@property (copy) NSMutableArray` 會出事的原因。"
 hints: ["copy 的回傳型別跟接收者有關嗎？", "NSCopying 與 NSMutableCopying 是兩個不同協定。"]
 feedback:
-  "0": "copy 回的是不可變的 __NSArrayI，對它 addObject: 會 unrecognized selector。"
+  "0": "copy 回的是不可變陣列（m 是空的，所以是 __NSArray0），對它 addObject: 會 unrecognized selector。"

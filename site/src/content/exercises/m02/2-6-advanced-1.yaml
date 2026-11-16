@@ -6,7 +6,7 @@ title: 進階：類別叢集與型別判斷的坑
 minutes: 3
 front: "從 JSON 解出來的 `id value`，你想分辨它是布林、數字還是字串。為什麼 `[value class] == [NSNumber class]` 永遠是 NO？正確做法是什麼？"
 back: |
-  NSNumber 是類別叢集：`@YES` 的實際類別是 `__NSCFBoolean`、`@1` 是 `__NSCFNumber`，`[value class]` 永遠不會等於 `[NSNumber class]`，`isMemberOfClass:` 同理。
+  NSNumber 是類別叢集：JSON 的 true 與 `@YES` 的實際類別是 `__NSCFBoolean`、JSON 的數字是 `__NSCFNumber`（程式碼裡寫死的 `@1` 則是編譯期常數 `NSConstantIntegerNumber`），`[value class]` 永遠不會等於 `[NSNumber class]`，`isMemberOfClass:` 同理。
   正確做法：
   - 分大類用 `isKindOfClass:`：`[value isKindOfClass:[NSNumber class]]`、`[NSString class]`、`[NSNull class]`（JSON 的 null 會變 NSNull，不是 nil）。
   - 分辨布林與數字：`[value isKindOfClass:[NSNumber class]] && CFGetTypeID((CFTypeRef)value) == CFBooleanGetTypeID()`，或 `strcmp([value objCType], @encode(BOOL)) == 0`（後者在某些平台不可靠，前者較穩）。

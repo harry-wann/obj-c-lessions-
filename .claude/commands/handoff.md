@@ -15,7 +15,7 @@ description: 接手本專案：讀現況、建置網站、在 Mac 上逐一驗�
    - 對時間敏感、不穩定的測試，改成不依賴時間的寫法，不要只把等待時間拉長。
    - 優先處理 `docs/08` §3 列出的風險項目。
 5. LittleBook-Legacy：`xcodegen generate` 後確認 6 個雷的症狀照 README 出現；`LittleBook-Legacy-solution` 能正常跑。
-6. 用 `xcode/Scratch` 核對 `docs/08` §3「內容需在 Mac 上核對的細節」，與實際輸出不符的就修正課文或題目，並跑內容檢查。
+6. 用 `xcode/Scratch` 核對 `docs/08` §3「仍未驗證 / 留意」的項目與新寫的課文，與實際輸出不符的就修正課文或題目，並跑內容檢查。
 7. 每完成一個里程碑或一批修正就 commit 並 push 到目前分支；commit 訊息用繁體中文。
 8. 全部完成後：更新 `docs/08` §1、§3（刪掉已驗證的風險、記下新發現），並問我是否要合併到 main 與啟用 GitHub Pages。
 

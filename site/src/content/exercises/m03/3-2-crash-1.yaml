@@ -15,7 +15,7 @@ answer: 0
 fix: |
   id raw = json[@"id"];
   NSString *identifier = [raw isKindOfClass:[NSString class]] ? raw : [raw description];
-solution_note: "`__NSCFNumber` 是 NSNumber 的實際類別，`length` 是 NSString 的方法。0xb7c5913b75cb013b 最高位元是 1、長度滿 16 位、看起來像亂數，是 tagged pointer：值就寫在指標裡，iOS 12 起還會和每次啟動隨機產生的鑰匙做 XOR，所以看不出 1347，但它不是懸空指標。一般堆積物件的位址短得多（模擬器上像 0x600000c18000）。"
+solution_note: "`__NSCFNumber` 是 NSNumber 的實際類別，`length` 是 NSString 的方法。0xb7c5913b75cb013b 最高位元是 1、共 16 個十六進位數字、看起來像亂數，是 tagged pointer：值就寫在指標裡，iOS 12 起還會和每次啟動隨機產生的金鑰做 XOR，所以看不出 1347，但它不是懸空指標。一般堆積物件的位址短得多（模擬器上像 0x600000c18000）。"
 hints: ["類別名是 __NSCFNumber，它是哪個公開類別的實作？", "length 是誰的方法？", "位址最高位是 1、長得像亂數（0xb7c5…），代表什麼？"]
 feedback:
   "2": "懸空指標的訊息通常是 EXC_BAD_ACCESS 或 unrecognized selector 送到一個不相關的類別；這個位址是 tagged pointer，物件活得好好的。"

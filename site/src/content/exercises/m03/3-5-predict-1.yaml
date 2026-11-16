@@ -19,4 +19,4 @@ hints:
 feedback:
   "NSArray NSArray NSMutableArray": "你看到的 NSArray 是抽象介面，[a class] 會印出真實的私有類別名。"
   "__NSPlaceholderArray __NSArrayI __NSArrayM": "__NSPlaceholderArray 只在字面值建構的過程中短暫存在，建好之後就被換成 __NSArrayI 了。"
-solution_note: 兩個執行期的值組成的陣列是 `__NSArrayI`（I = immutable）；對它 copy 直接回自己，還是 `__NSArrayI`；mutableCopy 才產生 `__NSArrayM`。這些名字就是崩潰訊息裡會看到的，記住 I / M / 0 / Placeholder 四種。題目刻意用變數 `n`：寫成 `@[@1, @2]` 這種全常數字面值，iOS 14 以上會是編譯期建好的 `NSConstantArray`（copy 一樣回自己）。
+solution_note: 兩個執行期的值組成的陣列是 `__NSArrayI`（I = immutable）；對它 copy 直接回自己，還是 `__NSArrayI`；mutableCopy 才產生 `__NSArrayM`。這些名字就是崩潰訊息裡會看到的，記住 I / M / 0 / Placeholder 四種，再加上常數字面值的 `NSConstantArray`。題目刻意用變數 `n`：寫成 `@[@1, @2]` 這種全常數字面值，iOS 14 / macOS 11 以上會是編譯期建好的 `NSConstantArray`（copy 一樣回自己）。

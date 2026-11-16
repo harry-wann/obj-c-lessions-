@@ -222,7 +222,7 @@ Build Settings 面板一次只顯示一個 Configuration 的值，點開三角�
 
 <Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
 reason: '-[__NSCFConstantString lb_trimmed]: unrecognized selector sent to instance 0x102dc4248'`}>
-`unrecognized selector`（2.x）通常是打錯方法名，但這裡 `lb_trimmed` 明明在 `NSString+LBUtils.h` 裡宣告了、`.m` 也實作了、編譯連結都過。關鍵線索：**這個 category 住在一個靜態庫裡**（`LBLegacyKit.a` 或沒加 `use_frameworks!` 的 pod），而且 `-[__NSCFConstantString ...]` 說明接收者是真的 `NSString`，不是打錯物件。
+`unrecognized selector`（2.x）通常是打錯方法名，但這裡 `lb_trimmed` 明明在 `NSString+LBUtils.h` 裡宣告了、`.m` 也實作了、編譯連結都過。關鍵線索：**這個 category 住在一個靜態庫裡**（`libLBLegacyKit.a` 或沒加 `use_frameworks!` 的 pod），而且 `-[__NSCFConstantString ...]` 說明接收者是真的 `NSString`，不是打錯物件。
 
 原因：連結器丟掉了只含 category 的 object file（見上文），`lb_trimmed` 的實作根本不在執行檔裡。修法：主 App target 的 Build Settings → `Other Linker Flags` 加 `-ObjC`（CocoaPods 專案確認 `$(inherited)` 還在）。如果用 `-ObjC` 之後還是找不到，表示該靜態庫**只有** category 沒有任何類別——某些舊版連結器對這種情況連 `-ObjC` 都無效，改用 `-force_load $(BUILT_PRODUCTS_DIR)/libLBLegacyKit.a`。這就是 LittleBook-Legacy 的埋雷 5。
 </Crash>

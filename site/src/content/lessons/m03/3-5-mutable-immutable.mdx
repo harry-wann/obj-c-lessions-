@@ -144,7 +144,7 @@ NSLog(@"%@", [@{} class]);                              // __NSDictionary0
 NSLog(@"%@", [[NSMutableDictionary dictionary] class]); // __NSDictionaryM
 ```
 
-`NSArray` 是一個<Term en="class cluster" tw="類別叢集" cn="类簇" jp="クラスクラスタ" />：你看到的 `NSArray` 是抽象的公開介面，`[[NSArray alloc] init]` 真正回傳的是某個私有子類別，Foundation 依內容挑最省的實作——空陣列給單例 `__NSArray0`、一個元素給 `__NSSingleObjectArrayI`、一般情況給 `__NSArrayI`，可變的給 `__NSArrayM`。部署目標 iOS 14 以上時還有一種：元素**全是編譯期常數**的字面值（`@[@1, @2]`、`@{@"a": @1}`、`@42`）由編譯器直接做成常數物件，類別名是 `NSConstantArray`、`NSConstantDictionary`、`NSConstantIntegerNumber`，同樣不可變。所以上面的範例刻意用變數 `n` 組陣列，才看得到執行期挑的類別。這些名字會以上面的樣子出現在崩潰訊息裡（實際名稱隨系統版本略有不同）：
+`NSArray` 是一個<Term en="class cluster" tw="類別叢集" cn="类簇" jp="クラスクラスタ" />：你看到的 `NSArray` 是抽象的公開介面，`[[NSArray alloc] init]` 真正回傳的是某個私有子類別，Foundation 依內容挑最省的實作——空陣列給單例 `__NSArray0`、一個元素給 `__NSSingleObjectArrayI`、一般情況給 `__NSArrayI`，可變的給 `__NSArrayM`。部署目標 iOS 14 / macOS 11 以上時還有一種：元素**全是編譯期常數**的字面值（`@[@1, @2]`、`@{@"a": @1}`、`@42`）由編譯器直接做成常數物件，類別名是 `NSConstantArray`、`NSConstantDictionary`、`NSConstantIntegerNumber`，同樣不可變。所以上面的範例刻意用變數 `n` 組陣列，才看得到執行期挑的類別。這些名字會以上面的樣子出現在崩潰訊息裡（實際名稱隨系統版本略有不同）：
 
 | 崩潰訊息裡的類別 | 它是什麼 | 推論 |
 |---|---|---|
@@ -167,7 +167,7 @@ NSLog(@"%@", [[NSMutableDictionary dictionary] class]); // __NSDictionaryM
 // ...
 self.drafts = [NSMutableArray array];
 [self.drafts addObject:tx];
-// 💥 -[__NSArrayI addObject:]: unrecognized selector sent to instance
+// 💥 -[__NSArray0 addObject:]: unrecognized selector sent to instance
 ```
 </Fragment>
 <Fragment slot="good">
@@ -176,7 +176,7 @@ self.drafts = [NSMutableArray array];
 // 或對外用 copy + NSArray，內部另有 NSMutableArray（本章模式）
 ```
 </Fragment>
-`copy` 的 setter 存的是 `[value copy]`，而 `copy` 回不可變版本，所以你宣告的型別寫 `NSMutableArray` 也沒用，拿到的是 `__NSArrayI`。規則：`copy` 只配不可變型別；可變型別的屬性用 `strong`，而且最好只在 `.m` 裡出現。
+`copy` 的 setter 存的是 `[value copy]`，而 `copy` 回不可變版本，所以你宣告的型別寫 `NSMutableArray` 也沒用，拿到的是不可變陣列（空的是 `__NSArray0`，有元素是 `__NSArrayI`）。規則：`copy` 只配不可變型別；可變型別的屬性用 `strong`，而且最好只在 `.m` 裡出現。
 </Pitfall>
 
 <Pitfall title="直接回傳內部的 NSMutableArray">
@@ -201,7 +201,7 @@ self.drafts = [NSMutableArray array];
 
 <Crash message={`*** Terminating app due to uncaught exception 'NSInvalidArgumentException',
 reason: 'Attempt to mutate immutable object with appendString:'`}>
-讀法：這則訊息沒有類別名，只有 selector `appendString:`，那是 `NSMutableString` 才有的方法；翻譯：有人對不可變字串送了可變訊息。字串比較特別：`@"..."` 字面值（`__NSCFConstantString`）和 `copy` 出來的不可變 `__NSCFString` 在內部是同一套實作，它其實「認得」`appendString:`，執行時才檢查可變旗標，所以丟的是這句話而不是 `unrecognized selector`。看不到類別名，就開 Exception Breakpoint 停在丟出點，看是哪個變數。這種事能編譯過，通常是因為變數宣告成 `NSMutableString *` 卻被賦了一個 `NSString`：`NSMutableString *s = (NSMutableString *)someString;`，或是 `@property (copy) NSMutableString *buffer`（上面的陷阱），或是函式參數型別寫 `id`。集合就不一樣了，同一家族的訊息是 `-[__NSArrayI addObject:]: unrecognized selector`、`-[__NSDictionaryI setObject:forKey:]: unrecognized selector`、`-[__NSArray0 removeObjectAtIndex:]: unrecognized selector`，看類別名尾字（`I`、`0`）就能判斷是不可變容器。修法：往回找那個變數是從哪裡拿到不可變物件的，在那一點 `mutableCopy`，而不是在崩潰點強制轉型。
+讀法：這則訊息沒有類別名，只有 selector `appendString:`，那是 `NSMutableString` 才有的方法；翻譯：有人對不可變字串送了可變訊息。字串比較特別：`@"..."` 字面值（`__NSCFConstantString`）和 `copy` 出來的不可變 `__NSCFString` 在內部是同一套實作，它其實「認得」`appendString:`，執行時才檢查可變旗標，所以丟的是這句話而不是 `unrecognized selector`。例外是短的 ASCII 字串：`copy` 之後變成 `NSTaggedPointerString`，它真的沒有 `appendString:`，這時訊息是 `-[NSTaggedPointerString appendString:]: unrecognized selector`——同一個 bug，訊息隨字串內容而不同。看不到類別名，就開 Exception Breakpoint 停在丟出點，看是哪個變數。這種事能編譯過，通常是因為變數宣告成 `NSMutableString *` 卻被賦了一個 `NSString`：`NSMutableString *s = (NSMutableString *)someString;`，或是 `@property (copy) NSMutableString *buffer`（上面的陷阱），或是函式參數型別寫 `id`。集合就不一樣了，同一家族的訊息是 `-[__NSArrayI addObject:]: unrecognized selector`、`-[__NSDictionaryI setObject:forKey:]: unrecognized selector`、`-[__NSArray0 removeObjectAtIndex:]: unrecognized selector`，看類別名尾字（`I`、`0`）就能判斷是不可變容器。修法：往回找那個變數是從哪裡拿到不可變物件的，在那一點 `mutableCopy`，而不是在崩潰點強制轉型。
 </Crash>
 
 ## 小結

@@ -217,7 +217,7 @@ int main(void) {
 // 結束時：[self reportProgress:total total:total force:YES];
 ```
 
-`force:YES` 讓最後一次一定送到，否則進度條可能停在 99%。`LBImportServiceTests/testImportsInBatchesAndReportsProgress` 用 10,000 筆、批次 500 檢查：批次回呼 20 次、進度回呼次數遠少於 10,000、最後一次 done == total。
+`force:YES` 讓最後一次一定送到，否則進度條可能停在 99%。`LBImportServiceTests/testImportsInBatchesAndReportsProgress` 用 1,000 筆、每批 100 檢查：批次通知剛好 10 次、進度回呼少於 50 次（節流）、最後一次 done == total、數字只增不減。
 
 ### 可取消：NSProgress 與 NSOperation
 

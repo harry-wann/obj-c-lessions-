@@ -82,7 +82,7 @@ platform :ios, '17.0'
 inhibit_all_warnings!            # 第三方庫的警告不要淹掉自己的
 
 target 'LittleBook' do
-  pod 'Masonry', '~> 1.1'        # 1.1.x 任何版本，不升到 1.2
+  pod 'Masonry', '~> 1.1'        # ≥ 1.1、< 2.0：1.x 的新版會升，不會升到 2.0
   pod 'FMDB', '2.7.5'            # 精確鎖定
   pod 'YYModel', '>= 1.0.4', '< 2.0'
 
@@ -94,7 +94,7 @@ end
 post_install do |installer|      # 常見：統一所有 pod 的 deployment target
   installer.pods_project.targets.each do |t|
     t.build_configurations.each do |c|
-      c.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+      c.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '17.0'
     end
   end
 end

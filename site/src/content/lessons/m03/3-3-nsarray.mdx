@@ -101,7 +101,7 @@ NSArray<LBTransaction *> *txs = @[
     [LBTransaction note:@"晚餐" amount:@"250" daysAgo:0],
 ];
 NSLog(@"%lu", (unsigned long)txs.count);        // 3
-NSLog(@"%@", txs[0]);                           // 早餐 60 —— 下標等於 objectAtIndex:
+NSLog(@"%@", txs[0]);                           // 早餐 60 —— 下標的行為等同 objectAtIndex:
 NSLog(@"%@", txs.firstObject);                  // 早餐 60
 NSLog(@"%@", txs.lastObject);                   // 晚餐 250
 
@@ -250,7 +250,7 @@ for (NSUInteger i = 0; i < arr.count - 1; i++) { ... }   // arr 空時 count - 1
 
 <Crash message={`*** Terminating app due to uncaught exception 'NSRangeException',
 reason: '*** -[__NSArrayM objectAtIndexedSubscript:]: index 3 beyond bounds [0 .. 2]'`}>
-讀法：`NSRangeException` 是越界；接收者 `__NSArrayM` 的 `M` 代表 mutable，事發地點就在你操作 `NSMutableArray` 的地方，很可能是先刪了元素再用舊索引取值；selector 是 `objectAtIndexedSubscript:`，代表程式碼寫的是下標 `arr[3]`（寫 `objectAtIndex:` 時這裡就顯示 `objectAtIndex:`）；`index 3 beyond bounds [0 .. 2]` 說陣列有 3 個元素你卻要第 4 個。不可變陣列在新版 iOS 上的訊息更短：`*** __boundsFail: index 3 beyond bounds [0 .. 2]`，看不到類別名也看不到 selector，這時別理會堆疊最上面 CoreFoundation 那幾行（符號常常對不上），往下找第一個屬於你 App 的 frame，那就是取值的那一行。其他類別名的意思：`__NSArray0` 是空陣列單例，訊息會是 `beyond bounds for empty array`；`__NSSingleObjectArrayI` 是只有一個元素的最佳化版本；`NSConstantArray` 是程式碼裡寫死的常數字面值；`__NSPlaceholderArray` 則表示字面值或 `initWithObjects:` 建構中，八成是 nil 問題。常見成因是 `UITableView` 的 `numberOfRowsInSection:` 回了舊的數量，資料更新後 cell 還在拿 `indexPath.row`。修法：取值前檢查 `idx < arr.count`，拿頭尾用 `firstObject` / `lastObject`，資料與畫面一起更新。
+讀法：`NSRangeException` 是越界；接收者 `__NSArrayM` 的 `M` 代表 mutable，事發地點就在你操作 `NSMutableArray` 的地方，很可能是先刪了元素再用舊索引取值；selector 是 `objectAtIndexedSubscript:`，代表程式碼寫的是下標 `arr[3]`（寫 `objectAtIndex:` 時這裡就顯示 `objectAtIndex:`）；`index 3 beyond bounds [0 .. 2]` 說陣列有 3 個元素你卻要第 4 個。`__NSArrayI`（最常見的不可變陣列）在新版系統上的訊息更短：`*** __boundsFail: index 3 beyond bounds [0 .. 2]`，看不到類別名也看不到 selector，這時別理會堆疊最上面 CoreFoundation 那幾行（符號常常對不上），往下找第一個屬於你 App 的 frame，那就是取值的那一行。其他類別名的意思：`__NSArray0` 是空陣列單例，訊息會是 `beyond bounds for empty array`；`__NSSingleObjectArrayI` 是只有一個元素的最佳化版本；`NSConstantArray` 是程式碼裡寫死的常數字面值；`__NSPlaceholderArray` 則表示字面值或 `initWithObjects:` 建構中，八成是 nil 問題。常見成因是 `UITableView` 的 `numberOfRowsInSection:` 回了舊的數量，資料更新後 cell 還在拿 `indexPath.row`。修法：取值前檢查 `idx < arr.count`，拿頭尾用 `firstObject` / `lastObject`，資料與畫面一起更新。
 </Crash>
 
 ## 小結

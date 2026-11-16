@@ -5,11 +5,11 @@ title: "讀 crash：lb_trimmed unrecognized selector（-ObjC）"
 minutes: 2
 log: |
   *** Terminating app due to uncaught exception 'NSInvalidArgumentException',
-  reason: '-[__NSCFString lb_trimmed]: unrecognized selector sent to instance 0x600000d4c2a0'
+  reason: '-[__NSCFConstantString lb_trimmed]: unrecognized selector sent to instance 0x102dc4248'
 options:
   - "lb_trimmed 定義在靜態庫的純 category 檔裡，連結器沒把那個 object file 拉進執行檔；主 target 的 Other Linker Flags 加 -ObjC（必要時 -force_load）"
   - "NSString+LBUtils.h 沒有 import"
-  - "__NSCFString 不是 NSString，category 加錯類別"
+  - "__NSCFConstantString 不是 NSString，category 加錯類別"
   - "lb_trimmed 拼錯"
 answer: 0
 fix: |
@@ -17,8 +17,8 @@ fix: |
   $(inherited) -ObjC
   // 若該 .a 只有 category 沒有類別，改用：
   -force_load $(BUILT_PRODUCTS_DIR)/libLBLegacyKit.a
-solution_note: "關鍵線索：方法明明有宣告有實作、編譯連結都過、接收者是真的 NSString（`__NSCFString` 是它的私有子類別）。排除拼錯與 import 後，就剩「實作沒進執行檔」這一個可能，而這只發生在靜態連結 + 純 category。LittleBook-Legacy 埋雷 5。"
+solution_note: "關鍵線索：方法明明有宣告有實作、編譯連結都過、接收者是真的 NSString（`__NSCFConstantString` 是字串字面值的私有類別）。排除拼錯與 import 後，就剩「實作沒進執行檔」這一個可能，而這只發生在靜態連結 + 純 category。LittleBook-Legacy 埋雷 5。"
 hints: ["編譯連結都過了，實作卻不在執行檔裡——誰決定哪些 object file 進執行檔？", "11.6 課文 -ObjC 那一節。"]
 feedback:
   "1": "沒 import 標頭會是編譯警告，而且 runtime 不看標頭；方法有實作就找得到。"
-  "2": "__NSCFString 是 NSString 類別叢集的實際類別，category 加在 NSString 上對它一樣有效。"
+  "2": "__NSCFConstantString 是 NSString 類別叢集裡字面值的實際類別，category 加在 NSString 上對它一樣有效。"
